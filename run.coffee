@@ -35,7 +35,7 @@ builtin =
 
 
 run = (exp, value) ->
-  return undefined unless value?
+  return undefined if value is undefined
   try 
     switch exp.op
       when "identity"
@@ -51,23 +51,23 @@ run = (exp, value) ->
       when "comp"
         return exp.comp.reduce (value, exp) ->
           value = run exp, value
-          throw new Error "Undefined" unless value?
+          throw new Error "Undefined" if value is undefined
           value
         , value
       when "vector"
         return exp.vector.map (exp) -> 
           result = run exp, value
-          throw new Error "Undefined" unless result?
+          throw new Error "Undefined" if result is undefined
           result
       when "union"
         for e in exp.union
           result = try run e, value
-          return result if result?
+          return result unless result is undefined
         return undefined
       when "product"
         return exp.product.reduce (result, {label, exp}) ->
           do (value = run exp, value) ->
-            throw new Error "Undefined" unless value?
+            throw new Error "Undefined" if value is undefined
             result[label] = value
             result
         , {}
