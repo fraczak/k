@@ -1,0 +1,22 @@
+{
+    "name": "@fraczak/k",
+    "version": "1.0.0",
+    "description": "k-language for untyped JSON like data transformation",
+    "main": "index.js",
+    "scripts": {
+        "prepare": "coffee -c symbol-table.coffee; jison parser.jison",
+        "prepublishOnly": "coffee -c *.coffee; echo '#!/usr/bin/env node' | cat - k.js > k.sh",
+        "test": "coffee -c symbol-table.coffee; jison parser.jison; coffee test.coffee;"
+    },
+    "author": "Wojciech Fraczak",
+    "license": "ISC",
+    "bin": {
+        "k": "./k.sh"
+    },
+    "devDependencies": {
+        "jison": "^0.4.18"
+    },
+    "dependencies": {
+        "coffeescript": "^2.7.0"
+    }
+}
