@@ -17,7 +17,7 @@ prog = process.argv[1]
     
     jsonStream = do (arg = args.shift()) ->
       return process.stdin unless arg?
-      fs.createReadStream args.shift()
+      fs.createReadStream arg
 
     {kScript, jsonStream}
   catch e
