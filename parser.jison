@@ -18,8 +18,10 @@ var s = require("./symbol-table");
 "}"                                            return 'RC';
 "]"                                            return 'RB';
 ")"                                            return 'RP';
+"="                                            return 'EQ'; 
 "."                                            return 'DOT';
 ","                                            return 'COMMA';
+";"                                            return 'SC';
 \"[^\"\n]*\"|\'[^\'\n]*\'                      return 'STRING'
 [a-zA-Z_][a-zA-Z0-9_]*                         return 'NAME';
 0|[-]?[1-9][0-9]*                              return 'INT';
@@ -28,7 +30,7 @@ var s = require("./symbol-table");
 /lex
 
 %token NAME STRING INT
-%token LA LC LB LP RA RP RB RC COMMA
+%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC
 %token EOF
 
 %start input_with_eof
@@ -39,10 +41,15 @@ name: NAME                              { $$ = String(yytext); };
 str: STRING                             { $$ = String(yytext).slice(1,-1); };
 int: INT                                { $$ = parseInt(String(yytext)); };
 
-input_with_eof: comp EOF               {
-    // console.log(JSON.stringify($1, "", 2));
-    return $1;
+input_with_eof: defs comp EOF               {
+    result = {defs: $1, exp: $2};
+    // console.log(JSON.stringify(result, "", 2));
+    return result;
 };
+
+defs:                                   { $$ = {};}
+    | defs name EQ comp SC              { $1[$2] = $4; $$ = $1;}
+    ;
 
 comp 
     : exp          { $$ = $1; }

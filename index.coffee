@@ -3,7 +3,8 @@ fs = require "fs"
 run = require "./run"
 
 compile = (script) ->
-  do (exp = parse script) ->
+  do ({defs,exp} = parse script) ->
+    run.defs = defs 
     (data) -> run exp, data
 compile.doc = "Transforms k-script (string) into a function"
 

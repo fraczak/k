@@ -1,3 +1,9 @@
+
+pow = 
+  < [(), 0] EQ 1,
+    [[(), -1] PLUS pow, ()] TIMES
+  >;
+
  ---------  comments start by #, --, or // ----------------------------------
 <                          -- merge of 4 partial functions...
   ["x=", .x, " & y=", .y], -- produces a vector of 4 values, if fields 'x' and 'y' are present

@@ -32,6 +32,11 @@ builtin =
   "null": -> null
   "toJSON": (x) -> JSON.stringify x
   "fromJSON": (x) -> JSON.parse x
+  "CONS": ([x,y]) -> [x,y...]
+  "SNOC": (x) ->
+    return [x[0],null] if x.length is 1
+    return [x[0],x.slice 1] if x.length > 1 
+
 
 
 run = (exp, value) ->
@@ -43,9 +48,13 @@ run = (exp, value) ->
       when "str", "int"
         return exp[exp.op]
       when "ref"
-        return do (value = builtin[exp.ref] value) ->
-          throw new Error "Undefined" if value is undefined
-          value          
+        return do (defn = run.defs[exp.ref]) ->
+          if defn?
+            run defn, value
+          else  
+            do ( value = builtin[exp.ref] value) -> 
+              throw new Error "Undefined" if value is undefined
+              value          
       when "dot"
         return value[exp.dot]
       when "comp"
