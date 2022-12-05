@@ -22,6 +22,7 @@ var s = require("./symbol-table");
 "."                                            return 'DOT';
 ","                                            return 'COMMA';
 ";"                                            return 'SC';
+":"                                            return 'COL';
 \"[^\"\n]*\"|\'[^\'\n]*\'                      return 'STRING'
 [a-zA-Z_][a-zA-Z0-9_]*                         return 'NAME';
 0|[-]?[1-9][0-9]*                              return 'INT';
@@ -30,7 +31,7 @@ var s = require("./symbol-table");
 /lex
 
 %token NAME STRING INT
-%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC
+%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL
 %token EOF
 
 %start input_with_eof
@@ -85,6 +86,8 @@ non_empty_labelled
 comp_label
     : comp name  { $$ = {label: $2, exp: $1}; }
     | comp str   { $$ = {label: $2, exp: $1}; }
+    | name COL comp { $$ = {label: $1, exp: $3}; }
+    | str COL comp { $$ = {label: $1, exp: $3}; }
     ;
 
 list

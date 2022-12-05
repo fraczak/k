@@ -11,13 +11,14 @@ combined to build other `k`-expressions in three ways:
 	
 	Apart from empty composition, `()`, which defines _identity_, the paranthesis can be omitted.
 
-2. product, e.g., vector:
+2. product, e.g., vector or structure:
 
         [ E1, E2, E3, ... ]
-   
-    or structure:
-  
         { E1 "e1", E2 "e2", E3 "e3", ... }
+
+  Now, structure can also be written similarly to JSON, ie., 
+  
+		{ e1: E1, e2: E2, e3: E3, ... }
 
 3. union (merge), e.g.:
 
@@ -42,11 +43,10 @@ Elementary partial functions are:
 		'another "String"'
 		123
 		false
-
-	Those functions are always defined, i.e., they ignore their argument.
+		null
 	
 3.  There is a number of built-in functions: `GT`, `EQ`, `PLUS`,
-	`TIMES`, `MINUS`, `DIV`, `CONCAT`, `toJSON`, `fromJSON`. For example
+	`TIMES`, `MINUS`, `DIV`, `CONCAT`, `toJSON`, `fromJSON`, `CONS`, `SNOC`. For example
 	
 		[1, 2, 3] PLUS       --> integer constant 6
 		[4, 4] TIMES toJSON  --> string constant "16"
@@ -61,7 +61,16 @@ Elementary partial functions are:
 	
 		[3,8] < [.0, .1] GT, [.1, .0] GT > .0    --> 8
 
+## User defined functions
 
+`k`-expression can be prefixed by function definitions. E.g.: 
+
+	dec = [(),1] MINUS;
+	factorial = <
+	  [1,()] GT 1,
+	  [dec factorial, ()] TIMES
+	>;
+	{ x: (), "x!": factorial }
 
 ## Command line script
 
@@ -113,7 +122,7 @@ run the language from command line.
 	
 	If we want to read `json` objects from a file, e.g., `my-objects.json`, we do
 	
-		$ ./k.coffee -k test.k -j my-objects.json
+		$ ./k.coffee -k test.k my-objects.json
 		{"x&y":"x=432 & y=123"} 
 		{"x&y":"onlyx=987"} 
 		{"x&y":"no x nor y"}
@@ -178,4 +187,3 @@ run the language from command line.
 
     k_fn({"age":2,"name":"Mark"})
     // RETURNS: {"nom":"Mark","age":"enfant"}
-

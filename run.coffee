@@ -2,7 +2,10 @@ valid = (x) ->
   return undefined if isNaN x
   return x if x?
 
-builtin = 
+builtin =
+  "_log_": (arg) ->
+    console.log "_log_: #{JSON.stringify arg}"
+    arg
   "GT": (args) ->
     [ok,_] = do ([last,args...] = args) ->
       args.reduce ([ok,last], x) ->
@@ -34,7 +37,6 @@ builtin =
   "fromJSON": (x) -> JSON.parse x
   "CONS": ([x,y]) -> [x,y...]
   "SNOC": (x) ->
-    return [x[0],null] if x.length is 1
     return [x[0],x.slice 1] if x.length > 1 
 
 
