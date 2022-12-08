@@ -39,18 +39,30 @@ builtin =
   "SNOC": (x) ->
     return [x[0],x.slice 1] if x.length > 1 
 
+codes =
+  "int": (x) -> 
+    Number.isInteger x
+  "string": (x) ->
+    (x instanceof String) or ('string' is typeof x) 
 
+verify = (code, value) ->
+  switch code.code
+    when "ref"
+      codes[code.ref] value
 
 run = (exp, value) ->
+  console.log {exp, value}
   return undefined if value is undefined
   try 
     switch exp.op
+      when "code"
+        return value if verify exp.code, value
       when "identity"
         return value
       when "str", "int"
         return exp[exp.op]
       when "ref"
-        return do (defn = run.defs[exp.ref]) ->
+        return do (defn = run.defs.rels[exp.ref]) ->
           if defn?
             run defn, value
           else  
@@ -82,6 +94,8 @@ run = (exp, value) ->
             result[label] = value
             result
         , {}
+      else  
+        console.log exp.op
 
 
 module.exports = run

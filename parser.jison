@@ -23,6 +23,7 @@ var s = require("./symbol-table");
 ","                                            return 'COMMA';
 ";"                                            return 'SC';
 ":"                                            return 'COL';
+"?"                                            return 'IP'; 
 \"[^\"\n]*\"|\'[^\'\n]*\'                      return 'STRING'
 [a-zA-Z_][a-zA-Z0-9_]*                         return 'NAME';
 0|[-]?[1-9][0-9]*                              return 'INT';
@@ -44,17 +45,43 @@ int: INT                                { $$ = parseInt(String(yytext)); };
 
 input_with_eof: defs comp EOF               {
     result = {defs: $1, exp: $2};
-    // console.log(JSON.stringify(result, "", 2));
+    console.log(JSON.stringify(result, "", 2));
     return result;
 };
 
-defs:                                   { $$ = {};}
-    | defs name EQ comp SC              { $1[$2] = $4; $$ = $1;}
+defs:                                   { $$ = {codes: {}, rels: {}}; }
+    | defs name EQ comp SC              { $1.rels[$2] = $4; $$ = $1; }
+    | defs IP name EQ code SC           { $1.codes[$3] = $5; $$ = $1; }
+    ;
+
+code
+    : name                              { $$ = {code: "ref", ref: $1}; }
+    | LC labelled_codes RC              { $$ = {code: "product", product: $2}; }
+    | LB code RB                        { $$ = {code: "vector", vector: $2}; }
+    | LA labelled_codes RA              { $$ = {code: "union", union: $2}; }
+    ;
+
+labelled_codes 
+    :                                   { $$ = [] }
+    | non_empty_labelled_codes          { $$ = $1; }
+    ;
+
+non_empty_labelled_codes
+    : code_label                        { $$ = [$1]; }
+    | non_empty_labelled_codes COMMA code_label
+                                        { $$ = [].concat($1,$3); }
+    ;
+
+code_label 
+    : code name                         { $$ = {label: $2, code: $1}; }
+    | code str                          { $$ = {label: $2, code: $1}; }
+    | name COL code                     { $$ = {label: $1, code: $3}; }
+    | str COL code                      { $$ = {label: $1, code: $3}; }
     ;
 
 comp 
-    : exp          { $$ = $1; }
-    | comp exp     { $$ = s.comp($1, $2); }
+    : exp                               { $$ = $1; }
+    | comp exp                          { $$ = s.comp($1, $2); }
     ;
 
 exp
@@ -69,6 +96,7 @@ exp
     | DOT int                           { $$ = {op: "dot", dot: $2}; }
     | DOT str                           { $$ = {op: "dot", dot: $2}; }
     | DOT name                          { $$ = {op: "dot", dot: $2}; }
+    | IP code                          { $$ = {op: "code", code: $2}; }
     ;
 
 labelled
