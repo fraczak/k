@@ -44,6 +44,8 @@ codes =
     Number.isInteger x
   "string": (x) ->
     (x instanceof String) or ('string' is typeof x) 
+  "bool": (x) ->
+    x is true or x is false
 
 verify = (code, value) ->
   switch code.code

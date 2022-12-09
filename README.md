@@ -1,6 +1,6 @@
 # k-language 
 
-Another JSON-to-JSON transformation notation.  A `k`-expression
+Another JSON transformation notation.  A `k`-expression
 (script) defines a __partial function__, i.e., a function which, in
 general, is not defined for every input. `k`-expressions can be
 combined to build other `k`-expressions in three ways:
@@ -71,6 +71,34 @@ Elementary partial functions are:
 	  [dec factorial, ()] TIMES
 	>;
 	{ x: (), "x!": factorial }
+
+## Value encodings (also called _types_ or _codes_)
+
+There are three predefined value encodings: `int`, `string`, and `bool`. The language
+supports `code`-expressions:
+
+* product, e.g., `{x: int, y: int, flag: bool}`
+* disjoint union, e.g., `<x: string, y: bool>`
+* vector, e.g., `[ int ]` (all elements of the vector use the same encoding)
+
+One can define recursive codes. E.g.,
+
+	$ tree = <leaf: string, tree: {left: tree, right: tree}>;
+
+Each _code_ definition starts with a `$`.
+The above example defines new code called _tree_.
+
+The code can be then used in a `k`-expression as a filter. A `code`-expression
+within `k`-expression is again prefixed by `$`.
+
+	$tree = <leaf: string, tree: {left: tree, right: tree}>;
+	inc = [(),1] PLUS;
+	height = $ tree <
+		.leaf 0,
+		.tree [.left height, .right height] <GT .0, .1> inc
+	> $ int;
+	height
+
 
 ## Command line script
 
