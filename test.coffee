@@ -32,3 +32,19 @@ console.log ""
   console.log "k_fn(#{JSON.stringify(data)});"
   console.log "// RETURNS: #{JSON.stringify k_fn data}"
   console.log ""
+
+k_expression = "$t = < i: int, t: [ t ] > ; <$t, $int>"
+k_fn  = k.compile k_expression
+
+console.log "var k_fn = k.compile('#{k_expression}');"
+console.log ""
+
+[ 
+  1
+  {i:1}
+  [{i:2},{i:3},{t:[]}]
+  {"t":[{"i":2},{"i":3},{"t":[]}]}
+].map (data) -> 
+  console.log "k_fn(#{JSON.stringify(data)});"
+  console.log "// RETURNS: #{JSON.stringify k_fn data}"
+  console.log ""

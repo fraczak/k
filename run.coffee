@@ -48,10 +48,23 @@ codes =
 verify = (code, value) ->
   switch code.code
     when "ref"
-      codes[code.ref] value
+      do (c = run.defs.codes[code.ref]) ->
+        return verify c, value if c?  
+        codes[code.ref] value
+    when "vector"
+      value.every (x) ->
+        verify code.vector, x
+    when "product"
+      do (fields = Object.keys(value)) ->
+        return false unless fields.length is Object.keys(code.product).length
+        fields.every (label) ->
+          verify code.product[label], value[label]
+    when "union"
+      do (fields = Object.keys(value)) ->
+        return false unless fields.length is 1
+        verify code.union[fields[0]], value[fields[0]]
 
 run = (exp, value) ->
-  console.log {exp, value}
   return undefined if value is undefined
   try 
     switch exp.op
@@ -62,11 +75,11 @@ run = (exp, value) ->
       when "str", "int"
         return exp[exp.op]
       when "ref"
-        return do (defn = run.defs.rels[exp.ref]) ->
+        do (defn = run.defs.rels[exp.ref]) ->
           if defn?
             run defn, value
           else  
-            do ( value = builtin[exp.ref] value) -> 
+            do ( value = builtin[exp.ref] value ) -> 
               throw new Error "Undefined" if value is undefined
               value          
       when "dot"
