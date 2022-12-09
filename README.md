@@ -48,9 +48,9 @@ Elementary partial functions are:
 3.  There is a number of built-in functions: `GT`, `EQ`, `PLUS`,
 	`TIMES`, `MINUS`, `DIV`, `CONCAT`, `toJSON`, `fromJSON`, `CONS`, `SNOC`. For example
 	
-		[1, 2, 3] PLUS       --> integer constant 6
-		[4, 4] TIMES toJSON  --> string constant "16"
-		[3, 2] GT            --> vector constant [3, 2]
+		[1, 2, 3] PLUS       --> integer constant function 6
+		[4, 4] TIMES toJSON  --> string constant function "16"
+		[3, 2] GT            --> vector constant function [3, 2]
 		[3, 4] GT            --> is not defined!
 		
 	A more interesting example could be:
@@ -70,18 +70,22 @@ Elementary partial functions are:
 	  [1,()] GT 1,
 	  [dec factorial, ()] TIMES
 	>;
-	{ x: (), "x!": factorial }
+	{ () x, factorial "x!" }
 
 ## Value encodings (also called _types_ or _codes_)
 
 There are three predefined value encodings: `int`, `string`, and `bool`. The language
 supports `code`-expressions:
 
-* product, e.g., `{x: int, y: int, flag: bool}`
-* disjoint union, e.g., `<x: string, y: bool>`
+* product, e.g., `{int x, int y, bool flag}` (in JSON-like syntax `{x: int, y: int, flag: bool}`)
+* disjoint union, e.g., `<{} true, {} false>` (in JSON-like syntax `<true: {}, false: {}>`)
 * vector, e.g., `[ int ]` (all elements of the vector use the same encoding)
 
-One can define recursive codes. E.g.,
+One can define recursive codes. E.g.:
+
+	$ tree = <string leaf, {tree left, tree right} tree>;
+
+or, the same in JSON-like notation:
 
 	$ tree = <leaf: string, tree: {left: tree, right: tree}>;
 
@@ -91,7 +95,7 @@ The above example defines new code called _tree_.
 The code can be then used in a `k`-expression as a filter. A `code`-expression
 within `k`-expression is again prefixed by `$`.
 
-	$tree = <leaf: string, tree: {left: tree, right: tree}>;
+	$tree = <string leaf, {tree left, tree right} tree>;
 	inc = [(),1] PLUS;
 	height = $ tree <
 		.leaf 0,
