@@ -1,5 +1,7 @@
 # k-language 
 
+	npm install @fraczak/k
+
 Another JSON transformation notation.  A `k`-expression
 (script) defines a __partial function__, i.e., a function which, in
 general, is not defined for every input. `k`-expressions can be
@@ -55,11 +57,11 @@ Elementary partial functions are:
 		
 	A more interesting example could be:
 	
-		< [.0, .1] GT, [.1, .0] GT > .0
+		< GT .0, .1>
 		
-	which selects the bigger of two first integers of a vector argument, i.e.,
+	which selects the maximum element in two element vector, i.e.,
 	
-		[3,8] < [.0, .1] GT, [.1, .0] GT > .0    --> 8
+		[3,8] < GT .0, .1 >    --> 8
 
 ## User defined functions
 
@@ -72,7 +74,18 @@ Elementary partial functions are:
 	>;
 	{ () x, factorial "x!" }
 
-## Value encodings (also called _types_ or _codes_)
+Another example could be finding the biggest (max) value in a vector:
+
+	max = < 
+	  SNOC         -- [x0, x1, x2, ...] -> [x0, [x1, x2, ...]]
+	  [.0, .1 max] -- [x0, [x1, x2, ...]] -> [x0, max(x1,x2,...)], i.e., recursive call 
+	  <GT.0,.1>,   -- if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
+	               -- when SNOC is not defined, e.g. the argument is a singleton vector [x0]
+	  .0           -- [x0] -> x0, 
+	>; 
+	max
+
+## Value encodings (also called _codes_)
 
 There are three predefined value encodings: `int`, `string`, and `bool`. The language
 supports `code`-expressions:
@@ -95,11 +108,12 @@ The above example defines new code called _tree_.
 The code can be then used in a `k`-expression as a filter. A `code`-expression
 within `k`-expression is again prefixed by `$`.
 
-	$tree = <string leaf, {tree left, tree right} tree>;
+	$ tree = <string leaf, {tree left, tree right} tree>;
 	inc = [(),1] PLUS;
+	max = <GT .0, .1>;
 	height = $ tree <
 		.leaf 0,
-		.tree [.left height, .right height] <GT .0, .1> inc
+		.tree [.left height, .right height] max inc
 	> $ int;
 	height
 
@@ -124,7 +138,7 @@ run the language from command line.
 2. By providing only `k`-expression, the script will compile the
    `k`-expression and apply the generated function to the `stdin`, line by line:
 
-		$ ./k.coffee '<["x=",.x," & y=",.y],["only x=",.x],["only y=",.y],["no x nor y"]>{CONCAT "x&y"}' 
+		$ ./node_modules/.bin/k '<["x=",.x," & y=",.y],["only x=",.x],["only y=",.y],["no x nor y"]>{CONCAT "x&y"}' 
 		
 		{"y": 123, "x": 432,"others": "..."}  --> {"x&y":"x=432 & y=123"} 
 		{"x":987}                             --> {"x&y":"only x=987"} 
@@ -150,11 +164,11 @@ run the language from command line.
 		 
 	We can use it by:
 	
-		$ ./k.coffee -k test.k
+		$ ./node_modules/.bin/k -k test.k
 	
 	If we want to read `json` objects from a file, e.g., `my-objects.json`, we do
 	
-		$ ./k.coffee -k test.k my-objects.json
+		$ ./node_modules/.bin/k -k test.k my-objects.json
 		{"x&y":"x=432 & y=123"} 
 		{"x&y":"onlyx=987"} 
 		{"x&y":"no x nor y"}
@@ -170,52 +184,62 @@ run the language from command line.
 		 ####################################################
 		
 # Using from `javascript`
-    
-    var k = require("k");
+			
+		var k = require("k");
 
-    var k_expression;
+		k_expression = '()';
+		k.run(k_expression,"ANYTHING...");
+		// RETURNS: "ANYTHING..."
 
-    k_expression = '()';
-    k.run(t_expression,"ANYTHING...");
-    // RETURNS: "ANYTHING..."
+		k_expression = '{"ala" name, 23 age}';
+		k.run(k_expression,"ANYTHING...");
+		// RETURNS: {"name":"ala","age":23}
 
-    k_expression = '{"ala" name, 23 age}';
-    k.run(k_expression,"ANYTHING...");
-    // RETURNS: {"name":"ala","age":23}
+		k_expression = '[.year, .age]';
+		k.run(k_expression,{"year":2002,"age":19});
+		// RETURNS: [2002,19]
 
-    k_expression = '[.year, .age]';
-    k.run(k_expression,{"year":2002,"age":19});
-    // RETURNS: [2002,19]
+		k_expression = '[(), ()]';
+		k.run(k_expression,"duplicate me");
+		// RETURNS: ["duplicate me","duplicate me"]
 
-    k_expression = '[(), ()]';
-    k.run(k_expression,"duplicate me");
-    // RETURNS: ["duplicate me","duplicate me"]
+		k_expression = '[[[()]]]';
+		k.run(k_expression,"nesting");
+		// RETURNS: [[["nesting"]]]
 
-    k_expression = '[[[()]]]';
-    k.run(k_expression,"nesting");
-    // RETURNS: [[["nesting"]]]
+		k_expression = '[[()]] {() nested, .0.0 val}';
+		k.run(k_expression,"nesting and accessing");
+		// RETURNS: {"nested":[["nesting and accessing"]],"val":"nesting and accessing"}
 
-    k_expression = '[[()]] {() nested, .0.0 val}';
-    k.run(k_expression,"nesting and accessing")
-    // RETURNS: {"nested":[["nesting and accessing"]],"val":"nesting and accessing"}
+		k_expression = '0000';
+		k.run(k_expression,{"test":"parse integer"});
+		// RETURNS: 0
 
-    k_expression = '0000';
-    k.run(k_expression,{"test":"parse integer"});
-    // RETURNS: 0
+		k_expression = '[.y,.x] PLUS';
+		k.run(k_expression,{"x":3,"y":4});
+		// RETURNS: 7
 
-    k_expression = '[.y,.x] PLUS';
-    k.run(k_expression,{"x":3,"y":4});
-    // RETURNS: 7
+		var k_fn = k.compile('{.name nom, <[.age, 18] GT .0, [.age, 12] GT "ado", "enfant"> age}');
 
-    k_expression = '{.name nom, <[.age, 18] GT .0, [.age, 12] GT "ado", "enfant"> age}';
+		k_fn({"age":23,"name":"Emily"});
+		// RETURNS: {"nom":"Emily","age":23}
 
-    var k_fn = k.compile(k_expression);
+		k_fn({"age":16,"name":"Katrina"});
+		// RETURNS: {"nom":"Katrina","age":"ado"}
 
-    k_fn({"age":23,"name":"Emily"});
-    // RETURNS: {"nom":"Emily","age":23}
+		k_fn({"age":2,"name":"Mark"});
+		// RETURNS: {"nom":"Mark","age":"enfant"}
 
-    k_fn({"age":16,"name":"Katrina"});
-    // RETURNS: {"nom":"Katrina","age":"ado"}
+		var k_fn = k.compile('$t = < i: int, t: [ t ] > ; <$t, $int>');
 
-    k_fn({"age":2,"name":"Mark"})
-    // RETURNS: {"nom":"Mark","age":"enfant"}
+		k_fn(1);
+		// RETURNS: 1
+
+		k_fn({"i":1});
+		// RETURNS: {"i":1}
+
+		k_fn([{"i":2},{"i":3},{"t":[]}]);
+		// RETURNS: undefined
+
+		k_fn({"t":[{"i":2},{"i":3},{"t":[]}]});
+		// RETURNS: {"t":[{"i":2},{"i":3},{"t":[]}]}

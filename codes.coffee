@@ -8,15 +8,17 @@ are_different = (classes, representatives, name1, name2, codes) ->
   switch code1.code
     when "union", "product"
       [fields1,fields2] = [code1, code2]. map (code) ->
-        Object.keys(code[code.code]).reduce (fields, label) ->
-          fields[label] = representatives[code[code.code][label]]
-        , {}
+        do (arg = code[code.code]) ->
+          Object.keys(arg).reduce (fields, label) ->
+            fields[label] = representatives[arg[label]] ? arg[label]
+          , {}
       return true unless Object.keys(fields1).length is Object.keys(fields2).length
       for field,rep of fields1 
         return true unless fields2[field] is rep 
-      return false
     when "vector"
-      return representatives[code1.vector] isnt representatives[code2.vector]  
+      [arg1,arg2] = [code1, code2]. map ({vector}) ->
+        representatives[vector] ? vector
+      return true unless arg1 is arg2
   false
 
 minimize = (codes) ->
