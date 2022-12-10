@@ -71,7 +71,7 @@ _reverse_bnat =
 _add2wc =
 -- least significant bit first addition with carry
 --- :{ :bnat x, :bnat y, :[0,1] c}
-    -- _log_
+    -- _log!
     <
       {.x."0" x, .y."0" y, .c."0" c} {.x x, .y y, _ _0 c} _add2wc _0,
       {.x."0" x, .y."0" y, .c."1" c} {.x x, .y y, _ _0 c} _add2wc _1,

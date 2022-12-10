@@ -3,8 +3,8 @@ valid = (x) ->
   return x if x?
 
 builtin =
-  "_log_": (arg) ->
-    console.log "_log_: #{JSON.stringify arg}"
+  "_log!": (arg) ->
+    console.log "_log!: #{JSON.stringify arg}"
     arg
   "GT": (args) ->
     [ok,_] = do ([last,args...] = args) ->
@@ -48,11 +48,8 @@ codes =
     x is true or x is false
 
 verify = (code, value) ->
+  # console.log {code,value}
   switch code.code
-    when "ref"
-      do (c = run.defs.codes[code.ref]) ->
-        return verify c, value if c?  
-        codes[code.ref] value
     when "vector"
       value.every (x) ->
         verify code.vector, x
@@ -65,8 +62,13 @@ verify = (code, value) ->
       do (fields = Object.keys(value)) ->
         return false unless fields.length is 1
         verify code.union[fields[0]], value[fields[0]]
+    else 
+      do (c = run.defs.codes[run.defs.representatives[code]]) ->
+        return verify c, value if c?  
+        codes[code] value
 
 run = (exp, value) ->
+  # console.log {exp,value}
   return undefined if value is undefined
   try 
     switch exp.op
@@ -77,7 +79,7 @@ run = (exp, value) ->
       when "str", "int"
         return exp[exp.op]
       when "ref"
-        do (defn = run.defs.rels[exp.ref]) ->
+        do (defn = run.defs.rels[exp.ref]?[0]) ->
           if defn?
             run defn, value
           else  

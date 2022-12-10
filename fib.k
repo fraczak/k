@@ -1,4 +1,4 @@
-fib_aux =
+fib_aux = _log!
   <
     { [.n, 1] GT [.0,-1] PLUS n,
       ."[fib(n),fib(n-1)" [[.0,.1] PLUS, .0] "[fib(n),fib(n-1)"

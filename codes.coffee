@@ -3,12 +3,13 @@ are_different = (classes, representatives, name1, name2, codes) ->
   return false if name1 is name2
   code1 = codes[name1]
   code2 = codes[name2]
-  return true unless code1.op is code2.op
-  switch code1.op
+  # console.log {name1, code1, name2, code2}
+  return true unless code1.code is code2.code
+  switch code1.code
     when "union", "product"
       [fields1,fields2] = [code1, code2]. map (code) ->
-        Object.keys(code[code.op]).reduce (fields, label) ->
-          fields[label] = representatives[code[code.op][label]]
+        Object.keys(code[code.code]).reduce (fields, label) ->
+          fields[label] = representatives[code[code.code][label]]
         , {}
       return true unless Object.keys(fields1).length is Object.keys(fields2).length
       for field,rep of fields1 
@@ -58,11 +59,11 @@ pretty_labels = (label_ref_map, codes, representatives) ->
   labels = Object.keys(label_ref_map)
   .sort compareAs (x) -> x
   .map (label) ->
-    "#{pretty {op:"ref",ref:label_ref_map[label]}, codes, representatives} #{label}"
+    "#{pretty {code:"ref",ref:label_ref_map[label]}, codes, representatives} #{label}"
   .join ", "
 
 pretty = (codeExp, codes, representatives) ->
-  switch codeExp.op 
+  switch codeExp.code 
     when "ref"
       name = representatives[codeExp.ref] ? codeExp.ref
       if name.startsWith ":"
@@ -78,10 +79,11 @@ pretty = (codeExp, codes, representatives) ->
     else    
       ":error"
 
-     
 normalize = (label_ref_map, representatives) ->
+  # console.log {label_ref_map, representatives}
   Object.keys(label_ref_map).reduce (result, label) ->
-    result[label] = representatives[label_ref_map[label]]
+    result[label] = do (name = label_ref_map[label]) ->
+      representatives[name] ? name
     result
   , {}
 
@@ -90,12 +92,12 @@ normalizeAll = (codes,representatives) ->
   normalized = names.reduce (normalized, name) ->
     if name is representatives[name]
       do (code = codes[name]) ->
-        switch code.op
+        switch code.code
           when "union", "product"
-            normalized[name] = { op: code.op } 
-            normalized[name][op] = normalize codes[name][op], representatives
+            normalized[name] = { code: code.code } 
+            normalized[name][code.code] = normalize code[code.code], representatives
           when "vector"
-            normilized[name] = {op:"vector", vector: representatives[code.vector]}
+            normalized[name] = {code:"vector", vector: representatives[code.vector]}
   
     normalized    
   , {}
