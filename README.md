@@ -111,7 +111,7 @@ run the language from command line.
 
     $ ./node_modules/.bin/k
 	... errors ...
-	Usage: ./node_modules/.bin/k ( k-expr | -k k-file) [ json-file ]
+	Usage: ./node_modules/.bin/k ( k-expr | -k k-file) [ -1 ] [ json-file ]
 	       E.g., cat '{"a": 10}' | ./node_modules/.bin/k '[(),()]'
 
 ### Examples
