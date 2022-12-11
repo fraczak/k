@@ -3,14 +3,14 @@ fib2 =
 $ { int target, int x, int "fib(x)", int "fib(x-1)" }
   _log!
   <
-    {[.target,.x] GT guard, () input}
-    .input
-    {.target target,
-     .x inc x,
-     [."fib(x)", ."fib(x-1)"] PLUS "fib(x)",
+    {[.target,.x]GT.0 target ,
+     .x inc x ,
+     [."fib(x)",."fib(x-1)"]PLUS "fib(x)" ,
      ."fib(x)" "fib(x-1)" }
     fib2,
-    ."fib(x)"
+    
+    {[.target,.x] EQ, ."fib(x)" result}
+    .result
   >
 $ int;
 
