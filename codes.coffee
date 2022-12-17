@@ -1,5 +1,6 @@
 
 are_different = (classes, representatives, name1, name2, codes) ->
+  # console.log {classes, representatives, name1, name2, codes}
   return false if name1 is name2
   code1 = codes[name1]
   code2 = codes[name2]
@@ -11,9 +12,11 @@ are_different = (classes, representatives, name1, name2, codes) ->
         do (arg = code[code.code]) ->
           Object.keys(arg).reduce (fields, label) ->
             fields[label] = representatives[arg[label]] ? arg[label]
+            fields
           , {}
       return true unless Object.keys(fields1).length is Object.keys(fields2).length
       for field,rep of fields1 
+        # console.log {field,rep1:rep,rep2:fields2[field]}
         return true unless fields2[field] is rep 
     when "vector"
       [arg1,arg2] = [code1, code2]. map ({vector}) ->

@@ -48,7 +48,8 @@ codes =
     x is true or x is false
 
 verify = (code, value) ->
-  # console.log {code,value}
+  # representatives = run.defs.representatives
+  # console.log {code,value,representatives}
   switch code.code
     when "vector"
       value.every (x) ->
