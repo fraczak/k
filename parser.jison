@@ -51,27 +51,26 @@ input_with_eof: defs comp EOF               {
 
 defs:                                   {  }
     | defs name EQ comp SC              { s.add_rel($2,$4); }
-    | defs DOLLAR name EQ code SC       { s.add_code($3,$5); }
+    | defs DOLLAR name EQ codeDef SC    { s.add_code($3,$5); }
     ;
 
 code
     : name                              { $$ = {code: "ref", ref: $1}; }
-    | LC labelled_codes RC              { $$ = {code: "product", 
-                                                product: $2.reduce((r, lc) => { 
-                                                  r[lc.label] = s.as_ref(lc.code);
-                                                  return r }
-                                                , {})}; }
+    | codeDef                           { $$ = $1; }
+    ;
+
+codeDef
+    : LC labelled_codes RC              { $$ = {code: "product", product: $2}; }
     | LB code RB                        { $$ = {code: "vector", vector: s.as_ref($2)}; }
-    | LA labelled_codes RA              { $$ = {code: "union", 
-                                                union: $2.reduce((r, lc) => { 
-                                                  r[lc.label] = s.as_ref(lc.code);
-                                                  return r }
-                                                , {})}; }
+    | LA labelled_codes RA              { $$ = {code: "union", union: $2}; }
     ;
 
 labelled_codes 
-    :                                   { $$ = [] }
-    | non_empty_labelled_codes          { $$ = $1; }
+    :                                   { $$ = {} }
+    | non_empty_labelled_codes          { $$ = $1.reduce((r, lc) => { 
+                                                  r[lc.label] = s.as_ref(lc.code);
+                                                  return r }
+                                                , {}); }
     ;
 
 non_empty_labelled_codes
