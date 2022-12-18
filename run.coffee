@@ -49,7 +49,8 @@ codes =
 
 verify = (code, value) ->
   # representatives = run.defs.representatives
-  # console.log {code,value,representatives}
+  # defCodes = JSON.stringify run.defs.codes
+  # console.log {code,value, representatives, defCodes}
   switch code.code
     when "vector"
       value.every (x) ->

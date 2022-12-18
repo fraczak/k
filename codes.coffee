@@ -102,7 +102,7 @@ normalizeAll = (codes,representatives) ->
             normalized[name] = { code: code.code } 
             normalized[name][code.code] = normalize code[code.code], representatives
           when "vector"
-            normalized[name] = {code:"vector", vector: representatives[code.vector]}
+            normalized[name] = {code:"vector", vector: representatives[code.vector] ? code.vector}
   
     normalized    
   , {}

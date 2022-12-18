@@ -48,3 +48,17 @@ console.log ""
   console.log "k_fn(#{JSON.stringify(data)});"
   console.log "// RETURNS: #{JSON.stringify k_fn data}"
   console.log ""
+
+k_expression = "$ < < [ int ] ints, [ bool ] bools > list, string None>"
+k_fn  = k.compile k_expression
+console.log "var k_fn = k.compile('#{k_expression}');"
+console.log ""
+
+[ 
+  {None: "None"}
+  {list: {ints: []}}
+  {list: {ints: [1,2,3]}}
+].map (data) -> 
+  console.log "k_fn(#{JSON.stringify(data)});"
+  console.log "// RETURNS: #{JSON.stringify k_fn data}"
+  console.log ""
