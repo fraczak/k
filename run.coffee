@@ -1,3 +1,5 @@
+fs = require "fs"
+
 valid = (x) ->
   return undefined if isNaN x
   return x if x?
@@ -6,6 +8,11 @@ builtin =
   "_log!": (arg) ->
     console.log "_log!: #{JSON.stringify arg}"
     arg
+  "fromFILE": (fileName) ->
+    fs.readFileSync(fileName).toString() 
+  "toFILE": ([x,fileName]) ->
+    fs.writeFileSync fileName, x
+    return x 
   "GT": (args) ->
     [ok,_] = do ([last,args...] = args) ->
       args.reduce ([ok,last], x) ->

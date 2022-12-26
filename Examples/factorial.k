@@ -4,8 +4,9 @@
 --    {"x":5,"x!":120}
 
 dec = [(),1] MINUS;
+zero? = [(),0] EQ;
 factorial = <
-  [1,()] GT 1,
+  zero? 1, 
   [dec factorial, ()] TIMES
 >;
-{ x: (), "x!": factorial }
+{ () x, factorial "x!" }
