@@ -77,50 +77,46 @@ verify = (code, value) ->
         codes[code] value
 
 run = (exp, value) ->
+  "use strict"
   # console.log {exp,value}
   return undefined if value is undefined
-  try 
-    switch exp.op
-      when "code"
-        return value if verify exp.code, value
-      when "identity"
-        return value
-      when "str", "int"
-        return exp[exp.op]
-      when "ref"
-        do (defn = run.defs.rels[exp.ref]?[0]) ->
-          if defn?
-            run defn, value
-          else  
-            do ( value = builtin[exp.ref] value ) -> 
-              throw new Error "Undefined" if value is undefined
-              value          
-      when "dot"
-        return value[exp.dot]
-      when "comp"
-        return exp.comp.reduce (value, exp) ->
-          value = run exp, value
-          throw new Error "Undefined" if value is undefined
-          value
-        , value
-      when "vector"
-        return exp.vector.map (exp) -> 
-          result = run exp, value
-          throw new Error "Undefined" if result is undefined
-          result
-      when "union"
-        for e in exp.union
-          result = try run e, value
-          return result unless result is undefined
-        return undefined
-      when "product"
-        return exp.product.reduce (result, {label, exp}) ->
-          do (value = run exp, value) ->
-            throw new Error "Undefined" if value is undefined
-            result[label] = value
-            result
-        , {}
-      else  
-        console.log exp.op
+  switch exp.op
+    when "code"
+      return value if verify exp.code, value
+    when "identity"
+      return value
+    when "str", "int"
+      return exp[exp.op]
+    when "ref"
+      defn = run.defs.rels[exp.ref]?[0]
+      return run defn, value if defn?
+      return builtin[exp.ref] value 
+    when "dot"
+      return value[exp.dot]
+    when "comp"
+      return exp.comp.reduce (value, exp) ->
+        run exp, value unless value is undefined
+      , value
+    when "union"
+      for e in exp.union
+        result = run e, value
+        return result unless result is undefined
+      return undefined
+    when "vector"
+      result = []
+      for e in exp.vector
+        r = run e, value
+        return if r is undefined
+        result.push r
+      return result
+    when "product"
+      result = {}
+      for {label,exp} in exp.product
+        r = run exp, value
+        return if r is undefined
+        result[label] = r
+      return result
+    else  
+      console.error exp.op
 
 module.exports = run
