@@ -1,10 +1,17 @@
-# k-language 
+# k-language
 
     npm install @fraczak/k
 
+From javascript:
+
+    var k  = require("@fraczak/k"),
+        fn = k.compile("<.name,.nom,'?'>");
+    console.log([{name:"x"},{nom:"y"},{}].map(fn));
+    // returns: [ "x", "y", "?" ]
+
 Another JSON transformation notation.  A `k`-expression (script)
-defines a __partial function__, i.e., a function which, in general, is
-not defined for every input. `k`-expressions can be combined to build
+defines a __partial function__, i.e., a function which may fail
+for some input. `k`-expressions can be combined to build
 other `k`-expressions in three ways:
 
 1. composition, e.g.:
@@ -19,17 +26,13 @@ other `k`-expressions in three ways:
         [ E1, E2, E3, ... ]
         { E1 "e1", E2 "e2", E3 "e3", ... }
 
-    Now, structure can also be written similarly to JSON, ie., 
-  
-        { e1: E1, e2: E2, e3: E3, ... }
-
 3. union (merge), e.g.:
 
         < E1, E2, E3, ... >
 
-    Elementary partial functions are: 
+    Elementary partial functions are:
 
-1. _projection_, i.e., extracting the value of a given field or
+4. _projection_, i.e., extracting the value of a given field or
    index. Examples:
 
         .x
@@ -39,7 +42,7 @@ other `k`-expressions in three ways:
     The function is defined only if its argument is a structure with
 the field (or a vector with the index).
 
-2. _constants_, literals for Strings, Booleans, and
+5. _constants_, literals for Strings, Booleans, and
    Integers. Examples:
 
         "a string"
@@ -48,9 +51,9 @@ the field (or a vector with the index).
         false
         null
 
-3.  There is a number of built-in functions: `GT`, `EQ`, `PLUS`,
+6. There is a number of built-in functions: `GT`, `EQ`, `PLUS`,
     `TIMES`, `MINUS`, `DIV`, `CONCAT`, `toJSON`, `fromJSON`, `CONS`,
-    `SNOC`. For example
+    `SNOC`, `_log!`, ... For example:
 
         [1, 2, 3] PLUS       --> integer constant function 6
         [4, 4] TIMES toJSON  --> string constant function "16"
@@ -67,14 +70,14 @@ the field (or a vector with the index).
 
 ## User defined functions
 
-`k`-expression can be prefixed by function definitions. E.g.: 
+`k`-expression can be prefixed by function definitions. E.g.:
 
     dec = [(),1] MINUS;
     factorial = <
-      [1,()] GT 1,
+      [(),1] EQ 1,
       [dec factorial, ()] TIMES
     >;
-    { () x, factorial "x!" }
+    { () x, < factorial, "not defined" > "x!" }
 
 Another example could be finding the biggest (max) value in a vector:
 
@@ -87,25 +90,19 @@ Another example could be finding the biggest (max) value in a vector:
     >; 
     max
 
-## Value encodings (also called _codes_)
+## Value encodings (_codes_)
 
 There are three predefined value encodings: `int`, `string`, and
 `bool`. The language supports `code`-expressions:
 
-* product, e.g., `{int x, int y, bool flag}` (in JSON-like syntax `{x:
-  int, y: int, flag: bool}`)
-* disjoint union, e.g., `<{} true, {} false>` (in JSON-like syntax
-  `<true: {}, false: {}>`)
+* product, e.g., `{int x, int y, bool flag}`
+* disjoint union, e.g., `<{} true, {} false>`
 * vector, e.g., `[ int ]` (all elements of the vector use the same
   encoding)
 
 One can define recursive codes. E.g.:
 
-    $ tree = <string leaf, {tree left, tree right} tree>;
-
-or, the same in JSON-like notation:
-
-    $ tree = <leaf: string, tree: {left: tree, right: tree}>;
+    tree = <string leaf, {tree left, tree right} tree>;
 
 Each _code_ definition starts with a `$`.
 The above example defines new code called _tree_.
@@ -122,13 +119,12 @@ within `k`-expression is again prefixed by `$`.
     > $ int;
     height
 
-
 ## Command line script
 
 There is a wrapper, `./node_modules/.bin/k` , which makes it easy to
 run the language from command line.
 
-    $ ./node_modules/.bin/k
+    > ./node_modules/.bin/k
     ... errors ...
     Usage: ./node_modules/.bin/k ( k-expr | -k k-file) [ -1 ] [ json-file ]
     E.g., cat '{"a": 10}' | ./node_modules/.bin/k '[(),()]'
@@ -137,23 +133,23 @@ run the language from command line.
 
 1. One `k`-expression with one `json`-object:
 
-        $ echo '{"x": 12, "y": 13}' | ./k.coffee '{ <.x, "no x"> x, () input}' 
-        {"x":12,"input":{"x":12,"y":13}}
+        > echo '{"x": 12, "y": 13}' | ./k.coffee '{ <.x, "no x"> x, () input}' 
+         {"x":12,"input":{"x":12,"y":13}}
 
 2. By providing only `k`-expression, the script will compile the
    `k`-expression and apply the generated function to the `stdin`,
    line by line:
 
-        $ ./node_modules/.bin/k '<["x=",.x," & y=",.y],["only x=",.x],["only y=",.y],["no x nor y"]>{CONCAT "x&y"}' 
+        > ./node_modules/.bin/k '<["x=",.x," & y=",.y],["only x=",.x],["only y=",.y],["no x nor y"]>{CONCAT "x&y"}' 
         
-        {"y": 123, "x": 432,"others": "..."}  --> {"x&y":"x=432 & y=123"} 
-        {"x":987}                             --> {"x&y":"only x=987"} 
-        {"z":123}                             --> {"x&y":"no x nor y"}
-        ^D - to interrupt
+         {"y": 123, "x": 432,"others": "..."}  --> {"x&y":"x=432 & y=123"} 
+         {"x":987}                             --> {"x&y":"only x=987"} 
+         {"z":123}                             --> {"x&y":"no x nor y"}
+         ^D - to interrupt
 
 3. If the `k`-expression is long, it can be put in a file, e.g.:
 
-        $ cat test.k
+        > cat test.k
          ---------  comments start by #, --, or // ----------------------------------
          <                          -- merge of 4 partial functions...
            ["x=", .x, " & y=", .y], -- produces a vector of 4 values, if fields 'x' and 'y' are present
@@ -170,26 +166,41 @@ run the language from command line.
 
     We can use it by:
 
-        $ ./node_modules/.bin/k -k test.k
+        > ./node_modules/.bin/k -k test.k
 
     If we want to read `json` objects from a file, e.g., `my-objects.json`, we do
 
-        $ ./node_modules/.bin/k -k test.k my-objects.json
-        {"x&y":"x=432 & y=123"} 
-        {"x&y":"onlyx=987"} 
-        {"x&y":"no x nor y"}
+        > ./node_modules/.bin/k -k test.k my-objects.json
+         {"x&y":"x=432 & y=123"} 
+         {"x&y":"onlyx=987"} 
+         {"x&y":"no x nor y"}
 
     where:
 
-        $ cat my-objects.json 
-        ####################################################
-        # empty lines and lines starting with # are ignored
-        {"y": 123, "x": 432,"others": "..."}
-        {"x":987}
-        {"z":123}
-        ####################################################
+        > cat my-objects.json 
+         ####################################################
+         # empty lines and lines starting with # are ignored
+         {"y": 123, "x": 432,"others": "..."}
+         {"x":987}
+         {"z":123}
+         ####################################################
 
-# Using from `javascript`
+### k-REPL (Read-Evaluate-Print Loop)
+
+Also there is a REPL, `./node_modules/.bin/k-repl`, which acts like a toy
+shell for the language. E.g.:
+
+    > ./node_modules/.bin/k-repl 
+     {'a' a, 'b' b} toJSON
+     => "{\"a\":\"a\",\"b\":\"b\"}"
+     {"a" a} toJSON fromJSON
+     => {"a":"a"}
+     inc = [(),1] PLUS; 1 inc inc
+     => 3
+     inc inc inc inc
+     => 7
+
+## Using from `javascript`
 
      var k = require("k");
 
