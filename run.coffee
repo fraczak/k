@@ -58,16 +58,20 @@ verify = (code, value) ->
   # representatives = run.defs.representatives
   # defCodes = JSON.stringify run.defs.codes
   # console.log {code,value, representatives, defCodes}
+  return false unless code?
   switch code.code
     when "vector"
+      return false unless Array.isArray value
       value.every (x) ->
         verify code.vector, x
     when "product"
+      return false unless "object" is typeof value
       do (fields = Object.keys(value)) ->
         return false unless fields.length is Object.keys(code.product).length
         fields.every (label) ->
           verify code.product[label], value[label]
     when "union"
+      return false unless "object" is typeof value
       do (fields = Object.keys(value)) ->
         return false unless fields.length is 1
         verify code.union[fields[0]], value[fields[0]]
