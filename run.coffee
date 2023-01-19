@@ -6,7 +6,7 @@ valid = (x) ->
 
 builtin =
   "_log!": (arg) ->
-    console.log "_log!: #{JSON.stringify arg}"
+    console.error "_log!: #{JSON.stringify arg}"
     arg
   "fromFILE": (fileName) ->
     fs.readFileSync(fileName).toString() 

@@ -1,6 +1,6 @@
 {
     "name": "@fraczak/k",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "description": "k-language for JSON-like data transformation",
     "main": "index.js",
     "scripts": {
@@ -8,6 +8,10 @@
         "prepublishOnly": "coffee -c *.coffee; echo '#!/usr/bin/env node' | cat - k.js > k.sh; echo '#!/usr/bin/env node' | cat - repl.js > repl.sh;",
         "all": "coffee -c *.coffee; npm run prepare; npm run prepublishOnly",
         "test": "coffee -c symbol-table.coffee; jison parser.jison; coffee test.coffee"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/fraczak/k.git"
     },
     "author": "Wojciech Fraczak",
     "license": "ISC",
