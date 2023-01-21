@@ -1,6 +1,6 @@
 # k-language
 
-    npm install @fraczak/k
+    npm install '@fraczak/k'
 
 From javascript:
 
@@ -84,8 +84,8 @@ Another example could be finding the biggest (max) value in a vector:
     max = < 
       SNOC         -- [x0, x1, x2, ...] -> [x0, [x1, x2, ...]]
       [.0, .1 max] -- [x0, [x1, x2, ...]] -> [x0, max(x1,x2,...)], i.e., recursive call 
-      <GT.0,.1>,   -- if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
-                   -- when SNOC is not defined, e.g. the argument is a singleton vector [x0]
+      <GT .0, .1>, -- if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
+      -- when SNOC is not defined, e.g. the argument is a singleton vector [x0]
       .0           -- [x0] -> x0, 
     >; 
     max
@@ -143,8 +143,8 @@ run the language from command line.
         > ./node_modules/.bin/k '<["x=",.x," & y=",.y],["only x=",.x],["only y=",.y],["no x nor y"]>{CONCAT "x&y"}' 
         
          {"y": 123, "x": 432,"others": "..."}  --> {"x&y":"x=432 & y=123"} 
-         {"x":987}                             --> {"x&y":"only x=987"} 
-         {"z":123}                             --> {"x&y":"no x nor y"}
+         {"x": 987}                            --> {"x&y":"only x=987"} 
+         {"z": 123}                            --> {"x&y":"no x nor y"}
          ^D - to interrupt
 
 3. If the `k`-expression is long, it can be put in a file, e.g.:
@@ -172,7 +172,7 @@ run the language from command line.
 
         > ./node_modules/.bin/k -k test.k my-objects.json
          {"x&y":"x=432 & y=123"} 
-         {"x&y":"onlyx=987"} 
+         {"x&y":"only x=987"} 
          {"x&y":"no x nor y"}
 
     where:
@@ -181,8 +181,8 @@ run the language from command line.
          ####################################################
          # empty lines and lines starting with # are ignored
          {"y": 123, "x": 432,"others": "..."}
-         {"x":987}
-         {"z":123}
+         {"x": 987}
+         {"z": 123}
          ####################################################
 
 ### k-REPL (Read-Evaluate-Print Loop)
@@ -194,7 +194,7 @@ shell for the language. E.g.:
      {'a' a, 'b' b} toJSON
      => "{\"a\":\"a\",\"b\":\"b\"}"
      {"a" a} toJSON fromJSON
-     => {"a":"a"}
+     => {"a": "a"}
      inc = [(),1] PLUS; 1 inc inc
      => 3
      inc inc inc inc

@@ -58,6 +58,8 @@ console.log ""
   {None: "None"}
   {list: {ints: []}}
   {list: {ints: [1,2,3]}}
+  {list: {bools: [true, false]}}
+  {list: {bools: [true, 0]}}
 ].map (data) -> 
   console.log "k_fn(#{JSON.stringify(data)});"
   console.log "// RETURNS: #{JSON.stringify k_fn data}"

@@ -1,5 +1,5 @@
 node_modules/
-k.sh
+*.sh
 *.js
 *~
 *.html
