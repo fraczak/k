@@ -1,6 +1,7 @@
 #!/usr/bin/env coffee
 k = require "./"
 run = require "./run"
+{pretty} = require "./codes"
 
 console.log "Very! experimental repl shell for 'k-language'..."
 
@@ -36,7 +37,13 @@ do (val = {}, buffer = []) ->
         else if line.match /^[ \n\t]*(?:--a)?$/
           console.log JSON.stringify run.defs, " ", 2
         else if line.match /^[ \n\t]*(?:--c)?$/
-          console.log JSON.stringify {codes: run.defs?.codes, reps: run.defs?.representatives}, " ", 2
+          console.log JSON.stringify do (codeDefs = run.defs, result = {}) ->
+            return result unless codeDefs?
+            for codeName, codeExp of codeDefs.codes
+              result[codeName] = pretty codeExp, codeDefs.codes, codeDefs.representatives
+            result  
+            # reps: run.defs?.representatives
+          , " ", 2
         else if not line.match /^[ \n\t]*(?:#.*)?$/
           try
             val = k.run "#{line} ()", val 

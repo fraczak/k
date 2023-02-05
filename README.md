@@ -102,7 +102,7 @@ There are three predefined value encodings: `int`, `string`, and
 
 One can define recursive codes. E.g.:
 
-    $ tree = <string leaf, {tree left, tree right} tree>;
+    $tree = <string leaf, {tree left, tree right} tree>;
 
 Each _code_ definition starts with a `$`.
 The above example defines new code called _tree_.
