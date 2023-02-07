@@ -53,37 +53,6 @@ minimize = (codes) ->
             representatives[x] = new_rep
   {classes,representatives}
 
-compareAs = (fn) ->
-  (a,b) -> 
-    [a,b] = [a,b].map fn
-    return -1 if a < b
-    return 1 if a > b
-    0 
-
-pretty_labels = (label_ref_map, codes, representatives) ->
-  labels = Object.keys(label_ref_map)
-  .sort compareAs (x) -> x
-  .map (label) ->
-    "#{pretty {code:"ref",ref:label_ref_map[label]}, codes, representatives} #{label}"
-  .join ", "
-
-pretty = (codeExp, codes, representatives) ->
-  switch codeExp.code 
-    when "ref"
-      name = representatives[codeExp.ref] ? codeExp.ref
-      if name.startsWith ":"
-        pretty codes[name], codes, representatives
-      else
-        name
-    when "product"
-      "{#{pretty_labels codeExp.product, codes, representatives}}"
-    when "union"
-      "<#{pretty_labels codeExp.union, codes, representatives}>"
-    when "vector"
-      "[#{representatives[codeExp.ref] ? codeExp.ref}]"
-    else    
-      ":error"
-
 normalize = (label_ref_map, representatives) ->
   # console.log {label_ref_map, representatives}
   Object.keys(label_ref_map).reduce (result, label) ->
@@ -107,6 +76,6 @@ normalizeAll = (codes,representatives) ->
     normalized    
   , {}
 
-module.exports = {minimize,pretty,normalize,normalizeAll}
+module.exports = {minimize,normalize,normalizeAll}
 
 

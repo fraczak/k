@@ -92,8 +92,8 @@ run = (exp, value) ->
     when "str", "int"
       return exp[exp.op]
     when "ref"
-      defn = run.defs.rels[exp.ref]?[0]
-      return run defn, value if defn?
+      defn = run.defs.rels[exp.ref]
+      return run defn[defn.length - 1], value if defn?
       return builtin[exp.ref] value 
     when "dot"
       return value[exp.dot]
