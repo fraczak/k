@@ -80,10 +80,47 @@ verify = (code, value) ->
         return verify c, value if c?  
         codes[code] value
 
+runMap = new Map [
+  ["code", ({code},value) -> value if verify code, value ]
+  ["identity", (exp, value) -> value ]
+  ["str", ({str},value) -> str]
+  ["int", ({int},value) -> int]
+  ["ref", ({ref},value) ->
+      defn = run.defs.rels[ref]
+      return run defn[defn.length - 1], value if defn?
+      builtin[ref] value ]
+  ["dot", ({dot},value) -> value[dot] ]
+  ["comp", ({comp}, value) ->
+      comp.reduce (value, exp) ->
+        run exp, value unless value is undefined
+      , value ]
+  ["union", ({union},value) ->
+      for e in union
+        result = run e, value
+        return result unless result is undefined
+      return undefined ]
+  ["vector", ({vector},value) ->
+      result = []
+      for e in vector
+        r = run e, value
+        return if r is undefined
+        result.push r
+      return result ]
+  ["product", ({product}, value) ->
+      result = {}
+      for {label,exp} in product
+        r = run exp, value
+        return if r is undefined
+        result[label] = r
+      result ]
+]
+
 run = (exp, value) ->
   "use strict"
   # console.log {exp,value}
   return undefined if value is undefined
+  # if runMap.has exp.op
+  #    return runMap.get(exp.op)(exp,value)
   switch exp.op
     when "code"
       return value if verify exp.code, value
