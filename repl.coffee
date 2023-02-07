@@ -1,7 +1,7 @@
 #!/usr/bin/env coffee
 k = require "./"
 run = require "./run"
-{pretty} = require "./codes"
+{prettyCode, prettyRel} = require "./pretty"
 
 console.log "Very! experimental repl shell for 'k-language'..."
 
@@ -9,6 +9,7 @@ help = ->
   console.log " --h          print help"
   console.log " --a          print codes and relations"
   console.log " --c          print codes"
+  console.log " --r          print rels"
   console.log " --l file.k   load 'file.k'"
 
 help()
@@ -36,14 +37,19 @@ do (val = {}, buffer = []) ->
           console.log "=> #{JSON.stringify val}"
         else if line.match /^[ \n\t]*(?:--a)?$/
           console.log JSON.stringify run.defs, " ", 2
+        else if line.match /^[ \n\t]*(?:--r)?$/
+          console.log do (defs = run.defs, result = {}) ->
+            return result unless defs?
+            do (prettyRel = prettyRel.bind null, prettyCode.bind null, defs.codes, defs.representatives) ->
+              for relName, relExps of defs.rels
+                result[relName] = relExps.map prettyRel
+              result
         else if line.match /^[ \n\t]*(?:--c)?$/
-          console.log JSON.stringify do (codeDefs = run.defs, result = {}) ->
-            return result unless codeDefs?
-            for codeName, codeExp of codeDefs.codes
-              result[codeName] = pretty codeExp, codeDefs.codes, codeDefs.representatives
-            result  
-            # reps: run.defs?.representatives
-          , " ", 2
+          console.log do (defs = run.defs, result = {}) ->
+            return result unless defs?
+            for codeName, codeExp of defs.codes
+              result[codeName] = prettyCode defs.codes, defs.representatives, codeExp
+            result 
         else if not line.match /^[ \n\t]*(?:#.*)?$/
           try
             val = k.run "#{line} ()", val 
