@@ -72,12 +72,13 @@ the field (or a vector with the index).
 
 `k`-expression can be prefixed by function definitions. E.g.:
 
-    dec = [(),1] MINUS;
-    factorial = <
-      [(),1] EQ 1,
-      [dec factorial, ()] TIMES
-    >;
-    { () x, < factorial, "not defined" > "x!" }
+        dec = [(),-1] PLUS;
+        zero? = [(),0] EQ 0;
+        factorial = <
+          zero? 1, 
+          [dec factorial, ()] TIMES
+        >;
+        { () x, factorial "x!" }
 
 Another example could be finding the biggest (max) value in a vector:
 

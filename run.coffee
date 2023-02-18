@@ -8,11 +8,6 @@ builtin =
   "_log!": (arg) ->
     console.error "_log!: #{JSON.stringify arg}"
     arg
-  "fromFILE": (fileName) ->
-    fs.readFileSync(fileName).toString() 
-  "toFILE": ([x,fileName]) ->
-    fs.writeFileSync fileName, x
-    return x 
   "GT": (args) ->
     [ok,_] = do ([last,args...] = args) ->
       args.reduce ([ok,last], x) ->
@@ -36,6 +31,7 @@ builtin =
     div = x // y
     rem = x %% y
     return {div,rem} if x is div * y + rem
+  "FDIV": ([x,y]) -> x / y
   "CONCAT": (strs) -> strs.join('')
   "true": -> true
   "false": -> false
@@ -44,7 +40,9 @@ builtin =
   "fromJSON": (x) -> JSON.parse x
   "CONS": ([x,y]) -> [x,y...]
   "SNOC": (x) ->
-    return [x[0],x.slice 1] if x.length > 1 
+    return [x[0],x.slice 1] if x.length > 1
+  "toDateMsec": (x) -> new Date(x).getTime() 
+  "toDateStr": (x) -> new Date(x).toISOString() 
 
 codes =
   "int": (x) -> 
