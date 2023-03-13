@@ -82,8 +82,10 @@ non_empty_labelled_codes
 code_label 
     : code name                         { $$ = {label: $2, code: $1}; }
     | code str                          { $$ = {label: $2, code: $1}; }
+    | code int                          { $$ = {label: $2, code: $1}; }
     | name COL code                     { $$ = {label: $1, code: $3}; }
     | str COL code                      { $$ = {label: $1, code: $3}; }
+    | int COL code                      { $$ = {label: $1, code: $3}; }
     ;
 
 comp 
@@ -121,8 +123,10 @@ non_empty_labelled
 comp_label
     : comp name  { $$ = {label: $2, exp: $1}; }
     | comp str   { $$ = {label: $2, exp: $1}; }
+    | comp int   { $$ = {label: $2, exp: $1}; }
     | name COL comp { $$ = {label: $1, exp: $3}; }
     | str COL comp { $$ = {label: $1, exp: $3}; }
+    | int COL comp { $$ = {label: $1, exp: $3}; }
     ;
 
 list
