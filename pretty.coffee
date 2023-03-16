@@ -6,12 +6,12 @@ compareAs = (fn) ->
     return 1 if a > b
     0 
 
-nameRE = /^[a-zA-Z_][a-zA-Z0-9_?!]*$/
+nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/
 prettyCode_labels = ( codes, representatives, label_ref_map) ->
   labels = Object.keys(label_ref_map)
   .sort compareAs (x) -> x
   .map (label) ->
-    plabel = if /^[a-zA-Z_][a-zA-Z0-9_?!]*$/.test label
+    plabel = if nameRE.test label
       label
     else    
       "'#{label}'" 
@@ -64,7 +64,7 @@ prettyRel = (prettyCode, exp) ->
         "$#{prettyCode {code:"ref",ref:exp.code}}"
       when 'product'
         do (labelled = exp.product.map ({label,exp}) ->
-              if /^[a-zA-Z_][a-zA-Z0-9_?!]*$/.test label
+              if nameRE.test label
                   "#{pretty exp} #{label}"
               else    
                   "#{pretty exp} '#{label}'") ->
