@@ -1,5 +1,3 @@
-fs = require "fs"
-
 valid = (x) ->
   return undefined if isNaN x
   return x if x?
