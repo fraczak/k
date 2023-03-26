@@ -2,6 +2,7 @@
 k = require "./"
 run = require "./run"
 {prettyCode, prettyRel} = require "./pretty"
+fs = require "fs"
 
 console.log "Very! experimental repl shell for 'k-language'..."
 
@@ -33,7 +34,8 @@ do (val = {}, buffer = []) ->
         else if line.match re
           file = line.match(re)[1]
           console.log "-- loading file: #{file} ..."
-          val = k.compile_file(file) val
+          kScript = fs.readFileSync(file).toString();
+          val = k.compile(kScript) val
           console.log "=> #{JSON.stringify val}"
         else if line.match /^[ \n\t]*(?:--a)?$/
           console.log JSON.stringify run.defs, " ", 2
