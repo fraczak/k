@@ -51,14 +51,14 @@ the field (or a vector with the index).
         false
         null
 
-6. There is a number of built-in functions: `GT`, `EQ`, `PLUS`,
-    `TIMES`, `MINUS`, `DIV`, `CONCAT`, `toJSON`, `fromJSON`, `CONS`,
-    `SNOC`, `_log!`, ... For example:
+6. The other "built-in" functions: `GT`, `EQ`, `PLUS`,
+    `TIMES`, `DIV`, `CONCAT`, `toJSON`, `fromJSON`, `CONS`,
+    `SNOC`, `toDateMsec`, `toDateStr`, and `_log!`. For example:
 
         [1, 2, 3] PLUS       --> integer constant function 6
         [4, 4] TIMES toJSON  --> string constant function "16"
         [3, 2] GT            --> vector constant function [3, 2]
-        [3, 4] GT            --> is not defined!
+        [3, 4] GT            ... is not defined!
 
     A more interesting example could be:
 

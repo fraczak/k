@@ -7,21 +7,37 @@ identity = op: "identity"
 is_identity_rel = (rel) ->
   rel.op is "identity"
 
+is_constant_rel = (rel) ->
+  switch rel?.op
+    when "int", "str"
+      true
+    when "vector"
+      Object.values(rel[rel.op]).every is_constant_rel
+    when "product"
+      Object.values(rel[rel.op]).every ({exp}) -> 
+        is_constant_rel exp
+    else 
+      false
+
 is_empty_rel = (rel) ->
   rel.op is "union" and rel.union.length is 0
   
 is_full_rel = (rel) ->
+  return true if is_constant_rel rel
   switch rel.op
     when "int", "str", "identity"
       true
     when "comp"
       rel.comp.every is_full_rel
-    when "product", "vector"
+    when "vector"
       Object.values(rel[rel.op]).every is_full_rel
+    when "product"
+      Object.values(rel[rel.op]).every ({exp}) -> 
+        is_full_rel exp
     else  
       false
 
-comp = (e1, e2) ->
+comp_first = (e1, e2) ->
     return e2 if is_identity_rel e1
     return e1 if is_identity_rel e2
     return e1 if is_empty_rel e1
@@ -33,6 +49,16 @@ comp = (e1, e2) ->
     if e2.op is "comp"
       return {op: "comp", comp: [].concat([e1],e2.comp)}
     {op: "comp", comp: [e1,e2]}
+
+comp = (e1, e2) ->
+  result = comp_first e1, e2
+  return result unless result.op is "comp"
+  result.comp = result.comp.reduceRight (c, e) ->
+    if is_constant_rel(c[0]) and is_full_rel e
+      return c
+    return [e, c...]
+  , []
+  result
 
 union = (rels) ->
   list = []

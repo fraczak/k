@@ -20,11 +20,6 @@ builtin =
     return args if ok
   "PLUS": (args) -> valid args.reduce ((res, x) -> res + x), 0
   "TIMES": (args) -> valid args.reduce ((res, x) -> res * x), 1
-  "MINUS": (args) -> 
-    return valid(- args) if 'number' is typeof args 
-    do ([res,args...] = args) ->
-      return valid (- res) if args.length is 0
-      valid args.reduce ((res, x) -> res - x), res
   "DIV": ([x,y]) -> 
     div = x // y
     rem = x %% y

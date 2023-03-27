@@ -1,10 +1,10 @@
 # k - the way of building and manipulating JSON-like data
 
-Technically: notation for defining __first-order partial functions__.
+Technically, `k` is a notation for defining __first-order partial functions__.
 
-An example of a _partial function_ is "`.toto`", which maps an object
-to its property named `toto`, or it is not defined if the property
-doesn't exist. E.g.,
+An example of a _partial function_ is the _projection_, e.g., "`.toto`", 
+which maps an object to its property named `toto`, or it is not defined if 
+the property doesn't exist. E.g.,
 
     .toto :
         {"toto": 5, "titi": 10}  --> 5
@@ -51,6 +51,14 @@ __QUIZ__: What is:
 
 ---
 
+#### Syntactic sugar: 
+
+ - parenthesis can be omitted, except for the empty composition `()`,
+ - dot (`.`) in "projection" acts as a separator so the space around it can be omitted.
+
+For example, `[(.toto .titi (.0 .1))]` can be written as `[.toto.titi.0.1]`.
+
+
 ## Basic extensions
 
 ### Constants, i.e., literals for `strings`, `integers`, `booleans`, and `null`
@@ -77,19 +85,25 @@ names are integers starting from zero. E.g., `{.toto "0", .titi "1",
 
 ## Pragmatic extensions, aka "standard library"
 
-- `GT` :
+- `GT` : -- identity for lists of decreasing elements; undefined otherwise  
 
+        [4,3]     --> [4,3]
+        [3,4]     ... undefined
+        []        --> []
         [4,3,0]   --> [4,3,0]
-        [5,8]     -   undefined
 
-- `EQ` :
+- `EQ` : -- identity for lists of equal elements; undefined otherwise
 
+        [4,4]     --> [4,4]
+        [4,5]     ... undefined
         [4,4,4]   --> [4,4,4]
-        [5,8]     -   undefined
+        []        --> []
 
-- `[PLUS, TIMES, MINUS]` :
+- `{PLUS plus, TIMES times}` : 
 
-        [2,2,2] --> [6,8,-2]
+        [1,2]     --> {"plus":3,"times":2}
+        [2,2,2]   --> {"plus":6,"times":8}
+        []        --> {"plus":0,"times":1}
 
 - `CONCAT` :
 
@@ -97,24 +111,25 @@ names are integers starting from zero. E.g., `{.toto "0", .titi "1",
 
 - `toJSON` :
 
-        {a: 12} --> "{\"a\":12}"
+        {"a": 12} --> "{\"a\":12}"
 
 - `fromJSON` : 
  
-        "{\"a\":12}" --> {a: 12}
+        "{\"a\":12}" --> {"a":12}
 
-- `DIV`, `FDIV`, `CONS`, `SNOC`, `_log!`
+- other predefined parial functions are: `DIV`, `FDIV`, `CONS`, `SNOC`, `toDateMsec`,
+  `toDateStr`, and `_log!`.
 
 ---
 
 ## Recursive definitions
 
       -- factorial.k
-      dec = ([(),-1] PLUS);
-      zero? = ([(),0] EQ 0);
+      dec = [(),-1] PLUS;
+      zero? = [(),0] EQ 0;
       factorial = <
-        (zero? 1), 
-        ([(dec factorial), ()] TIMES)
+        zero? 1, 
+        [(dec factorial), ()] TIMES
       >;
       { () x, factorial "x!" }
 
@@ -122,10 +137,10 @@ names are integers starting from zero. E.g., `{.toto "0", .titi "1",
 
 _Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
 
-      $nat = <nat s, {} z>;     -- e.g., {{{{} z} s} s}
-      $pair = {nat x, nat y};   -- e.g., {{{} z} x, {{{{} z} s} s} y}
+      $nat = <nat 1, {} 0>;     -- e.g., {{{{} 0} 1} 1}
+      $pair = {nat x, nat y};   -- e.g., {{{} 0} x, {{{{} 0} 1} 1} y}
       
-      s = ($nat {() s} $nat);
-      add = ($pair <{(.x .s) x, (.y s) y} add, .y> $nat);
+      suc = $nat {() 1} $nat;
+      add = $pair <{.x.1 x, .y suc y} add, .y> $nat;
 
 
