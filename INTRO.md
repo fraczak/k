@@ -129,7 +129,7 @@ names are integers starting from zero. E.g., `{.toto "0", .titi "1",
       zero? = [(),0] EQ 0;
       factorial = <
         zero? 1, 
-        [(dec factorial), ()] TIMES
+        [dec factorial, ()] TIMES
       >;
       { () x, factorial "x!" }
 
@@ -137,10 +137,24 @@ names are integers starting from zero. E.g., `{.toto "0", .titi "1",
 
 _Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
 
-      $nat = <nat 1, {} 0>;     -- e.g., {{{{} 0} 1} 1}
-      $pair = {nat x, nat y};   -- e.g., {{{} 0} x, {{{{} 0} 1} 1} y}
+      $nat = <nat 1, {} 0>;
+      $pair = {nat x, nat y};
       
-      suc = $nat {() 1} $nat;
-      add = $pair <{.x.1 x, .y suc y} add, .y> $nat;
+      suc = {$nat 1};
+      add = $pair <{.x.1 x, .y suc y} add, .y>;
+
+### Basic extension codes
+
+Since _basic extension_ introduces integers, booleans, and strings, there are three 
+predefined types: `int`, `bool`, and `string`. A vector product code can also be defined 
+by `[ codeExp ]`.  All members of the vector are the same code. E.g.,
+
+     $intVector = [ int ];
+     $boolVector = [ bool ];
+     $tree = [ tree ];
+
+     emptyList? = $intVector $[ string ]; -- as only an empty vector can be a vector 
+                                          -- of integers and a vector of strings
+
 
 
