@@ -1,5 +1,4 @@
 node_modules/
-*.sh
-*.js
+parser.mjs
 *~
 *.html

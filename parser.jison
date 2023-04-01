@@ -1,6 +1,6 @@
 %{
 
-var s = require("./symbol-table");
+import s from "./symbol-table.mjs";
 
 %}
 
@@ -44,7 +44,7 @@ str: STRING                             { $$ = String(yytext).slice(1,-1); };
 int: INT                                { $$ = parseInt(String(yytext)); };
 
 input_with_eof: defs comp EOF               {
-    result = {defs: {rels: s.rels, codes: s.codes}, exp: $2};
+    const result = {defs: {rels: s.rels, codes: s.codes}, exp: $2};
     // console.log(JSON.stringify(result, "", 2));
     return result;
 };
