@@ -2,6 +2,26 @@
 
 import s from "./symbol-table.mjs";
 
+function fromEscString(escString) {
+  const isSingleQuoted = escString.startsWith("'");
+  let str = escString.substring(1, escString.length - 1);
+  if (isSingleQuoted) {
+    str = str.replace(/\\'/g, "'");
+  } else {
+    str = str.replace(/\\"/g, '"');
+  }
+  str = str.replace(/\\\\/g, '\\');
+  str = str.replace(/\\\//g, '/');
+  str = str.replace(/\\b/g, '\b');
+  str = str.replace(/\\f/g, '\f');
+  str = str.replace(/\\n/g, '\n');
+  str = str.replace(/\\r/g, '\r');
+  str = str.replace(/\\t/g, '\t');
+  str = str.replace(/\\u([\dA-F]{4})/gi, (match, p1) => String.fromCharCode(parseInt(p1, 16)));
+
+  return str;
+}
+
 %}
 
 %lex
@@ -24,7 +44,7 @@ import s from "./symbol-table.mjs";
 ";"                                            return 'SC';
 ":"                                            return 'COL';
 "$"                                            return 'DOLLAR'; 
-\"[^\"\n]*\"|\'[^\'\n]*\'                      return 'STRING'
+\"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
 0|[-]?[1-9][0-9]*                              return 'INT';
 <<EOF>>                                        return 'EOF';
@@ -40,7 +60,7 @@ import s from "./symbol-table.mjs";
 %%
 
 name: NAME                              { $$ = String(yytext); };
-str: STRING                             { $$ = String(yytext).slice(1,-1); };
+str: STRING                             { $$ = fromEscString(String(yytext)); };
 int: INT                                { $$ = parseInt(String(yytext)); };
 
 input_with_eof: defs comp EOF               {
