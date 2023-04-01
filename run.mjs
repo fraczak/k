@@ -1,112 +1,51 @@
 const modulo = (a, b) => ((+a % (b = +b)) + b) % b;
-
 const valid = (x) => (isNaN(x) ? undefined : x);
 
 const builtin = {
-  "_log!": function (arg) {
+  "_log!": (arg) => {
     console.error(`_log!: ${JSON.stringify(arg)}`);
     return arg;
   },
-  GT: function (args) {
-    var _, ok;
-    [ok, _] = (function ([last, ...args]) {
-      return args.reduce(
-        function ([ok, last], x) {
-          return [ok && last > x, x];
-        },
-        [true, last]
-      );
-    })(args);
-    if (ok) {
-      return args;
-    }
-  },
-  EQ: function (args) {
-    var _, ok;
-    [ok, _] = (function ([last, ...args]) {
-      return args.reduce(
-        function ([ok, last], x) {
-          return [ok && last === x, x];
-        },
-        [true, last]
-      );
-    })(args);
-    if (ok) {
-      return args;
-    }
-  },
-  PLUS: function (args) {
-    return valid(
-      args.reduce(function (res, x) {
-        return res + x;
-      }, 0)
+  GT: (args) => {
+    const [last, ...rest] = args;
+    const [ok, _] = rest.reduce(
+      ([ok, last], x) => [ok && last > x, x],
+      [true, last]
     );
+    if (ok) return args;
   },
-  TIMES: function (args) {
-    return valid(
-      args.reduce(function (res, x) {
-        return res * x;
-      }, 1)
-    );
+  EQ: (args) => {
+    const [first, ...rest] = args;
+    const ok = rest.reduce((ok, x) => ok && first === x, true);
+    if (ok) return args;
   },
-  DIV: function ([x, y]) {
-    var div, rem;
-    div = Math.floor(x / y);
-    rem = modulo(x, y);
-    if (x === div * y + rem) {
-      return { div, rem };
-    }
+  PLUS: (args) => valid(args.reduce((res, x) => res + x, 0)),
+  TIMES: (args) => valid(args.reduce((res, x) => res * x, 1)),
+  DIV: ([x, y]) => {
+    const div = Math.floor(x / y);
+    const rem = modulo(x, y);
+    if (x === div * y + rem) return { div, rem };
   },
-  FDIV: function ([x, y]) {
-    return x / y;
-  },
-  CONCAT: function (strs) {
-    return strs.join("");
-  },
-  true: function () {
-    return true;
-  },
-  false: function () {
-    return false;
-  },
-  null: function () {
-    return null;
-  },
-  toJSON: function (x) {
-    return JSON.stringify(x);
-  },
-  fromJSON: function (x) {
-    return JSON.parse(x);
-  },
-  CONS: function ([x, y]) {
-    return [x, ...y];
-  },
-  SNOC: function (x) {
-    if (x.length > 1) {
-      return [x[0], x.slice(1)];
-    }
-  },
-  toDateMsec: function (x) {
-    return new Date(x).getTime();
-  },
-  toDateStr: function (x) {
-    return new Date(x).toISOString();
-  },
+  FDIV: ([x, y]) => x / y,
+  CONCAT: (strs) => strs.join(""),
+  true: () => true,
+  false: () => false,
+  null: () => null,
+  toJSON: (x) => JSON.stringify(x),
+  fromJSON: (x) => JSON.parse(x),
+  CONS: ([x, y]) => [x, ...y],
+  SNOC: (x) => (x.length > 1 ? [x[0], x.slice(1)] : undefined),
+  toDateMsec: (x) => new Date(x).getTime(),
+  toDateStr: (x) => new Date(x).toISOString(),
 };
 
 const codes = {
-  int: function (x) {
-    return Number.isInteger(x);
-  },
-  string: function (x) {
-    return x instanceof String || "string" === typeof x;
-  },
-  bool: function (x) {
-    return x === true || x === false;
-  },
+  int: (x) => Number.isInteger(x),
+  string: (x) => x instanceof String || "string" === typeof x,
+  bool: (x) => x === true || x === false,
 };
 
-const verify = function (code, value) {
+function verify(code, value) {
   if (code == null) {
     // representatives = run.defs.representatives
     // defCodes = JSON.stringify run.defs.codes
@@ -115,51 +54,35 @@ const verify = function (code, value) {
   }
   switch (code.code) {
     case "vector":
-      if (!Array.isArray(value)) {
-        return false;
-      }
-      return value.every(function (x) {
-        return verify(code.vector, x);
-      });
+      if (!Array.isArray(value)) return false;
+      return value.every((x) => verify(code.vector, x));
     case "product":
-      if ("object" !== typeof value) {
-        return false;
+      if ("object" !== typeof value) return false;
+      else {
+        const fields = Object.keys(value);
+        if (fields.length !== Object.keys(code.product).length) return false;
+        return fields.every((label) =>
+          verify(code.product[label], value[label])
+        );
       }
-      return (function (fields) {
-        if (fields.length !== Object.keys(code.product).length) {
-          return false;
-        }
-        return fields.every(function (label) {
-          return verify(code.product[label], value[label]);
-        });
-      })(Object.keys(value));
     case "union":
-      if ("object" !== typeof value) {
-        return false;
-      }
-      return (function (fields) {
-        if (fields.length !== 1) {
-          return false;
-        }
+      if ("object" !== typeof value) return false;
+      else {
+        const fields = Object.keys(value);
+        if (fields.length !== 1) return false;
         return verify(code.union[fields[0]], value[fields[0]]);
-      })(Object.keys(value));
-    default:
-      return (function (c) {
-        if (c != null) {
-          return verify(c, value);
-        }
-        return codes[code](value);
-      })(run.defs.codes[run.defs.representatives[code]]);
+      }
+    default: {
+      const c = run.defs.codes[run.defs.representatives[code]];
+      if (c != null) return verify(c, value);
+      return codes[code](value);
+    }
   }
-};
+}
 
-const run = function (exp, value) {
+function run(exp, value) {
   "use strict";
-  var defn, e, i, j, k, label, len, len1, len2, r, ref, ref1, ref2, result;
-  if (value === void 0) {
-    // console.log {exp,value}
-    return void 0;
-  }
+  if (value === undefined) return;
   switch (exp.op) {
     case "code":
       if (verify(exp.code, value)) {
@@ -172,7 +95,7 @@ const run = function (exp, value) {
     case "int":
       return exp[exp.op];
     case "ref":
-      defn = run.defs.rels[exp.ref];
+      const defn = run.defs.rels[exp.ref];
       if (defn != null) {
         return run(defn[defn.length - 1], value);
       }
@@ -180,49 +103,40 @@ const run = function (exp, value) {
     case "dot":
       return value[exp.dot];
     case "comp":
-      return exp.comp.reduce(function (value, exp) {
-        if (value !== void 0) {
-          return run(exp, value);
-        }
+      return exp.comp.reduce((value, exp) => {
+        if (value !== undefined) return run(exp, value);
       }, value);
     case "union":
-      ref = exp.union;
-      for (i = 0, len = ref.length; i < len; i++) {
-        e = ref[i];
-        result = run(e, value);
-        if (result !== void 0) {
+      for (let i = 0, len = exp.union.length; i < len; i++) {
+        const result = run(exp.union[i], value);
+        if (result !== undefined) {
           return result;
         }
       }
-      return void 0;
-    case "vector":
-      result = [];
-      ref1 = exp.vector;
-      for (j = 0, len1 = ref1.length; j < len1; j++) {
-        e = ref1[j];
-        r = run(e, value);
-        if (r === void 0) {
-          return;
-        }
+      return;
+    case "vector": {
+      const result = [];
+      for (let i = 0, len = exp.vector.length; i < len; i++) {
+        const r = run(exp.vector[i], value);
+        if (r === undefined) return;
         result.push(r);
       }
       return result;
-    case "product":
-      result = {};
-      ref2 = exp.product;
-      for (k = 0, len2 = ref2.length; k < len2; k++) {
-        ({ label, exp } = ref2[k]);
-        r = run(exp, value);
-        if (r === void 0) {
-          return;
-        }
+    }
+    case "product": {
+      const result = {};
+      for (let i = 0, len = exp.product.length; i < len; i++) {
+        const { label, exp: e } = exp.product[i];
+        const r = run(e, value);
+        if (r === undefined) return;
         result[label] = r;
       }
       return result;
+    }
     default:
       return console.error(exp.op);
   }
-};
+}
 
 export default run;
 export { run };

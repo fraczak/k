@@ -4,36 +4,30 @@ import run from "./run.mjs";
 
 import t from "./codes.mjs";
 
-const finalize = function (codes) {
-  var representatives;
-  representatives = t.minimize(codes).representatives;
-  codes = t.normalizeAll(codes, representatives);
-  return { codes, representatives };
-};
+function finalize(codes) {
+  const representatives = t.minimize(codes).representatives;
+  return {
+    codes: t.normalizeAll(codes, representatives),
+    representatives,
+  };
+}
 
-const compile = function (script) {
-  return (function ({ defs, exp }) {
-    var codes, representatives;
-    // console.log defs
-    ({ codes, representatives } = finalize(defs.codes));
-    // console.log {codes, representatives}
-    run.defs = {
-      codes,
-      representatives,
-      rels: defs.rels,
-    };
-    return function (data) {
-      return run(exp, data);
-    };
-  })(parse(script));
-};
+function compile(script) {
+  const { defs, exp } = parse(script);
+  const { codes, representatives } = finalize(defs.codes);
+  run.defs = {
+    codes,
+    representatives,
+    rels: defs.rels,
+  };
+  return run.bind(null, exp);
+}
 
 compile.doc = "Transforms k-script (string) into a function";
 
-const runScriptOnData = function (script, data) {
+function runScriptOnData(script, data) {
   return compile(script)(data);
-};
-
+}
 runScriptOnData.doc = "Run 'script' (string) on 'data': (script,data) -> data";
 
 export default { compile, run: runScriptOnData, parse };

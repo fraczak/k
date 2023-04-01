@@ -4,8 +4,9 @@
 
 From javascript:
 
-    var k  = require("@fraczak/k"),
-        fn = k.compile("<.name,.nom,'?'>");
+    import k from "@fraczak/k";
+    
+    const fn = k.compile("<.name,.nom,'?'>");
     console.log([{name:"x"},{nom:"y"},{}].map(fn));
     // returns: [ "x", "y", "?" ]
 

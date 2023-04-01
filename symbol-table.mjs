@@ -1,18 +1,20 @@
-const rels = Object.create(null);
-const codes = Object.create(null);
-
-codes["{}"] = {
-  code: "product",
-  product: {},
+const rels = {};
+const codes = {
+  "{}": {
+    code: "product",
+    product: {},
+  },
 };
 
 const identity = {
   op: "identity",
 };
 
-const is_identity_rel = (rel) => rel.op === "identity";
+function is_identity_rel(rel) {
+  return rel.op === "identity";
+}
 
-const is_constant_rel = (rel) => {
+function is_constant_rel(rel) {
   switch (rel.op) {
     case "int":
     case "str":
@@ -26,11 +28,13 @@ const is_constant_rel = (rel) => {
     default:
       return false;
   }
-};
+}
 
-const is_empty_rel = (rel) => rel.op === "union" && rel.union.length === 0;
+function is_empty_rel(rel) {
+  return rel.op === "union" && rel.union.length === 0;
+}
 
-const is_full_rel = (rel) => {
+function is_full_rel(rel) {
   if (is_constant_rel(rel)) return true;
   switch (rel.op) {
     case "int":
@@ -46,9 +50,9 @@ const is_full_rel = (rel) => {
     default:
       return false;
   }
-};
+}
 
-const comp_first = (e1, e2) => {
+function comp_first(e1, e2) {
   if (is_identity_rel(e1)) return e2;
   if (is_identity_rel(e2)) return e1;
   if (is_empty_rel(e1)) return e1;
@@ -72,9 +76,9 @@ const comp_first = (e1, e2) => {
     op: "comp",
     comp: [e1, e2],
   };
-};
+}
 
-const comp = (e1, e2) => {
+function comp (e1, e2)  {
   const result = comp_first(e1, e2);
   if (result.op !== "comp") return result;
   result.comp = result.comp.reduceRight(
@@ -82,13 +86,13 @@ const comp = (e1, e2) => {
     []
   );
   return result;
-};
+}
 
-const union = (rels) => {
+function union  (rels) {
   const list = [];
-  label: for (let rel of rels) {
+  label: for (const rel of rels) {
     const new_rels = rel.op === "union" ? rel.union : [rel];
-    for (let new_rel of new_rels) {
+    for (const new_rel of new_rels) {
       list.push(new_rel);
       if (is_full_rel(new_rel)) break label;
     }
@@ -100,19 +104,21 @@ const union = (rels) => {
   };
 };
 
-const as_ref = (codeExp) => {
+function as_ref (codeExp) {
   if (codeExp.code === "ref") return codeExp.ref;
   const newName = `:${Object.keys(codes).length}`;
   codes[newName] = codeExp;
   return newName;
 };
 
-const add_rel = (name, rel) => {
+function add_rel (name, rel) {
   if (rels[name] == null) rels[name] = [];
-  return rels[name].push(rel);
+  rels[name].push(rel);
 };
 
-const add_code = (name, code) => (codes[name] = code);
+function add_code (name, code) {
+  codes[name] = code;
+}
 
 export default {
   identity,
