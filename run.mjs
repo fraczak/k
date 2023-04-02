@@ -1,3 +1,5 @@
+import functors from "functors";
+
 const modulo = (a, b) => ((+a % (b = +b)) + b) % b;
 const valid = (x) => (isNaN(x) ? undefined : x);
 
@@ -80,62 +82,57 @@ function verify(code, value) {
   }
 }
 
-function run(exp, value) {
-  "use strict";
-  if (value === undefined) return;
-  switch (exp.op) {
-    case "code":
-      if (verify(exp.code, value)) {
-        return value;
+function run(exp) {
+  const evalExp = (value, cb) => {
+    if (value === undefined) return cb(null, undefined);
+    switch (exp.op) {
+      case "code":
+        return cb(null, verify(exp.code, value) ? value : undefined);
+      case "identity":
+        return cb(null, value);
+      case "str":
+      case "int":
+        return cb(null, exp[exp.op]);
+      case "ref":
+        const defn = run.defs.rels[exp.ref];
+        if (defn != null) return run(defn[defn.length - 1])(value, cb);
+        return cb(null, builtin[exp.ref](value));
+      case "dot":
+        return cb(null, value[exp.dot]);
+      case "comp":
+        return functors.compose(exp.comp.map(run))(value, cb);
+      case "union": {
+        const afns = exp.union.map((exp) => (v, cb) => {
+          if (v === undefined) return run(exp)(value, cb);
+          return cb(null, v);
+        });
+        return functors.compose(afns)(undefined, cb);
       }
-      break;
-    case "identity":
-      return value;
-    case "str":
-    case "int":
-      return exp[exp.op];
-    case "ref":
-      const defn = run.defs.rels[exp.ref];
-      if (defn != null) {
-        return run(defn[defn.length - 1], value);
+      case "vector": {
+        const afns = exp.vector.map((exp) => (v, cb) => {
+          if (v === undefined) return cb(null, undefined);
+          return functors.compose([
+            run(exp),
+            functors.delay((x) => v.concat([x])),
+          ])(value, cb);
+        });
+        return functors.compose(afns)([], cb);
       }
-      return builtin[exp.ref](value);
-    case "dot":
-      return value[exp.dot];
-    case "comp":
-      return exp.comp.reduce((value, exp) => {
-        if (value !== undefined) return run(exp, value);
-      }, value);
-    case "union":
-      for (let i = 0, len = exp.union.length; i < len; i++) {
-        const result = run(exp.union[i], value);
-        if (result !== undefined) {
-          return result;
-        }
+      case "product": {
+        const afns = exp.product.map(({ label, exp }) => (v, cb) => {
+          if (v === undefined) return cb(null, undefined);
+          return functors.compose([
+            run(exp),
+            functors.delay((x) => { v[label] = x; return v; }),
+          ])(value, cb);
+        });
+        return functors.compose(afns)({}, cb);
       }
-      return;
-    case "vector": {
-      const result = [];
-      for (let i = 0, len = exp.vector.length; i < len; i++) {
-        const r = run(exp.vector[i], value);
-        if (r === undefined) return;
-        result.push(r);
-      }
-      return result;
+      default:
+        return cb(new Error(`Unknown op: ${exp.op}`));
     }
-    case "product": {
-      const result = {};
-      for (let i = 0, len = exp.product.length; i < len; i++) {
-        const { label, exp: e } = exp.product[i];
-        const r = run(e, value);
-        if (r === undefined) return;
-        result[label] = r;
-      }
-      return result;
-    }
-    default:
-      return console.error(exp.op);
-  }
+  };
+  return (e, cb) => setImmediate(evalExp.bind(null, e, cb));
 }
 
 export default run;

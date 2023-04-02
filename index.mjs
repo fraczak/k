@@ -20,16 +20,12 @@ function compile(script) {
     representatives,
     rels: defs.rels,
   };
-  return run.bind(null, exp);
+  return run(exp);
 }
 
-compile.doc = "Transforms k-script (string) into a function";
+compile.doc = "Transforms k-script (string) into a an async function";
 
-function runScriptOnData(script, data) {
-  return compile(script)(data);
-}
-runScriptOnData.doc = "Run 'script' (string) on 'data': (script,data) -> data";
 
-export default { compile, run: runScriptOnData, parse };
+export default { compile, parse };
 
-export { compile, runScriptOnData as run, parse };
+export { compile, parse };

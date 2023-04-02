@@ -50,14 +50,13 @@ if (oneJson) {
     });
     return jsonStream.on("end", function () {
       var e;
-      try {
-        return console.log(
-          JSON.stringify(kScript(JSON.parse(buffer.join(""))))
-        );
-      } catch (error) {
-        e = error;
-        return console.error(e);
-      }
+      kScript(JSON.parse(buffer.join("")), (err, result) => {
+        if (err) {
+          return console.error(err);
+        } else 
+        console.log( JSON.stringify(result) );
+      });
+      return;
     });
   })([]);
 } else {
@@ -75,13 +74,13 @@ if (oneJson) {
         for (i = 0, len = todo.length; i < len; i++) {
           json = todo[i];
           if (!json.match(/^[ \n\t]*(?:#.*)?$/)) {
-            try {
-              console.log(JSON.stringify(kScript(JSON.parse(json))));
-            } catch (error) {
-              e = error;
-              console.error(`Problem [line ${line}]: '${json}'`);
-              console.error(e);
-            }
+            kScript(JSON.parse(json), (err, result) => {
+              if (err) { 
+                console.error(`Problem [line ${line}]: '${json}'`);
+                console.error(err); 
+              } else 
+                console.log(JSON.stringify(result));
+            }); 
           }
           results.push((line = line + 1));
         }
