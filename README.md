@@ -204,9 +204,9 @@ shell for the language. E.g.:
 
 ## Using from `javascript`
 
-     var k = require("k");
+     import k from "@fraczak/k";
 
-     k_expression = '()';
+     let k_expression = '()';
      k.run(k_expression,"ANYTHING...");
      // RETURNS: "ANYTHING..."
 
@@ -249,7 +249,7 @@ shell for the language. E.g.:
      k_fn({"age":2,"name":"Mark"});
      // RETURNS: {"nom":"Mark","age":"enfant"}
 
-     var k_fn = k.compile('$t = < i: int, t: [ t ] > ; <$t, $int>');
+     k_fn = k.compile('$t = < i: int, t: [ t ] > ; <$t, $int>');
 
      k_fn(1);
      // RETURNS: 1
@@ -263,7 +263,7 @@ shell for the language. E.g.:
      k_fn({"t":[{"i":2},{"i":3},{"t":[]}]});
      // RETURNS: {"t":[{"i":2},{"i":3},{"t":[]}]}
 
-     var k_fn = k.compile('$ < < [ int ] ints, [ bool ] bools > list, string None>');
+     k_fn = k.compile('$ < < [ int ] ints, [ bool ] bools > list, string None>');
 
      k_fn({"None":"None"});
      // RETURNS: {"None":"None"}

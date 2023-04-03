@@ -9,7 +9,7 @@ const prog = process.argv[1];
 
 let kScript, jsonStream, oneJson;
 
-({ kScript, jsonStream, oneJson } = (function (oneJson, args) {
+({ kScript, jsonStream, oneJson } = ((oneJson, args) => {
   let e;
   try {
     kScript = (function (arg) {
@@ -44,49 +44,36 @@ let kScript, jsonStream, oneJson;
 })(false, process.argv.slice(2)));
 
 if (oneJson) {
-  (function (buffer) {
-    jsonStream.on("data", function (data) {
-      return buffer.push(data);
-    });
-    return jsonStream.on("end", function () {
-      var e;
-      try {
-        return console.log(
-          JSON.stringify(kScript(JSON.parse(buffer.join(""))))
-        );
-      } catch (error) {
-        e = error;
-        return console.error(e);
-      }
-    });
-  })([]);
+  const buffer = [];
+  jsonStream.on("data", (data) => buffer.push(data));
+  jsonStream.on("end", () => {
+    try {
+      console.log(JSON.stringify(kScript(JSON.parse(buffer.join("")))));
+    } catch (error) {
+      console.error(error);
+    }
+  });
 } else {
-  (function (buffer, line) {
-    return jsonStream.on("data", function (data) {
-      var e, first, i, json, last, len, ref, rest, results, todo;
-      [first, ...rest] = data.toString("utf8").split("\n");
-      buffer.push(first);
-      if (rest.length > 0) {
-        todo = buffer.join("");
-        (ref = rest), ([...rest] = ref), ([last] = splice.call(rest, -1));
-        buffer = [last];
-        todo = [todo, ...rest];
-        results = [];
-        for (i = 0, len = todo.length; i < len; i++) {
-          json = todo[i];
-          if (!json.match(/^[ \n\t]*(?:#.*)?$/)) {
-            try {
-              console.log(JSON.stringify(kScript(JSON.parse(json))));
-            } catch (error) {
-              e = error;
-              console.error(`Problem [line ${line}]: '${json}'`);
-              console.error(e);
-            }
+  let buffer = [];
+  let line = 0;
+  jsonStream.on("data", (data) => {
+    const [first, ...rest] = data.toString("utf8").split("\n");
+    buffer.push(first);
+    if (rest.length > 0) {
+      const todo = buffer.join("");
+      const last = rest.pop();
+      buffer = [last];;
+      for (const exp of [todo, ...rest]) {
+        if (!exp.match(/^[ \n\t]*(?:#.*)?$/)) {
+          try {
+            console.log(JSON.stringify(kScript(JSON.parse(exp))));
+          } catch (error) {
+            console.error(`Problem [line ${line}]: '${exp}'`);
+            console.error(error);
           }
-          results.push((line = line + 1));
         }
-        return results;
+        line++;
       }
-    });
-  })([], 0);
+    }
+  });
 }

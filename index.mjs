@@ -1,7 +1,5 @@
 import { parse } from "./parser.mjs";
-
 import run from "./run.mjs";
-
 import t from "./codes.mjs";
 
 function finalize(codes) {
@@ -31,5 +29,4 @@ function runScriptOnData(script, data) {
 runScriptOnData.doc = "Run 'script' (string) on 'data': (script,data) -> data";
 
 export default { compile, run: runScriptOnData, parse };
-
 export { compile, runScriptOnData as run, parse };

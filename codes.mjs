@@ -78,7 +78,6 @@ function normalizeAll(codes, representatives) {
   return Object.keys(codes).reduce(function (normalized, name) {
     if (name === representatives[name]) {
       const code = codes[name];
-
       switch (code.code) {
         case "union":
         case "product":
