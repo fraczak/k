@@ -10,31 +10,177 @@ From javascript:
     console.log([{name:"x"},{nom:"y"},{}].map(fn));
     // returns: [ "x", "y", "?" ]
 
-Another JSON transformation notation.  A `k`-expression (script)
-defines a __partial function__, i.e., a function which may fail
-for some input. `k`-expressions can be combined to build
-other `k`-expressions in three ways:
+---
 
-1. composition, e.g.:
+## k - the way of building and manipulating JSON-like data
 
-        (E1 E2 E3 ...)
+Technically, `k` is a notation for defining **first-order partial functions**.
 
-    Apart from empty composition, `()`, which defines _identity_, the
-    paranthesis can be omitted.
+An example of a _partial function_ is the _projection_, e.g., "`.toto`",
+which maps an object to its property named `toto`, or it is not defined if
+the property doesn't exist. E.g.,
 
-2. product, e.g., vector or structure:
+    1   .toto :
+    2        {"toto": 5, "titi": 10}  --> 5
+    3        {"titi": 10}             ... undefined // it is not a value!
 
-        [ E1, E2, E3, ... ]
-        { E1 "e1", E2 "e2", E3 "e3", ... }
+> Note: The above 3 lines should be read as follows. A `k`-expression
+> is printed in the first line (before "`:`").  The following lines
+> are examples of the function defined by the `k`-expression applayed
+> to JSON values (first part of each line).  If the function for the
+> value is defined, then the result is printed after "`-->`" (line 2 in
+> the above example).  If the function is not defined for the value,
+> then "`... undefined`" is printed (line 3).
 
-3. union (merge), e.g.:
+---
 
-        < E1, E2, E3, ... >
+### Combining "partial functions"
 
-    Elementary partial functions are:
+There are three ways of combining functions:
 
-4. _projection_, i.e., extracting the value of a given field or
-   index. Examples:
+1. **composition**: `(f1 f2 ...)`, e.g. `(.toto .titi)` extracts
+    nested field.
+
+         (.toto .titi) :
+             {"toto": {"titi": 10}}   --> 10
+             {"toto": 10 }            ... undefined
+             {}                       ... undefined
+
+2. **merge**: `< f1, f2,... >`, e.g., `<.toto, .titi>` extracts field
+    `toto` if present; otherwise extracts `titi`.
+
+         <.toto, .titi> :
+             {"toto": 5, "titi": 10}  --> 5
+             {"titi": 10 }            --> 10
+             {}                       ... undefined
+
+3. **product**: `{ f1 label1, f2 label2, ...}`, e.g., `{.toto TOTO,
+.titi TITI}` extracts two fields and builds a record out of them.
+
+         {.toto TOTO, .titi TITI} :
+             {"toto": 5, "titi": 10, "x": 3}  --> {"TOTO": 5, "TITI": 10}
+             {"titi": 10 }                    ... undefined
+
+---
+
+**QUIZ**: What is:
+
+- empty composition: `()` ?
+- empty merge: `<>` ?
+- empty product: `{}` ?
+- `{{{{} s} s} s}` ?
+- `({{{() a} b} c} .c .b .a)` ?
+
+---
+
+### Syntactic sugar
+
+- parenthesis can be omitted, except for the empty composition `()`,
+- dot (`.`) in "projection" acts as a separator so the space around it can be omitted.
+
+For example, `[(.toto .titi (.0 .1))]` can be written as `[.toto.titi.0.1]`.
+
+Comments can be introduced by `//`, `--`, `%`, or `#` and extends to
+the end of line.  Multiline `C`-like comments, `/* ... */`, are also
+supported.
+
+### Basic extensions
+
+#### Constants, i.e., literals for `strings`, `integers`, `booleans`, and `null`
+
+A constant defines a function which ignores its argument and produces
+the constant value. E.g.:
+
+    {123 int, "kScript" str, true bool, null null} :
+        "any"  --> {"int":123,"str":"kScript","bool":true,"null":null}
+
+#### Vector product
+
+Vector product can be seen as an abbreviation for product whose field
+names are integers starting from zero. E.g., `{.toto 0, .titi 1, 123 2}`
+can be written as `[.toto, .titi, 123]`.
+
+    [.toto, .titi, 12] :
+        {"toto": 5, "titi": 10 }  --> [5, 10, 12] 
+
+    .1 :
+        ["A","B","C"]  --> "B"
+        ["a"]          ... undefined
+
+---
+
+### Pragmatic extensions, aka "standard library"
+
+- `GT` : -- identity for lists of decreasing elements; undefined otherwise
+
+        [4,3]     --> [4,3]
+        [3,4]     ... undefined
+        []        --> []
+        [4,3,0]   --> [4,3,0]
+
+- `EQ` : -- identity for lists of equal elements; undefined otherwise
+
+        [4,4]     --> [4,4]
+        [4,5]     ... undefined
+        [4,4,4]   --> [4,4,4]
+        []        --> []
+
+- `{PLUS plus, TIMES times}` :
+
+        [1,2]     --> {"plus":3,"times":2}
+        [2,2,2]   --> {"plus":6,"times":8}
+        []        --> {"plus":0,"times":1}
+
+- `CONCAT` :
+
+        ["a","bc","d"] --> "abcd"
+
+- `toJSON` :
+
+        {"a": 12} --> "{\"a\":12}"
+
+- `fromJSON` :
+
+        "{\"a\":12}" --> {"a":12}
+
+- other predefined parial functions are: `DIV`, `FDIV`, `CONS`, `SNOC`, `toDateMsec`,
+  `toDateStr`, and `_log!`.
+
+---
+
+### Function definitions
+
+      dec = [(),-1] PLUS;
+      max = <SNOC [.0, .1 max] <GT.0, .1>, .0> ;
+      factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
+
+### Codes (_types_)
+
+_Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
+
+      $nat = <nat 1, {} 0>;
+      $pair = {nat x, nat y};
+
+      suc = {$nat 1};
+      add = $pair <{.x.1 x, .y suc y} add, .y>;
+
+#### Basic extension codes
+
+Since _basic extension_ introduces integers, booleans, and strings, there are three
+predefined types: `int`, `bool`, and `string`. A vector product code can also be defined
+by `[ codeExp ]`. All members of the vector are the same code. E.g.,
+
+     $intVector = [ int ];
+     $boolVector = [ bool ];
+     $tree = [ tree ];
+
+     emptyList? = $intVector $[ string ]; -- as only an empty vector can be a vector
+                                          -- of integers and a vector of strings
+---
+
+## Examples
+
+1. projection:
 
         .x
         ."field name"
@@ -43,7 +189,7 @@ other `k`-expressions in three ways:
     The function is defined only if its argument is a structure with
 the field (or a vector with the index).
 
-5. _constants_, literals for Strings, Booleans, and
+2. _constants_, literals for Strings, Booleans, and
    Integers. Examples:
 
         "a string"
@@ -52,14 +198,12 @@ the field (or a vector with the index).
         false
         null
 
-6. The other "built-in" functions: `GT`, `EQ`, `PLUS`,
-    `TIMES`, `DIV`, `CONCAT`, `toJSON`, `fromJSON`, `CONS`,
-    `SNOC`, `toDateMsec`, `toDateStr`, and `_log!`. For example:
+3. "built-in" functions:
 
-        [1, 2, 3] PLUS       --> integer constant function 6
-        [4, 4] TIMES toJSON  --> string constant function "16"
-        [3, 2] GT            --> vector constant function [3, 2]
-        [3, 4] GT            ... is not defined!
+        [1, 2, 3] PLUS       -- integer constant function 6
+        [4, 4] TIMES toJSON  -- string constant function "16"
+        [3, 2] GT            -- vector constant function [3, 2]
+        [3, 4] GT            -- ... undefined
 
     A more interesting example could be:
 
@@ -69,7 +213,7 @@ the field (or a vector with the index).
 
         [3,8] < GT .0, .1 >    --> 8
 
-## User defined functions
+### User defined functions
 
 `k`-expression can be prefixed by function definitions. E.g.:
 
@@ -84,22 +228,22 @@ the field (or a vector with the index).
 Another example could be finding the biggest (max) value in a vector:
 
     max = < 
-      SNOC         -- [x0, x1, x2, ...] -> [x0, [x1, x2, ...]]
-      [.0, .1 max] -- [x0, [x1, x2, ...]] -> [x0, max(x1,x2,...)], i.e., recursive call 
-      <GT .0, .1>, -- if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
-      -- when SNOC is not defined, e.g. the argument is a singleton vector [x0]
-      .0           -- [x0] -> x0, 
+      SNOC         #   [x0, x1, x2, ...] --> [x0, [x1, x2, ...]]
+      [.0, .1 max] #   [x0, [x1, x2, ...]] --> [x0, max(x1,x2,...)], i.e., recursive call 
+      <GT .0, .1>  #   if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
+    ,              # when SNOC is not defined, i.e., if the input vector has one element:
+      .0           #   [x0] --> x0
     >; 
     max
 
-## Value encodings (_codes_)
+### Value encodings (_codes_)
 
 There are three predefined value encodings: `int`, `string`, and
 `bool`. The language supports `code`-expressions:
 
-* product, e.g., `{int x, int y, bool flag}`
-* disjoint union, e.g., `<{} true, {} false>`
-* vector, e.g., `[ int ]` (all elements of the vector use the same
+- product, e.g., `{int x, int y, bool flag}`
+- disjoint union, e.g., `<{} true, {} false>`
+- vector, e.g., `[ int ]` (all elements of the vector use the same
   encoding)
 
 One can define recursive codes. E.g.:
@@ -121,7 +265,9 @@ within `k`-expression is again prefixed by `$`.
     > $ int;
     height
 
-## Command line script
+---
+
+## `k` (a command-line JSON processor using `k` syntax)
 
 There is a wrapper, `./node_modules/.bin/k` , which makes it easy to
 run the language from command line.
@@ -131,7 +277,7 @@ run the language from command line.
     Usage: ./node_modules/.bin/k ( k-expr | -k k-file) [ -1 ] [ json-file ]
     E.g., cat '{"a": 10}' | ./node_modules/.bin/k '[(),()]'
 
-### Examples
+For example:
 
 1. One `k`-expression with one `json`-object:
 
@@ -148,6 +294,8 @@ run the language from command line.
          {"x": 987}                            --> {"x&y":"only x=987"} 
          {"z": 123}                            --> {"x&y":"no x nor y"}
          ^D - to interrupt
+
+   If the input is a multiline json object, we need to add `-1` to the command-line options.
 
 3. If the `k`-expression is long, it can be put in a file, e.g.:
 
@@ -187,7 +335,39 @@ run the language from command line.
          {"z": 123}
          ####################################################
 
-### k-REPL (Read-Evaluate-Print Loop)
+---
+
+### Short comparaison with `jq` tutorial examples: <https://stedolan.github.io/jq/tutorial/>
+
+To "pretty" print the produced `json`, one can pipe the result of `k` to `json_pp`, `json_reformat`,
+or any other `json` pretty-print.
+
+1.
+        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | jq '.'
+        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | k  '()' -1 | json_pp
+2.
+        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | jq '.[0]'
+        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | k  '.0' -1 | json_pp
+3.
+        jq '.[0] | {message: .commit.message, name: .commit.committer.name}'
+        k '.0 {.commit.message message, .commit.committer.name name}' -1 | json_pp
+4. note: `k`-expression defines a partial function yielding a single json object, i.e., as far as `k` is concerned,
+   examples 4 and 5 of the `jq` tutorial are equivalent.
+5.
+        jq '[.[] | {message: .commit.message, name: .commit.committer.name}]'
+        k 'f = .commit {.message message, .committer.name name}; %\
+           map_f = <SNOC [.0 f,.1 map_f] CONS, [.0 f], []>; %\
+           map_f' -1 | json_pp
+6.
+        jq '[.[] | {message: .commit.message, name: .commit.committer.name, parents: [.parents[].html_url]}]'
+        k 'map_html_url = <SNOC [.0 .html_url, .1 map_html_url] CONS, [.0 .html_url], []>; %\
+           f = {.commit.message message, .commit.committer.name name, .parents map_html_url parents}; %\
+           map_f = <SNOC [.0 f, .1 map_f] CONS, [.0 f] , []>; %\
+           map_f' -1 | json_pp
+
+---
+
+## k-REPL (Read-Evaluate-Print Loop)
 
 Also there is a REPL, `./node_modules/.bin/k-repl`, which acts like a toy
 shell for the language. E.g.:
@@ -202,7 +382,9 @@ shell for the language. E.g.:
      inc inc inc inc
      => 7
 
-## Using from `javascript`
+---
+
+## Using `k` from `javascript`
 
      import k from "@fraczak/k";
 
