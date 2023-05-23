@@ -46,6 +46,23 @@ to_digit = <
 remove_leading_zeros =
       < .0 remove_leading_zeros, () >;
 
+/****
+typing:    <    .0     remove_leading_zeros    ,   ()    >
+        :0   :1    :2                       :3  :4    :5    :6
+
+?X0 = ?X1 = ?X4  -- comp+product+union-left -- 0,1,4 --> 0 
+?X6 = ?X5 = ?X3  -- comp-union-right        -- 3,5,6 --> 3 -->0
+?X0 = ?X2  -- input type of 'remove_leading_zeros' -- 0,2 --> 0
+?X4 = ?X5  - identity type                         -- 4,5 --> 4 --> 0
+
+?X1 = /?X2 0, .../ -- projection 
+  ?X0 = /?X0 0, .../ -- only union type is possible here!!!
+  ?X0 = <?X0 0, ...>
+remove_leading_zeros: <?X0 0, ...> --> <?X0 0, ...> where ?X0 = <?X0 0, ...>
+
+
+*/
+
 _append_zero =
      < ._ _ _0,             -- ( _ ->  0 _)
        .1 _append_zero _1,  -- ('1 ... -> '1 [$.1 | _append_zero]),
@@ -151,17 +168,32 @@ x_minus_y =
     .y remove_leading_zeros reverse_bnat y,
     _ _0 c}
   _sub2wc
-  ["---",()] _log! .1
-  reverse_bnat remove_leading_zeros
-  _log!;
+  ["---",()] .1
+  reverse_bnat remove_leading_zeros;
 
 
 mod   = < { shift mod x, .y y } mod, .x >;
 shift = { x_minus_y x, { .y x, .y y } plus y } ; -- (x,y)->(x-y,2y);
 
+----------------------------------------------------------------
+<${int 0, int 1}, [9,4]> {
+  () input,
+  {.0 from_digit x, .1 from_digit y} 
+  {<x_minus_y to_digit, "?"> minus, mod to_digit mod} result
+} 
+----------------------------------------------------------------
+/****
+typing mod =   <    {    shift    mod    x,    .y    y }    mod   ,    .x     >
+positions:  :0 < :1 { :2 shift :3 mod :4 x, :5 .y :6 y } :7 mod :8, :9 .x :10 > :11
 
+variables:
+?X0 = ?X1 = ?X2 = ?X5 = ?X9 -- comp + product + union (input) 0,1,2,5,9 --> 0
+?X11 = ?X10 = ?X8 -- comp + union  (output)                   8,10,11   --> 8
+?X3 = ?X0 = ?X7 -- input type of 'mod'                        0,3,7     --> 0
+?X4 = ?X11 =* ?X8-- output type of 'mod'                      4,8,11    --> 8
+                                                              6         --> 6
+?X7 = {?X4 x, ?X6 y} -- output for product
+  ?X0 = {?X8 x, ?X6 y}
 
-[9,4] {.0 from_digit x, .1 from_digit y} [x_minus_y, mod] 
-
-
--- example: > echo '[9,9,9,8]' | ./k.sh -k ./bnat.k  
+mod: {$X x, $Y y} -> $X
+*******/
