@@ -281,7 +281,7 @@ For example:
 
 1. One `k`-expression with one `json`-object:
 
-        > echo '{"x": 12, "y": 13}' | ./k.coffee '{ <.x, "no x"> x, () input}' 
+        > echo '{"x": 12, "y": 13}' | ./node_modules/.bin/k '{ <.x, "no x"> x, () input}' 
          {"x":12,"input":{"x":12,"y":13}}
 
 2. By providing only `k`-expression, the script will compile the
