@@ -40,6 +40,7 @@ function cap(pat1, pat2, eq) {
 
 class Pattern {
   constructor(type=null, closed=null, fields=null) {
+    this.code = null; // null or normalized type
     this.type = type; // null, "union", "product"
     this.closed = closed; // true, false (=null)
     this.fields = new Map(fields); // Map<field, PatternIdx>
@@ -47,14 +48,6 @@ class Pattern {
   isEmpty() {
     return isEmptyPat(this);
   }
-  equals(other) {
-    return this.type === other.type && this.closed === other.closed && 
-      areMapsEqual(this.fields, other.fields);
-  }
-  cap(other, eq) {
-    return cap(this, other, eq);
-  }
-
 }
 
 function annotate(rel, patterns) {
@@ -137,7 +130,7 @@ function patterns(codes, representatives, rels) {
     for (const relName in rels) {
       const defs = rels[relName];
       for (const def of defs) {
-        changed = inspect(def, patterns,eq) || changed;
+        changed = inspect(def, patterns, eq) || changed;
       }
     }
   }

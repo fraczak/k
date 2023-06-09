@@ -44,7 +44,7 @@ Partial order over code patterns (should agree with sets of values):
 `{*}(l1:p1) \cap {*}(l2:p2) = {*}(l1:p1,l2:p2)`
 `{}(l1:p1) \cap {}(l2:p2) = <>()` unless `l1=l2` otherwise `{}(l1:p1\cap p2)`
 
-## Pettern Graph
+## Pattern Graph
 
 Example:
 
@@ -81,13 +81,27 @@ Given a pattern graph, `(V,E)`, and an expression forest, `F`, we calculate a `f
 which consists of:
 
 1. equivalence classes `eq` over `V + C`
+    - `%x $t $y` implies `%x ~ %y ~ $t`
+    - `%x ( %y ...)` implies `%x ~ %y`
+    - `(... %x ) %y` implies `%x ~ %y`
+    - `%x () %y` implies `%x ~ %y`
+    - `%x { %y1 ..., %y2 ..., ..., %yn ...}` implies `%x ~ %y1 ~ %y2 ~ ... ~ %yn`
+    - `%x < %y1 ..., %y2 ..., ..., %yn ...>` implies `%x ~ %y1 ~ %y2 ~ ... ~ %yn`
+    - `<... %y1, ... %y2, ..., ... %yn > %x` implies `%x ~ %y1 ~ %y2 ~ ... ~ %yn`
+    - if `%x ~ $t` and `%x .field %y` implies `%y ~ $t.field`
 2. new edges, `E'`
-3. pattern refinements, `R` 
+    - `%x .field %y` implies `%x -[field]-> %y`
+    - `{..., ... %x field, ...} %y` implies `%y -[field]-> %x`
+3. pattern refinements, `R`
+    - `{... field} %x` implies `%x: <*>`
+    - `{... field, ...} %y` implies `%y: {}`
 
 In our example:
 
 `eq: {0,1,nat,2,3,4,11,12,13,14,15,16,17,18,19,20,21}, {5}, {6,7,8}, {9}, {10}`
+
 `E': (4 -[0]-> 5), (5 -[_]-> 6), (10 -[_]-> 9), (11 -[0]-> 10), (14 -[0]-> 15)`
+
 `R`: 9:{}, 10:<*>
 
 By folding the pattern graph with those information we get:
