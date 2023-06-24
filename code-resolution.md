@@ -107,3 +107,20 @@ In our example:
 By folding the pattern graph with those information we get:
 
     %n ( %n $nat %n < %n ( %n .0 %n ._ %{} { %{} { %{} {} %{} _} %n 0} %n ) %n, %n ( %n .0 %n rlz %n ) %n , %n () %n > %n ) %n
+
+
+### Another example
+
+    dec = [(),-1] PLUS;
+    zero? = [(),0] EQ 0;
+    factorial = < zero? 1, [dec factorial, ()] TIMES >;
+    { () x, factorial "x!" }
+
+    name   | rel*
+    -------|-----------------
+    PLUS   | %1 $[int] %2 PLUS %3 $int %4  
+    -1     | %5 {} %6 -1 %7 $int %8
+    EQ     | %9 $[int] %10
+    dec    | %11 [ %12 () %13, %14 -1 %15 ] %16 PLUS %17
+    zero?  | %18 [ %19 () %20, %21 0 %22 ] %23 EQ %24 .0 %25
+    
