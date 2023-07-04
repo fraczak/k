@@ -10,6 +10,12 @@ function finalize(codes) {
   };
 }
 
+function getRep(eq) {
+  return function (i, j) {
+    while (eq[i] !== i) { i = eq[i]; }
+    return [j,i];
+  }
+}
 function test(script) {
   const { defs, exp } = parse(script);
   const { codes, representatives } = finalize(defs.codes);
@@ -19,6 +25,7 @@ function test(script) {
   const t = p.patterns(codes, representatives, rels);
 
   console.log(JSON.stringify(t, null, 2));
+  console.log(JSON.stringify(t.pGraph.eq.map(getRep(t.pGraph.eq))));
 }
 
 

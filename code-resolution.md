@@ -1,48 +1,27 @@
-# code pattern
+# Pattern and its graph representation
 
-Every code can be seen as a singleton pattern. 
+Intuitively, a _pattern_ is an adhock description of a set of codes
+by providing some characteristics of the codes. Those characteristics are:
 
-1. Product: `{c1 f1, c2 f2, c3 f3}`
+  1. Is this product vs union?
+  2. The code has to have field (label) leading to a type or another parretn
+  
 
-    more general patterns:
+Code patterns is a graph with:
 
-    1. `{}
+  1. edges labeled by `fields`
+  2. nodes labeled by one of the:
 
-From other end:
-
-`<{...}>` - any code
-`{...}` - any product
-`<...>` - any union
-`<{ pattern fiels, ...}>`
-
-Code pattern will be a tree (and-or rooted graph) with edges labeled by `fields` and nodes
-labeled by open/close (*, .) and by type: unknown/union/product (<>, {}, //):
-
-1. `/*/`
-2. `{*}`
-3. `<*>`
-4. `//`
-5. `{}`
-6. `<>`
+    1. `/*/` - open unkown
+    2. `{*}` - open product
+    3. `<*>` - open union
+    4. `//` - close uknown
+    5. `{}` - close product
+    6. `<>` - close union
 
 A graph without "open" and "unknown" nodes is "code".
 
-Partial order over code patterns (should agree with sets of values):
-
-- min element: single node `<>`,
-- max element: single node `/*/`,
-- `<*>(l1:p1) > <*>(l1:q1,l2:p2)`, if `p1 > q1`
-- `{*}(l1:p1) > {*}(l1:q1,l2:p2)`, if `p1 > q1`
-- `/*/(l1:p1) > <*>(l1:q1)`, if `p1 > q1`
-- `/*/(l1:p1) > {*}(l1:q1)`, if `p1 > q1`
-
-## Questions
-
-1. How to decide whether `p1 > p2`?
-2. greatest lower bound, least upper bound (lattice).
-
-`{*}(l1:p1) \cap {*}(l2:p2) = {*}(l1:p1,l2:p2)`
-`{}(l1:p1) \cap {}(l2:p2) = <>()` unless `l1=l2` otherwise `{}(l1:p1\cap p2)`
+Actually every node in such a graph corresponds to a code pattern.
 
 ## Pattern Graph
 
@@ -107,7 +86,6 @@ In our example:
 By folding the pattern graph with those information we get:
 
     %n ( %n $nat %n < %n ( %n .0 %n ._ %{} { %{} { %{} {} %{} _} %n 0} %n ) %n, %n ( %n .0 %n rlz %n ) %n , %n () %n > %n ) %n
-
 
 ### Another example
 

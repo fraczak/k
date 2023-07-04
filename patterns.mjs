@@ -30,7 +30,11 @@ function patterns(codes, representatives, rels) {
     const defs = rels[relName];
     for (const def of defs) { augment(def, pGraph.patternNodes); }
   }
-  pGraph.eq = pGraph.patternNodes.map((_, i) => i); // equivalence classes (int = pattern index, str = code name)
+  pGraph.eq = pGraph.patternNodes.map((_, i) => i); 
+  for (const node_id in pGraph.eq) { 
+    pGraph.patternEdges[node_id]={}; 
+  }
+    
 
   // 2. loop until no more changes
   let changed = true;
@@ -75,6 +79,8 @@ function inspect(rel, pGraph) {
       return inspectUnion(rel, pGraph);
     case "comp": 
       return inspectComp(rel, pGraph);
+    case "identity":
+      return inspectIdentity(rel, pGraph);
     case "vector":
       return inspectVector(rel, pGraph);
     case "dot":
@@ -115,13 +121,14 @@ function updatePattern(pattern, {code, type, closed}) {
   type = type ? type : pattern.type;
   closed = closed ? closed : pattern.closed;
 
-  if (pattern.code == code && pattern.type == type && pattern.closed == closed) { 
+  if (pattern.code == code) {
+    // check for type mismatch between 'type' and 'code.code' 
     return false; 
   }
 
   if (type != pattern.type) {
     if (pattern.type) {
-      throw new Error(`Cannot update pattern ${pattern} with  ${code, type, closed}`);
+      throw new Error(`Cannot update pattern ${JSON.stringify(pattern)} with ${JSON.stringify({code, type, closed})}`);
     }
     pattern.type = type;
   }
@@ -161,6 +168,7 @@ function migrateEdges(i, j) {
 }
 
 function addEdge(src, label, target) {
+  console.log("addEdge", src, label, target);
   const old_target = pGraph.patternEdges[src][label];
   if (old_target) {
     return join(pGraph.eq, old_target, target);
@@ -240,7 +248,22 @@ function inspectProduct(rel, pGraph) {
 }
 
 function inspectUnion(rel, pGraph) {
-  return false;
+
+  const old_o = getRep(pGraph.eq, rel.patterns[1]);
+  if (rel.union.length == 0) {
+    return updatePattern(pGraph.patternNodes[old_o], {type: "union", closed: true}); 
+  }
+  // union: %old_i < %exp0_i exp0 %exp0_o, ... %expk_i expk %expk_o > %old_o
+  
+  const modified = rel.union.reduce((modified, exp) => {
+    var new_modified = inspect(exp, pGraph) || modified;
+    new_modified = join(pGraph.eq, getRep(pGraph.eq, rel.patterns[0]), 
+                        getRep(pGraph.eq,exp.patterns[0])) || modified;
+    new_modified = join(pGraph.eq, getRep(pGraph.eq, rel.patterns[1]),
+                        getRep(pGraph.eq,exp.patterns[1])) || modified;
+    return new_modified;
+  }, false);
+  return modified;
 }
 
 function inspectComp(rel, pGraph) {
@@ -253,11 +276,16 @@ function inspectComp(rel, pGraph) {
   
   const [modified,pattern_o] = rel.comp.reduce(([modified,pattern_i], exp) => {
     var new_modified = inspect(exp, pGraph) || modified;
-    new_modified = join(pGraph.eq, pattern_i, exp.patterns[0]) || modified;
-    new_modified = inspect(exp, pGraph) || new_modified;
+    new_modified = join(pGraph.eq, pattern_i, getRep(pGraph.eq, exp.patterns[0])) || modified;
     return [new_modified, exp.patterns[1]];
   }, [false, old_i]);
   return join(pGraph.eq, pattern_o, getRep(pGraph.eq, rel.patterns[1])) || modified;
+}
+
+function inspectIdentity(rel, pGraph) { 
+  return join(pGraph.eq, 
+    getRep(pGraph.eq, rel.patterns[0]), 
+    getRep(pGraph.eq, rel.patterns[1]));
 }
 
 function inspectVector(rel, pGraph) { 
