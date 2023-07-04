@@ -102,7 +102,7 @@ In our example:
 
 `E': (4 -[0]-> 5), (5 -[_]-> 6), (10 -[_]-> 9), (11 -[0]-> 10), (14 -[0]-> 15)`
 
-`R`: 9:{}, 10:<*>
+`R: 9:{}, 10:<*>`
 
 By folding the pattern graph with those information we get:
 
