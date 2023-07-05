@@ -300,12 +300,15 @@ function inspectCode(rel, pGraph) {
 
 function inspectRef(rel, pGraph) { 
   const relDefs = rels[rel.ref];
-  return relDefs.reduce((modified, def) => {
-    var new_modified = join(pGraph.eq, getRep(pGraph.eq, def.patterns[0]), getRep(pGraph.eq, rel.patterns[0])) || modified;
-    new_modified = join(pGraph.eq, getRep(pGraph.eq, def.patterns[1]), getRep(pGraph.eq, rel.patterns[1])) || new_modified;
-    return new_modified;
-  }, false);
-
+  // For now we assume only the first def which does not throw!!!!
+  for (const def of relDefs) {
+    try {
+      var modified = join(pGraph.eq, getRep(pGraph.eq, def.patterns[0]), getRep(pGraph.eq, rel.patterns[0]));
+      modified = join(pGraph.eq, getRep(pGraph.eq, def.patterns[1]), getRep(pGraph.eq, rel.patterns[1])) || modified;
+      return modified;
+    } catch (e) {}
+  } 
+  throw new Error(`No matching definition found for ${rel.ref}`);  
 }
 
 export default { augment, patterns };
