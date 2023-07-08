@@ -25,9 +25,10 @@ function test(script) {
   const t = p.patterns(codes, representatives, rels);
 
   console.log(JSON.stringify(t, null, 2));
-  console.log(JSON.stringify(t.pGraph.eq.map(getRep(t.pGraph.eq))));
+  console.log(JSON.stringify(t.eq.map(getRep(t.eq))));
+  console.log(JSON.stringify(rels, null, 2));
+  console.log(JSON.stringify({nodes: t.newPatternNodes, edges: t.newPatternEdges, pNodes: t.pNodes}, null, 2) );
 }
-
 
 export default { test };
 export { test };
