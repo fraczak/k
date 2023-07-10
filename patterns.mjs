@@ -15,7 +15,7 @@ function patterns(codes, representatives, rels) {
   // OUTPUT: returns "pGraph" (pattern graph) as well as it 
   // will annotate rels; each rel node will have property "patterns: [i, o]"
 
-  var patternNodes = []; // e.g.: [{__id: 0, code: null, type: null, closed" false}], 
+  var patternNodes = []; // e.g.: [{ code: null, type: null, closed" false}], 
   var patternEdges = {}; // e.g.: {0: {label: 2}, ...}, 
   var eq = []; // equivalence classes over patternNodes, e.g., [0, 1, 0, ...]}
   
@@ -24,10 +24,10 @@ function patterns(codes, representatives, rels) {
 
   function augment(rel) {
     const i = patternNodes.length;
-    const pattern_i = {__id: i, code: null, type: null, closed: false}
+    const pattern_i = { code: null, type: null, closed: false}
     patternNodes.push(pattern_i); 
     const o = patternNodes.length;
-    const pattern_o = {__id: o, code: null, type: null, closed: false}
+    const pattern_o = { code: null, type: null, closed: false}
     patternNodes.push(pattern_o);
     rel.patterns = [i, o];
     switch (rel.op) {
@@ -304,6 +304,8 @@ function patterns(codes, representatives, rels) {
 
   // 3. compress the pattern graph
 
+  // 3.1. get representative nodes for each pattern
+  // pNode = {repFromPatternNodes: 0, repFromPatternNodes: 1, ...}
   const pNodes = {};
   eq.map(getRep).forEach((p) => {
     pNodes[p] = p;
@@ -344,7 +346,7 @@ function patterns(codes, representatives, rels) {
     return newPatternEdges;
   }, {});
 
-  return { patternNodes, patternEdges, eq, newPatternEdges, newPatternNodes, pNodes };  
+  return { patternNodes: newPatternNodes, patternEdges: newPatternEdges };  
 }
 
 
