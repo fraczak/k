@@ -102,3 +102,7 @@ By folding the pattern graph with those information we get:
     dec    | %11 [ %12 () %13, %14 -1 %15 ] %16 PLUS %17
     zero?  | %18 [ %19 () %20, %21 0 %22 ] %23 EQ %24 .0 %25
     
+
+----
+
+Product like {.x ..., .y ...} implies the input is a product

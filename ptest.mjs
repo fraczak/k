@@ -1,33 +1,54 @@
 import { parse } from "./parser.mjs";
-import t from "./codes.mjs";
-import p from "./patterns.mjs";
+import { minimize, normalizeAll } from "./codes.mjs";
+import { patterns } from "./patterns.mjs";
+import fs from "node:fs";
 
 function finalize(codes) {
-  const representatives = t.minimize(codes).representatives;
+  const representatives = minimize(codes).representatives;
   return {
-    codes: t.normalizeAll(codes, representatives),
-    representatives,
+    codes: normalizeAll(codes, representatives),
+    representatives
   };
 }
 
-function getRep(eq) {
-  return function (i, j) {
-    while (eq[i] !== i) { i = eq[i]; }
-    return [j,i];
-  }
-}
-function test(script) {
+function annotate(script) {
   const { defs, exp } = parse(script);
   const { codes, representatives } = finalize(defs.codes);
 
   const rels = {...defs.rels, "__main__": [exp]};
 
-  const pats = p.patterns(codes, representatives, rels);
+  const pats = patterns(codes, representatives, rels);
 
-  console.log(JSON.stringify(rels, null, 2));
-  console.log(JSON.stringify(pats, null, 2));
+  return {rels,codes,representatives, ...pats}
 }
 
-export default { test };
-export { test };
+function t(script) {
+  const annotated = annotate(script);
+  console.log(JSON.stringify(annotated, "", 2));
+}
+
+
+// t("{}");
+
+// t(`$b = < {} true, {} false > ;
+//    true = {{} true} $b;
+//    false = {{} false} $b; 
+//    not = $b < .true false, .false true >;
+//    not not
+// `)
+
+
+// t(`
+// $bnat = < {} _, bnat 0, bnat 1 >;
+// remove_leading_zeros = $bnat < .0 remove_leading_zeros, () >;
+// remove_leading_zeros
+// `);
+
+// t(`$nat = <nat 1, {} _>; $bnat = < {} _, bnat 0, bnat 1 >; $nat $bnat`);
+
+t(fs.readFileSync("./Examples/bnat-patterns.k").toString("utf8"))
+
+t('_ = ${} {{} _}; {} _')
+export default { t };
+export { t };
 

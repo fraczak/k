@@ -1,4 +1,5 @@
 import { parse } from "./parser.mjs";
+import { patterns } from "./patterns.mjs";
 import run from "./run.mjs";
 import t from "./codes.mjs";
 
@@ -13,10 +14,13 @@ function finalize(codes) {
 function compile(script) {
   const { defs, exp } = parse(script);
   const { codes, representatives } = finalize(defs.codes);
+  // const rels = {...defs.rels, "__main__": [exp]};
+  // const pats = patterns(codes, representatives, rels);
   run.defs = {
     codes,
     representatives,
     rels: defs.rels,
+    // ...pats
   };
   return run.bind(null, exp);
 }

@@ -12,24 +12,23 @@ function patterns(codes, representatives, rels) {
   //   representatives:{"{}": "{}", ...}
   //   rels: {"rlz": [{op: comp,...}, ...], ...}
   
-  // OUTPUT: returns "pGraph" (pattern graph) as well as it 
-  // will annotate rels; each rel node will have property "patterns: [i, o]"
+  // OUTPUT: returns pattern graph: 
+  //  { patternNodes: [{code,type,closed},...], 
+  //    patternEdges: {src: {label: dst, ...}}...} 
+  // as well as it will annotate rels; each rel node will have property "patterns: [i, o]"
 
-  var patternNodes = []; // e.g.: [{ code: null, type: null, closed" false}], 
-  var patternEdges = {}; // e.g.: {0: {label: 2}, ...}, 
-  var eq = []; // equivalence classes over patternNodes, e.g., [0, 1, 0, ...]}
+  const patternNodes = []; // e.g.: [{ code: null, type: null, closed" false}], 
+  const patternEdges = {}; // e.g.: {0: {label: 2}, ...}, 
   
+  const codeToPattern = {}; // e.g., {"{}": 0, ...} - in order to collapse patterns resolved to the same code
+
   // 1 INITIALIZATION
   // 1.1 initialize patternNodes and rels
 
   function augment(rel) {
     const i = patternNodes.length;
-    const pattern_i = { code: null, type: null, closed: false}
+    const pattern_i = { _id: i, code: null, type: null, closed: false}
     patternNodes.push(pattern_i); 
-    const o = patternNodes.length;
-    const pattern_o = { code: null, type: null, closed: false}
-    patternNodes.push(pattern_o);
-    rel.patterns = [i, o];
     switch (rel.op) {
       case "product":
         rel["product"].forEach(({label, exp}) => augment(exp));
@@ -39,6 +38,11 @@ function patterns(codes, representatives, rels) {
       case "vector":
         rel[rel.op].forEach((exp) => augment(exp));
     }
+
+    const o = patternNodes.length;
+    const pattern_o = { _id: o, code: null, type: null, closed: false}
+    patternNodes.push(pattern_o);
+    rel.patterns = [i, o];
   }
 
   for (const relName in rels) {
@@ -46,8 +50,11 @@ function patterns(codes, representatives, rels) {
     for (const def of defs) { augment(def); }
   }
 
+  console.log(JSON.stringify(rels,"",2));
+
   // 1.2 initialize 'eq' (equivalence classes over patternNodes) and 'patternEdges'
-  eq = patternNodes.map((_, i) => i);
+  
+  const eq = patternNodes.map((_, i) => i); // equivalence classes over patternNodes, e.g., [0, 1, 0, ...]}
   
   function getRep(i) {
     while (eq[i] !== i) { i = eq[i]; }
@@ -60,7 +67,7 @@ function patterns(codes, representatives, rels) {
 
   function inspect(rel) {
     const op = rel.op;
-    console.log(`Inspecting ${op} ${JSON.stringify(rel)}`);
+    // console.log(`Inspecting ${op} ${JSON.stringify(rel)}`);
     switch (op) {
       case "product":
         return inspectProduct(rel);
@@ -151,7 +158,7 @@ function patterns(codes, representatives, rels) {
   }
   
   function addEdge(src, label, target) {
-    console.log("addEdge", src, label, target);
+    // console.log("addEdge", src, label, target);
     const old_target = patternEdges[src][label];
     if (old_target) {
       return join(old_target, target);
@@ -173,7 +180,7 @@ function patterns(codes, representatives, rels) {
         if (target_code) 
           return updatePattern(old_o_pattern, {code: target_code});
       }
-      throw new Error(`Cannot find field ${field} in code ${code}`); 
+      throw new Error(`Cannot find field ${field} in code ${JSON.stringify(code)}`); 
     }
 
     return addEdge(old_i, field, old_o);
@@ -209,7 +216,7 @@ function patterns(codes, representatives, rels) {
       }
     }
     // product constructor %old_i { %exp0_i exp0 %exp0_o field0, ... %expk_i expk %expk_o fieldk } %old_o
-    var modified = rel.product.reduce((modified, exp) => 
+    var modified = rel.product.reduce((modified, {label,exp}) => 
       inspect(exp) || modified, false);
   
     const fields = rel.product.map(({label, exp}) => 
@@ -268,7 +275,7 @@ function patterns(codes, representatives, rels) {
   
   function inspectCode(rel) {
     const old_i = getRep(rel.patterns[0]);
-    var modified = updatePattern(patternNodes[old_i], {code: rel.code});
+    var modified = updatePattern(patternNodes[old_i], {code: representatives[rel.code]});
     return join(old_i, rel.patterns[1]) || modified;
   }
   
