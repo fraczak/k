@@ -76,7 +76,8 @@ There are three ways of combining functions:
 ### Syntactic sugar
 
 - parenthesis can be omitted, except for the empty composition `()`,
-- dot (`.`) in "projection" acts as a separator so the space around it can be omitted.
+- dot (`.`) in "projection" acts as a separator so the space around it
+  can be omitted.
 
 For example, `[(.toto .titi (.0 .1))]` can be written as `[.toto.titi.0.1]`.
 
@@ -97,8 +98,9 @@ the constant value. E.g.:
 #### Vector product
 
 Vector product can be seen as an abbreviation for product whose field
-names are integers starting from zero. E.g., `{.toto 0, .titi 1, 123 2}`
-can be written as `[.toto, .titi, 123]`.
+names are integers starting from zero.  
+E.g., `{.toto 0, .titi 1, 123 2}` can be written as  
+`[.toto, .titi, 123]`.
 
     [.toto, .titi, 12] :
         {"toto": 5, "titi": 10 }  --> [5, 10, 12] 
@@ -143,8 +145,8 @@ can be written as `[.toto, .titi, 123]`.
 
         "{\"a\":12}" --> {"a":12}
 
-- other predefined parial functions are: `DIV`, `FDIV`, `CONS`, `SNOC`, `toDateMsec`,
-  `toDateStr`, and `_log!`.
+- other predefined parial functions are: `DIV`, `FDIV`, `CONS`,
+  `SNOC`, `toDateMsec`, `toDateStr`, and `_log!`.
 
 ---
 
@@ -154,7 +156,7 @@ can be written as `[.toto, .titi, 123]`.
       max = <SNOC [.0, .1 max] <GT.0, .1>, .0> ;
       factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
 
-### Codes (_types_)
+### Codes (_non-functional types_)
 
 _Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
 
@@ -163,19 +165,66 @@ _Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
 
       suc = {$nat 1};
       add = $pair <{.x.1 x, .y suc y} add, .y>;
+      
+Two codes are considered equal when they are isomorphic (preserving
+union/product and field names). E.g., `$pair`, `${nat y, nat x}`, and
+`${<nat 1, {} 0> x, nat y}` are all equal.
 
 #### Basic extension codes
 
-Since _basic extension_ introduces integers, booleans, and strings, there are three
-predefined types: `int`, `bool`, and `string`. A vector product code can also be defined
-by `[ codeExp ]`. All members of the vector are the same code. E.g.,
+Since _basic extension_ introduces integers, booleans, and strings,
+there are three predefined types: `int`, `bool`, and `string`. A
+vector product code can also be defined by `[ codeExp ]`. All members
+of the vector are the same code. E.g.,
 
      $intVector = [ int ];
      $boolVector = [ bool ];
      $tree = [ tree ];
 
-     emptyList? = $intVector $[ string ]; -- as only an empty vector can be a vector
-                                          -- of integers and a vector of strings
+### Patterns - result of code derivation
+
+Intuitively, a _pattern_ represents some set of contraints on
+codes. For example, expression `.toto` is a projection from a value of
+a product or a union with field `toto`.  Therefore, expression `.toto`
+introduces two patterns `p_i` and `p_o` (for input and output codes,
+respectively); `p_o` imposes no constraint on code, however `p_i` is a
+product or union code with field `toto` leading to a code fulfilling
+`p_o`, i.e., something like `< ? toto, ... >` or `{ ? toto, ... }`.
+
+         .toto
+     p_i       p_o
+
+In a more complex expression each (occurrence of) subexpression will
+introduce some new patterns.  
+For example, concider `<.toto <.toto, ()>, ()>`:
+
+        <    .toto    <    .toto    ,    ()    >     ,    ()     >
+     p1   p2       p3   p4       p5   p6    p7    p8   p9    p10   p11
+
+where `p1` is the pattern for the input code of the whole expression,
+`p11` is the pattern for the output.  We can deduce that patterns
+(`p1`, `p2`, `p9`) defines the same code, as well as (`p11`, `p10`,
+`p8`), (`p3`, `p4`, `p6`), and (`p8`, `p7`, `p5`), because union
+combines partial functions with the same input and output codes.
+Identity, `()`, implies that (`p6`, `p7`) and (`p9`,`p10`) defines the
+same code.  That means that in our expression, we deal with only one
+code, `c`, product or union, with field `toto` of type `c`, i.e.,
+
+        $c = < c toto, ... >;
+
+or
+
+        $c = { c toto, ... };
+
+Since the product code pattern (i.e., latter case) doesn't admmit any
+(finite) value, we can conclude that the code `c` is a union (i.e.,
+former case).
+
+For a given `kScript`, code derivation (as any static analysis) can
+fail, indicating that the script is invalid.  In some other cases the
+code derivation can succeed even to the point of reducig every pattern
+to a single code making the program fully annotated by codes.
+
 ---
 
 ## Examples

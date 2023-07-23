@@ -104,5 +104,7 @@ By folding the pattern graph with those information we get:
     
 
 ----
+Other observations:
 
-Product like {.x ..., .y ...} implies the input is a product
+Product like {.x ..., .y ...} implies the input is a product (not really valid)
+Pattern `p = <{p x, ...}>` implies, it is a union!, i.e., `p = < p x, ... >`, e.g, in `< .x, () >`.
