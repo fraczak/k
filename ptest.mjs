@@ -44,11 +44,13 @@ function t(script) {
 // remove_leading_zeros
 // `);
 
-// t(`$nat = <nat 1, {} _>; $bnat = < {} _, bnat 0, bnat 1 >; $nat $bnat`);
+// t(`u = ();one = $nat {() 1}; 
+// $nat = <nat 1, {} _>; $bnat = < {} _, bnat 0, bnat 1 >;
+// $<nat 1, {} _> $bnat`);
 
 t(fs.readFileSync("./Examples/bnat-patterns.k").toString("utf8"))
 
-t('_ = ${} {{} _}; {} _')
+// t('_ = ${} {{} _}; {} _')
 export default { t };
 export { t };
 

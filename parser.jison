@@ -2,23 +2,12 @@
 
 import s from "./symbol-table.mjs";
 
-const currentPosition = {
-    line: 1,
-    column: 1,
-    offset: 0
-};
-
-function getToken(text) {
-    const start = {line: currentPosition.line, column: currentPosition.column, offset: currentPosition.offset};
-    const lines = text.split("\n");
-    currentPosition.line += lines.length - 1;
-    if (lines.length > 1)
-        currentPosition.column = lines[lines.length - 1].length + 1;
-    else
-        currentPosition.column += text.length;
-    currentPosition.offset += text.length;
-    const end = {line: currentPosition.line, column: currentPosition.column, offset: currentPosition.offset};
-    const result = {start,end,value: String(text)};
+function getToken(yytext,yy,lstack) {
+    const yylloc = yy.lexer.yylloc;
+    const loc = lstack[lstack.length - 1]; //  { first_line: 5, last_line: 5, first_column: 2, last_column: 3 };
+    const start = {line: loc.first_line, column: loc.first_column + 1};
+    const end = {line: start.line, column: start.column + yytext.length};
+    const result = {start,end,value: String(yytext)};
     // console.log(result);
     return result;
 }
@@ -48,9 +37,9 @@ function fromEscString(escString) {
 %lex
 
 %%
-[/][*]([*][^/]|[^*])*[*][/]                    getToken(yytext); /* c-comment */
-("//"|"#"|"%"|"--")[^\n]*                      getToken(yytext); /* one line comment */
-\s+                                            getToken(yytext); /* blanks */
+[/][*]([*][^/]|[^*])*[*][/]                     /* c-comment */
+("//"|"#"|"%"|"--")[^\n]*                       /* one line comment */
+\s+                                             /* blanks */
 "<"                                            return 'LA';
 "{"                                            return 'LC';
 "["                                            return 'LB';
@@ -80,23 +69,23 @@ function fromEscString(escString) {
 
 %%
 
-name: NAME                              { $$ = getToken(yytext); };
-str: STRING                             { $$ = getToken(yytext); $$.value = fromEscString($$.value);};
-int: INT                                { $$ = getToken(yytext); $$.value = parseInt($$.value); };
-la: LA                                  { $$ = getToken(yytext); };
-lc: LC                                  { $$ = getToken(yytext); };
-lb: LB                                  { $$ = getToken(yytext); };
-lp: LP                                  { $$ = getToken(yytext); };
-ra: RA                                  { $$ = getToken(yytext); };
-rc: RC                                  { $$ = getToken(yytext); };
-rb: RB                                  { $$ = getToken(yytext); };
-rp: RP                                  { $$ = getToken(yytext); };
-eq: EQ                                  { $$ = getToken(yytext); };
-dot: DOT                                { $$ = getToken(yytext); };
-comma: COMMA                            { $$ = getToken(yytext); };
-sc: SC                                  { $$ = getToken(yytext); };
-col: COL                                { $$ = getToken(yytext); };
-dollar: DOLLAR                          { $$ = getToken(yytext); };
+name: NAME                              { $$ = getToken(yytext,yy,_$); };
+str: STRING                             { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);};
+int: INT                                { $$ = getToken(yytext,yy,_$); $$.value = parseInt($$.value); };
+la: LA                                  { $$ = getToken(yytext,yy,_$); };
+lc: LC                                  { $$ = getToken(yytext,yy,_$); };
+lb: LB                                  { $$ = getToken(yytext,yy,_$); };
+lp: LP                                  { $$ = getToken(yytext,yy,_$); };
+ra: RA                                  { $$ = getToken(yytext,yy,_$); };
+rc: RC                                  { $$ = getToken(yytext,yy,_$); };
+rb: RB                                  { $$ = getToken(yytext,yy,_$); };
+rp: RP                                  { $$ = getToken(yytext,yy,_$); };
+eq: EQ                                  { $$ = getToken(yytext,yy,_$); };
+dot: DOT                                { $$ = getToken(yytext,yy,_$); };
+comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
+sc: SC                                  { $$ = getToken(yytext,yy,_$); };
+col: COL                                { $$ = getToken(yytext,yy,_$); };
+dollar: DOLLAR                          { $$ = getToken(yytext,yy,_$); };
 
 
 input_with_eof: defs comp EOF               {

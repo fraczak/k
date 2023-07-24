@@ -1,3 +1,7 @@
+
+// import { prettyCode, prettyRel } from "./pretty.mjs";
+
+
 // Assumptions:
 // 1. Normalized code graph (i.e., codes and representatives)
 // 2. a pattern is defined by triples:
@@ -68,25 +72,30 @@ function patterns(codes, representatives, rels) {
   function inspect(rel) {
     const op = rel.op;
     // console.log(`Inspecting ${op} ${JSON.stringify(rel)}`);
-    switch (op) {
-      case "product":
-        return inspectProduct(rel);
-      case "union":
-        return inspectUnion(rel);
-      case "comp": 
-        return inspectComp(rel);
-      case "identity":
-        return inspectIdentity(rel);
-      case "vector":
-        return inspectVector(rel);
-      case "dot":
-        return inspectDot(rel);
-      case "code": 
-        return inspectCode(rel);
-      case "ref":
-        return inspectRef(rel);
-    }
-    throw new Error(`Unknown op: ${op}`);   
+    try {
+      switch (op) {
+        case "product":
+          return inspectProduct(rel);
+        case "union":
+          return inspectUnion(rel);
+        case "comp": 
+          return inspectComp(rel);
+        case "identity":
+          return inspectIdentity(rel);
+        case "vector":
+          return inspectVector(rel);
+        case "dot":
+          return inspectDot(rel);
+        case "code": 
+          return inspectCode(rel);
+        case "ref":
+          return inspectRef(rel);
+      }
+      throw new Error(`Unknown op: ${op}`);
+    } catch (e) {
+      console.log(`Code Derivation Error for '${op}' (lines ${rel.start.line}:${rel.start.column}...${rel.end.line}:${rel.end.column}): ${e.message}.`);
+      throw e;
+    }   
   }
   
   function updatePattern(pattern, {code, type, closed}) {
