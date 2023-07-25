@@ -40,7 +40,8 @@ function t(script) {
 
 // t(`
 // $bnat = < {} _, bnat 0, bnat 1 >;
-// remove_leading_zeros = $bnat < .0 remove_leading_zeros, () >;
+// remove_leading_zeros = $bnat 
+// < .0 remove_leading_zeros, () >;
 // remove_leading_zeros
 // `);
 
@@ -51,6 +52,8 @@ function t(script) {
 t(fs.readFileSync("./Examples/bnat-patterns.k").toString("utf8"))
 
 // t('_ = ${} {{} _}; {} _')
+
+// t('< .x, () >');
 export default { t };
 export { t };
 

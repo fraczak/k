@@ -54,7 +54,7 @@ function patterns(codes, representatives, rels) {
     for (const def of defs) { augment(def); }
   }
 
-  console.log(JSON.stringify(rels,"",2));
+  // console.log(JSON.stringify(rels,"",2));
 
   // 1.2 initialize 'eq' (equivalence classes over patternNodes) and 'patternEdges'
   
@@ -142,24 +142,38 @@ function patterns(codes, representatives, rels) {
     const iRep = getRep(i);
     const jRep = getRep(j);
     if (iRep == jRep) { return false; } 
-    // jRep becomes new representative
-    eq[iRep] = jRep;
-    // we still have to merge patterns and migrate edges
+    // create new representative
     const iPattern = patternNodes[iRep];
     const jPattern = patternNodes[jRep];
-    updatePattern(jPattern, iPattern); 
-    migrateEdges(iRep, jRep);
-    return true;  
+
+    const newRep = patternNodes.length;
+    const newPattern = { 
+      _id: newRep, 
+      code: null, type: null, closed: false, 
+      _from: `(${iPattern._from || iRep},${jPattern._from || jRep})`};
+    patternNodes[newRep] = newPattern;
+    patternEdges[newRep] = {};
+    eq[iRep] = eq[jRep] = eq[newRep] = newRep;   
+    // we still have to merge patterns and migrate edges
+    updatePattern(newPattern, iPattern);
+    updatePattern(newPattern, jPattern);
+    migrateEdges(jRep, newRep);
+    migrateEdges(iRep, newRep);
+    
+    return newRep;  
   }
   
-  function migrateEdges(i, j) {
-    const iEdges = patternEdges[i];
-    const jEdges = patternEdges[j];
+  function migrateEdges(from_i, to_j) {
+    const iEdges = patternEdges[from_i];
+    const jEdges = patternEdges[to_j];
     for (const label in iEdges) {
       const iTarget = iEdges[label];
       const jTarget = jEdges[label];
       if (jTarget) {
-        join(iTarget, jTarget);
+        const newTarget = join(iTarget, jTarget);
+        if (newTarget) {
+          jEdges[label] = newTarget;
+        }
       } else {
         jEdges[label] = iTarget;
       }
@@ -167,10 +181,15 @@ function patterns(codes, representatives, rels) {
   }
   
   function addEdge(src, label, target) {
-    // console.log("addEdge", src, label, target);
+    // console.log("addEdge", src, label, target, "old target", patternEdges[src][label] || "none");
     const old_target = patternEdges[src][label];
     if (old_target) {
-      return join(old_target, target);
+      const newTarget = join(old_target, target);
+      if (newTarget) {
+        patternEdges[src][label] = newTarget;
+        return true;
+      }
+      return false;
     }
     patternEdges[src][label] = target;
     return true;
@@ -353,7 +372,7 @@ function patterns(codes, representatives, rels) {
   }
   const newPatternEdges = Object.keys(patternEdges).reduce(function (newPatternEdges, src) {
     const newSrc = pNodes[src];
-    if (newSrc) { 
+    if (newSrc != undefined) { 
       newPatternEdges[newSrc] = Object.keys(patternEdges[src]).reduce(function (newPatternEdges, label) {
         newPatternEdges[label] = pNodes[getRep(patternEdges[src][label])];
         return newPatternEdges;
@@ -361,6 +380,20 @@ function patterns(codes, representatives, rels) {
     }
     return newPatternEdges;
   }, {});
+
+  // loops in the pattern graph are forcing the pattern to be union!
+
+  for( const i in newPatternNodes) {
+    const node = newPatternNodes[i];
+    for (const label in newPatternEdges[i]) {
+      if (newPatternEdges[i][label] == i) {
+        if (node.type == "product") {
+          throw new Error("Loop in product code!");
+        }
+        node.type = "union";
+      }
+    }
+  }
 
   return { patternNodes: newPatternNodes, patternEdges: newPatternEdges };  
 }
