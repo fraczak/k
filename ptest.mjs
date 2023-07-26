@@ -49,11 +49,15 @@ function t(script) {
 // $nat = <nat 1, {} _>; $bnat = < {} _, bnat 0, bnat 1 >;
 // $<nat 1, {} _> $bnat`);
 
-t(fs.readFileSync("./Examples/bnat-patterns.k").toString("utf8"))
+// t(fs.readFileSync("./Examples/bnat-patterns.k").toString("utf8"))
 
 // t('_ = ${} {{} _}; {} _')
 
 // t('< .x, () >');
+
+t(' {2 a} { 1 1, "a" a, () c} .c.a');
+// t('"a"');
+
 export default { t };
 export { t };
 

@@ -90,6 +90,11 @@ function patterns(codes, representatives, rels) {
           return inspectCode(rel);
         case "ref":
           return inspectRef(rel);
+        case "int":
+          return inspectInt(rel);
+        case "str":
+          return inspectStr(rel);
+
       }
       throw new Error(`Unknown op: ${op}`);
     } catch (e) {
@@ -117,25 +122,28 @@ function patterns(codes, representatives, rels) {
       return true;
     }
   
-    code = pattern.code;
-    type = type ? type : pattern.type;
-    closed = closed ? closed : pattern.closed;
-  
-    if (pattern.code == code) {
+    if (pattern.code) {
       // TODO: check for potential type mismatch between 'type' and 'code.code' 
       return false; 
     }
+
+    let changed = false;
   
-    if (type != pattern.type) {
-      if (pattern.type) {
+    if (type) {
+      if (! pattern.type) {
+        pattern.type = type;
+        changed = true;
+      } else if (pattern.type != type) {
         throw new Error(`Cannot update pattern ${JSON.stringify(pattern)} with ${JSON.stringify({code, type, closed})}`);
       }
-      pattern.type = type;
+    }
+
+    if (closed && (! pattern.closed)) {
+      pattern.closed = closed;
+      return true; 
     }
       
-    pattern.closed = pattern.closed || closed;
-  
-    return true;    
+    return changed;    
   }
   
   function join(i, j) {
@@ -194,7 +202,17 @@ function patterns(codes, representatives, rels) {
     patternEdges[src][label] = target;
     return true;
   }
+
+  function inspectInt(rel) {
+    const o_pattern = patternNodes[rel.patterns[1]];
+    return updatePattern(o_pattern, {code: "int", type: "code", closed: true});
+  }
   
+  function inspectStr(rel) {
+    const o_pattern = patternNodes[rel.patterns[1]];
+    return updatePattern(o_pattern, {code: "string", type: "code", closed: true});
+  }
+
   function inspectDot(rel) {
     const old_i = getRep(rel.patterns[0]);
     const old_o = getRep(rel.patterns[1]);
