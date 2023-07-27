@@ -190,6 +190,14 @@ function patterns(codes, representatives, rels) {
   
   function addEdge(src, label, target) {
     // console.log("addEdge", src, label, target, "old target", patternEdges[src][label] || "none");
+    const srcPattern = patternNodes[getRep(src)];
+    if (srcPattern.type == "code") {
+      const code = codes[representatives[srcPattern.code]];
+      if (code.code == "product" || code.code == "union" ) {
+        return updatePattern(patternNodes[getRep(target)], {code: code[code.code][label]})
+      }  
+      throw new Error(`Cannot add edge ${label} to code ${JSON.stringify(code)}`);
+    }
     const old_target = patternEdges[src][label];
     if (old_target) {
       const newTarget = join(old_target, target);

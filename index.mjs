@@ -32,5 +32,18 @@ function runScriptOnData(script, data) {
 }
 runScriptOnData.doc = "Run 'script' (string) on 'data': (script,data) -> data";
 
-export default { compile, run: runScriptOnData, parse };
-export { compile, runScriptOnData as run, parse };
+
+function annotate(script) {
+  const { defs, exp } = parse(script);
+  const { codes, representatives } = finalize(defs.codes);
+
+  const rels = {...defs.rels, "__main__": [exp]};
+
+  const pats = patterns(codes, representatives, rels);
+
+  return {rels,codes,representatives, ...pats}
+}
+annotate.doc = "Annotate all the script expressions with patterns";
+
+export default { compile, run: runScriptOnData, parse, annotate };
+export { compile, runScriptOnData as run, parse, annotate };
