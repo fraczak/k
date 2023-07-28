@@ -79,7 +79,7 @@ There are three ways of combining functions:
 - dot (`.`) in "projection" acts as a separator so the space around it
   can be omitted.
 
-For example, `[(.toto .titi (.0 .1))]` can be written as `[.toto.titi.0.1]`.
+For example, `(.toto .titi (.0 .1))` can be written as `.toto.titi.0.1`.
 
 Comments can be introduced by `//`, `--`, `%`, or `#` and extends to
 the end of line.  Multiline `C`-like comments, `/* ... */`, are also
@@ -108,6 +108,9 @@ E.g., `{.toto 0, .titi 1, 123 2}` can be written as
     .1 :
         ["A","B","C"]  --> "B"
         ["a"]          ... undefined
+
+The vector notation is introduced to satisfy JSON syntax and, for example,
+is not supported in _code derivation_ (explained below).
 
 ---
 
@@ -156,7 +159,7 @@ E.g., `{.toto 0, .titi 1, 123 2}` can be written as
       max = <SNOC [.0, .1 max] <GT.0, .1>, .0> ;
       factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
 
-### Codes (_non-functional types_)
+### Codes (schemas, i.e., _non-functional types_)
 
 _Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
 
@@ -165,7 +168,7 @@ _Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
 
       suc = {$nat 1};
       add = $pair <{.x.1 x, .y suc y} add, .y>;
-      
+
 Two codes are considered equal when they are isomorphic (preserving
 union/product and field names). E.g., `$pair`, `${nat y, nat x}`, and
 `${<nat 1, {} 0> x, nat y}` are all equal.
@@ -181,7 +184,7 @@ of the vector are the same code. E.g.,
      $boolVector = [ bool ];
      $tree = [ tree ];
 
-### Patterns - result of code derivation
+### Code derivation and Patterns
 
 Intuitively, a _pattern_ represents some set of contraints on
 codes. For example, expression `.toto` is a projection from a value of
@@ -196,17 +199,16 @@ product or union code with field `toto` leading to a code fulfilling
 
 In a more complex expression each (occurrence of) subexpression will
 introduce some new patterns.  
-For example, concider `<.toto <.toto, ()>, ()>`:
+For example, concider `<.toto, ()>`:
 
-        <    .toto    <    .toto    ,    ()    >     ,    ()     >
-     p1   p2       p3   p4       p5   p6    p7    p8   p9    p10   p11
+        <    .toto    ,    ()    >
+     p1   p2       p3   p4    p5   p6
 
 where `p1` is the pattern for the input code of the whole expression,
-`p11` is the pattern for the output.  We can deduce that patterns
-(`p1`, `p2`, `p9`) defines the same code, as well as (`p11`, `p10`,
-`p8`), (`p3`, `p4`, `p6`), and (`p8`, `p7`, `p5`), because union
-combines partial functions with the same input and output codes.
-Identity, `()`, implies that (`p6`, `p7`) and (`p9`,`p10`) defines the
+and `p6` is the pattern for the output.  We can deduce that patterns
+(`p1`, `p2`, `p4`) defines the same code, as well as (`p6`, `p5`, `p3`),
+because union combines partial functions with the same input and output codes.
+Identity, `()`, implies that (`p4`, `p5`) define the
 same code.  That means that in our expression, we deal with only one
 code, `c`, product or union, with field `toto` of type `c`, i.e.,
 
@@ -217,13 +219,16 @@ or
         $c = { c toto, ... };
 
 Since the product code pattern (i.e., latter case) doesn't admmit any
-(finite) value, we can conclude that the code `c` is a union (i.e.,
+(finite) value, we conclude that the code `c` is a union (i.e.,
 former case).
 
 For a given `kScript`, code derivation (as any static analysis) can
 fail, indicating that the script is invalid.  In some other cases the
 code derivation can succeed even to the point of reducig every pattern
 to a single code making the program fully annotated by codes.
+
+For now, `code derivation` is supported by the core language, i.e., `composition`,
+`projection` and `union` with product and taged union types.
 
 ---
 
@@ -235,8 +240,7 @@ to a single code making the program fully annotated by codes.
         ."field name"
         .4
 
-    The function is defined only if its argument is a structure with
-the field (or a vector with the index).
+   The function is defined if its argument "has" the field.
 
 2. _constants_, literals for Strings, Booleans, and
    Integers. Examples:

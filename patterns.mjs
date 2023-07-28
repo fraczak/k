@@ -192,7 +192,7 @@ function patterns(codes, representatives, rels) {
     // console.log("addEdge", src, label, target, "old target", patternEdges[src][label] || "none");
     const srcPattern = patternNodes[getRep(src)];
     if (srcPattern.type == "code") {
-      const code = codes[representatives[srcPattern.code]];
+      const code = codes[representatives[srcPattern.code] || srcPattern.code];
       if (code.code == "product" || code.code == "union" ) {
         return updatePattern(patternNodes[getRep(target)], {code: code[code.code][label]})
       }  
@@ -228,7 +228,7 @@ function patterns(codes, representatives, rels) {
     const old_o_pattern = patternNodes[old_o];
     const field = rel.dot;
     if (old_i_pattern.type == "code") {
-      const code = codes[representatives[old_i_pattern.code]];
+      const code = codes[representatives[old_i_pattern.code] || old_i_pattern.code];
       if (code.code == "product" || code.code == "union" || code.code == "vector") {
         const target_code = code[code.code][field];
         if (target_code) 
@@ -323,13 +323,36 @@ function patterns(codes, representatives, rels) {
   }
   
   function inspectVector(rel) { 
-    // TODO:
-    throw new Error("Not implemented");
+    const old_o = getRep(rel.patterns[1]);
+    var modified = updatePattern(patternNodes[old_o], {type: "vector", closed: true});
+    if (rel.vector.length == 0) {
+      return modified; 
+    }
+    // vector: %old_i [ %exp0_i exp0 %exp0_o, ... %expk_i expk %expk_o] %old_o
+    
+    let member_o = patternEdges[old_o]["vector-member"];
+    if (member_o) { 
+      member_o =  getRep(patternEdges[old_o]["vector-member"]);
+    } else {
+      modified = true;
+      member_o = patternNodes.length;
+      patternNodes.push({ _id: member_o, code: null, type: null, closed: false})
+      patternEdges[old_o]["vector-member"] = member_o;
+      eq[member_o] = member_o;
+    }
+
+    modified = rel.vector.reduce((modified, exp) => {
+      modified = inspect(exp) || modified;
+      modified = join(rel.patterns[0], exp.patterns[0]) || modified;
+      modified = join(member_o, exp.patterns[1]) || modified;
+      return modified;
+    }, modified);
+    return modified;
   }
   
   function inspectCode(rel) {
     const old_i = getRep(rel.patterns[0]);
-    var modified = updatePattern(patternNodes[old_i], {code: representatives[rel.code]});
+    var modified = updatePattern(patternNodes[old_i], {code: representatives[rel.code] || rel.code});
     return join(old_i, rel.patterns[1]) || modified;
   }
   
@@ -337,6 +360,13 @@ function patterns(codes, representatives, rels) {
     const relDefs = rels[rel.ref];
     // For now we assume only the first def which does not throw!!!!
     // That's good enough if all defs are typed by different input codes.
+    if (!relDefs) {
+      switch (rel.ref) {
+        case "true": 
+        case "false": return updatePattern(patternNodes[rel.patterns[1]], {code: "bool"});
+      }
+      throw new Error(`No definition found for ${rel.ref}`);  
+    }
     for (const def of relDefs) {
       try {
         var modified = join(def.patterns[0], rel.patterns[0]);
