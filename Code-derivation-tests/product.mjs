@@ -19,3 +19,11 @@ t(`
   assert.equal(output.code, "pair");
   console.log("OK");
 });
+
+t(`
+$b = < {} true, {} false > ; 
+$pair = { b one, b two } ;
+
+$b {1 one, () two, () c} .2
+
+`)

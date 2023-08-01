@@ -198,6 +198,22 @@ function patterns(codes, representatives, rels) {
       }  
       throw new Error(`Cannot add edge ${label} to code ${JSON.stringify(code)}`);
     }
+    if (srcPattern.type == 'vector') {
+      if (/^(0|[1-9][0-9]*)$/.test(label)) {
+        const old_target = patternEdges[src]['vector-member'];
+        if (old_target) {
+          const newTarget = join(old_target, target);
+          if (newTarget) {
+            patternEdges[src][label] = newTarget;
+            return true;
+          }
+          return false;
+        }
+        patternEdges[src]['vector-member'] = target;
+        return true;
+      }
+      throw new Error(`Cannot add edge ${label} to code ${JSON.stringify(code)}`);
+    }
     const old_target = patternEdges[src][label];
     if (old_target) {
       const newTarget = join(old_target, target);
@@ -206,6 +222,10 @@ function patterns(codes, representatives, rels) {
         return true;
       }
       return false;
+    }
+    
+    if (srcPattern.closed) {
+      throw new Error(`Cannot add edge ${label} to pattern ${JSON.stringify(srcPattern)}`);
     }
     patternEdges[src][label] = target;
     return true;
@@ -246,6 +266,10 @@ function patterns(codes, representatives, rels) {
         // unit
         const old_o = getRep(rel.patterns[1]);
         const old_o_pattern = patternNodes[old_o];
+        // check that there is no patternEdge from old_o
+        for (const label in patternEdges[old_o]) {
+          throw new Error(`Label ${label} in code '{}'.`);
+        }
         return updatePattern(old_o_pattern, {code: "{}", type: "code", closed: true});
       }
       case 1: {
@@ -285,6 +309,15 @@ function patterns(codes, representatives, rels) {
       modified = addEdge(old_o, label, exp_o) || modified;
     }
     modified = updatePattern(old_o_pattern, {type: "product", closed: true}) || modified;
+    // check that patternEdges coincide with field labels
+    const patternEdgeLabels = Object.keys(patternEdges[old_o]);
+    const labels = new Set(fields.map(({label}) => label));
+   
+    for (const label of patternEdgeLabels) {
+      if (!labels.has(label)) {
+        throw new Error(`Not allowed label ${label} in pattern ${JSON.stringify(old_o_pattern)}`);
+      }
+    }
     return modified;
   }
   

@@ -8,4 +8,16 @@ t('[]', (annotated) => {
   console.log("OK");
 });
 
-t(`$int [ $int true, false ]`);
+t(`$int [ $int true, false ]`, (annotated) => {
+  const {input,output} = in_out(annotated);
+  assert.equal(input.code, "int");
+  assert.equal(output.type, "vector");
+  console.log("OK");
+});
+
+t(`$int [ $int true, false ] .0`,  (annotated) => {
+  const {input,output} = in_out(annotated);
+  assert.equal(input.code, "int");
+  assert.equal(output.code, "bool");
+  console.log("OK");
+});
