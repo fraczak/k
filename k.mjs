@@ -48,7 +48,7 @@ if (oneJson) {
   jsonStream.on("data", (data) => buffer.push(data));
   jsonStream.on("end", () => {
     try {
-      console.log(JSON.stringify(kScript(JSON.parse(buffer.join("")))));
+      console.log(JSON.stringify(kScript(JSON.parse(buffer.join(""))), null, 2));
     } catch (error) {
       console.error(error);
     }

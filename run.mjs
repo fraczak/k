@@ -101,6 +101,22 @@ function run(exp, value) {
       }
       return builtin[exp.ref](value);
     case "dot":
+      if (typeof value === "string") {
+        if (value == exp.dot) return {};
+        return;
+      }
+      if (/^(0|([1-9]\d*))$/.test(value)) {
+        if (value == exp.dot) return {};
+        return;
+      } 
+      if (value === true) {
+        if (exp.dot == "true") return {};
+        return;
+      }
+      if (value === false) {
+        if (exp.dot == "false") return {};
+        return;
+      }
       return value[exp.dot];
     case "comp":
       return exp.comp.reduce((value, exp) => {

@@ -392,31 +392,28 @@ For example:
 
 ### Short comparaison with `jq` tutorial examples: <https://stedolan.github.io/jq/tutorial/>
 
-To "pretty" print the produced `json`, one can pipe the result of `k` to `json_pp`, `json_reformat`,
-or any other `json` pretty-print.
-
 1.
         curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | jq '.'
-        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | k  '()' -1 | json_pp
+        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | k  '()' -1 
 2.
         curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | jq '.[0]'
-        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | k  '.0' -1 | json_pp
+        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | k  '.0' -1 
 3.
         jq '.[0] | {message: .commit.message, name: .commit.committer.name}'
-        k '.0 {.commit.message message, .commit.committer.name name}' -1 | json_pp
+        k '.0 {.commit.message message, .commit.committer.name name}' -1
 4. note: `k`-expression defines a partial function yielding a single json object, i.e., as far as `k` is concerned,
    examples 4 and 5 of the `jq` tutorial are equivalent.
 5.
         jq '[.[] | {message: .commit.message, name: .commit.committer.name}]'
         k 'f = .commit {.message message, .committer.name name}; %\
            map_f = <SNOC [.0 f,.1 map_f] CONS, [.0 f], []>; %\
-           map_f' -1 | json_pp
+           map_f' -1 
 6.
         jq '[.[] | {message: .commit.message, name: .commit.committer.name, parents: [.parents[].html_url]}]'
         k 'map_html_url = <SNOC [.0 .html_url, .1 map_html_url] CONS, [.0 .html_url], []>; %\
            f = {.commit.message message, .commit.committer.name name, .parents map_html_url parents}; %\
            map_f = <SNOC [.0 f, .1 map_f] CONS, [.0 f] , []>; %\
-           map_f' -1 | json_pp
+           map_f' -1 
 
 ---
 
