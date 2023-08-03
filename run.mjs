@@ -101,20 +101,9 @@ function run(exp, value) {
       }
       return builtin[exp.ref](value);
     case "dot":
-      if (typeof value === "string") {
-        if (value == exp.dot) return {};
-        return;
-      }
-      if (/^(0|([1-9]\d*))$/.test(value)) {
-        if (value == exp.dot) return {};
-        return;
-      } 
-      if (value === true) {
-        if (exp.dot == "true") return {};
-        return;
-      }
-      if (value === false) {
-        if (exp.dot == "false") return {};
+      // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
+      if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        if (`${value}` === exp.dot) return {};
         return;
       }
       return value[exp.dot];
