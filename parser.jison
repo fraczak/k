@@ -46,7 +46,8 @@ function fromEscString(escString) {
 "$"                                            return 'DOLLAR'; 
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
-0|[-]?[1-9][0-9]*                              return 'INT';
+// 0|[-]?[1-9][0-9]*                              return 'INT';
+[-]?(0|[1-9][0-9]*)([.][0-9]+)?([eE][-]?[0-9]+)?  return 'INT';
 <<EOF>>                                        return 'EOF';
 
 /lex
@@ -61,7 +62,7 @@ function fromEscString(escString) {
 
 name: NAME                              { $$ = String(yytext); };
 str: STRING                             { $$ = fromEscString(String(yytext)); };
-int: INT                                { $$ = parseInt(String(yytext)); };
+int: INT                                { $$ = JSON.parse(String(yytext)); };
 
 input_with_eof: defs comp EOF               {
     const result = {defs: {rels: s.rels, codes: s.codes}, exp: $2};
