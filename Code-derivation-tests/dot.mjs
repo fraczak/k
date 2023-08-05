@@ -8,5 +8,8 @@ $pair = { b one, b two } ;
 $b {1 one, () two, () c} .one
 
 `, (annotated) => {
-    console.log(JSON.stringify(annotated, null, 2));
+    const {input,output} = in_out(annotated);
+    assert.equal(input.code, "b");
+    assert.equal(output.code, "int");
+    console.log("OK");
 });

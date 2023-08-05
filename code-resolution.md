@@ -6,7 +6,6 @@ by providing some characteristics of the codes. Those characteristics are:
   1. Is this product vs union?
   2. The code has to have field (label) leading to a type or another parretn
   
-
 Code patterns is a graph with:
 
   1. edges labeled by `fields`
