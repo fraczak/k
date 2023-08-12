@@ -98,6 +98,7 @@ function patterns(codes, representatives, rels) {
       }
       throw new Error(`Unknown op: ${op}`);
     } catch (e) {
+      console.log(JSON.stringify(rel, null, 2));
       console.log(`Code Derivation Error for '${op}' (lines ${rel.start.line}:${rel.start.column}...${rel.end.line}:${rel.end.column}): ${e.message}.`);
       throw e;
     }   
@@ -247,8 +248,10 @@ function patterns(codes, representatives, rels) {
     const old_i_pattern = patternNodes[old_i];
     const old_o_pattern = patternNodes[old_o];
     const field = rel.dot;
+    console.log({old_i, old_o, old_i_pattern, old_o_pattern, field});
     if (old_i_pattern.type == "code") {
       const code = codes[representatives[old_i_pattern.code] || old_i_pattern.code];
+      console.log(`codd: ${code}`);
       if (code.code == "product" || code.code == "union" || code.code == "vector") {
         const target_code = code[code.code][field];
         if (target_code) 
@@ -396,7 +399,18 @@ function patterns(codes, representatives, rels) {
     if (!relDefs) {
       switch (rel.ref) {
         case "true": 
-        case "false": return updatePattern(patternNodes[rel.patterns[1]], {code: "bool"});
+        case "false": 
+          return updatePattern(patternNodes[rel.patterns[1]], {code: "bool"});
+        case "PLUS":
+        case "TIMES": {
+          let modified = updatePattern(patternNodes[rel.patterns[1]], {code: "int"});
+          if (updatePattern(patternNodes[rel.patterns[0]], {type: "vector", closed: true})) {
+            modified = true;
+            patternEdges[rel.patterns[0]]["vector-member"] = getRep(rel.patterns[1]);
+          };
+          return modified;
+        }
+          
       }
       throw new Error(`No definition found for ${rel.ref}`);  
     }
