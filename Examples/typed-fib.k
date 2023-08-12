@@ -1,4 +1,4 @@
-inc = [(),1] PLUS;
+inc = [$int,1] PLUS;
 
 -- $ ffib = { int target, int x, int "fib(x-1)", int "fib(x)" }; 
 

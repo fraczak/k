@@ -94,7 +94,7 @@ function union  (rels) {
     const new_rels = rel.op === "union" ? rel.union : [rel];
     for (const new_rel of new_rels) {
       list.push(new_rel);
-      if (is_full_rel(new_rel)) break label;
+      // if (is_full_rel(new_rel)) break label;
     }
   }
   if (list.length === 1) return list[0];

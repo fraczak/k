@@ -95,6 +95,27 @@ the constant value. E.g.:
     {123 int, "kScript" str, true bool, null null} :
         "any"  --> {"int":123,"str":"kScript","bool":true,"null":null}
 
+Those values, i.e., `strings`, `integers`, `booleans`, and `null`, admit the
+projection to the canonicat string representation of the value, e.g.:
+
+    .2 :
+        2      --> {}
+        "2"    --> {}
+        4      ... undefined
+        true   ... undefined
+    
+    .true :
+        true   --> {}
+        "true" --> {}
+        4      ... undefined
+        "toto" ... undefined
+
+    .null :
+        null   --> {}
+        "null" --> {}
+        4      ... undefined
+        false  ... undefined
+
 #### Vector product
 
 Vector product can be seen as an abbreviation for product whose field
@@ -116,37 +137,45 @@ is not supported in _code derivation_ (explained below).
 
 ### Pragmatic extensions, aka "standard library"
 
-- `GT` : -- identity for lists of decreasing elements; undefined otherwise
+- `GT` -- identity for lists of decreasing elements; undefined otherwise
 
+      GT:
         [4,3]     --> [4,3]
         [3,4]     ... undefined
         []        --> []
         [4,3,0]   --> [4,3,0]
 
-- `EQ` : -- identity for lists of equal elements; undefined otherwise
+- `EQ` -- identity for lists of equal elements; undefined otherwise
 
+      EQ:     
         [4,4]     --> [4,4]
         [4,5]     ... undefined
         [4,4,4]   --> [4,4,4]
         []        --> []
 
-- `{PLUS plus, TIMES times}` :
+- `PLUS` and `TIMES` -- sum and product of lists of numbers
 
+      {PLUS plus, TIMES times} :
         [1,2]     --> {"plus":3,"times":2}
         [2,2,2]   --> {"plus":6,"times":8}
         []        --> {"plus":0,"times":1}
 
-- `CONCAT` :
+- `CONCAT` -- concatenation of lists of strings
 
+      CONCAT:
+        ["a","bc","d"] --> "abcd"
         ["a","bc","d"] --> "abcd"
 
-- `toJSON` :
+- `toJSON` and `fromJSON` -- conversion to and from JSON strings
 
+      toJSON:
         {"a": 12} --> "{\"a\":12}"
 
-- `fromJSON` :
+      fromJSON:   
+        "{\"a\":12}"       --> {"a":12}
+        "2.12"             --> 2.12
+        "[1,2.11,0.3e-32]" --> [1,2.11,3e-33]
 
-        "{\"a\":12}" --> {"a":12}
 
 - other predefined parial functions are: `DIV`, `FDIV`, `CONS`,
   `SNOC`, `toDateMsec`, `toDateStr`, and `_log!`.
@@ -161,7 +190,7 @@ is not supported in _code derivation_ (explained below).
 
 ### Codes (schemas, i.e., _non-functional types_)
 
-_Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
+_Codes_ (prefixed by `$`) can be defined by tagged union and product. E.g.:
 
       $nat = <nat 1, {} 0>;
       $pair = {nat x, nat y};
@@ -228,7 +257,7 @@ code derivation can succeed even to the point of reducig every pattern
 to a single code making the program fully annotated by codes.
 
 For now, `code derivation` is supported by the core language, i.e., `composition`,
-`projection` and `union` with product and taged union types.
+`projection` and `union` with product and tagged union types.
 
 ---
 
@@ -322,11 +351,11 @@ within `k`-expression is again prefixed by `$`.
 
 ## `k` (a command-line JSON processor using `k` syntax)
 
-There is a wrapper, `./node_modules/.bin/k` , which makes it easy to
+There is a wrapper, `k` (`./node_modules/.bin/k`), which makes it easy to
 run the language from command line.
 
-    > ./node_modules/.bin/k
-    ... errors ...
+    > k
+       ... errors ...
     Usage: ./node_modules/.bin/k ( k-expr | -k k-file) [ -1 ] [ json-file ]
     E.g., cat '{"a": 10}' | ./node_modules/.bin/k '[(),()]'
 
@@ -334,14 +363,14 @@ For example:
 
 1. One `k`-expression with one `json`-object:
 
-        > echo '{"x": 12, "y": 13}' | ./node_modules/.bin/k '{ <.x, "no x"> x, () input}' 
+        > echo '{"x": 12, "y": 13}' | k '{ <.x, "no x"> x, () input}' 
          {"x":12,"input":{"x":12,"y":13}}
 
 2. By providing only `k`-expression, the script will compile the
    `k`-expression and apply the generated function to the `stdin`,
    line by line:
 
-        > ./node_modules/.bin/k '<["x=",.x," & y=",.y],["only x=",.x],["only y=",.y],["no x nor y"]>{CONCAT "x&y"}' 
+        > k '<["x=",.x," & y=",.y],["only x=",.x],["only y=",.y],["no x nor y"]>{CONCAT "x&y"}' 
         
          {"y": 123, "x": 432,"others": "..."}  --> {"x&y":"x=432 & y=123"} 
          {"x": 987}                            --> {"x&y":"only x=987"} 
@@ -369,11 +398,11 @@ For example:
 
     We can use it by:
 
-        > ./node_modules/.bin/k -k test.k
+        > k -k test.k
 
     If we want to read `json` objects from a file, e.g., `my-objects.json`, we do
 
-        > ./node_modules/.bin/k -k test.k my-objects.json
+        > k -k test.k my-objects.json
          {"x&y":"x=432 & y=123"} 
          {"x&y":"only x=987"} 
          {"x&y":"no x nor y"}
@@ -393,11 +422,11 @@ For example:
 ### Short comparaison with `jq` tutorial examples: <https://stedolan.github.io/jq/tutorial/>
 
 1.
-        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | jq '.'
-        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | k  '()' -1 
+        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | jq '.'
+        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | k  '()' -1 
 2.
-        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | jq '.[0]'
-        curl 'https://api.github.com/repos/stedolan/jq/commits?per_page=5' | k  '.0' -1 
+        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | jq '.[0]'
+        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | k  '.0' -1 
 3.
         jq '.[0] | {message: .commit.message, name: .commit.committer.name}'
         k '.0 {.commit.message message, .commit.committer.name name}' -1
@@ -419,7 +448,7 @@ For example:
 
 ## k-REPL (Read-Evaluate-Print Loop)
 
-Also there is a REPL, `./node_modules/.bin/k-repl`, which acts like a toy
+Also there is a REPL, `k-repl` (`./node_modules/.bin/k-repl`), which acts like a toy
 shell for the language. E.g.:
 
     > ./node_modules/.bin/k-repl 

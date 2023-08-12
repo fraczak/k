@@ -1,5 +1,6 @@
 car = .0;
-cdr = < SNOC.1, [] >;
+cdr = < SNOC.1, .0 [] >;
+empty? = $[{}] <.0 'nope', 'yes'> .yes [];
 
 
 map_f = [(),"+",(),"=",[(),()]PLUS] CONCAT;

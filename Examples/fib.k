@@ -1,5 +1,5 @@
-pos? = [(), 0] GT .0;
-dec = [(), -1] PLUS;
+pos? = [$int, 0] GT .0;
+dec = [$int, -1] PLUS;
 fib_aux =
   <
     { .n pos? dec n,
@@ -9,7 +9,7 @@ fib_aux =
   >
 ;
 
-fib = {() n, [1,0] "fib(n),fib(n-1),..."}
+fib = {$int n, [1,0] "fib(n),fib(n-1),..."}
   fib_aux _log! .0;
 
 ----------------------

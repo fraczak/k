@@ -1,5 +1,5 @@
-pos? = [(),0] GT .0;
-dec = [(),-1] PLUS;
+pos? = [$int,0] GT .0;
+dec = [$int,"-1" fromJSON] PLUS;
 
 rangeTill = ${int i, [ int ] range }
 < {.i pos? dec i, [.i,.range] CONS range} rangeTill,
@@ -8,4 +8,4 @@ rangeTill = ${int i, [ int ] range }
 range = $int
  {() i, [] range} rangeTill;
 
-range {() range, .0 first}
+range {$int range, .0 first}

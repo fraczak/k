@@ -100,10 +100,18 @@ By folding the pattern graph with those information we get:
     EQ     | %9 $[int] %10
     dec    | %11 [ %12 () %13, %14 -1 %15 ] %16 PLUS %17
     zero?  | %18 [ %19 () %20, %21 0 %22 ] %23 EQ %24 .0 %25
-    
 
 ----
 Other observations:
 
 Product like {.x ..., .y ...} implies the input is a product (not really valid)
-Pattern `p = <{p x, ...}>` implies, it is a union!, i.e., `p = < p x, ... >`, e.g, in `< .x, () >`.
+Pattern `p = <{ p x, ... }>` implies, it is a union!, i.e., `p = < p x, ... >`, e.g, in `< .x, () >`.
+
+## To do
+
+1. incremental pattern graph construction
+2. folding pattern graph nodes corresponding to a code (e.g., parts of
+   the pattern graph whose nodes are all closed), adding codes into code graph and, 
+   finally, re-minimizing it.
+3. support for 'built-in' types via plugins.
+4. do not simplify merge for code derivation sake.
