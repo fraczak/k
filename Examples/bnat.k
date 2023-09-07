@@ -120,13 +120,13 @@ plus = {
 
 to_string = <
   ._ 0,
-  toString
+  toStr
 >;
 
-toString = <
+toStr = <
   ._ "",
-  ["0", .0 toString] CONCAT,
-  ["1", .1 toString] CONCAT
+  ["0", .0 toStr] CONCAT,
+  ["1", .1 toStr] CONCAT
 >;
 
 --[(), plus] 

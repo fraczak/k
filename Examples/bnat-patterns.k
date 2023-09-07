@@ -3,9 +3,9 @@
 
 $bnat = < {} _, bnat 0, bnat 1 >;
 
-_ = ${} {{} _} $bnat;
-_1 =  $bnat {() 1} $bnat;
-_0 =  $bnat {() 0} $bnat;
+_ = {${} _} $bnat;
+_1 =  {$bnat 1} $bnat;
+_0 =  {$bnat 0} $bnat;
 
 remove_leading_zeros = $bnat
   < .0 remove_leading_zeros, () >
@@ -110,3 +110,5 @@ mod: {$X x, $Y y} -> $X
 *******/
 
 mod
+
+-- echo '{"x":{"1":{"1":{"_":{}}}},"y":{"1":{"1":{"1":{"_":{}}}}}}' | k -k Examples/bnat-patterns.k 
