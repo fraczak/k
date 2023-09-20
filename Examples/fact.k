@@ -1,6 +1,6 @@
-dec = [$int,1] MINUS;
+dec = [$int,-1] PLUS;
 factorial = <
-  $int.1 1,
+  $int .1 1,
   [$int,0] GT .0 [dec factorial, ()] TIMES
 >;
 
