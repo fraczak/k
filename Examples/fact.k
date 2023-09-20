@@ -1,7 +1,7 @@
-dec = [(),1] MINUS;
+dec = [$int,-1] PLUS;
 factorial = <
-  [(),1] EQ 1,
-  [(),0] GT .0 [dec factorial, ()] TIMES
+  $int .1 1,
+  [$int,0] GT .0 [dec factorial, ()] TIMES
 >;
 
-{ () x, < factorial, "not defined" > "x!" }
+{ $int x, < factorial, "not defined" > "x!" }

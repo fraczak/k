@@ -103,7 +103,7 @@ function run(exp, value) {
     case "dot":
       // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
       if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        if (`${value}` === exp.dot) return {};
+        if (`${value}` === `${exp.dot}`) return {};
         return;
       }
       return value[exp.dot];
