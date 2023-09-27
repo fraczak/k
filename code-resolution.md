@@ -109,6 +109,10 @@ Pattern `p = <{ p x, ... }>` implies, it is a union!, i.e., `p = < p x, ... >`, 
 
 ## To do
 
+0. rewrite the algo to be layered:
+    1. pure algebraic (no vectors)
+    2. with support for homogenous vectors
+    3. native support for bytes, integers (`int64` only), booleans, and strings (`UTF8` only)
 1. incremental pattern graph construction
 2. folding pattern graph nodes corresponding to a code (e.g., parts of
    the pattern graph whose nodes are all closed), adding codes into code graph and, 

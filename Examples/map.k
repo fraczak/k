@@ -18,7 +18,9 @@ reduceL = <
   {[.acc, .list car] reduce_f acc, .list cdr list} reduceL,
   .acc >;
 
-main = {{() list, .0 acc} {reduceR right, reduceL left} reduce, map map};
+length = < [1, cdr length] PLUS, 0 >;
+
+main = {{() list, .0 acc} {reduceR right, reduceL left} reduce, map map, length length};
 
 main
 
