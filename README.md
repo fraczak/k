@@ -14,7 +14,8 @@ From javascript:
 
 ## k - the way of building and manipulating JSON-like data
 
-Technically, `k` is a notation for defining **first-order partial functions**.
+Technically, `k` is a notation for defining **monadic second-order** and
+**first-order partial** functions.
 
 An example of a _partial function_ is the _projection_, e.g., "`.toto`",
 which maps an object to its property named `toto`, or it is not defined if
@@ -72,6 +73,43 @@ There are three ways of combining functions:
 - `({{{() a} b} c} .c .b .a)` ?
 
 ---
+
+### Set values
+
+We introduce the following notation for constructing set values:
+
+- `<< >>` -- a function which returns the empty set,
+- `<< {{} _} s} >>` -- a function which returns the singleton set,
+- `<< .toto, .titi >>` -- a function which returns a set composed of maximum
+   two values, i.e., the value of the field `toto` and the value of the field
+   `titi` of its argument, if defined and different.
+
+Such set values can take part of product, e.g.,
+`{ << >> empty, << {}, {{} label} >> singleton, {} x}`, is a constant function
+returning a record with three fields: `empty`, `singleton`, and `x`.
+
+Set values can be:
+
+1. can be aggregated using `@` operator, e.g.,
+
+```k
+    << .toto, .titi >> @ size :
+        {"toto": 5, "titi": 10, "x": 3}  --> 2
+        {"toto": 5, "titi": 5, "x": 3}   --> 1
+        {"titi": 10 }                    --> 1
+        {}                               --> 0
+```
+
+2. can be used to construct othet set values using the
+   following list comprehension, `|`, notation:
+
+```k
+    << 0, | inc, | dec >> :
+        << >>               --> << 0 >>
+        << 1 >>             --> << 0, 2 >>
+        << 2 >>             --> << 0, 1, 3 >>
+        << 2, 3 >>          --> << 0, 1, 2, 3, 4 >>
+```
 
 ### Syntactic sugar
 

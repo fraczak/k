@@ -30,10 +30,12 @@ function fromEscString(escString) {
 [/][*]([*][^/]|[^*])*[*][/]                    /* c-comment */
 ("//"|"#"|"%"|"--")[^\n]*                      /* one line comment */
 \s+                                            /* blanks */
+"<<"                                           return 'LAA';
 "<"                                            return 'LA';
 "{"                                            return 'LC';
 "["                                            return 'LB';
 "("                                            return 'LP';
+">>"                                           return 'RAA';
 ">"                                            return 'RA';
 "}"                                            return 'RC';
 "]"                                            return 'RB';
@@ -44,6 +46,8 @@ function fromEscString(escString) {
 ";"                                            return 'SC';
 ":"                                            return 'COL';
 "$"                                            return 'DOLLAR'; 
+"@"                                            return 'AT';
+"|"                                            return 'PIPE';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
 0|[-]?[1-9][0-9]*                              return 'INT';
@@ -52,7 +56,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING INT
-%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR
+%token LAA LA LC LB LP RAA RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE AT
 %token EOF
 
 %start input_with_eof
@@ -83,6 +87,7 @@ codeDef
     : LC labelled_codes RC              { $$ = {code: "product", product: $2}; }
     | LB code RB                        { $$ = {code: "vector", vector: s.as_ref($2)}; }
     | LA labelled_codes RA              { $$ = {code: "union", union: $2}; }
+    | LAA code RAA                      { $$ = {code: "set", set: s.as_ref($2)}; }
     ;
 
 labelled_codes 
@@ -117,6 +122,7 @@ exp
     : LC labelled RC                    { $$ = $2; }
     | LB list RB                        { $$ = {op: "vector", vector: $2}; }
     | LA list RA                        { $$ = s.union($2); }
+    | LAA list RAA                       { $$ = {op: "set", set: $2}; }
     | name                              { $$ = {op: "ref", ref: $1}; }
     | LP RP                             { $$ = s.identity;  }
     | LP comp RP                        { $$ = $2;  }
@@ -126,6 +132,8 @@ exp
     | DOT str                           { $$ = {op: "dot", dot: $2}; }
     | DOT name                          { $$ = {op: "dot", dot: $2}; }
     | DOLLAR code                       { $$ = {op: "code", code: s.as_ref($2)}; }
+    | PIPE                              { $$ = {op: "pipe"}; }
+    | AT                                { $$ = {op: "aggregate"}; }
     ;
 
 labelled
