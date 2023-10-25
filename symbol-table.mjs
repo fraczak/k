@@ -88,7 +88,7 @@ function comp (e1, e2)  {
   return result;
 }
 
-function union  (rels) {
+function union (rels) {
   const list = [];
   label: for (const rel of rels) {
     const new_rels = rel.op === "union" ? rel.union : [rel];

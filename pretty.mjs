@@ -34,9 +34,13 @@ function prettyCode (codes, representatives, codeExp) {
     case "product":
       return `{${prettyCode_labels(codes, representatives, codeExp.product)}}`;
     case "union":
-      return `<${prettyCode_labels(codes, representatives, codeExp.union)}>`;
+      return `< ${prettyCode_labels(codes, representatives, codeExp.union)} >`;
     case "vector":
-      return `[${representatives[codeExp.vector] || codeExp.vector}]`;
+      return `[${prettyCode(codes,representatives, {code:'ref', ref:codeExp.vector})}]`;
+      // return `[${representatives[codeExp.vector] || codeExp.vector}]`;
+    case "set":
+      return `<< ${prettyCode(codes,representatives, {code:'ref', ref:codeExp.set})} >>`;
+      // return `<< ${representatives[codeExp.set] || codeExp.set} >>`;
     default:
       return ":error";
   }
@@ -49,7 +53,7 @@ function prettyRel (prettyCode, exp) {
       case "vector":
         return `[${exp.vector.map(pretty).join(", ")}]`;
       case "union":
-        return `<${exp.union.map(pretty).join(", ")}>`;
+        return `< ${exp.union.map(pretty).join(", ")} >`;
       case "ref":
         return exp.ref;
       case "identity":
@@ -69,6 +73,12 @@ function prettyRel (prettyCode, exp) {
           return `'${exp.dot}'`;
         }
         break;
+      case "set":
+        return `<< ${exp.set.map(pretty).join(", ")} >>`;
+      case "pipe":
+        return "|";
+      case "aggregate":
+        return '@';
       case "code":
         return `$${prettyCode({
           code: "ref",

@@ -21,9 +21,10 @@ function are_different(classes, representatives, name1, name2, codes) {
         if (fields2[field] !== fields1[field]) return true;
       }
       break;
+    case "set":
     case "vector":
       const [arg1, arg2] = [code1, code2].map(
-        ({ vector }) => representatives[vector] || vector
+        (c) => representatives[c[c.code]] || c[c.code]
       );
       if (arg1 !== arg2) return true;
   }
@@ -87,11 +88,10 @@ function normalizeAll(codes, representatives) {
             representatives
           );
           break;
+        case 'set':
         case "vector":
-          normalized[name] = {
-            code: "vector",
-            vector: representatives[code.vector] || code.vector,
-          };
+          normalized[name] = { code: code.code };
+          normalized[name][code.code] = representatives[code[code.code]] || code[code.code];
       }
     }
 
