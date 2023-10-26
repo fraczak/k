@@ -122,7 +122,7 @@ exp
     : LC labelled RC                    { $$ = $2; }
     | LB list RB                        { $$ = {op: "vector", vector: $2}; }
     | LA list RA                        { $$ = s.union($2); }
-    | LAA list RAA                       { $$ = {op: "set", set: $2}; }
+    | LAA list RAA                      { $$ = {op: "set", set: $2}; }
     | name                              { $$ = {op: "ref", ref: $1}; }
     | LP RP                             { $$ = s.identity;  }
     | LP comp RP                        { $$ = $2;  }
@@ -132,8 +132,9 @@ exp
     | DOT str                           { $$ = {op: "dot", dot: $2}; }
     | DOT name                          { $$ = {op: "dot", dot: $2}; }
     | DOLLAR code                       { $$ = {op: "code", code: s.as_ref($2)}; }
-    | PIPE                              { $$ = {op: "pipe"}; }
-    | AT                                { $$ = {op: "aggregate"}; }
+
+    | PIPE                              { $$ = {op: 'pipe'}; }
+    | AT                                { $$ = {op: 'at'}; }
     ;
 
 labelled

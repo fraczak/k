@@ -1,10 +1,11 @@
-$ set = << int >>;
+ala = @ 1;
 
 union = 
-$ { << int >> x, << int >> y }
-  << .x | , .y | >>
-$ << int >>;
+  <<  | ala , { | x, | y } >>
+;
 
 
 
 aggregate = @ COUNT; 
+
+{}

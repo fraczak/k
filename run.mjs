@@ -72,6 +72,14 @@ function verify(code, value) {
         if (fields.length !== 1) return false;
         return verify(code.union[fields[0]], value[fields[0]]);
       }
+    case "set": 
+      if ("object" !== typeof value) return false;
+      else {
+        const fields = Object.keys(value);
+        return fields.every((label) =>
+          verify(code.set, value[label])
+        );
+      }
     default: {
       const c = run.defs.codes[run.defs.representatives[code]];
       if (c != null) return verify(c, value);
@@ -136,6 +144,10 @@ function run(exp, value) {
         if (r === undefined) return;
         result[label] = r;
       }
+      return result;
+    }
+    case "set": {
+      const result = {};
       return result;
     }
     default:
