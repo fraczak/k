@@ -74,43 +74,6 @@ There are three ways of combining functions:
 
 ---
 
-### Set values
-
-We introduce the following notation for constructing set values:
-
-- `<< >>` -- a function which returns the empty set,
-- `<< {{} _} s} >>` -- a function which returns the singleton set,
-- `<< .toto, .titi >>` -- a function which returns a set composed of maximum
-   two values, i.e., the value of the field `toto` and the value of the field
-   `titi` of its argument, if defined and different.
-
-Such set values can take part of product, e.g.,
-`{ << >> empty, << {}, {{} label} >> singleton, {} x}`, is a constant function
-returning a record with three fields: `empty`, `singleton`, and `x`.
-
-Set values can be:
-
-1. can be aggregated using `@` operator, e.g.,
-
-```k
-    << .toto, .titi >> @ size :
-        {"toto": 5, "titi": 10, "x": 3}  --> 2
-        {"toto": 5, "titi": 5, "x": 3}   --> 1
-        {"titi": 10 }                    --> 1
-        {}                               --> 0
-```
-
-2. can be used to construct othet set values using the
-   following list comprehension, `|`, notation:
-
-```k
-    << 0, | inc, | dec >> :
-        << >>               --> << 0 >>
-        << 1 >>             --> << 0, 2 >>
-        << 2 >>             --> << 0, 1, 3 >>
-        << 2, 3 >>          --> << 0, 1, 2, 3, 4 >>
-```
-
 ### Syntactic sugar
 
 - parenthesis can be omitted, except for the empty composition `()`,
@@ -209,19 +172,18 @@ can be written as `[.toto, .titi, 123]`.
         "2.12"             --> 2.12
         "[1,2.11,0.3e-32]" --> [1,2.11,3e-33]
 
-
 - other predefined parial functions are: `DIV`, `FDIV`, `CONS`, `SNOC`, `toDateMsec`,
   `toDateStr`, and `_log!`.
 
 ---
 
-### Function definitions
+### Function and code (_types_) definitions
+
+Examples of function definitions:
 
       dec = [(),-1] PLUS;
       max = <SNOC [.0, .1 max] <GT.0, .1>, .0> ;
       factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
-
-### Codes (_types_)
 
 _Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
 
@@ -243,6 +205,57 @@ by `[ codeExp ]`. All members of the vector are the same code. E.g.,
 
      emptyList? = $intVector $[ string ]; -- as only an empty vector can be a vector
                                           -- of integers and a vector of strings
+
+---
+
+### Set values
+
+We introduce the following notation for constructing set values:
+
+- `<< >>` -- a function which returns the empty set,
+- `<< 3 >>` -- a function which returns the singleton set,
+- `<< .toto, .titi >>` -- a function which returns a set composed of maximum
+   two values, i.e., the value of the field `toto` and the value of the field
+   `titi` of its argument, if defined and different.
+
+Such set values can take part of product, e.g.,
+`{ << >> empty, << 3 >> singleton, {} x}`, is a constant function
+returning a record with three fields: `empty`, `singleton`, and `x`.
+
+1. Set values can be aggregated using `@` operator, e.g.,
+
+    ```k
+        << .toto, .titi >> @ :
+            {"toto": 5, "titi": 10, "x": 3}  --> [5,10]
+            {"toto": 5, "titi": 5, "x": 3}   --> [5]
+            {"titi": 10 }                    --> [10]
+            {}                               --> []
+    ```
+
+2. Set values can be used to construct othet set values using the
+   following _list comprehension_, `|`, notation:
+
+    ```k
+        << .0, .1 >> << 0, | inc, | dec >> @ :
+            []           --> [0]
+            [1]          --> [0,2]
+            [2]          --> [0,1,3]
+            [2,3]        --> [0,1,2,3,4]
+    ```
+
+The following function transforms a vector into a set of its elements:
+
+```k
+    toSet = < SNOC << .0, .1 toSet | >>, << .0 >> >;
+    ---
+    toSet @ :
+        []           --> []
+        [1]          --> [1]
+        [2,2]        --> [2]
+        [2,3,2]      --> [2,3]
+        [2,3,2,3,2]  --> [2,3]
+```
+
 ---
 
 ## Examples

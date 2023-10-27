@@ -23,6 +23,13 @@ class SetValue {
   values() {
     return Object.values(this.items);
   }
+
+  toJSON() {
+    if (this.isOpen()) {
+     return {OPEN_SET: Object.values(this.items)};
+    }
+    return {SET: Object.values(this.items)};
+  }
 }
 
 function isSetAndOpen(x) {
@@ -123,12 +130,20 @@ function run(exp, value) {
   "use strict";
   if (value === undefined) return;
   if (isSetAndOpen(value)) {
-    const result = new SetValue(true);
-    for (const v of value.values()) {
-      const r = run(exp, v);
-      if (r !== undefined) result.add(r);
+    if (exp.op === "caret") {
+      const result = new SetValue();
+      for (const v of value.values()) {
+        result.add(v);
+      }
+      return result;
+    } else {
+      const result = new SetValue(true);
+      for (const v of value.values()) {
+        const r = run(exp, v);
+        if (r !== undefined) result.add(r);
+      }
+      return result;
     }
-    return result;
   }
   switch (exp.op) {
     case "code":
@@ -146,7 +161,11 @@ function run(exp, value) {
       if (defn != null) {
         return run(defn[defn.length - 1], value);
       }
-      return builtin[exp.ref](value);
+      const builtin_func = builtin[exp.ref];
+      if (builtin_func != null) {
+        return builtin_func(value);
+      } 
+      throw(`unknown ref: ${exp.ref}`);
     case "dot":
       // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
       if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -155,7 +174,7 @@ function run(exp, value) {
       }
       return value[exp.dot];
     case "pipe": {
-      assert(isSetAndClosed(value));
+      assert(isSetAndClosed(value), "PIPE (|): value must be a closed set");
       const result = new SetValue(true);
       for (const v of value.values()) {
         result.add(v);
@@ -163,7 +182,7 @@ function run(exp, value) {
       return result;
       }
     case "at":
-      assert(isSetAndClosed(value));
+      assert(isSetAndClosed(value), "AT (@): value must be a closed set");
       return value.values();
     case "comp":
       return exp.comp.reduce((value, exp) => {
@@ -184,7 +203,7 @@ function run(exp, value) {
         const r = run(exp.vector[i], value);
         if (r === undefined) return;
         if (resultIsOpenSet) {
-          if ((r instanceof SetValue) && r.isOpen()) {
+          if (isSetAndOpen(r)) {
             let newResult = new SetValue(true);
             for (const v of r.values()) {
               for (const x of result.values()) {
@@ -200,7 +219,7 @@ function run(exp, value) {
             result = newResult;
           } 
         } else {
-          if ((r instanceof SetValue) && r.isOpen()) {
+          if (isSetAndOpen(r)) {
             resultIsOpenSet = true;
             let newResult = new SetValue(true);
             for (const v of r.values()) {
@@ -222,7 +241,7 @@ function run(exp, value) {
         const r = run(e, value);
         if (r === undefined) return;
         if (resultIsOpenSet) {
-          if ((r instanceof SetValue) && r.isOpen()) {
+          if (isSetAndOpen(r)) {
             let newResult = new SetValue(true);
             for (const v of r.values()) {
               for (const x of result.values()) {
@@ -238,7 +257,7 @@ function run(exp, value) {
             result = newResult;
           } 
         } else {
-          if ((r instanceof SetValue) && r.isOpen()) {
+          if (isSetAndOpen(r)) {
             resultIsOpenSet = true;
             let newResult = new SetValue(true);
             for (const v of r.values()) {
@@ -256,8 +275,8 @@ function run(exp, value) {
       const result = new SetValue();
       for (let i = 0, len = exp.set.length; i < len; i++) {
         const r = run(exp.set[i], value);
-        if (r === undefined) return;
-        if ((r instanceof SetValue) && r.isOpen()) {
+        if (r === undefined) continue;
+        if (isSetAndOpen(r)) {
           for (const v of r.values()) {
             result.add(v);
           }
@@ -268,7 +287,7 @@ function run(exp, value) {
       return result;
     }
     default:
-      return console.error(exp.op);
+      assert(false,`Unknown op: ${exp.op}`);
   }
 }
 

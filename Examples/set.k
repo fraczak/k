@@ -1,11 +1,10 @@
-ala = @ 1;
+ala = @ .0;
+
+toSet = < SNOC <<.0, .1 toSet |>>, << .0 >> >;
 
 union = 
-  <<  | ala , { | x, | y } >>
+  _log!
+  <<  | ^ ala , [ | , | ] >>
 ;
 
-
-
-aggregate = @ COUNT; 
-
-{}
+<< 1,2,3,4 >> | [(),2] GT ^ @ toSet union @
