@@ -224,14 +224,15 @@ The PIPE operator can be used, e.g., to define a Cartesian product:
         [[1,2], [3,4]]    -->  [[1,3],[1,4],[2,3],[2,4]]
 ```
 
-or 
+or
 
 ```k
     { | x, | y } ^ :
         [1,2]             --> [{"x":1,"y":1},{"x":2,"y":1},{"x":1,"y":2},{"x":2,"y":2}]
 ```
-**QUIZ**: Write a function which will take a list of integers and an integer `x`, and count how many 
-times `x` value appears in the list.
+
+**QUIZ**: Write a function which will take a list of integers and an integer `x`, and count how many
+times value `x` appears in the list. (see `Examples/list-comprehension.k` for a solution)
   
 ```k
     count_occurrences =
@@ -416,15 +417,10 @@ For example:
    examples 4 and 5 of the `jq` tutorial are equivalent.
 5.
         jq '[.[] | {message: .commit.message, name: .commit.committer.name}]'
-        k 'f = .commit {.message message, .committer.name name}; %\
-           map_f = <SNOC [.0 f,.1 map_f] CONS, [.0 f], []>; %\
-           map_f' -1 
+        k '| .commit {.message message, .committer.name name} ^' -1 
 6.
         jq '[.[] | {message: .commit.message, name: .commit.committer.name, parents: [.parents[].html_url]}]'
-        k 'map_html_url = <SNOC [.0 .html_url, .1 map_html_url] CONS, [.0 .html_url], []>; %\
-           f = {.commit.message message, .commit.committer.name name, .parents map_html_url parents}; %\
-           map_f = <SNOC [.0 f, .1 map_f] CONS, [.0 f] , []>; %\
-           map_f' -1 
+        k '| {.commit.message message, .commit.committer.name name, .parents | .html_url ^ parents} ^' -1 
 
 ---
 
