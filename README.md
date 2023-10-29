@@ -177,13 +177,11 @@ can be written as `[.toto, .titi, 123]`.
 
 ---
 
-### Function definitions
+### Function and code (i.e., _type_) definitions
 
       dec = [(),-1] PLUS;
       max = <SNOC [.0, .1 max] <GT.0, .1>, .0> ;
       factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
-
-### Codes (_types_)
 
 _Codes_ (prefixed by `$`) can be defined by taged union and product. E.g.:
 
@@ -205,6 +203,43 @@ by `[ codeExp ]`. All members of the vector are the same code. E.g.,
 
      emptyList? = $intVector $[ string ]; -- as only an empty vector can be a vector
                                           -- of integers and a vector of strings
+---
+
+### List comprehension on vectors
+
+A vector can be "open" by PIPE (`|`) operator so the following partial function is applied to
+each element of the vector one by one, yielding another open value. An open value can be "closed", 
+i.e., turn into a regular vector using `CARET` (`^`) operator. E.g.:
+
+```k
+    | .x  ^ :
+       [{x:12}, {x:8,y:10}, {y:98}]       -->  [12,8]
+       [1,2,3]                            -->  []
+```
+
+The PIPE operator can be used, e.g., to define a Cartesian product:
+
+```k
+    [.0 |, .1 |] ^ :
+        [[1,2], [3,4]]    -->  [[1,3],[1,4],[2,3],[2,4]]
+```
+
+or 
+
+```k
+    { | x, | y } ^ :
+        [1,2]             --> [{"x":1,"y":1},{"x":2,"y":1},{"x":1,"y":2},{"x":2,"y":2}]
+```
+**QUIZ**: Write a function which will take a list of integers and an integer `x`, and count how many 
+times `x` value appears in the list.
+  
+```k
+    count_occurrences =
+    $ { [int] list, int x } 
+      -- ???
+    $ int;        
+```
+
 ---
 
 ## Examples
