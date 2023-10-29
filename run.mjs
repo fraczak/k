@@ -10,7 +10,16 @@ function isOpen(x) {
 function isClosed(x) {
   return (Array.isArray(x) && !x.open);
 }
-  
+
+Array.prototype.toJSON = function () {
+  if (this.open) {
+    // throw new Error(`Cannot serialize open vector: ${JSON.stringify([...this])}.`);
+    return {"OPEN VECTOR": [...this]};
+  }
+  return this;
+};
+
+
 const builtin = {
   "_log!": (arg) => {
     console.error(`_log!: ${JSON.stringify(arg)}`);

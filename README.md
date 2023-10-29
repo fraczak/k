@@ -205,7 +205,7 @@ by `[ codeExp ]`. All members of the vector are the same code. E.g.,
                                           -- of integers and a vector of strings
 ---
 
-### List comprehension on vectors
+### List comprehension on vectors (experimental!)
 
 A vector can be "open" by PIPE (`|`) operator so the following partial function is applied to
 each element of the vector one by one, yielding another open value. An open value can be "closed", 
@@ -239,6 +239,15 @@ times value `x` appears in the list. (see `Examples/list-comprehension.k` for a 
     $ { [int] list, int x } 
       -- ???
     $ int;        
+```
+
+**WARNING**: The `CARET` operator makes composition not associative, i.e., if you use
+nested _list comprehension_ you cannot drop paranthesis anymore.
+E.g., `| (| PLUS ^ .0) ^` and `| | PLUS ^ .0 ^` are two different functions:
+
+```k
+   { |(| PLUS ^ .0) ^  x,  | | PLUS ^ .0 ^  y }:
+     [[[1,2],[3,4]],[[5,6],[7,8]]]   --> {"x":[3,11],"y":[3,7]}
 ```
 
 ---

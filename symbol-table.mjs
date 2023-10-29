@@ -52,26 +52,42 @@ function is_full_rel(rel) {
   }
 }
 
+function does_list_comprehension (e) {
+  switch (e.op) {
+    case "caret":
+      return true;
+    case "comp":
+      return e.comp.some((e) => e.op === "caret");
+    default:
+      return false;
+  }
+}
+
 function comp_first(e1, e2) {
   if (is_identity_rel(e1)) return e2;
   if (is_identity_rel(e2)) return e1;
   if (is_empty_rel(e1)) return e1;
   if (is_empty_rel(e2)) return e2;
-  if (e1.op === "comp" && e2.op === "comp")
-    return {
-      op: "comp",
-      comp: [].concat(e1.comp, e2.comp),
-    };
-  if (e1.op === "comp")
-    return {
-      op: "comp",
-      comp: [].concat(e1.comp, [e2]),
-    };
-  if (e2.op === "comp")
-    return {
-      op: "comp",
-      comp: [].concat([e1], e2.comp),
-    };
+  if (! does_list_comprehension(e1) && ! does_list_comprehension(e2)) {
+    if (e1.op === "comp" && e2.op === "comp") {
+      return {
+        op: "comp",
+        comp: [].concat(e1.comp, e2.comp),
+      };
+    }
+    if (e1.op === "comp") {
+      return {
+        op: "comp",
+        comp: [].concat(e1.comp, [e2]),
+      };
+    }
+    if (e2.op === "comp") {
+      return {
+        op: "comp",
+        comp: [].concat([e1], e2.comp),
+      };
+    }
+  }
   return {
     op: "comp",
     comp: [e1, e2],
