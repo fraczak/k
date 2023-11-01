@@ -19,6 +19,13 @@ Array.prototype.toJSON = function () {
   return this;
 };
 
+function closeVector(val) {
+  if (isOpen(val)) {
+    return [...val];
+  }
+  console.error("Can close only an open vector.");
+  return val;
+}
 
 const builtin = {
   "_log!": (arg) => {
@@ -103,17 +110,14 @@ function run(exp, value) {
   "use strict";
   if (value === undefined) return;
   if (isOpen(value)) {
-    if (exp.op === "caret") {
-      return [...value];
-    } else {
-      const result = [];
-      result.open = true
-      for (const v of value) {
-        const r = run(exp, v);
-        if (r !== undefined) result.push(r);
-      }
-      return result;
+    if (exp.op === "caret2") return [...value];
+    const result = [];
+    result.open = true
+    for (const v of value) {
+      const r = run(exp, v);
+      if (r !== undefined) result.push(r);
     }
+    return result;
   }
   switch (exp.op) {
     case "code":
@@ -237,12 +241,15 @@ function run(exp, value) {
       }
       return result
     }
-    case "caret":
-      assert(false, "CARET (^): Only an 'open' vector can be closed.");  
+    case "caret": {
+      const result = run(exp.caret, value);
+      assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
+      return [...result];
+    }  
     default:
       assert(false,`Unknown operation: '${exp.op}'`);
   }
 }
 
 export default run;
-export { run };
+export { run , closeVector };

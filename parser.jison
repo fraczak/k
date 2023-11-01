@@ -54,7 +54,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING INT
-%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE CARET
+%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE CARET 
 %token EOF
 
 %start input_with_eof
@@ -113,6 +113,7 @@ code_label
 comp 
     : exp                               { $$ = $1; }
     | comp exp                          { $$ = s.comp($1, $2); }
+    | comp CARET                        { $$ = {op: 'caret', caret: $1}; }
     ;
 
 exp
@@ -129,7 +130,6 @@ exp
     | DOT name                          { $$ = {op: "dot", dot: $2}; }
     | DOLLAR code                       { $$ = {op: "code", code: s.as_ref($2)}; }
     | PIPE                              { $$ = {op: "pipe"}; }
-    | CARET                             { $$ = {op: "caret"}; }
     ;
 
 labelled
