@@ -59,7 +59,7 @@ const builtin = {
   null: () => null,
   toJSON: (x) => JSON.stringify(x),
   fromJSON: (x) => JSON.parse(x),
-  CONS: ([x, y]) => [x, ...y],
+  CONS: ([x, y]) => { try { return [x, ...y]; } catch (e) { return undefined; } },
   SNOC: (x) => (x.length > 1 ? [x[0], x.slice(1)] : undefined),
   toDateMsec: (x) => new Date(x).getTime(),
   toDateStr: (x) => new Date(x).toISOString(),
@@ -109,146 +109,155 @@ function verify(code, value) {
 function run(exp, value) {
   "use strict";
   if (value === undefined) return;
-  if (isOpen(value)) {
-    if (exp.op === "caret2") return [...value];
-    const result = [];
-    result.open = true
-    for (const v of value) {
-      const r = run(exp, v);
-      if (r !== undefined) result.push(r);
+  while (true) {
+    if (isOpen(value)) {
+      if (exp.op === "caret2") return [...value];
+      const result = [];
+      result.open = true
+      for (const v of value) {
+        const r = run(exp, v);
+        if (r !== undefined) result.push(r);
+      }
+      return result;
     }
-    return result;
-  }
-  switch (exp.op) {
-    case "code":
-      if (verify(exp.code, value)) {
-        return value;
-      }
-      return;
-    case "identity":
-      return value;
-    case "str":
-    case "int":
-      return exp[exp.op];
-    case "ref":
-      const defn = run.defs.rels[exp.ref];
-      if (defn != null) {
-        return run(defn[defn.length - 1], value);
-      }
-      const builtin_func = builtin[exp.ref];
-      if (builtin_func != null) {
-        return builtin_func(value);
-      }
-      throw(`Unknown ref: '${exp.ref}'`);
-    case "dot":
-      // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
-      if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        if (`${value}` === `${exp.dot}`) return {};
+    switch (exp.op) {
+      case "code":
+        if (verify(exp.code, value)) {
+          return value;
+        }
         return;
-      }
-      return value[exp.dot];
-    case "pipe": {
-      assert(isClosed(value), `PIPE (|): Only a regular vector value can be "open".`);
-      const result = [...value];
-      result.open = true;
-      return result;
-    }
-    case "comp":
-      return exp.comp.reduce((value, exp) => {
-        if (value !== undefined) return run(exp, value);
-      }, value);
-    case "union":
-      for (let i = 0, len = exp.union.length; i < len; i++) {
-        const result = run(exp.union[i], value);
-        if (result !== undefined) {
-          return result;
+      case "identity":
+        return value;
+      case "str":
+      case "int":
+        return exp[exp.op];
+      case "ref":
+        const defn = run.defs.rels[exp.ref];
+        if (defn != null) {
+          exp = defn[defn.length - 1];
+          continue;
         }
+        const builtin_func = builtin[exp.ref];
+        if (builtin_func != null) {
+          return builtin_func(value);
+        }
+        throw(`Unknown ref: '${exp.ref}'`);
+      case "dot":
+        // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
+        if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          if (`${value}` === `${exp.dot}`) return {};
+          return;
+        }
+        return value[exp.dot];
+      case "pipe": {
+        assert(isClosed(value), `PIPE (|): Only a regular vector value can be "open".`);
+        const result = [...value];
+        result.open = true;
+        return result;
       }
-      return;
-    case "vector": {
-      let result = [];
-      let open = false;
-      for (let i = 0, len = exp.vector.length; i < len; i++) {
-        const r = run(exp.vector[i], value);
-        if (r === undefined) return;
-        if (open) {
-          if (isOpen(r)) {
-            const newResult = [];
-            newResult.open = true;
-            for (const x of result) {
-              for (const y of r) {
-                newResult.push([...x, y]);
-              }
-            }
-            result = newResult;
-          } else {
-            for (const x of result) x.push(r);
-          }
-        } else {
-          if (isOpen(r)) {
-            open = true;
-            const newResult = [];
-            newResult.open = true;
-            for (const x of r) {
-              newResult.push([...result, x]);
-            } 
-            result = newResult;
-          } else {
-            result.push(r);
+      case "comp":
+        for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
+          const result = run(exp.comp[i], value);
+          if (result === undefined) return;
+          value = result;
+        }
+        exp = exp.comp[exp.comp.length - 1];
+        continue;
+      case "union":
+        for (let i = 0, len = exp.union.length -1; i < len; i++) {
+          const result = run(exp.union[i], value);
+          if (result !== undefined) {
+            return result;
           }
         }
-      }
-      return result;
-    }
-    case "product": {
-      let result = {};
-      let open = false;
-      for (let i = 0, len = exp.product.length; i < len; i++) {
-        const { label, exp: e } = exp.product[i];
-        const r = run(e, value);
-        if (r === undefined) return;
-        if (open) {
-          if (isOpen(r)) {
-            let newResult = [];
-            newResult.open = true;
-            for (const v of r) {
+        exp = exp.union[exp.union.length - 1];
+        continue;
+      case "vector": {
+        let result = [];
+        let open = false;
+        for (let i = 0, len = exp.vector.length; i < len; i++) {
+          const r = run(exp.vector[i], value);
+          if (r === undefined) return;
+          if (open) {
+            if (isOpen(r)) {
+              const newResult = [];
+              newResult.open = true;
               for (const x of result) {
-                newResult.push({...x, [label]: v});
+                for (const y of r) {
+                  newResult.push([...x, y]);
+                }
               }
+              result = newResult;
+            } else {
+              for (const x of result) x.push(r);
             }
-            result = newResult;
           } else {
-            let newResult = [];
-            newResult.open = true;
-            for (const x of result) {
-              newResult.push({...x, [label]: r});
+            if (isOpen(r)) {
+              open = true;
+              const newResult = [];
+              newResult.open = true;
+              for (const x of r) {
+                newResult.push([...result, x]);
+              } 
+              result = newResult;
+            } else {
+              result.push(r);
             }
-            result = newResult;
-          } 
-        } else {
-          if (isOpen(r)) {
-            open = true;
-            let newResult = [];
-            newResult.open = true;
-            for (const v of r.values()) {
-              newResult.push({...result, [label]: v});
-            }
-            result = newResult;
-          } else {
-            result[label] = r;
           }
-        }      
+        }
+        return result;
       }
-      return result
+      case "product": {
+        let result = {};
+        let open = false;
+        for (let i = 0, len = exp.product.length; i < len; i++) {
+          const { label, exp: e } = exp.product[i];
+          const r = run(e, value);
+          if (r === undefined) return;
+          if (open) {
+            if (isOpen(r)) {
+              let newResult = [];
+              newResult.open = true;
+              for (const v of r) {
+                for (const x of result) {
+                  newResult.push({...x, [label]: v});
+                }
+              }
+              result = newResult;
+            } else {
+              let newResult = [];
+              newResult.open = true;
+              for (const x of result) {
+                newResult.push({...x, [label]: r});
+              }
+              result = newResult;
+            } 
+          } else {
+            if (isOpen(r)) {
+              open = true;
+              let newResult = [];
+              newResult.open = true;
+              for (const v of r.values()) {
+                newResult.push({...result, [label]: v});
+              }
+              result = newResult;
+            } else {
+              result[label] = r;
+            }
+          }      
+        }
+        return result
+      }
+      case "caret": {
+        const result = run(exp.caret, value);
+        assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
+        return [...result];
+      }  
+      default:
+        assert(false,`Unknown operation: '${exp.op}'`);
+    
     }
-    case "caret": {
-      const result = run(exp.caret, value);
-      assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
-      return [...result];
-    }  
-    default:
-      assert(false,`Unknown operation: '${exp.op}'`);
-  }
+  };
 }
 
 export default run;
