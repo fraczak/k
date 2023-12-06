@@ -72,7 +72,7 @@ const builtin = {
   null: () => null,
   toJSON: (x) => JSON.stringify(x),
   fromJSON: (x) => JSON.parse(x),
-  CONS: ([x, y]) => [x, ...y],
+  CONS: ([x, y]) => { try { return [x, ...y]; } catch (e) { return undefined; } },
   SNOC: (x) => (x.length > 1 ? [x[0], x.slice(1)] : undefined),
   toDateMsec: (x) => new Date(x).getTime(),
   toDateStr: (x) => new Date(x).toISOString(),
@@ -129,170 +129,175 @@ function verify(code, value) {
 function run(exp, value) {
   "use strict";
   if (value === undefined) return;
-  if (isSetAndOpen(value)) {
-    if (exp.op === "caret") {
-      const result = new SetValue();
-      for (const v of value.values()) {
-        result.add(v);
+  while (true) {
+    if (isSetAndOpen(value)) {
+      if (exp.op === "caret") {
+        const result = new SetValue();
+        for (const v of value.values()) {
+          result.add(v);
+        }
+        return result;
+      } else {
+        const result = new SetValue(true);
+        for (const v of value.values()) {
+          const r = run(exp, v);
+          if (r !== undefined) result.add(r);
+        }
+        return result;
       }
-      return result;
-    } else {
-      const result = new SetValue(true);
-      for (const v of value.values()) {
-        const r = run(exp, v);
-        if (r !== undefined) result.add(r);
-      }
-      return result;
     }
-  }
-  switch (exp.op) {
-    case "code":
-      if (verify(exp.code, value)) {
-        return value;
-      }
-      return;
-    case "identity":
-      return value;
-    case "str":
-    case "int":
-      return exp[exp.op];
-    case "ref":
-      const defn = run.defs.rels[exp.ref];
-      if (defn != null) {
-        return run(defn[defn.length - 1], value);
-      }
-      const builtin_func = builtin[exp.ref];
-      if (builtin_func != null) {
-        return builtin_func(value);
-      } 
-      throw(`unknown ref: ${exp.ref}`);
-    case "dot":
-      // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
-      if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        if (`${value}` === `${exp.dot}`) return {};
+    switch (exp.op) {
+      case "code":
+        if (verify(exp.code, value)) {
+          return value;
+        }
         return;
-      }
-      return value[exp.dot];
-    case "pipe": {
-      assert(isSetAndClosed(value), "PIPE (|): value must be a closed set");
-      const result = new SetValue(true);
-      for (const v of value.values()) {
-        result.add(v);
-      }
-      return result;
-      }
-    case "at":
-      assert(isSetAndClosed(value), "AT (@): value must be a closed set");
-      return value.values();
-    case "comp":
-      return exp.comp.reduce((value, exp) => {
-        if (value !== undefined) return run(exp, value);
-      }, value);
-    case "union":
-      for (let i = 0, len = exp.union.length; i < len; i++) {
-        const result = run(exp.union[i], value);
-        if (result !== undefined) {
-          return result;
+      case "identity":
+        return value;
+      case "str":
+      case "int":
+        return exp[exp.op];
+      case "ref":
+        const defn = run.defs.rels[exp.ref];
+        if (defn != null) {
+          exp = defn[defn.length - 1];
+          continue;
         }
+        const builtin_func = builtin[exp.ref];
+        if (builtin_func != null) {
+          return builtin_func(value);
+        }
+        throw(`Unknown ref: '${exp.ref}'`);
+      case "dot":
+        // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
+        if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          if (`${value}` === `${exp.dot}`) return {};
+          return;
+        }
+        return value[exp.dot];
+      case "pipe": {
+        assert(isSetAndClosed(value), "PIPE (|): value must be a closed set");
+        const result = new SetValue(true);
+        for (const v of value.values()) {
+          result.add(v);
+        }
+        return result;
       }
-      return;
-    case "vector": {
-      let result = [];
-      let resultIsOpenSet = false;
-      for (let i = 0, len = exp.vector.length; i < len; i++) {
-        const r = run(exp.vector[i], value);
-        if (r === undefined) return;
-        if (resultIsOpenSet) {
-          if (isSetAndOpen(r)) {
-            let newResult = new SetValue(true);
-            for (const v of r.values()) {
-              for (const x of result.values()) {
-                newResult.add([...x, v]);
+      case "at":
+        assert(isSetAndClosed(value), "AT (@): value must be a closed set");
+        return value.values();
+      case "comp":
+        for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
+          const result = run(exp.comp[i], value);
+          if (result === undefined) return;
+          value = result;
+        }
+        exp = exp.comp[exp.comp.length - 1];
+        continue;
+      case "union":
+        for (let i = 0, len = exp.union.length -1; i < len; i++) {
+          const result = run(exp.union[i], value);
+          if (result !== undefined) {
+            return result;
+          }
+        }
+        exp = exp.union[exp.union.length - 1];
+        continue;
+      case "vector": {
+        let result = [];
+        let resultIsOpenSet = false;
+        for (let i = 0, len = exp.vector.length; i < len; i++) {
+          const r = run(exp.vector[i], value);
+          if (r === undefined) return;
+          if (resultIsOpenSet) {
+            if (isSetAndOpen(r)) {
+              let newResult = new SetValue(true);
+              for (const v of r.values()) {
+                for (const x of result.values()) {
+                  newResult.add([...x, v]);
+                }
               }
-            }
-            result = newResult;
-          } else {
-            let newResult = new SetValue(true);
-            for (const x of result.values()) {
-              newResult.add([...x, r]);
-            }
-            result = newResult;
-          } 
-        } else {
-          if (isSetAndOpen(r)) {
-            resultIsOpenSet = true;
-            let newResult = new SetValue(true);
-            for (const v of r.values()) {
-              newResult.add([...result, v]);
-            }
-            result = newResult;
-          } else {
-            result.push(r);
-          }
-        }
-      }
-      return result;
-    }
-    case "product": {
-      let result = {};
-      let resultIsOpenSet = false;
-      for (let i = 0, len = exp.product.length; i < len; i++) {
-        const { label, exp: e } = exp.product[i];
-        const r = run(e, value);
-        if (r === undefined) return;
-        if (resultIsOpenSet) {
-          if (isSetAndOpen(r)) {
-            let newResult = new SetValue(true);
-            for (const v of r.values()) {
+              result = newResult;
+            } else {
+              let newResult = new SetValue(true);
               for (const x of result.values()) {
-                newResult.add({...x, [label]: v});
+                newResult.add([...x, r]);
               }
-            }
-            result = newResult;
+              result = newResult;
+            } 
           } else {
-            let newResult = new SetValue(true);
-            for (const x of result.values()) {
-              newResult.add({...x, [label]: r});
+            if (isSetAndOpen(r)) {
+              resultIsOpenSet = true;
+              let newResult = new SetValue(true);
+              for (const v of r.values()) {
+                newResult.add([...result, v]);
+              } 
+              result = newResult;
+            } else {
+              result.push(r);
             }
-            result = newResult;
-          } 
-        } else {
+          }
+        }
+        return result;
+      }
+      case "product": {
+        let result = {};
+        let resultIsOpenSet = false;
+        for (let i = 0, len = exp.product.length; i < len; i++) {
+          const { label, exp: e } = exp.product[i];
+          const r = run(e, value);
+          if (r === undefined) return;
+          if (resultIsOpenSet) {
+            if (isSetAndOpen(r)) {
+              let newResult = new SetValue(true);
+              for (const v of r.values()) {
+                for (const x of result.values()) {
+                  newResult.add({...x, [label]: v});
+                }
+              }
+              result = newResult;
+            } else {
+              let newResult = new SetValue(true);
+              for (const x of result.values()) {
+                newResult.add({...x, [label]: r});
+              }
+              result = newResult;
+            } 
+          } else {
+            if (isSetAndOpen(r)) {
+              resultIsOpenSet = true;
+              let newResult = new SetValue(true);
+              for (const v of r.values()) {
+                newResult.add({...result, [label]: v});
+              }
+              result = newResult;
+            } else {
+              result[label] = r;
+            }
+          }      
+        }
+        return result
+      }
+      case "set": {
+        const result = new SetValue();
+        for (let i = 0, len = exp.set.length; i < len; i++) {
+          const r = run(exp.set[i], value);
+          if (r === undefined) continue;
           if (isSetAndOpen(r)) {
-            resultIsOpenSet = true;
-            let newResult = new SetValue(true);
             for (const v of r.values()) {
-              newResult.add({...result, [label]: v});
+              result.add(v);
             }
-            result = newResult;
           } else {
-            result[label] = r;
+            result.add(r);
           }
         }
-      }
-      return result;
+        return result;
+      }  
+      default:
+        assert(false,`Unknown operation: '${exp.op}'`);
     }
-    case "set": {
-      const result = new SetValue();
-      for (let i = 0, len = exp.set.length; i < len; i++) {
-        const r = run(exp.set[i], value);
-        if (r === undefined) continue;
-        if (isSetAndOpen(r)) {
-          for (const v of r.values()) {
-            result.add(v);
-          }
-        } else {
-          result.add(r);
-        }
-      }
-      return result;
-    }
-    default:
-      assert(false,`Unknown op: ${exp.op}`);
-  }
+  };
 }
-
-
-
 
 export default run;
 export { run };
