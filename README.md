@@ -182,14 +182,13 @@ is not supported in _code derivation_ (explained below).
 
 ---
 
-### Function definitions
+### Function and code (i.e., _type_) definitions
 
       dec = [(),-1] PLUS;
       max = <SNOC [.0, .1 max] <GT.0, .1>, .0> ;
       factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
 
 ### Codes (schemas, i.e., _non-functional types_)
-
 _Codes_ (prefixed by `$`) can be defined by tagged union and product. E.g.:
 
       $nat = <nat 1, {} 0>;
@@ -258,6 +257,53 @@ to a single code making the program fully annotated by codes.
 
 For now, `code derivation` is supported by the core language, i.e., `composition`,
 `projection` and `union` with product and tagged union types.
+
+---
+
+### List comprehension on vectors (experimental!)
+
+A vector can be "open" by PIPE (`|`) operator so the following partial function is applied to
+each element of the vector one by one, yielding another open value. An open value can be "closed", 
+i.e., turn into a regular vector using `CARET` (`^`) operator. E.g.:
+
+```k
+    | .x  ^ :
+       [{x:12}, {x:8,y:10}, {y:98}]       -->  [12,8]
+       [1,2,3]                            -->  []
+```
+
+The PIPE operator can be used, e.g., to define a Cartesian product:
+
+```k
+    [.0 |, .1 |] ^ :
+        [[1,2], [3,4]]    -->  [[1,3],[1,4],[2,3],[2,4]]
+```
+
+or
+
+```k
+    { | x, | y } ^ :
+        [1,2]             --> [{"x":1,"y":1},{"x":2,"y":1},{"x":1,"y":2},{"x":2,"y":2}]
+```
+
+**QUIZ**: Write a function which will take a list of integers and an integer `x`, and count how many
+times value `x` appears in the list. (see `Examples/list-comprehension.k` for a solution)
+  
+```k
+    count_occurrences =
+    $ { [int] list, int x } 
+      -- ???
+    $ int;        
+```
+
+**WARNING**: The `CARET` operator makes composition not associative, i.e., if you use
+nested _list comprehension_ you cannot drop paranthesis anymore.
+E.g., `| (| PLUS ^ .0) ^` and `| | PLUS ^ .0 ^` are two different functions:
+
+```k
+   { |(| PLUS ^ .0) ^  x,  | | PLUS ^ .0 ^  y }:
+     [[[1,2],[3,4]],[[5,6],[7,8]]]   --> {"x":[3,11],"y":[3,7]}
+```
 
 ---
 
@@ -434,15 +480,10 @@ For example:
    examples 4 and 5 of the `jq` tutorial are equivalent.
 5.
         jq '[.[] | {message: .commit.message, name: .commit.committer.name}]'
-        k 'f = .commit {.message message, .committer.name name}; %\
-           map_f = <SNOC [.0 f,.1 map_f] CONS, [.0 f], []>; %\
-           map_f' -1 
+        k '| .commit {.message message, .committer.name name} ^' -1 
 6.
         jq '[.[] | {message: .commit.message, name: .commit.committer.name, parents: [.parents[].html_url]}]'
-        k 'map_html_url = <SNOC [.0 .html_url, .1 map_html_url] CONS, [.0 .html_url], []>; %\
-           f = {.commit.message message, .commit.committer.name name, .parents map_html_url parents}; %\
-           map_f = <SNOC [.0 f, .1 map_f] CONS, [.0 f] , []>; %\
-           map_f' -1 
+        k '| {.commit.message message, .commit.committer.name name, .parents | .html_url ^ parents} ^' -1 
 
 ---
 

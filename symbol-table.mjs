@@ -57,21 +57,24 @@ function comp_first(e1, e2) {
   if (is_identity_rel(e2)) return e1;
   if (is_empty_rel(e1)) return e1;
   if (is_empty_rel(e2)) return e2;
-  if (e1.op === "comp" && e2.op === "comp")
+  if (e1.op === "comp" && e2.op === "comp") {
     return {
       op: "comp",
       comp: [].concat(e1.comp, e2.comp),
     };
-  if (e1.op === "comp")
+  }
+  if (e1.op === "comp") {
     return {
       op: "comp",
       comp: [].concat(e1.comp, [e2]),
     };
-  if (e2.op === "comp")
+  }
+  if (e2.op === "comp") {
     return {
       op: "comp",
       comp: [].concat([e1], e2.comp),
     };
+  }
   return {
     op: "comp",
     comp: [e1, e2],

@@ -54,6 +54,8 @@ function fromEscString(escString) {
 ";"                                            return 'SC';
 ":"                                            return 'COL';
 "$"                                            return 'DOLLAR'; 
+"|"                                            return 'PIPE';
+"^"                                            return 'CARET';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
 0|[-]?[1-9][0-9]*                              return 'INT';
@@ -62,7 +64,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING INT
-%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR
+%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE CARET 
 %token EOF
 
 %start input_with_eof
@@ -136,6 +138,7 @@ code_label
 comp 
     : exp                               { $$ = $1; }
     | comp exp                          { $$ = {...s.comp($1, $2), start: $1.start, end:$2.end}; }
+    | comp CARET                        { $$ = {op: 'caret', caret: $1}; }
     ;
 
 exp
@@ -151,6 +154,7 @@ exp
     | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
+    | PIPE                              { $$ = {op: "pipe"}; }
     ;
 
 labelled

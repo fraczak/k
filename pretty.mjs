@@ -34,9 +34,10 @@ function prettyCode (codes, representatives, codeExp) {
     case "product":
       return `{${prettyCode_labels(codes, representatives, codeExp.product)}}`;
     case "union":
-      return `<${prettyCode_labels(codes, representatives, codeExp.union)}>`;
+      return `< ${prettyCode_labels(codes, representatives, codeExp.union)} >`;
     case "vector":
-      return `[${representatives[codeExp.vector] || codeExp.vector}]`;
+      return `[${prettyCode(codes,representatives, {code:'ref', ref:codeExp.vector})}]`;
+      // return `[${representatives[codeExp.vector] || codeExp.vector}]`;
     default:
       return ":error";
   }
