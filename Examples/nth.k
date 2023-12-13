@@ -102,5 +102,21 @@ range_ =
   {.n dec n, [.n, .result] CONS result} range_
 >;
 
+--  using PIPES:  join = [.list .0, [.with, .list cdr |] ^ cats] CONS; 
+join = 
+-- ${[str] list, str with}
+  {.list list, .with with, [] result} 
+  join_ 
+  reverse
+-- $[str]
+;
 
-"-- loaded"
+join_ = 
+<
+  [.list empty?, .result] .1,
+  [.list singleton?, [.list car, .result] CONS] .1,
+  {.list cdr list, .with with, [.with, [.list.0, .result] CONS] CONS result} 
+  join_
+>;
+  
+-- loaded

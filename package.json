@@ -1,6 +1,6 @@
 {
     "name": "@fraczak/k",
-    "version": "2.1.3",
+    "version": "2.1.4",
     "description": "k-language for JSON-like data transformation",
     "main": "index.mjs",
     "scripts": {
