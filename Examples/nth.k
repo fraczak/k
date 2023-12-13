@@ -1,25 +1,25 @@
-nth = 
-${int n, [int] list}
---
-$<int val, {} nothing>;
-
+inc = [$int,1] PLUS;
+dec = [$int,-1] PLUS;
+car = .0;
+cdr = < SNOC.1, []>;
 empty? = <{.0 nope}, {[] empty}>.empty;
 singleton? =<{.1 nope},{[.0] singleton}> .singleton;
-two? = <{.2 nope}, {[.0, .1] two}> .two;
 
 take = 
-${ int n, [int] list}
- {.n n, [] head, .list tail} take_
-${[int] head, [int] tail};
+-- ${ int n, [int] list}
+  {.n n, [] head, .list tail} take_
+-- ${[int] head, [int] tail}
+;
 
 take_ = 
-${ int n, [int] head, [int] tail}
+-- ${ int n, [int] head, [int] tail}
 <
   {.head reverse head, .tail empty? tail},
   [[.n,0] EQ, {.head reverse head, .tail tail}] .1,
   {.n dec n, [.tail car, .head] CONS head, .tail cdr tail} take_
 >
-${[int] head, [int] tail};
+-- ${[int] head, [int] tail}
+;
 
 reverse = {() in, [] out} reverse_;
 
@@ -28,12 +28,23 @@ reverse_ =
 < 
   [.in empty?, .out] .1,
   {[.in car, .out] CONS out, .in cdr in} reverse_
->;
+>
+-- $[int]
+;
 
-split = < 
-  [.0 SNOC, .1, .2] [.0.1, [.0.0, .2] CONS, .1] split, 
-  [.1, [.0.0,.2] CONS] 
->;
+split = {() list, [] one, [] two} split_;
+
+split_ =
+-- ${[int] list, [int] one, [int] two}
+<
+  [.list empty?, [.one reverse, .two reverse] ] .1,
+  {.list cdr             list, 
+    [.list.0, .one] CONS two, 
+    .two                 one
+  } split_
+>
+-- ${[int] [int]}
+;
 
 merge =
  <
@@ -51,42 +62,27 @@ merge =
 >;
 
 sort = <
-  SNOC [.1,[.0],[]]  -- we need that for singleton lists 
-  split _log! [.0  sort, .1 sort] merge,
-  ()
+  empty?,
+  singleton?,
+  split [.0 sort, .1 sort] merge
 >;
 
-split5 =
-$[int]
-<
-  empty?,
-  {5 n, () list} take [.head, .tail split5] CONS
->
-$[[int]];
-
-dec = [$int,-1] PLUS;
-car = .0;
-cdr = < SNOC.1, []>;
-
 min = 
-$[int]
+-- $[int]
 < 
   singleton? .0,
   SNOC [[.0, .1.0] <GT .1, .0>, .1 cdr] CONS min
 >
-$int;
-
+-- $int
+;
 max = 
-$[int]
-< SNOC [.0, .1 max] <GT .0, .1>,
-  .0 
+-- $[int]
+< 
+  singleton? .0,
+  SNOC [[.0, .1.0] <GT .0, .1>, .1 cdr] CONS max
 >
-$int;
-
-run =
-[(), split5 | {min min, max max} ^ [|.min ^ max, | .max ^ min] <GT, [.1,.0]>];
-
-m5 = | [(),(),(),(),()] ^ cats;
+-- $int
+;
 
 cats = {() lists, [] result} cats_;
 cats_ =
@@ -107,4 +103,4 @@ range_ =
 >;
 
 
-"a"
+"-- loaded"
