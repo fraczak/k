@@ -14,9 +14,22 @@ $ re
 <
   .char,
   .sink "",
-  .star ["(", print, ")*"] CONCAT,
-  .concat [.0 print, .1 print] CONCAT,
-  .union ["(", .0 print, "|", .1 print, ")"] CONCAT
+  .star < 
+    .char [(),"*"] CONCAT, 
+    ["(", print, ")*"] CONCAT
+  >,
+  .concat [
+    .0 < 
+      .union  ["(", .0 print, "|", .1 print, ")"] CONCAT,
+      print
+    >,
+    .1 <
+      .union  ["(", .0 print, "|", .1 print, ")"] CONCAT,
+      print
+    > ] CONCAT,
+  .union <
+    [.0 print, "|", .1 print] CONCAT
+  >
 >
 $ string
 ;
