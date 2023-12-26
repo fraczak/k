@@ -108,5 +108,7 @@ ${[string] w, re re}
 ${}
 ;
 
+ab = ["a" char, "b" char] union;
+b2 = ab star [(), "b" char] concat [(), ab] concat [(), ab] concat;
 
 { "a" char, {"a" char} [(),()] concat re} derive
