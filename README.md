@@ -191,6 +191,7 @@ is not supported in _code derivation_ (explained below).
 ### Codes (schemas, i.e., _non-functional types_)
 _Codes_ (prefixed by `$`) can be defined by tagged union and product. E.g.:
 
+
       $nat = <nat 1, {} 0>;
       $pair = {nat x, nat y};
 
@@ -272,7 +273,7 @@ i.e., turn into a regular vector using `CARET` (`^`) operator. E.g.:
        [1,2,3]                            -->  []
 ```
 
-The PIPE operator can be used, e.g., to define a Cartesian product:
+The PIPE operator can be used for defining the Cartesian product:
 
 ```k
     [.0 |, .1 |] ^ :
@@ -296,13 +297,11 @@ times value `x` appears in the list. (see `Examples/list-comprehension.k` for a 
     $ int;        
 ```
 
-**WARNING**: The `CARET` operator makes composition not associative, i.e., if you use
-nested _list comprehension_ you cannot drop paranthesis anymore.
-E.g., `| (| PLUS ^ .0) ^` and `| | PLUS ^ .0 ^` are two different functions:
+**WARNING**: When using `CARET` operator paranthesis may be required, e.g., like in:
 
 ```k
-   { |(| PLUS ^ .0) ^  x,  | | PLUS ^ .0 ^  y }:
-     [[[1,2],[3,4]],[[5,6],[7,8]]]   --> {"x":[3,11],"y":[3,7]}
+    | ( [|,|] ^ ) ^ :
+        [[1,2],[3,4]]     -->  [[[1,1],[1,2],[2,1],[2,2]],[[3,3],[3,4],[4,3],[4,4]]]             
 ```
 
 ---

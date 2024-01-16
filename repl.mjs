@@ -46,7 +46,7 @@ const re = /^[ \n\t]*(?:--l[ ]+)(.+[^ ])[ ]*?$/;
           file = line.match(re)[1];
           console.log(`-- loading file: ${file} ...`);
           kScript = fs.readFileSync(file).toString();
-          val = k.compile(kScript)(val);
+          val = k.compile(kScript + "\n()")(val);
           console.log(`=> ${JSON.stringify(val)}`);
         } else if (line.match(/^[ \n\t]*(?:--a)?$/)) {
           console.log(JSON.stringify(run.defs, " ", 2));

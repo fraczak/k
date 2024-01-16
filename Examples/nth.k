@@ -102,5 +102,43 @@ range_ =
   {.n dec n, [.n, .result] CONS result} range_
 >;
 
+--  using PIPES:  join = [.list .0, [.with, .list cdr |] ^ cats] CONS; 
+join = 
+-- ${[str] list, str with}
+  {.list list, .with with, [] result} 
+  join_ 
+  reverse
+-- $[str]
+;
 
-"-- loaded"
+join_ = 
+<
+  [.list empty?, .result] .1,
+  [.list singleton?, [.list car, .result] CONS] .1,
+  {.list cdr list, .with with, [.with, [.list.0, .result] CONS] CONS result} 
+  join_
+>;
+
+-- vectors
+
+-- len = | 1 ^ PLUS; -- using PIPES
+len = {() list, 0 res} len_;
+len_ = <
+  [.list empty?, .res].1,
+  {.list cdr list, .res inc res} len_
+>;
+
+get = 
+-- {[int] list, int pos}
+<
+ [.pos.0, .list.0].1,
+ {.list cdr list, [.pos, 0] GT .0 dec pos} get
+>;
+
+set = 
+-- ${[int] list, int i, int v} 
+ [{.i n, .list list} take, .v] [.0.head, [.1], .0.tail cdr] cats
+-- $[int] 
+;
+  
+-- loaded
