@@ -248,6 +248,9 @@ function patterns(codes, representatives, rels) {
     const old_o_pattern = patternNodes[old_o];
     const field = rel.dot;
     if (old_i_pattern.type == "code") {
+      if (old_i_pattern.code == "int" || old_i_pattern.code == "bool" || old_i_pattern.code == "string") {
+        return updatePattern(old_o_pattern, {code: "product", type: "code", closed: true, product: []});
+      }
       const code = codes[representatives[old_i_pattern.code] || old_i_pattern.code];
       if (code.code == "product" || code.code == "union" || code.code == "vector") {
         const target_code = code[code.code][field];
@@ -397,6 +400,12 @@ function patterns(codes, representatives, rels) {
       switch (rel.ref) {
         case "true": 
         case "false": return updatePattern(patternNodes[rel.patterns[1]], {code: "bool"});
+
+        case "PLUS":
+        case "TIMES": 
+          // should add updating the input parrebt to code `$[int]`
+          // console.log("PLUS/TIMES", rel);
+          return updatePattern(patternNodes[rel.patterns[1]], {code: "int"});
       }
       throw new Error(`No definition found for ${rel.ref}`);  
     }

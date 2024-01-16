@@ -9,4 +9,6 @@ factorial = <
   zero? 1, 
   [dec factorial, ()] TIMES
 >;
-{ () x, factorial "x!" }
+-- { () x, factorial "x!" } . "x!"
+
+factorial
