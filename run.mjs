@@ -164,6 +164,7 @@ function run(exp, value) {
         exp = exp.comp[exp.comp.length - 1];
         continue;
       case "union":
+        if (exp.union.length === 0) return;
         for (let i = 0, len = exp.union.length -1; i < len; i++) {
           const result = run(exp.union[i], value);
           if (result !== undefined) {
