@@ -91,6 +91,12 @@ max =
 -- $int
 ;
 
+cat = 
+-- ${[int] x, [int] y} 
+{.x reverse in, .y out} reverse_
+-- $[int]
+;
+
 cats = 
 -- $ [[int]]
 {() lists, [] result} cats_
@@ -153,4 +159,18 @@ set =
 -- $[int] 
 ;
   
+zip = 
+-- ${[int] x, [int] y} 
+< 
+  [[.x car, .y car], {.x cdr x, .y cdr y} zip] CONS, 
+  []
+>;
+
+pascal = 
+-- next line in pascal's triangle
+$[int]
+{[0,()] CONS x, [0,reverse] CONS reverse y} zip | PLUS ^
+$[int]
+;
+
 -- loaded

@@ -47,6 +47,10 @@ function prettyRel (prettyCode, exp) {
   "use strict";
   const pretty = (exp) => {
     switch (exp.op) {
+      case "pipe":
+        return `|`;        
+      case "caret":
+        return `(${pretty(exp.caret)} ^)`;        
       case "vector":
         return `[${exp.vector.map(pretty).join(", ")}]`;
       case "union":
