@@ -74,6 +74,33 @@ sort =
 -- $[int]
 ;
 
+merge_uniq =
+-- ${[int] 0, [int] 1}
+ <
+  [.0 SNOC, .1 SNOC]                      -- both lists are at least 2 element long
+    < 
+      [[.0.0, .1.0] GT, .0.1, .1.1], 
+      [[.1.0, .0.0], .1.1, .0.1]
+    >
+    < 
+      [.0 EQ .0, [.1,.2] merge_uniq],
+      [.0.0, [.1, [.0.1, .2] CONS] merge_uniq] 
+    > CONS,
+  <[.0 SNOC, .1.0], [.1 SNOC, .0.0]>      -- one list has one element, other at least 2
+    <
+      [[.0.0, .1] EQ, .0 CONS] .1,
+      [[.0.0, .1] GT, .0.1] [.0.0, [.1, [.0.1]] merge_uniq] CONS,
+      [.1, .0 CONS] CONS
+    >,
+  [.0.0, .1.0] < GT, EQ [.0], [.1,.0] > ,          -- both lists are one element long
+  .0,                                     -- first list has one element
+  .1                                      -- otherwise
+>
+-- $[int]
+;
+
+sort_uniq = <empty?, singleton?, split [.0 sort_uniq, .1 sort_uniq] merge_uniq >;
+
 min = 
 -- $[int]
 < 
