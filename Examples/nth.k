@@ -196,7 +196,7 @@ zip =
 pascal = 
 -- next line in pascal's triangle
 $[int]
-{[0,()] CONS x, [0,reverse] CONS reverse y} zip | PLUS ^
+{[0,()] CONS x, [0,reverse] CONS reverse y} zip (| PLUS ^)
 $[int]
 ;
 
