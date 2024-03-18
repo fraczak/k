@@ -78,7 +78,7 @@ There are three ways of combining functions:
 - parenthesis can be omitted, except for the empty composition `()`,
 - dot (`.`) in "projection" acts as a separator so the space around it can be omitted.
 
-For example, `[(.toto .titi (.0 .1))]` can be written as `[.toto.titi.0.1]`.
+For example, `(.toto .titi (.0 .1))` can be written as `.toto.titi.0.1`.
 
 Comments can be introduced by `//`, `--`, `%`, or `#` and extends to
 the end of line.  Multiline `C`-like comments, `/* ... */`, are also
