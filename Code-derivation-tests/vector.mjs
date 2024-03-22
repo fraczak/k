@@ -21,3 +21,8 @@ t(`$int [ $int true, false ] .0`,  (annotated) => {
   assert.equal(output.code, "bool");
   console.log("OK");
 });
+
+// assert.throws(() => t(`$int [ $int true, 12 ]`), /Error/);
+// console.log("OK");
+
+// t(`[]`);

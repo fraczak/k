@@ -2,8 +2,8 @@ inc = [$int,1] PLUS;
 dec = [$int,-1] PLUS;
 car = .0;
 cdr = < SNOC.1, []>;
-empty? = <{.0 nope}, {[] empty}>.empty;
-singleton? =<{.1 nope},{[.0] singleton}> .singleton;
+empty? = <{.0 nope}, {() empty}> .empty;
+singleton? = <{.1 nope},{[.0] singleton}> .singleton;
 
 take = 
 -- ${ int n, [int] list}
@@ -47,6 +47,7 @@ split_ =
 ;
 
 merge =
+-- ${[int] 0, [int] 1}
  <
   [.0 SNOC, .1 SNOC]                      -- both lists are at least 2 element long
     < [[.0.0, .1.0] GT, .0.1, .1.1], [[.1.0, .0.0], .1.1, .0.1]>
@@ -59,13 +60,46 @@ merge =
   [.0.0, .1.0] < GT, [.1,.0] > ,          -- both lists are one element long
   .0,                                     -- first list has one element
   .1                                      -- otherwise
->;
+>
+-- $[int]
+;
 
-sort = <
+sort = 
+-- $[int]
+<
   empty?,
   singleton?,
   split [.0 sort, .1 sort] merge
->;
+>
+-- $[int]
+;
+
+merge_uniq =
+-- ${[int] 0, [int] 1}
+ <
+  [.0 SNOC, .1 SNOC]                      -- both lists are at least 2 element long
+    < 
+      [[.0.0, .1.0] GT, .0.1, .1.1], 
+      [[.1.0, .0.0], .1.1, .0.1]
+    >
+    < 
+      [.0 EQ .0, [.1,.2] merge_uniq],
+      [.0.0, [.1, [.0.1, .2] CONS] merge_uniq] 
+    > CONS,
+  <[.0 SNOC, .1.0], [.1 SNOC, .0.0]>      -- one list has one element, other at least 2
+    <
+      [[.0.0, .1] EQ, .0 CONS] .1,
+      [[.0.0, .1] GT, .0.1] [.0.0, [.1, [.0.1]] merge_uniq] CONS,
+      [.1, .0 CONS] CONS
+    >,
+  [.0.0, .1.0] < GT, EQ [.0], [.1,.0] > ,          -- both lists are one element long
+  .0,                                     -- first list has one element
+  .1                                      -- otherwise
+>
+-- $[int]
+;
+
+sort_uniq = <empty?, singleton?, split [.0 sort_uniq, .1 sort_uniq] merge_uniq >;
 
 min = 
 -- $[int]
@@ -84,7 +118,18 @@ max =
 -- $int
 ;
 
-cats = {() lists, [] result} cats_;
+cat = 
+-- ${[int] x, [int] y} 
+{.x reverse in, .y out} reverse_
+-- $[int]
+;
+
+cats = 
+-- $ [[int]]
+{() lists, [] result} cats_
+-- $[int]
+;
+
 cats_ =
 -- $ {[[int]] lists, [int] result}
 < 
@@ -141,4 +186,18 @@ set =
 -- $[int] 
 ;
   
+zip = 
+-- ${[int] x, [int] y} 
+< 
+  [[.x car, .y car], {.x cdr x, .y cdr y} zip] CONS, 
+  []
+>;
+
+pascal = 
+-- next line in pascal's triangle
+$[int]
+{[0,()] CONS x, [0,reverse] CONS reverse y} zip (| PLUS ^)
+$[int]
+;
+
 -- loaded

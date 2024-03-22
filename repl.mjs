@@ -51,25 +51,26 @@ const re = /^[ \n\t]*(?:--l[ ]+)(.+[^ ])[ ]*?$/;
         } else if (line.match(/^[ \n\t]*(?:--a)?$/)) {
           console.log(JSON.stringify(run.defs, " ", 2));
         } else if (line.match(/^[ \n\t]*(?:--r)?$/)) {
-          (function (defs, result) {
-            if (defs == null) {
-              return result;
-            }
-            return (function (prettyRel) {
-              var ref1, relExps, relName;
-              ref1 = defs.rels;
-              for (relName in ref1) {
-                relExps = ref1[relName];
-                result[relName] = relExps.map(prettyRel);
+          console.log(
+            (function (defs, result) {
+              if (defs == null) {
+                return result;
               }
-              return result;
-            })(
-              prettyRel.bind(
-                null,
-                prettyCode.bind(null, defs.codes, defs.representatives)
-              )
-            );
-          })(run.defs, {})
+              return (function (prettyRel) {
+                var ref1, relExps, relName;
+                ref1 = defs.rels;
+                for (relName in ref1) {
+                  relExps = ref1[relName];
+                  result[relName] = relExps.map(prettyRel);
+                }
+                return result;
+              })(
+                prettyRel.bind(
+                  null,
+                  prettyCode.bind(null, defs.codes, defs.representatives)
+                )
+              );
+            })(run.defs, {}));
         } else if (line.match(/^[ \n\t]*(?:--c)?$/)) {
           console.log(
             (function (defs, result) {
