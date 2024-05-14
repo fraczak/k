@@ -49,8 +49,22 @@ log2_floor_ = <
 >;
 
 div = ${int 0, int 1} 
-  {.0 x, .1 step, 0 res} div_
-${int div, int rem};
+  // remember sign
+  {
+    <
+      ["+", [0, .0] GT, [0, .1] GT ] .0,
+      [0, .0] GT "-",
+      [0, .1] GT "-",
+      "+"
+    > sign,
+    {.0 abs x, .1 abs step, 0 res} div_ res_wo_sign
+  }
+  { < 
+      [.sign."+", .res_wo_sign.div] .1,
+      [0, .res_wo_sign.div] MINUS
+    > div, 
+    .res_wo_sign.rem rem
+  };
 
 rep = ${int x, int count}
   <
@@ -80,3 +94,56 @@ lcm = ${int 0, int 1}
 $int;
 
 -- lcm = [(),gcd] [[.0.1,.1] div .div, .0.0] TIMES;
+
+--------------------
+
+simple_rat =
+  <$int, $rat > 
+  < 
+    $int {() n, 1 d },
+    [ [0, .d] GT, 
+      {
+        [0, .n] MINUS n, 
+        [0, .d] MINUS d
+      }
+    ] .1,
+    ()
+  >
+  [(), [.n,.d] gcd]
+  {
+    [.0.n,.1] div .div n, 
+    [.0.d,.1] div .div d
+  }
+$rat;
+
+add_rat = ${rat x, rat y}
+  { 
+    [.x, .y] args,
+    [.x.d,.y.d] lcm lcm
+  }
+  { 
+    { .args | a, .lcm lcm} [.a.n, [.lcm, .a.d] div .div] TIMES ^ PLUS n, 
+    .lcm d
+  }
+$rat;
+
+mult_rat = ${rat x, rat y}
+  { 
+    [.x.n,.y.n] TIMES n, 
+    [.x.d,.y.d] TIMES d
+  } 
+  simple_rat;
+
+neg_rat = $rat
+  { 
+    [0, .n] MINUS n, 
+    .d d
+  }
+; 
+ 
+sub_rat = ${rat x, rat y}
+  {.x x, .y neg_rat y} add_rat;
+
+inverse_rat = $rat
+  { .d n, .n d }
+  simple_rat;
