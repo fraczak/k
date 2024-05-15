@@ -59,12 +59,11 @@ div = ${int 0, int 1}
     > sign,
     {.0 abs x, .1 abs step, 0 res} div_ res_wo_sign
   }
-  { < 
-      [.sign."+", .res_wo_sign.div] .1,
-      [0, .res_wo_sign.div] MINUS
-    > div, 
-    .res_wo_sign.rem rem
-  };
+  < 
+    [.sign."+", {.res_wo_sign.div div, .res_wo_sign.rem rem} ] .1,
+    { [0, .res_wo_sign.div] MINUS div, [0,.res_wo_sign.rem] MINUS rem }
+  > 
+  ;
 
 rep = ${int x, int count}
   <
@@ -97,7 +96,7 @@ $int;
 
 --------------------
 
-simple_rat =
+normalize_rat =
   <$int, $rat > 
   < 
     $int {() n, 1 d },
@@ -116,7 +115,7 @@ simple_rat =
   }
 $rat;
 
-add_rat = ${rat x, rat y}
+plus_rat = ${rat x, rat y}
   { 
     [.x, .y] args,
     [.x.d,.y.d] lcm lcm
@@ -127,23 +126,23 @@ add_rat = ${rat x, rat y}
   }
 $rat;
 
-mult_rat = ${rat x, rat y}
+times_rat = ${rat x, rat y}
   { 
     [.x.n,.y.n] TIMES n, 
     [.x.d,.y.d] TIMES d
   } 
-  simple_rat;
-
-neg_rat = $rat
-  { 
-    [0, .n] MINUS n, 
-    .d d
-  }
-; 
+  normalize_rat;
  
-sub_rat = ${rat x, rat y}
-  {.x x, .y neg_rat y} add_rat;
+minus_rat = ${rat x, rat y}
+  {
+    .x x, 
+    .y { [0, .n] MINUS n, .d d} y
+  } 
+  plus_rat;
 
 inverse_rat = $rat
   { .d n, .n d }
-  simple_rat;
+  normalize_rat;
+
+div_rat = ${rat x, rat y}
+  { .x x, .y inverse_rat y} times_rat;
