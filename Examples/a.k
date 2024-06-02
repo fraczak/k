@@ -146,3 +146,21 @@ inverse_rat = $rat
 
 div_rat = ${rat x, rat y}
   { .x x, .y inverse_rat y} times_rat;
+
+--------------------
+
+int_rat = $rat 
+  { .n n, .d d, [.n,.d] div div }
+  { .div.div int, {.div.rem n, .d d} rat}
+;
+
+_rat! = $rat [
+  (), [
+    .n, "/", .d, " = ",
+    <
+      [.d,.n] GT [.1,"/",.0] CONCAT,
+      [.n,[.d,1] EQ] .0,
+      int_rat [.int,"+",.rat.n,"/",.rat.d] CONCAT
+    >
+  ] CONCAT _log!
+] .0;
