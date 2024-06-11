@@ -124,7 +124,7 @@ plus_rat = ${rat x, rat y}
     { .args | a, .lcm lcm} [.a.n, [.lcm, .a.d] div .div] TIMES ^ PLUS n, 
     .lcm d
   }
-$rat;
+  normalize_rat;
 
 times_rat = ${rat x, rat y}
   { 
