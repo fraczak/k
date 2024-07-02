@@ -28,9 +28,8 @@ import { encodeCodeToString, fingerprint } from './fingerprint.mjs';
       const annotated2 = k.annotate(s+" {}");
       // console.log(`// CODES: ${JSON.stringify(annotated2,"",2)}`);
       const s2 = encodeCodeToString(annotated2.representatives["C0"],annotated2.codes);
-      console.log(`// DEFINITION 2: ${s2}`);
       console.log(`// FINGERPRINT 2: ${fingerprint(s2)}`);
-      if (s === s2) {
+      if ((s === s2) && (fingerprint(s) === fingerprint(s2))) {
         console.log('--- OK');
       } else {
         console.log('--- ERROR');

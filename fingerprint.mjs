@@ -1,8 +1,5 @@
 import k from "./index.mjs";
-
 import blake from 'blakejs';
-import crypto from 'crypto';
-
 
 function isBuiltIn(code) {  
   return code.match(/^(int|string|bool)$/);
