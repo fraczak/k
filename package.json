@@ -5,7 +5,7 @@
     "main": "index.mjs",
     "scripts": {
         "prepare": "jiwson -m es6 parser.jison -o parser.mjs",
-        "test": "node test.mjs; for f in Code-derivation-tests/*.mjs; do echo $f; node $f; done"
+        "test": "node test.mjs; for f in Code-derivation-tests/*.mjs; do echo $f; node $f; done; node test-fingerprint.mjs"
     },
     "repository": {
         "type": "git",
