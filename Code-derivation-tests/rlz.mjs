@@ -8,7 +8,7 @@ t(`
  rlz
  `, (annotated) => {
     const {input,output} = in_out(annotated);
-    assert.equal(output.code, "nat");
-    assert.equal(input.code, "nat");
+    assert.equal(output.code, annotated.representatives["nat"]);
+    assert.equal(input.code, annotated.representatives["nat"]);
     console.log("OK");
  });

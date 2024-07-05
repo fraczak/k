@@ -9,7 +9,7 @@ $b {1 one, () two, () c} .one
 
 `, (annotated) => {
     const {input,output} = in_out(annotated);
-    assert.equal(input.code, "b");
+    assert.equal(input.code, annotated.representatives["b"]);
     assert.equal(output.code, "int");
     console.log("OK");
 });

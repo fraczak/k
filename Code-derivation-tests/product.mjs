@@ -4,7 +4,7 @@ import assert from 'assert';
 t('{}', (annotated) => {
   const {input,output} = in_out(annotated);
   assert.equal(input.type, null);
-  assert.equal(output.code, "{}");
+  assert.equal(output.code, annotated.representatives["{}"]);
   console.log("OK");
 });
 
@@ -15,7 +15,7 @@ t(`
    {() one, () two} $pair
 `, (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.code, "b");
-  assert.equal(output.code, "pair");
+  assert.equal(input.code, annotated.representatives["b"]);
+  assert.equal(output.code, annotated.representatives["pair"]);
   console.log("OK");
 });

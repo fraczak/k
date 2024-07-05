@@ -8,7 +8,7 @@ t(`$b = < {} true, {} false > ;
    not not
 `, (annotated) => {
    const {input,output} = in_out(annotated);
-   assert.equal(input.code, "b");
-   assert.equal(output.code, "b");
+   assert.equal(input.code, annotated.representatives["b"]);
+   assert.equal(output.code, annotated.representatives["b"]);
    console.log("OK");
    });

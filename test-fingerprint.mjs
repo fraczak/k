@@ -1,5 +1,5 @@
 import k from './index.mjs';
-import { encodeCodeToString, fingerprint } from './fingerprint.mjs';
+import { encodeCodeToString, fingerprint } from './codes.mjs';
 
 [
     `
@@ -20,15 +20,12 @@ import { encodeCodeToString, fingerprint } from './fingerprint.mjs';
     console.log(`k_expression = '${script}';`);
     const annotated = k.annotate(script);
     for (const code in annotated.codes) {
-      console.log(`// CODE ALIAS : ${code}`);
+      console.log(`CODE: ${code}`);
       const s = encodeCodeToString(code,annotated.codes);
-      console.log(`// DEFINITION : ${s}`);
-      console.log(`// FINGERPRINT: ${fingerprint(s)}`);
-      console.log('--- reparsed DEFINITION:');
-      const annotated2 = k.annotate(s+" {}");
-      // console.log(`// CODES: ${JSON.stringify(annotated2,"",2)}`);
+      console.log(` - DEFS: ${s}`);;
+      const annotated2 = k.annotate(s+" {}");;
       const s2 = encodeCodeToString(annotated2.representatives["C0"],annotated2.codes);
-      console.log(`// FINGERPRINT 2: ${fingerprint(s2)}`);
+      console.log(` - reparsed FINGERPRINT: ${fingerprint(s2)}`);
       if ((s === s2) && (fingerprint(s) === fingerprint(s2))) {
         console.log('--- OK');
       } else {

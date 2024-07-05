@@ -9,11 +9,12 @@
 //      type: [null, product, union, vector, code], 
 //      closed: [true, false] }
 
+const unitCode = 'BG'; // it was '{}'
 
 function patterns(codes, representatives, rels) {
   // INPUT: 
-  //   codes: {"{}": {"code": "product", "product": {}}, ...}
-  //   representatives:{"{}": "{}", ...}
+  //   codes: {"BG": {"code": "product", "product": {}}, ...}
+  //   representatives:{"{}": "BG", ...}
   //   rels: {"rlz": [{op: comp,...}, ...], ...}
   
   // OUTPUT: returns pattern graph: 
@@ -273,7 +274,7 @@ function patterns(codes, representatives, rels) {
         for (const label in patternEdges[old_o]) {
           throw new Error(`Label ${label} in code '{}'.`);
         }
-        return updatePattern(old_o_pattern, {code: "{}", type: "code", closed: true});
+        return updatePattern(old_o_pattern, {code: unitCode, type: "code", closed: true});
       }
       case 1: {
         // union constructor:  %old_i { %exp_i exp %exp_o field } %old_o 
