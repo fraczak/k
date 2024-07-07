@@ -47,7 +47,7 @@ function compile(script) {
       rels: {...defs.rels, "__main__": [exp]}, 
       codes, representatives
     };
-    console.log("Compiled with type errors.");
+    console.error("WARN: Recompiled without type reconciliation due to the type error above.");
   }
   return run.bind(null, run.defs.rels.__main__[0]);
 }

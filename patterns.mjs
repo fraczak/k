@@ -103,7 +103,7 @@ function patterns(codes, representatives, rels) {
       }
       throw new Error(`Unknown op: ${op}`);
     } catch (e) {
-      console.log(`Code Derivation Error for '${op}' (lines ${rel.start.line}:${rel.start.column}...${rel.end.line}:${rel.end.column}): ${e.message}.`);
+      console.error(`Code Derivation Error for '${op}' (lines ${rel.start.line}:${rel.start.column}...${rel.end.line}:${rel.end.column}): ${e.message}.`);
       throw e;
     }   
   }
@@ -324,9 +324,7 @@ function patterns(codes, representatives, rels) {
    
     for (const label of patternEdgeLabels) {
       if (!labels[label]) {
-        console.log(patternEdges[old_o_pattern._id]);
-        console.log({labels,label, fields});
-        throw new Error(`Not allowed label ${label} in pattern ${JSON.stringify(old_o_pattern)}`);
+        throw new Error(`Label '${label}' not allowed for pattern ${JSON.stringify({...old_o_pattern, fields})}`);
       }
     }
     return modified;
