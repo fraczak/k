@@ -1,6 +1,6 @@
 import k from './index.mjs';
-import { encodeCodeToString, fingerprint } from './codes.mjs';
-
+import { encodeCodeToString } from './codes.mjs';
+import hash from './hash.mjs';
 [
     `
     $nat = < {} zero, nat succ>;
@@ -25,8 +25,8 @@ import { encodeCodeToString, fingerprint } from './codes.mjs';
       console.log(` - DEFS: ${s}`);;
       const annotated2 = k.annotate(s+" {}");;
       const s2 = encodeCodeToString(annotated2.representatives["C0"],annotated2.codes);
-      console.log(` - reparsed FINGERPRINT: ${fingerprint(s2)}`);
-      if ((s === s2) && (fingerprint(s) === fingerprint(s2))) {
+      console.log(` - reparsed FINGERPRINT: ${hash(s2)}`);
+      if ((s === s2) && (hash(s) === hash(s2))) {
         console.log('--- OK');
       } else {
         console.log('--- ERROR');

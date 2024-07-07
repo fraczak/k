@@ -1,5 +1,3 @@
-import blake from 'blakejs';
-
 function isBuiltIn(code) {  
   return code.match(/^(int|string|bool)$/);
 }
@@ -52,12 +50,6 @@ function encodeCodeToString(code, codes) {
   }
   return result.join("");
 };
-
-function fingerprint(input,key = null) {
-  const hash = blake.blake2b(input, key, logCeiling(input.length-5,5)); 
-  const hex = Buffer.from(hash).toString('hex');
-  return Array.from(hex).map((c) => String.fromCharCode(c.charCodeAt(0)+17)).join('').toUpperCase();
-}
 
 function are_different(classes, representatives, name1, name2, codes) {
   if (name1 === name2) return false;
@@ -162,5 +154,5 @@ function normalizeAll(codes, representatives) {
 }
 
 
-export default { minimize, normalize, normalizeAll, fingerprint, encodeCodeToString };
-export { minimize, normalize, normalizeAll, fingerprint, encodeCodeToString };
+export default { minimize, normalize, normalizeAll, encodeCodeToString };
+export { minimize, normalize, normalizeAll, encodeCodeToString };

@@ -9,7 +9,9 @@
 //      type: [null, product, union, vector, code], 
 //      closed: [true, false] }
 
-const unitCode = 'BG'; // it was '{}'
+import hash from "./hash.mjs";
+
+const unitCode = hash('$C0={};'); // it was '{}'
 
 function patterns(codes, representatives, rels) {
   // INPUT: 
@@ -42,6 +44,8 @@ function patterns(codes, representatives, rels) {
       case "comp":
       case "vector":
         rel[rel.op].forEach((exp) => augment(exp));
+      case "code":
+        rel["code"] = representatives[rel.code] || rel.code;
     }
 
     const o = patternNodes.length;
@@ -315,10 +319,13 @@ function patterns(codes, representatives, rels) {
     modified = updatePattern(old_o_pattern, {type: "product", closed: true}) || modified;
     // check that patternEdges coincide with field labels
     const patternEdgeLabels = Object.keys(patternEdges[old_o]);
-    const labels = new Set(fields.map(({label}) => label));
+    const labels = fields.reduce( (labels,{label}) => 
+      ({[label]: true, ...labels}), {});
    
     for (const label of patternEdgeLabels) {
-      if (!labels.has(label)) {
+      if (!labels[label]) {
+        console.log(patternEdges[old_o_pattern._id]);
+        console.log({labels,label, fields});
         throw new Error(`Not allowed label ${label} in pattern ${JSON.stringify(old_o_pattern)}`);
       }
     }
@@ -404,9 +411,28 @@ function patterns(codes, representatives, rels) {
 
         case "PLUS":
         case "TIMES": 
-          // should add updating the input parrebt to code `$[int]`
+          // should add updating the input parrent to code `$[int]`
           // console.log("PLUS/TIMES", rel);
           return updatePattern(patternNodes[rel.patterns[1]], {code: "int"});
+        case "CONCAT":
+          return updatePattern(patternNodes[rel.patterns[1]], {code: "string"});
+        case "toDateMsec":
+          return updatePattern(patternNodes[rel.patterns[1]], {code: "int"});
+        case "toJSON":
+          return updatePattern(patternNodes[rel.patterns[1]], {code: "string"});
+        case "toDateStr":
+          return updatePattern(patternNodes[rel.patterns[1]], {code: "string"});
+
+        // TO DO
+        case "GT":
+        case "EQ":
+        case "null":
+        case "DIV":
+        case "FDIV":
+        case "fromJSON":
+        case "CONS":
+        case "SNOC":
+          return false;
       }
       throw new Error(`No definition found for ${rel.ref}`);  
     }
