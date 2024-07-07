@@ -36,14 +36,20 @@ function finalize(codes) {
 }
 
 function compile(script) {
-  const {rels, codes, representatives, patternNodes, patternEdges} = annotate(script);
-  run.defs = {
-    codes,
-    representatives,
-    rels,
-    // ...pats
-  };
-  return run.bind(null, rels.__main__[0]);
+  try {
+    const {rels, codes, representatives } = annotate(script);
+    run.defs = {rels, codes, representatives};
+  } catch (e) {
+    console.error(e);
+    const { defs, exp } = parse(script);
+    const { codes, representatives } = finalize(defs.codes);
+    run.defs = {
+      rels: {...defs.rels, "__main__": [exp]}, 
+      codes, representatives
+    };
+    console.log("Compiled with type errors.");
+  }
+  return run.bind(null, run.defs.rels.__main__[0]);
 }
 
 compile.doc = "Transforms k-script (string) into a function";
