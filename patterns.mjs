@@ -402,6 +402,8 @@ function patterns(codes, representatives, rels) {
     const relDefs = rels[rel.ref];
     if (!relDefs) {
       switch (rel.ref) {
+        case "_log!":
+          return inspectIdentity(rel);
         case "true": 
         case "false": return updatePattern(patternNodes[rel.patterns[1]], {code: "bool"});
 

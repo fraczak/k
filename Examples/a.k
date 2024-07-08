@@ -25,13 +25,13 @@ $int
 
 // gratest common divisor
 gcd = ${int 0, int 1}
-  [.0 abs, .1 abs] <GT, [.1,.0]>
+  [.0 abs, .1 abs] <GT, {.1 0,.0 1}>
   gcd_
 $int;
 
 gcd_ = <
-  [.0, .1.0] .0,
-  [.1, mod] gcd_
+  {.0 0, .1.0 1} .0,
+  {.1 0, mod 1} gcd_
 >;
 
 // div
@@ -60,7 +60,7 @@ div = ${int 0, int 1}
     {.0 abs x, .1 abs step, 0 res} div_ res_wo_sign
   }
   < 
-    [.sign."+", {.res_wo_sign.div div, .res_wo_sign.rem rem} ] .1,
+    {.sign."+" 0, {.res_wo_sign.div div, .res_wo_sign.rem rem} 1} .1,
     { [0, .res_wo_sign.div] MINUS div, [0,.res_wo_sign.rem] MINUS rem }
   > 
   ;
@@ -68,7 +68,7 @@ div = ${int 0, int 1}
 rep = ${int x, int count}
   <
     .count.0 [],
-    [.x, {.x x, .count [(),-1] PLUS count} rep] CONS
+    {.x 0, {.x x, .count [(),-1] PLUS count} rep 1} CONS
   >
 $[int];
 
@@ -80,7 +80,7 @@ div_ =
     {.x x, .step step} log2_floor log
   }
   < 
-    [.log.0, {.res div, .x rem}] .1,
+    {.log.0 0, {.res div, .x rem} 1} .1,
     { 
       {2 x, .log [(),1] MINUS count} rep TIMES factor,
       () i
@@ -89,7 +89,7 @@ div_ =
   >;
 
 lcm = ${int 0, int 1}
-  [(),gcd] [[.0.0,.1] div .div, .0.1] TIMES
+  {() 0,gcd 1} [{.0.0 0,.1 1} div .div, .0.1] TIMES
 $int;
 
 -- lcm = [(),gcd] [[.0.1,.1] div .div, .0.0] TIMES;
@@ -97,31 +97,33 @@ $int;
 --------------------
 
 normalize_rat =
-  <$int, $rat > 
+  $rat 
   < 
-    $int {() n, 1 d },
-    [ [0, .d] GT, 
+    { [0, .d] GT 0, 
       {
         [0, .n] MINUS n, 
         [0, .d] MINUS d
-      }
-    ] .1,
+      } 1
+     } .1,
     ()
   >
-  [(), [.n,.d] gcd]
+  {() 0, {.n 0,.d 1} gcd 1}
   {
-    [.0.n,.1] div .div n, 
-    [.0.d,.1] div .div d
+    {.0.n 0,.1 1} div .div n, 
+    {.0.d 0,.1 1} div .div d
   }
 $rat;
 
 plus_rat = ${rat x, rat y}
   { 
     [.x, .y] args,
-    [.x.d,.y.d] lcm lcm
+    {.x.d 0,.y.d 1} lcm lcm
   }
   { 
-    { .args | a, .lcm lcm} [.a.n, [.lcm, .a.d] div .div] TIMES ^ PLUS n, 
+    [
+      { .args.0 a, .lcm lcm} [.a.n, {.lcm 0, .a.d 1} div .div] TIMES,
+      { .args.1 a, .lcm lcm} [.a.n, {.lcm 0, .a.d 1} div .div] TIMES
+    ] PLUS n, 
     .lcm d
   }
   normalize_rat;
@@ -150,17 +152,23 @@ div_rat = ${rat x, rat y}
 --------------------
 
 int_rat = $rat 
-  { .n n, .d d, [.n,.d] div div }
+  { .n n, .d d, {.n 0,.d 1} div div }
   { .div.div int, {.div.rem n, .d d} rat}
 ;
 
-_rat! = $rat [
-  (), [
-    .n, "/", .d, " = ",
+_rat! = $rat {
+  () 0, 
+  [
+    [.n] CONCAT, 
+    "/", 
+    [.d] CONCAT, 
+    " = ",
     <
       [.d,.n] GT [.1,"/",.0] CONCAT,
-      [.n,[.d,1] EQ] .0,
+      {.n 0,[.d,1] EQ 1} [.0] CONCAT,
       int_rat [.int,"+",.rat.n,"/",.rat.d] CONCAT
     >
-  ] CONCAT _log!
-] .0;
+  ] CONCAT _log! 1
+ } .0;
+
+()

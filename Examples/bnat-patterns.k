@@ -3,7 +3,7 @@
 
 $bnat = < {} _, bnat 0, bnat 1 >;
 
-_ = {${} _} $bnat;
+_ =   {{} _} $bnat;
 _1 =  {$bnat 1} $bnat;
 _0 =  {$bnat 0} $bnat;
 

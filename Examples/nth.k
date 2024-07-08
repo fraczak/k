@@ -143,8 +143,8 @@ cats_ =
 range = $int {() n, [] result} range_ $[int];
 range_ =
 < 
-  [.n.0, .result] .1,
-  {.n dec n, [.n, .result] CONS result} range_
+  {.n.0 if, .result then} .then,
+  {.n dec n, {.n 0, .result 1} CONS result} range_
 >;
 
 --  using PIPES:  join = [.list .0, [.with, .list cdr |] ^ cats] CONS; 
@@ -193,11 +193,20 @@ zip =
   []
 >;
 
+map_with_PLUS = $[[int]]
+  < 
+    {car PLUS 0, cdr map_with_PLUS 1} CONS,
+    []
+  >
+  $[int];
+
 pascal = 
 -- next line in pascal's triangle
 $[int]
-{[0,()] CONS x, [0,reverse] CONS reverse y} zip (| PLUS ^)
+{{0 0,() 1} CONS x, [0,reverse] CONS reverse y} zip map_with_PLUS
 $[int]
 ;
+
+// pascal2 = {{0 0,() 1} CONS x, [0,reverse] CONS reverse y} zip | PLUS ^;
 
 -- loaded
