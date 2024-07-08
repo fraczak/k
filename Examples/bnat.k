@@ -119,7 +119,7 @@ plus = {
   _add2wc reverse_bnat;
 
 to_string = <
-  ._ 0,
+  ._ "0",
   toStr
 >;
 
@@ -168,7 +168,6 @@ x_minus_y =
     .y remove_leading_zeros reverse_bnat y,
     _ _0 c}
   _sub2wc
-  ["---",()] .1
   reverse_bnat remove_leading_zeros;
 
 
@@ -179,7 +178,7 @@ shift = { x_minus_y x, { .y x, .y y } plus y } ; -- (x,y)->(x-y,2y);
 <${int 0, int 1}, [9,4]> {
   () input,
   {.0 from_digit x, .1 from_digit y} 
-  {<x_minus_y to_digit, "?"> minus, mod to_digit mod} result
+  {x_minus_y to_digit minus, mod to_digit mod} result
 } 
 ----------------------------------------------------------------
 /****

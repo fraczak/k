@@ -118,8 +118,8 @@ function patterns(codes, representatives, rels) {
       if (pattern.code) {
         throw new Error(`Cannot update pattern with code: ${pattern.code} -> ${code}`);
       }
-      if (pattern.type && pattern.type != codes[code].code) {
-        throw new Error(`Cannot update pattern with code '${code}': pattern type: ${pattern.type} -> code type: ${codes[code].code}`);
+      if (pattern.type && pattern.type != codes[code]?.code) {
+        throw new Error(`Cannot update pattern with code '${code}': pattern type: ${pattern.type} -> code type: ${codes[code]?.code || 'built-in'}`);
       }
       pattern.code = code; 
       pattern.closed = true;
@@ -400,8 +400,6 @@ function patterns(codes, representatives, rels) {
   
   function inspectRef(rel) { 
     const relDefs = rels[rel.ref];
-    // For now we assume only the first def which does not throw!!!!
-    // That's good enough if all defs are typed by different input codes.
     if (!relDefs) {
       switch (rel.ref) {
         case "true": 
@@ -434,10 +432,18 @@ function patterns(codes, representatives, rels) {
       }
       throw new Error(`No definition found for ${rel.ref}`);  
     }
+    // For now we assume only the first def which does not throw!!!!
+    // That's good enough if all defs are typed by different input codes.
     for (const def of relDefs) {
       try {
-        var modified = join(def.patterns[0], rel.patterns[0]);
-        modified = join(def.patterns[1], rel.patterns[1]) || modified;
+        var modified = updatePattern(
+          patternNodes[getRep(rel.patterns[0])], 
+          patternNodes[getRep(def.patterns[0])]
+        );
+        modified = updatePattern(
+          patternNodes[getRep(rel.patterns[1])], 
+          patternNodes[getRep(def.patterns[1])]
+        ) || modified;
         return modified;
       } catch (e) {}
     } 

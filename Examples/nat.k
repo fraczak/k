@@ -1,49 +1,15 @@
-$nat = < {} 0, nat 1 >;
-$pair = {nat x, nat y};
+$ nat = < {} zero, nat succ >;
+zero = { {} zero } $nat;
+zero? = $nat .zero zero;
+succ = { $nat succ };
+add = ${nat x, nat y} <
+    {.x.succ x, .y succ y} add,
+    .y
+> $nat;
+mult = ${nat x, nat y} <
+    <.x zero?, .y zero?> zero,
+    {{.x.succ x, .y y} mult x, .y y} add
+> $nat;
 
-zero = {{} 0} $nat;
-succ = $nat {() 1} $nat;
-add = $pair <
-  {.x.0 _, .y y} .y,
-  {.x.1 x, .y y} add succ
->;
+zero?
 
-one = zero succ;
-two = one succ;
-three = two succ;
-four = three succ;
-
-toStr = $nat <
-  .0 "0",
-  .1 <
-    .0 "1",
-    .1 <
-      .0 "2",
-      .1 <
-        .0 "3",
-        .1 <
-          .0 "4",
-          .1 < 
-            .0 "5",
-            .1 <
-              .0 "6",
-              .1 <
-                .0 "7",
-                .1 <
-                  .0 "8",
-                  .1 <
-                    .0 "9",
-                    .1 ["10 + ", toStr] CONCAT
-                  >
-                >
-              >
-            >
-          >
-        >
-      >
-    >
-  >
->;
-
-add toStr
-      

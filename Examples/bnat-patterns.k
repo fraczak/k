@@ -89,8 +89,8 @@ x_minus_y =
   _sub2wc
   reverse_bnat remove_leading_zeros;
 
-
-mod   = < { shift mod x, .y y } mod, .x >;
+$pair = {bnat x, bnat y};
+mod   = ${bnat x, bnat y} < { shift mod x, .y y } mod, .x >;
 shift = { x_minus_y x, { .y x, .y y } plus y } ; 
 
 /****
