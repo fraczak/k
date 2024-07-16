@@ -254,6 +254,9 @@ function run(exp, value) {
         assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
         return [...result];
       }  
+      case "filter": {
+        return value;
+      }
       default:
         assert(false,`Unknown operation: '${exp.op}'`);
     

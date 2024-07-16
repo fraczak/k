@@ -90,25 +90,25 @@ x_minus_y =
   reverse_bnat remove_leading_zeros;
 
 $pair = {bnat x, bnat y};
-mod   = ${bnat x, bnat y} < { shift mod x, .y y } mod, .x >;
+bnat_mod   = ${bnat x, bnat y} < { shift bnat_mod x, .y y } bnat_mod, .x >;
 shift = { x_minus_y x, { .y x, .y y } plus y } ; 
 
 /****
-typing mod =   <    {    shift    mod    x,    .y    y }    mod   ,    .x     >
-positions:  :0 < :1 { :2 shift :3 mod :4 x, :5 .y :6 y } :7 mod :8, :9 .x :10 > :11
+typing bnat_mod =   <    {    shift    bnat_mod    x,    .y    y }    bnat_mod   ,    .x     >
+positions:  :0 < :1 { :2 shift :3 bnat_mod :4 x, :5 .y :6 y } :7 bnat_mod :8, :9 .x :10 > :11
 
 variables:
 ?X0 = ?X1 = ?X2 = ?X5 = ?X9 -- comp + product + union (input) 0,1,2,5,9 --> 0
 ?X11 = ?X10 = ?X8 -- comp + union  (output)                   8,10,11   --> 8
-?X3 = ?X0 = ?X7 -- input type of 'mod'                        0,3,7     --> 0
-?X4 = ?X11 =* ?X8-- output type of 'mod'                      4,8,11    --> 8
+?X3 = ?X0 = ?X7 -- input type of 'bnat_mod'                        0,3,7     --> 0
+?X4 = ?X11 =* ?X8-- output type of 'bnat_mod'                      4,8,11    --> 8
                                                               6         --> 6
 ?X7 = {?X4 x, ?X6 y} -- output for product
   ?X0 = {?X8 x, ?X6 y}
 
-mod: {$X x, $Y y} -> $X
+bnat_mod: {$X x, $Y y} -> $X
 *******/
 
-mod
+bnat_mod
 
 -- echo '{"x":{"1":{"1":{"_":{}}}},"y":{"1":{"1":{"1":{"_":{}}}}}}' | k -k Examples/bnat-patterns.k 

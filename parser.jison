@@ -49,11 +49,13 @@ function fromEscString(escString) {
 "]"                                            return 'RB';
 ")"                                            return 'RP';
 "="                                            return 'EQ'; 
+"..."                                          return 'DOTS';
 "."                                            return 'DOT';
 ","                                            return 'COMMA';
 ";"                                            return 'SC';
 ":"                                            return 'COL';
 "$"                                            return 'DOLLAR'; 
+"?"                                            return 'QMARK';
 "|"                                            return 'PIPE';
 "^"                                            return 'CARET';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
@@ -64,7 +66,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING INT
-%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE CARET 
+%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE CARET QMARK DOTS
 %token EOF
 
 %start input_with_eof
@@ -83,16 +85,18 @@ rc: RC                                  { $$ = getToken(yytext,yy,_$); };
 rb: RB                                  { $$ = getToken(yytext,yy,_$); };
 rp: RP                                  { $$ = getToken(yytext,yy,_$); };
 eq: EQ                                  { $$ = getToken(yytext,yy,_$); };
+dots: DOTS                              { $$ = getToken(yytext,yy,_$); };
 dot: DOT                                { $$ = getToken(yytext,yy,_$); };
 comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
 sc: SC                                  { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
 dollar: DOLLAR                          { $$ = getToken(yytext,yy,_$); };
-
+qmark: QMARK                            { $$ = getToken(yytext,yy,_$); };
 
 input_with_eof: defs comp EOF               {
     const result = {defs: {rels: s.rels, codes: s.codes}, exp: $2};
     // console.log(JSON.stringify(result, "", 2));
+    // process.exit(0);
     return result;
 };
 
@@ -135,6 +139,43 @@ code_label
     | int col code                      { $$ = {label: $1.value, code: $3}; }
     ;
 
+filter
+    : name                        { $$ = { type: "name", name: $1.value, start: $1.start, end: $1.end}; }
+    | dollar code                 { $$ = { type: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
+    | lp labelled_filters      rp { $$ = { open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
+    | la labelled_filters      ra { $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
+    | lc labelled_filters      rc { $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
+    | lb filter rb                { $$ = { type: "vector", vector: $2, start: $1.start, end: $3.end }; }
+    ;
+
+labelled_filters
+    :                                   { $$ = { fields: {}}; }
+    | non_empty_labelled_filters        { $$ = $1.reduce((r, lc) => {
+                                                  if (lc.dots) {
+                                                    r.open = true;
+                                                  } else {
+                                                    r.fields[lc.label] = lc.filter;
+                                                  }
+                                                  return r }
+                                                , { fields: {} }); }
+    ;
+
+non_empty_labelled_filters
+    : filter_label                      { $$ = [$1]; }
+    | non_empty_labelled_filters comma filter_label
+                                        { $$ = [].concat($1,$3); }
+    ;
+
+filter_label
+    : dots                              { $$ = {dots: true }; }
+    | filter name                       { $$ = {label: $2.value, filter: $1}; }
+    | filter str                        { $$ = {label: $2.value, filter: $1}; }
+    | filter int                        { $$ = {label: $2.value, filter: $1}; }
+    | name col filter                   { $$ = {label: $1.value, filter: $3}; }
+    | str col filter                    { $$ = {label: $1.value, filter: $3}; }
+    | int col filter                    { $$ = {label: $1.value, filter: $3}; }
+    ;
+
 comp 
     : exp                               { $$ = $1; }
     | comp exp                          { $$ = {...s.comp($1, $2), start: $1.start, end:$2.end}; }
@@ -154,6 +195,7 @@ exp
     | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
+    | qmark filter                      { $$ = {op: "filter", filter: $2}; }
     | PIPE                              { $$ = {op: "pipe"}; }
     ;
 

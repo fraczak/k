@@ -44,8 +44,12 @@ function patterns(codes, representatives, rels) {
       case "comp":
       case "vector":
         rel[rel.op].forEach((exp) => augment(exp));
+        break;
       case "code":
         rel["code"] = representatives[rel.code] || rel.code;
+        break;
+      case "filter":
+        // do nothing
     }
 
     const o = patternNodes.length;
@@ -99,6 +103,8 @@ function patterns(codes, representatives, rels) {
           return inspectInt(rel);
         case "str":
           return inspectStr(rel);
+        case "filter":
+          return false;
 
       }
       throw new Error(`Unknown op: ${op}`);
