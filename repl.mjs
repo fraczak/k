@@ -20,7 +20,7 @@ const help = function () {
 
 help();
 
-const re = /^[ \n\t]*(?:--l[ ]+)(.+[^ ])[ ]*?$/;
+const re__l = /^[ \n\t]*(?:--l[ ]+)(.+[^ ])[ ]*?$/;
 
 (function (val, buffer) {
   return process.stdin.on("data", function (data) {
@@ -38,17 +38,20 @@ const re = /^[ \n\t]*(?:--l[ ]+)(.+[^ ])[ ]*?$/;
           val = {};
         }
         if (line.match(/^[ \n\t]*(?:--h)?$/)) {
+          // --h
           help();
         } else if (line.match(/^[ \n\t]*\^$/)) {
           val = closeVector(val); 
           console.log(`=> ${JSON.stringify(val)}`);
-        } else if (line.match(re)) {
-          file = line.match(re)[1];
+        } else if (line.match(re__l)) {
+          // --l 
+          file = line.match(re__l)[1];
           console.log(`-- loading file: ${file} ...`);
           kScript = fs.readFileSync(file).toString();
           val = k.compile(kScript + "\n()")(val);
           console.log(`=> ${JSON.stringify(val)}`);
         } else if (line.match(/^[ \n\t]*(?:--a)?$/)) {
+          // --a
           console.log(JSON.stringify(run.defs, " ", 2));
         } else if (line.match(/^[ \n\t]*(?:--r)?$/)) {
           console.log(

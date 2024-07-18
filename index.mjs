@@ -37,8 +37,7 @@ function finalize(codes) {
 
 function compile(script) {
   try {
-    const {rels, codes, representatives } = annotate(script);
-    run.defs = {rels, codes, representatives};
+    run.defs = annotate(script);
   } catch (e) {
     console.error(e);
     const { defs, exp } = parse(script);

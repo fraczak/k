@@ -49,7 +49,12 @@ function patterns(codes, representatives, rels) {
         rel["code"] = representatives[rel.code] || rel.code;
         break;
       case "filter":
+        // do nothing for now
+        console.log("filter ignored", rel);
+        break;
+      case "ref":
         // do nothing
+        break;
     }
 
     const o = patternNodes.length;

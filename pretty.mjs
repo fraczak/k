@@ -43,10 +43,37 @@ function prettyCode (codes, representatives, codeExp) {
   }
 };
 
+function prettyFilter (prettyCode, filter) {
+  const fieldsStr = (f) => 
+    Object.keys(f.fields).map( (key) => 
+      `${key}: ${prettyFilter(prettyCode, f.fields[key])}` 
+    ).join(", ") + (f.open ? ", ..." : ""); 
+  switch (filter.type) {
+    case "name":
+      return filter.name;
+    case "code":
+      return `$${prettyCode({
+          code: "ref",
+          ref: filter.code,
+        })}`;
+    case "vector":
+      return `[${prettyFilter(prettyCode, filter.vector)}]`;
+    case null:
+      return `(${fieldsStr(filter)})`;
+    case "union":
+      return `<${fieldsStr(filter)}>`;
+    case "product":
+      return `{${fieldsStr(filter)}}`;
+  }
+  throw new Error("unreachable");
+}
+
 function prettyRel (prettyCode, exp) {
   "use strict";
   const pretty = (exp) => {
     switch (exp.op) {
+      case "filter":
+        return `?${prettyFilter(prettyCode, exp.filter)}`;
       case "pipe":
         return `|`;        
       case "caret":
