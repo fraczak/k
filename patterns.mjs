@@ -449,14 +449,18 @@ function patterns(codes, representatives, rels) {
     // That's good enough if all defs are typed by different input codes.
     for (const def of relDefs) {
       try {
+        // var modified = join(def.patterns[0], rel.patterns[0]);
         var modified = updatePattern(
           patternNodes[getRep(rel.patterns[0])], 
           patternNodes[getRep(def.patterns[0])]
         );
+
+        // modified = join(def.patterns[1], rel.patterns[1]) || modified;
         modified = updatePattern(
           patternNodes[getRep(rel.patterns[1])], 
           patternNodes[getRep(def.patterns[1])]
         ) || modified;
+
         return modified;
       } catch (e) {}
     } 

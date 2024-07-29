@@ -20,13 +20,12 @@ function shifString(baseString) {
     return shiftedString;
 }
 
-
 function hash(inputString) {
     if (inputString.match(/^\$C0=.*;$/))
         inputString = inputString.slice(4,-1);
     let hashValue = 0;
     const prime = 31;
-    const mod = 9007199254740881;
+    const mod = 1000000000039;
 
     for (let i = 0; i < inputString.length; i++) {
         let charCode = inputString.charCodeAt(i);
