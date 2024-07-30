@@ -179,7 +179,7 @@ filter_label
 comp 
     : exp                               { $$ = $1; }
     | comp exp                          { $$ = {...s.comp($1, $2), start: $1.start, end:$2.end}; }
-    | comp CARET                        { $$ = {op: 'caret', caret: $1}; }
+    | comp CARET                        { $$ = {op: 'caret', caret: $1, start: $1.start, end:$2.end}; }
     ;
 
 exp
@@ -195,8 +195,8 @@ exp
     | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
-    | qmark filter                      { $$ = {op: "filter", filter: $2}; }
-    | PIPE                              { $$ = {op: "pipe"}; }
+    | qmark filter                      { $$ = {op: "filter", filter: $2, start: $1.start, end:$2.end}; }
+    | PIPE                              { $$ = {op: "pipe", start: $1.start, end: $1.end}; }
     ;
 
 labelled

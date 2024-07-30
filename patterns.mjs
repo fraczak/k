@@ -48,12 +48,17 @@ function patterns(codes, representatives, rels) {
       case "code":
         rel["code"] = representatives[rel.code] || rel.code;
         break;
+      case "caret":
+        augment(rel.caret);
+        break;
       case "filter":
         // do nothing for now
         console.log("filter ignored", rel);
         break;
       case "ref":
         // do nothing
+        break;
+      case "pipe":
         break;
     }
 
@@ -108,13 +113,16 @@ function patterns(codes, representatives, rels) {
           return inspectInt(rel);
         case "str":
           return inspectStr(rel);
+        case "caret":
+          return inspectCaret(rel);
+        case "pipe":
+          return inspectPipe(rel);
         case "filter":
           return false;
-
       }
       throw new Error(`Unknown op: ${op}`);
     } catch (e) {
-      console.error(`Code Derivation Error for '${op}' (lines ${rel.start.line}:${rel.start.column}...${rel.end.line}:${rel.end.column}): ${e.message}.`);
+      console.error(`Code Derivation Error for '${op}' (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column}): ${e.message}.`);
       throw e;
     }   
   }
@@ -256,6 +264,48 @@ function patterns(codes, representatives, rels) {
     const o_pattern = patternNodes[rel.patterns[1]];
     return updatePattern(o_pattern, {code: "string", type: "code", closed: true});
   }
+
+  function inspectPipe(rel) {
+    const old_i = getRep(rel.patterns[0]);
+    const old_o = getRep(rel.patterns[1]);
+    const old_i_pattern = patternNodes[old_i];
+  
+    let modified = updatePattern(old_i_pattern, {type: "vector", closed: true});
+     
+    let member_i = patternEdges[old_i]["vector-member"];
+    if (member_i == undefined ) { 
+      modified = true;
+      member_i = patternNodes.length;
+      patternNodes.push({ _id: member_i, code: null, type: null, closed: false})
+      patternEdges[old_i]["vector-member"] = member_i;
+      eq[member_i] = member_i;
+    }
+    member_i =  getRep(member_i);
+    modified = join(member_i, old_o) || modified;
+    console.log([old_i,old_o,member_i].map( x => [x,patternNodes[x]]));
+    return modified;
+  }
+
+  function inspectCaret(rel) {
+    let modified  = join(rel.patterns[0], rel.caret.patterns[0]);
+    const old_o = getRep(rel.patterns[1]);
+    const old_o_pattern = patternNodes[old_o];
+  
+    modified = updatePattern(old_o_pattern, {type: "vector", closed: true});
+     
+    let member_o = patternEdges[old_o]["vector-member"];
+    if (member_o == undefined ) {
+      modified = true;
+      member_o = patternNodes.length;
+      patternNodes.push({ _id: member_o, code: null, type: null, closed: false})
+      patternEdges[old_o]["vector-member"] = member_o;
+      eq[member_o] = member_o;
+    }
+    member_o =  getRep(member_o);
+    modified = join(rel.caret.patterns[1], member_o) || modified;
+    return modified;
+  }
+
 
   function inspectDot(rel) {
     const old_i = getRep(rel.patterns[0]);
