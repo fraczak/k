@@ -15,12 +15,20 @@ const help = function () {
   console.log(" --a          print codes and relations");
   console.log(" --c          print codes");
   console.log(" --r          print rels");
-  return console.log(" --l file.k   load 'file.k'");
+  console.log(" --pp         pretty-print last value");
+  console.log(" --s reg      store the last value in register 'reg'");
+  console.log(" --g reg      get the value from register 'reg'");
+  console.log(" --regs       print registers names");
+  console.log(" --l file.k   load 'file.k'");
 };
 
 help();
 
-const re__l = /^[ \n\t]*(?:--l[ ]+)(.+[^ ])[ ]*?$/;
+const re__l = /^[ \n\t]*(?:--l[ ]+)(.+)[ ]*?$/;
+const re__s = /^[ \n\t]*(?:--s[ ]+)(.+)[ ]*?$/;
+const re__g = /^[ \n\t]*(?:--g[ ]+)(.+)[ ]*?$/;
+
+const registers = {};
 
 (function (val, buffer) {
   return process.stdin.on("data", function (data) {
@@ -46,13 +54,14 @@ const re__l = /^[ \n\t]*(?:--l[ ]+)(.+[^ ])[ ]*?$/;
         } else if (line.match(re__l)) {
           // --l 
           file = line.match(re__l)[1];
-          console.log(`-- loading file: ${file} ...`);
+          console.log(` -- loading file: ${file} ...`);
           kScript = fs.readFileSync(file).toString();
           val = k.compile(kScript + "\n()")(val);
           console.log(`=> ${JSON.stringify(val)}`);
         } else if (line.match(/^[ \n\t]*(?:--a)?$/)) {
           // --a
-          console.log(JSON.stringify(run.defs, " ", 2));
+          val = run.defs;
+          console.log(val);
         } else if (line.match(/^[ \n\t]*(?:--r)?$/)) {
           console.log(
             (function (defs, result) {
@@ -93,6 +102,23 @@ const re__l = /^[ \n\t]*(?:--l[ ]+)(.+[^ ])[ ]*?$/;
               return result;
             })(run.defs, {})
           );
+          // --p
+        } else if (line.match(/^[ \n\t]*(?:--pp)?$/)) {
+          console.log(val);
+          // --s
+        } else if (line.match(/^[ \n\t]*(?:--regs)?$/)) {
+          console.log(` -- registers: ${Object.keys(registers).join(", ")}`);
+        } else if (line.match(re__s)) {
+          let reg = line.match(re__s)[1];
+          registers[reg] = val;
+          console.log(` -- current value stored in register: '${reg}'`);
+          // --g
+        } else if (line.match(re__g)) {
+          console.log(" -- getting value from register...");
+          let reg = line.match(re__g)[1];
+          val = registers[reg];
+          console.log(val);
+          // ------ k code
         } else if (!line.match(/^[ \n\t]*(?:#.*)?$/)) {
           try {
             val = k.run(`${line} ()`, val);

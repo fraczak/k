@@ -7,8 +7,8 @@ MINUS = SNOC [.0, .1 PLUS [(),-1] TIMES] PLUS;
 abs = $int < [0, ()] GT [-1,.1] TIMES, ()>;
 
 mod = 
-${int 0, int 1}
-{ .0 abs x, .1 abs y} mod_
+${int x, int y}
+{ .x abs x, .y abs y} mod_
 ;
 
 mod_ = 
@@ -24,14 +24,14 @@ $int
 ;
 
 // gratest common divisor
-gcd = ${int 0, int 1}
-  [.0 abs, .1 abs] <GT, {.1 0,.0 1}>
+gcd = ${int x, int y}
+  [.x abs, .y abs] <GT {.0 x, .1 y}, {.1 x,.0 y}>
   gcd_
 $int;
 
 gcd_ = <
-  {.0 0, .1.0 1} .0,
-  {.1 0, mod 1} gcd_
+  { .y.0 if, .x then } .then,
+  { .y x, mod y } gcd_
 >;
 
 // div
@@ -48,19 +48,19 @@ log2_floor_ = <
   {.x x, .step [(),()] PLUS step, .log [(),1] PLUS log} log2_floor_
 >;
 
-div = ${int 0, int 1} 
+div = ${int x, int y} 
   // remember sign
   {
     <
-      ["+", [0, .0] GT, [0, .1] GT ] .0,
-      [0, .0] GT "-",
-      [0, .1] GT "-",
+      { [0, .x] GT, [0, .y] GT if, "+" then } .then,
+      [0, .x] GT "-",
+      [0, .y] GT "-",
       "+"
     > sign,
-    {.0 abs x, .1 abs step, 0 res} div_ res_wo_sign
+    {.x abs x, .y abs step, 0 res} div_ res_wo_sign
   }
   < 
-    {.sign."+" 0, {.res_wo_sign.div div, .res_wo_sign.rem rem} 1} .1,
+    {.sign."+" if, {.res_wo_sign.div div, .res_wo_sign.rem rem} then} .then,
     { [0, .res_wo_sign.div] MINUS div, [0,.res_wo_sign.rem] MINUS rem }
   > 
   ;
@@ -80,7 +80,7 @@ div_ =
     {.x x, .step step} log2_floor log
   }
   < 
-    {.log.0 0, {.res div, .x rem} 1} .1,
+    { .log.0 if, {.res div, .x rem} then } .then,
     { 
       {2 x, .log [(),1] MINUS count} rep TIMES factor,
       () i
@@ -88,8 +88,8 @@ div_ =
     {[.i.x, [.i.step, .factor] TIMES] MINUS x, .i.step step, [.i.res,.factor] PLUS res} div_
   >;
 
-lcm = ${int 0, int 1}
-  {() 0,gcd 1} [{.0.0 0,.1 1} div .div, .0.1] TIMES
+lcm = ${int x, int y}
+  {() x, gcd y} [{.x.x x , .y y} div .div, .x.x] TIMES
 $int;
 
 -- lcm = [(),gcd] [[.0.1,.1] div .div, .0.0] TIMES;
@@ -99,25 +99,25 @@ $int;
 normalize_rat =
   $rat 
   < 
-    { [0, .d] GT 0, 
+    { [0, .d] GT if, 
       {
         [0, .n] MINUS n, 
         [0, .d] MINUS d
-      } 1
-     } .1,
+      } then
+     } .then,
     ()
   >
-  {() 0, {.n 0,.d 1} gcd 1}
+  {() x, {.n x,.d y} gcd y}
   {
-    {.0.n 0,.1 1} div .div n, 
-    {.0.d 0,.1 1} div .div d
+    {.x.n x,.y y} div .div n, 
+    {.x.d x,.y y} div .div d
   }
 $rat;
 
 plus_rat = ${rat x, rat y}
   { 
     [.x, .y] args,
-    {.x.d 0,.y.d 1} lcm lcm
+    {.x.d x,.y.d y} lcm lcm
   }
   { 
     [
@@ -152,7 +152,7 @@ div_rat = ${rat x, rat y}
 --------------------
 
 int_rat = $rat 
-  { .n n, .d d, {.n 0,.d 1} div div }
+  { .n n, .d d, {.n x,.d y} div div }
   { .div.div int, {.div.rem n, .d d} rat}
 ;
 

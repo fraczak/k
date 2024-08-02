@@ -4,4 +4,4 @@ factorial = <
   [$int,0] GT .0 [dec factorial, ()] TIMES
 >;
 
-{ $int x, < factorial, "not defined" > "x!" }
+{ $int x, < factorial toJSON, "not defined" > "x!" }
