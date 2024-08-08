@@ -170,7 +170,7 @@ Functions `bit0`, `bit1`, and `zero` are "constant polymorphic functions", meani
 
 - constant: if defined, they always return exactly the same value;
 - polymorphic: they are defined for more than one pair of input and output type: functions
-  `bit1` and `bit2` are of type `X -> bit`, and `zero` is of type `X -> byte`, where `X`
+  `bit0` and `bit1` are of type `X -> bit`, and `zero` is of type `X -> byte`, where `X`
   denotes an unconstrained type pattern.
 
 Functions `inc` and `inc3` are (non-polymorphic) functions of types
@@ -191,20 +191,30 @@ following constraints:
 The type pattern for `Y` is _singleton_, as only one type fits the pattern,
 whereas the other type patterns are not.
 
-In this example, we were able to find the most general type pattern for all sub-expressions of the program. However, we still do not have a way to find the most general type patterns in the general case. This is work in progress.
+In this example, we were able to find the most general type pattern for all sub-expressions of the program. 
+However, we still do not have a way to find the most general type patterns in the general case. 
+This is work in progress.
 
 ## Universal Schema Registry
 
-Since the normalization process for types is fast and deterministic, we can build a universal schema registry that will store all invented types. The registry will be a key-value store, where the key is the hash of the normalized type, and the value is the normalized type itself.
+Since the normalization process for types is fast and deterministic, we can build a universal schema registry that will store all invented types. 
+The registry will be a key-value store, where the key is the hash of the normalized type, and the value is the normalized type itself.
 
 All functions (non-polymorphic and polymorphic) will be renamed by the hash of their normalized definition and stored in the similar key-value store.
 
-Non-polymorphic functions can be easily indexed by the hashes of their input and output types so that we can quickly find the function we need, e.g., for autocomplition. Searching for polymorphic functions is more complicated, as we need to find the function whose input and output type patterns fit given types.
+Non-polymorphic functions can be easily indexed by the hashes of their input and output types so that we can quickly find the function we need, e.g., for autocomplition.
+Searching for polymorphic functions is more complicated, as we need to find the function whose input and output type patterns fit given types.
 
 
 ## Serialization and Compilation
 
-The language is designed to transform _codes_, i.e., serialized typed values, i.e., trees accepted by a tree automaton, into other _codes_. The transformation is done by partial functions as defined in the language. The non-recursive and tail-recursive (and even some non-tail recursive) functions can be compiled into deterministic finite (pushdown) transducers.
+The language is designed to transform _codes_, i.e., serialized typed values, i.e., trees accepted by a tree automaton, into other _codes_.
+The transformation is done by partial functions as defined in the language.
+The non-recursive and tail-recursive (and even some non-tail recursive) functions can be compiled into deterministic finite (pushdown) transducers.
+
+### AND-OR graphs for enconding and decoding codes
+
+
 
 ## Linking with Other Languages
 
