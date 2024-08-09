@@ -30,8 +30,8 @@ $ t
 insert = 
 $ { int x, t t } 
   <
-    [.t._ , .x leave ] .1,
-    [[.x, .t.t.v] GT .0, .t.t]
+    {.t._ if, .x leave then} .then,
+    {[.x, .t.t.v] GT .0 0, .t.t 1}
         { 
             .1.l l,
             .1.v v,
@@ -58,8 +58,8 @@ concat =
 $ [ [ int ] ] 
   < 
     SNOC 
-      < [.0 SNOC, .1] [.0.0, [.0.1, .1] CONS concat ] CONS,
-        [.0.0, .1 concat] CONS,
+      < [.0 SNOC, .1] {.0.0 0, {.0.1 0, .1 1} CONS concat 1} CONS,
+        {.0.0 0, .1 concat 1} CONS,
         .1 concat
       >,
     .0,
@@ -76,5 +76,5 @@ $ t
 $ [ int ] 
 ;
 
-[len, sort toVector]
+{len len, sort toVector sorted}
 

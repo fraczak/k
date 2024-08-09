@@ -318,11 +318,13 @@ function patterns(codes, representatives, rels) {
         return updatePattern(old_o_pattern, {code: "product", type: "code", closed: true, product: []});
       }
       const code = codes[representatives[old_i_pattern.code] || old_i_pattern.code];
-      if (code.code == "product" || code.code == "union" || code.code == "vector") {
-        const target_code = code[code.code][field];
-        if (target_code) 
-          return updatePattern(old_o_pattern, {code: target_code});
-      }
+      let target_code = null;
+      if (code.code == "product" || code.code == "union")
+        target_code = code[code.code][field];
+      else if (code.code == "vector") 
+        target_code = code.vector;
+      if (target_code) 
+        return updatePattern(old_o_pattern, {code: target_code});
       throw new Error(`Cannot find field ${field} in code ${JSON.stringify(code)}`); 
     }
 

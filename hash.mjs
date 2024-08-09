@@ -22,13 +22,14 @@ function shifString(baseString) {
 
 function hash(inputString) {
     if (inputString.match(/^\$C0=.*;$/))
-        inputString = inputString.slice(4,-1);
-    let hashValue = 0;
-    const prime = 31;
-    const mod = 1000000000039;
+        inputString = inputString.slice(4, -1);
+    
+    let hashValue = BigInt(0);
+    const prime = BigInt(2);
+    const mod = BigInt('8494462356974657160929849007317');
 
     for (let i = 0; i < inputString.length; i++) {
-        let charCode = inputString.charCodeAt(i);
+        let charCode = BigInt(inputString.charCodeAt(i));
         hashValue = (hashValue * prime + charCode) % mod;
     }
 

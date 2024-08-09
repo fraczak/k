@@ -192,7 +192,7 @@ The type pattern for `Y` is _singleton_, as only one type fits the pattern,
 whereas the other type patterns are not.
 
 In this example, we were able to find the most general type pattern for all sub-expressions of the program. 
-However, we still do not have a way to find the most general type patterns in the general case. 
+However, we still do not have a way to find the most general type patterns in the general case.
 This is work in progress.
 
 ## Universal Schema Registry
@@ -204,7 +204,6 @@ All functions (non-polymorphic and polymorphic) will be renamed by the hash of t
 
 Non-polymorphic functions can be easily indexed by the hashes of their input and output types so that we can quickly find the function we need, e.g., for autocomplition.
 Searching for polymorphic functions is more complicated, as we need to find the function whose input and output type patterns fit given types.
-
 
 ## Serialization and Compilation
 
