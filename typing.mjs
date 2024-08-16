@@ -207,6 +207,31 @@ class typePatternGraph {
                      // representing `patterns.node[i] --[lab]--> {i1:i1,...}, ...
   }
 
+  clone(ids,targetGraph = this) {
+    const result = {}; // mapping from original ids to cloned ids
+    const that = this;
+    const find = that.patterns.find.bind(that.patterns);
+    while (ids.length > 0) {
+      const i = find(ids.pop());
+      if (i in result) continue;
+      const cloned = targetGraph.patterns.addNewNode(that.patterns.nodes[i]);
+      result[i] = cloned;
+      const edges = that.edges[i];
+      for (const lab in edges) {
+        ids = ids.concat(Object.values(edges[lab]));
+      }
+    }
+    for (const i in result) {
+      const edges = that.edges[i];
+      targetGraph.edges[result[i]] = {};
+      for (const lab in edges) {
+        console.log('lab', lab, 'edges[lab]', edges[lab]);
+        targetGraph.edges[result[i]][lab] = asMapSet(Object.values(edges[lab]).map(x => result[find(x)]));
+      }
+    }
+    return result;
+  }
+
   unify(rule, ...ids) {
     const that = this;
     const find = that.patterns.find.bind(that.patterns);

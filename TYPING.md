@@ -86,10 +86,11 @@ the root node of the AST subtree defining the function (or built-in) referenced 
 ```pseudo
   let (in_v, out_v) = annotation(v)
   let (in_def, out_def) = annotation(def(v))
+  let cloned = clone([in_def, out_def])
   let rep_in_v = find(in_v)
   let rep_out_v = find(out_v)
-  let rep_in_def = find(in_def)
-  let rep_out_def = find(out_def)
+  let rep_in_def = cloned[find(in_def)]
+  let rep_out_def = cloned[find(out_def)]
 
   UNIFY(rep_in_v, rep_in_def) BECAUSE "ref: unified with $rep_in_def"  
   UNIFY(rep_out_v, rep_out_def) BECAUSE "ref: unified with $rep_out_def"
