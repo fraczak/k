@@ -131,10 +131,10 @@ function run(exp, value) {
       case "str":
       case "int":
         return exp[exp.op];
-      case "ref":
+      case "ref": {
         const defn = run.defs.rels[exp.ref];
-        if (defn != null) {
-          exp = defn[defn.length - 1];
+        if (defn != undefined) {
+          exp = defn.def;
           continue;
         }
         const builtin_func = builtin[exp.ref];
@@ -142,6 +142,7 @@ function run(exp, value) {
           return builtin_func(value);
         }
         throw(`Unknown ref: '${exp.ref}'`);
+      }
       case "dot":
         // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
         if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {

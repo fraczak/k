@@ -135,7 +135,7 @@ cats_ =
 < 
   [.lists empty?, .result] .1 reverse,
   < 
-    [.lists car empty?, {.lists cdr lists, .result result}] .1,
+    {.lists car empty? if, {.lists cdr lists, .result result} then} .then,
     {.lists [car cdr, cdr] CONS lists, [.lists car car, .result] CONS result}
   > cats_
 >; 
@@ -210,3 +210,4 @@ $[int]
 // pascal2 = {{0 0,() 1} CONS x, [0,reverse] CONS reverse y} zip | PLUS ^;
 
 -- loaded
+()

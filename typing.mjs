@@ -15,6 +15,7 @@ function eqsetP(v1,v2) {
   return subsetP(v1,v2) && subsetP(v2,v1);
 }
 
+const unknown = {pattern: '(...)', fields: []};
 /*
 $Pattern = < 
   string code, 
@@ -34,6 +35,7 @@ e.g.:
 */
 
 function f_unify(p1, p2) {
+  //console.log('f_unify',p1,p2);
   switch (p1.pattern) {
     case '(...)':
       switch (p2.pattern) {
@@ -157,13 +159,12 @@ function f_unify(p1, p2) {
     case 'type':
       switch (p2.pattern) {
         case 'type': 
-          if (p2.type != p2.type)
+          if (p1.type != p2.type)
             throw new Error(`Cannot unify different types: ${p1.type} and ${p2.type}`);
           return p2;
       };
       break;
   }
-  console.log('p1', p1, 'p2', p2);
   return f_unify(p2, p1);
 }  
 
@@ -171,7 +172,7 @@ function flat_unify(...patterns) {
   return patterns.reduce(f_unify, {pattern: '(...)', fields: []});
 }
 
-class typePatternForest {
+class TypePatternForest {
   constructor() {
     this.nodes = [];
     this.parent = [];
@@ -180,7 +181,7 @@ class typePatternForest {
   // Find the root of the set containing `x`
   find(x) {
     if (this.nodes[x] == undefined) 
-      throw new Error(`Node index ${x} not found in the forest`);
+      throw new Error(`Node of id='${x}' not found in the forest`);
     let result = x;
     let parent = this.parent[result];
     while (parent != undefined) {
@@ -200,17 +201,27 @@ class typePatternForest {
   }
 }
 
-class typePatternGraph {
+class TypePatternGraph {
   constructor() {
-    this.patterns = new typePatternForest();
+    this.patterns = new TypePatternForest();
     this.edges = []; // an edge at index i is a map {lab: asMapSet([i1,...]), ...}
                      // representing `patterns.node[i] --[lab]--> {i1:i1,...}, ...
+    this.codeId = { }; // type-name -> index
   }
 
-  clone(ids,targetGraph = this) {
+  get_pattern(id) {
+    return this.patterns.nodes[this.find(id)];
+  }
+
+  find(id) {
+    return this.patterns.find(id);
+  }
+
+  clone(roots,targetGraph = this) { 
     const result = {}; // mapping from original ids to cloned ids
     const that = this;
-    const find = that.patterns.find.bind(that.patterns);
+    const find = (x) => that.patterns.find(x);
+    let ids = [...roots];
     while (ids.length > 0) {
       const i = find(ids.pop());
       if (i in result) continue;
@@ -225,16 +236,19 @@ class typePatternGraph {
       const edges = that.edges[i];
       targetGraph.edges[result[i]] = {};
       for (const lab in edges) {
-        console.log('lab', lab, 'edges[lab]', edges[lab]);
         targetGraph.edges[result[i]][lab] = asMapSet(Object.values(edges[lab]).map(x => result[find(x)]));
       }
     }
     return result;
   }
 
+  cloneAll(targetGraph = this) {
+    return this.clone(this.patterns.nodes.map((x,i) => i), targetGraph);
+  }
+
   unify(rule, ...ids) {
     const that = this;
-    const find = that.patterns.find.bind(that.patterns);
+    const find = (x) => that.patterns.find(x);
     const reps = Object.values(asMapSet(ids.map(find)));
     if (reps.length < 2) return false;
     const rep_patters = reps.map(x => {
@@ -260,18 +274,22 @@ class typePatternGraph {
     return true;
   }
 
-
-  addNewNode(pattern, vec_edges = {}) {
+  addNewNode(pattern = unknown, vec_edges = {}) {
     const that = this;
     const id = this.patterns.addNewNode(pattern);
     that.edges[id] = {};
     for (const [lab,dest] of Object.entries(vec_edges)) {
-      console.log('lab', lab, 'dest', dest);
       that.edges[id][lab] = asMapSet(dest.map(that.patterns.find.bind(that.patterns)));
     }
     return id;
   }
 
+  getTypeId(type) {
+    if ( this.codeId[type] == undefined )
+      this.codeId[type] = this.addNewNode({pattern: 'type', type: type});
+    return this.codeId[type];
+  }
+
 }
-export {typePatternForest, typePatternGraph, flat_unify};
-export default {typePatternForest, typePatternGraph, flat_unify};
+export {TypePatternForest, TypePatternGraph, flat_unify, unknown};
+export default {TypePatternForest, TypePatternGraph, flat_unify, unknown};

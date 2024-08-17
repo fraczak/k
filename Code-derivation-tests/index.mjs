@@ -1,8 +1,8 @@
 import { annotate } from "../index.mjs";
 
 function in_out(annotated) {
-  const [input,output] = annotated.rels.__main__[0].patterns.map( (pat) => 
-    annotated.patternNodes[pat]
+  const [input,output] = annotated.rels.__main__.def.patterns.map( (pat) => 
+    annotated.rels.__main__.typePatternGraph.get_pattern(pat)
   );
   return { input, output };
 }

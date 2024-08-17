@@ -43,12 +43,12 @@ function compile(script) {
     const { defs, exp } = parse(script);
     const { codes, representatives } = finalize(defs.codes);
     run.defs = {
-      rels: {...defs.rels, "__main__": [exp]}, 
+      rels: {...defs.rels, "__main__": {def: exp}}, 
       codes, representatives
     };
     console.error("WARN: Recompiled without type reconciliation due to the type error above.");
   }
-  return run.bind(null, run.defs.rels.__main__[0]);
+  return run.bind(null, run.defs.rels.__main__.def);
 }
 
 compile.doc = "Transforms k-script (string) into a function";
@@ -63,7 +63,7 @@ function annotate(script) {
   const { defs, exp } = parse(script);
   const { codes, representatives } = finalize(defs.codes);
 
-  const rels = {...defs.rels, "__main__": [exp]};
+  const rels = {...defs.rels, "__main__": {def: exp}};
 
   const pats = patterns(codes, representatives, rels);
  

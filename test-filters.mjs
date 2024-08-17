@@ -23,7 +23,7 @@ const annotated = k.annotate(`
 const test1 = unify_with_code(
   annotated.codes, 
   annotated.representatives["pair"], 
-  annotated.rels['f1'][0].filter,
+  annotated.rels['f1'].def.filter,
   {}
 );
 console.log(JSON.stringify(test1, null, 2));
@@ -31,7 +31,7 @@ console.log(JSON.stringify(test1, null, 2));
 const test2 = unify_with_code(
   annotated.codes, 
   annotated.representatives["pair"], 
-  annotated.rels['f2'][0].filter,
+  annotated.rels['f2'].def.filter,
   {}
 );
 console.log(JSON.stringify(test2, null, 2));
@@ -39,7 +39,7 @@ console.log(JSON.stringify(test2, null, 2));
 const test3 = unify_with_code(
   annotated.codes, 
   annotated.representatives["list"], 
-  annotated.rels['f3'][0].filter,
+  annotated.rels['f3'].def.filter,
   {}
 );
 console.log(JSON.stringify(test3, null, 2));

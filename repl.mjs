@@ -15,7 +15,8 @@ const help = function () {
   console.log(" --a          print codes and relations");
   console.log(" --c          print codes");
   console.log(" --r          print rels");
-  console.log(" --pp         pretty-print last value");
+  console.log(" --p          pretty-print last value");
+  console.log(" --pp         pretty-print last value (abrevaited)");
   console.log(" --s reg      store the last value in register 'reg'");
   console.log(" --g reg      get the value from register 'reg'");
   console.log(" --regs       print registers names");
@@ -56,6 +57,8 @@ const registers = {};
           file = line.match(re__l)[1];
           console.log(` -- loading file: ${file} ...`);
           kScript = fs.readFileSync(file).toString();
+          console.log(` ----------------------------- compiling file: ${file} ...`);
+          console.log(kScript);
           val = k.compile(kScript + "\n()")(val);
           console.log(`=> ${JSON.stringify(val)}`);
         } else if (line.match(/^[ \n\t]*(?:--a)?$/)) {
@@ -69,11 +72,10 @@ const registers = {};
                 return result;
               }
               return (function (prettyRel) {
-                var ref1, relExps, relName;
+                var ref1, relName;
                 ref1 = defs.rels;
                 for (relName in ref1) {
-                  relExps = ref1[relName];
-                  result[relName] = relExps.map(prettyRel);
+                  result[relName] = prettyRel(ref1[relName].def);
                 }
                 return result;
               })(
@@ -102,9 +104,13 @@ const registers = {};
               return result;
             })(run.defs, {})
           );
-          // --p
+          // --pp
         } else if (line.match(/^[ \n\t]*(?:--pp)?$/)) {
           console.log(val);
+          // --s
+         // --p
+        } else if (line.match(/^[ \n\t]*(?:--p)?$/)) {
+          console.log(JSON.stringify(val, null, 2));
           // --s
         } else if (line.match(/^[ \n\t]*(?:--regs)?$/)) {
           console.log(` -- registers: ${Object.keys(registers).join(", ")}`);

@@ -1,3 +1,7 @@
+import hash from "./hash.mjs";
+
+const unitCode = hash('$C0={};'); 
+
 function isBuiltIn(code) {  
   return code.match(/^(int|string|bool)$/);
 }
@@ -86,9 +90,9 @@ function are_different(classes, representatives, name1, name2, codes) {
 function minimize(codes) {
   const names = Object.keys(codes);
   const classes = {};
-  classes["{}"] = names;
+  classes[unitCode] = names;
   const representatives = names.reduce((representatives, name) => {
-    representatives[name] = "{}";
+    representatives[name] = unitCode;
     return representatives;
   }, {});
   let changed = true;

@@ -1,6 +1,7 @@
 %{
 
-import s from "./symbol-table.mjs";
+import { SymbolTable, comp, union, identity } from "./symbol-table.mjs";
+let s = new SymbolTable();
 
 function getToken(yytext,yy,lstack) {
     const yylloc = yy.lexer.yylloc;
@@ -93,12 +94,15 @@ col: COL                                { $$ = getToken(yytext,yy,_$); };
 dollar: DOLLAR                          { $$ = getToken(yytext,yy,_$); };
 qmark: QMARK                            { $$ = getToken(yytext,yy,_$); };
 
-input_with_eof: defs comp EOF               {
-    const result = {defs: {rels: s.rels, codes: s.codes}, exp: $2};
+input_with_eof: initialize_symbol_table defs comp EOF               {
+    const result = {defs: {rels: s.rels, codes: s.codes}, exp: $3};
     // console.log(JSON.stringify(result, "", 2));
     // process.exit(0);
     return result;
 };
+
+initialize_symbol_table: { s = new SymbolTable();}
+;
 
 defs:                                   {  }
     | defs name eq comp sc              { s.add_rel($2.value,$4); }
@@ -178,16 +182,16 @@ filter_label
 
 comp 
     : exp                               { $$ = $1; }
-    | comp exp                          { $$ = {...s.comp($1, $2), start: $1.start, end:$2.end}; }
+    | comp exp                          { $$ = {...comp($1, $2), start: $1.start, end:$2.end}; }
     | comp CARET                        { $$ = {op: 'caret', caret: $1, start: $1.start, end:$2.end}; }
     ;
 
 exp
     : lc labelled rc                    { $$ = {...$2, start: $1.start, end: $3.end}; }
     | lb list rb                        { $$ = {op: "vector", vector: $2, start: $1.start, end: $3.end}; }
-    | la list ra                        { $$ = {...s.union($2), start: $1.start, end: $3.end}; }
+    | la list ra                        { $$ = {...union($2), start: $1.start, end: $3.end}; }
     | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
-    | lp rp                             { $$ = {...s.identity, start: $1.start, end: $2.end};  }
+    | lp rp                             { $$ = {...identity, start: $1.start, end: $2.end};  }
     | lp comp rp                        { $$ = {...$2, start: $1.start, end: $3.end };  }
     | str                               { $$ = {op: "str", str: $1.value, start: $1.start, end: $1.end }; }
     | int                               { $$ = {op: "int", int: $1.value, start: $1.start, end: $1.end }; }

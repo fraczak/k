@@ -1,14 +1,8 @@
-const rels = {};
-const codes = {
-  "{}": {
-    code: "product",
-    product: {},
-  },
-};
+import hash from "./hash.mjs";
 
-const identity = {
-  op: "identity",
-};
+const unitCode = hash('$C0={};'); 
+
+const identity = {op: "identity"}
 
 function is_identity_rel(rel) {
   return rel.op === "identity";
@@ -46,7 +40,9 @@ function is_full_rel(rel) {
     case "vector":
       return Object.values(rel[rel.op]).every(is_full_rel);
     case "product":
-      return Object.values(rel[rel.op]).every(({ exp }) => is_full_rel(exp));
+      return Object.values(rel[rel.op]).every(({ exp }) =>
+        is_full_rel(exp)
+      );
     default:
       return false;
   }
@@ -81,7 +77,7 @@ function comp_first(e1, e2) {
   };
 }
 
-function comp (e1, e2)  {
+function comp(e1, e2) {
   const result = comp_first(e1, e2);
   if (result.op !== "comp") return result;
   result.comp = result.comp.reduceRight(
@@ -91,7 +87,8 @@ function comp (e1, e2)  {
   return result;
 }
 
-function union  (rels) {
+
+function union(rels) {
   const list = [];
   label: for (const rel of rels) {
     const new_rels = rel.op === "union" ? rel.union : [rel];
@@ -105,32 +102,38 @@ function union  (rels) {
     op: "union",
     union: list,
   };
-};
-
-function as_ref (codeExp) {
-  if (codeExp.code === "ref") return codeExp.ref;
-  const newName = `:${Object.keys(codes).length}`;
-  codes[newName] = codeExp;
-  return newName;
-};
-
-function add_rel (name, rel) {
-  if (rels[name] == null) rels[name] = [];
-  rels[name].push(rel);
-};
-
-function add_code (name, code) {
-  codes[name] = code;
 }
 
-export default {
-  identity,
-  comp,
-  union,
-  rels,
-  codes,
-  add_rel,
-  add_code,
-  as_ref,
-};
-export { identity, comp, union, rels, codes, add_rel, add_code, as_ref };
+class SymbolTable {
+  constructor() {
+    this.rels = {}; // name -> {def: rel_exp}
+    this.codes = {
+      [unitCode]: {
+        code: "product",
+        product: {},
+      },
+    };
+  }
+
+  as_ref(codeExp) {
+    if (codeExp.code === "ref") return codeExp.ref;
+    const newName = `:${Object.keys(this.codes).length}`;
+    this.codes[newName] = codeExp;
+    return newName;
+  }
+
+  add_rel(name, rel) {
+    if (this.rels[name] != undefined)
+      throw new Error(`SymbolTable: rel ${name} already defined`);
+
+    this.rels[name] = {def: rel};
+  }
+
+  add_code(name, code) {
+    this.codes[name] = code;
+  }
+}
+
+export default { SymbolTable, comp, union, identity };
+export { SymbolTable, comp, union, identity };
+
