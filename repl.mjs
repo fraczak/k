@@ -59,7 +59,7 @@ const registers = {};
           kScript = fs.readFileSync(file).toString();
           console.log(` ----------------------------- compiling file: ${file} ...`);
           console.log(kScript);
-          val = k.compile(kScript + "\n()")(val);
+          val = k.compile("+++" + kScript + "\n()")(val);
           console.log(`=> ${JSON.stringify(val)}`);
         } else if (line.match(/^[ \n\t]*(?:--a)?$/)) {
           // --a
@@ -127,7 +127,7 @@ const registers = {};
           // ------ k code
         } else if (!line.match(/^[ \n\t]*(?:#.*)?$/)) {
           try {
-            val = k.run(`${line} ()`, val);
+            val = k.run(`+++ ${line} ()`, val);
             console.log(`=> ${JSON.stringify(val)}`);
           } catch (error) {
             e = error;

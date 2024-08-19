@@ -62,6 +62,7 @@ function fromEscString(escString) {
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
 0|[-]?[1-9][0-9]*                              return 'INT';
+"+++"                                          return 'INCREMENTAL';
 <<EOF>>                                        return 'EOF';
 
 /lex
@@ -93,6 +94,7 @@ sc: SC                                  { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
 dollar: DOLLAR                          { $$ = getToken(yytext,yy,_$); };
 qmark: QMARK                            { $$ = getToken(yytext,yy,_$); };
+incremental: INCREMENTAL                { $$ = getToken(yytext,yy,_$); };
 
 input_with_eof: initialize_symbol_table defs comp EOF               {
     const result = {defs: {rels: s.rels, codes: s.codes}, exp: $3};
@@ -101,8 +103,10 @@ input_with_eof: initialize_symbol_table defs comp EOF               {
     return result;
 };
 
-initialize_symbol_table: { s = new SymbolTable();}
-;
+initialize_symbol_table
+    :                                   { s = new SymbolTable();}
+    | incremental                       {  }
+    ;
 
 defs:                                   {  }
     | defs name eq comp sc              { s.add_rel($2.value,$4); }

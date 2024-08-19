@@ -6,10 +6,6 @@ function isBuiltIn(code) {
   return code.match(/^(int|string|bool)$/);
 }
 
-function logCeiling(n, base = 2) {
-  return Math.ceil(Math.log(n) / Math.log(base));
-}
-
 function encodeCodeToString(code, codes) {
   if (isBuiltIn(code)) return code;
   var i = 0;

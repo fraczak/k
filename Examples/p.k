@@ -4,4 +4,4 @@ f = {
   { {5    y} x} .x.y i, 
   { {true y} x} xy b 
 };
-f 
+f .b $int

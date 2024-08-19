@@ -89,8 +89,7 @@ _reverse_bnat =
 
 _add2wc =
 -- least significant bit first addition with carry
---- :{ :bnat x, :bnat y, :[0,1] c}
-    -- _log!
+    ${bnat x, bnat y, bnat c}
     <
       {.x.0 x, .y.0 y, .c.0 c} {.x x, .y y, _ _0 c} _add2wc _0,
       {.x.0 x, .y.0 y, .c.1 c} {.x x, .y y, _ _0 c} _add2wc _1,
@@ -108,8 +107,8 @@ _add2wc =
       {.x._ x, .c.1 c, .y._ y} n1,
       {.x._ x, .y.0 y, .c.1 c} .y _1,
       {.x.0 x, .y._ y, .c.1 c} .x _1,
-      {.x._ x, .y.1 y, .c.1 c} {_ x, .y y, {} _1 c} _add2wc _0,
-      {.x.1 x, .y._ y, .c.1 c} {.x x, _ y, {} _1 c} _add2wc _0      
+      {.x._ x, .y.1 y, .c.1 c} {_ x, .y y, _ _1 c} _add2wc _0,
+      {.x.1 x, .y._ y, .c.1 c} {.x x, _ y, _ _1 c} _add2wc _0      
 >;
 
 plus = { 
@@ -142,7 +141,7 @@ _sub2wc =
     -- ({...,       'y '_, 'c '0 } -> $.x ),
   {.x x, .y._ y, .c.0 c} .x,
     -- ({'x '1 ..., 'y '_, 'c '1 } -> '0 $.x.1 ),
-  [.x.1,.y._,.c.1] .0 _0,
+  {.x.1 x, .y._ y, .c.1 c} .x _0,
     -- ({'x '0 ..., 'y '_, 'c '1 } ->    '1 [{'x $.x.0, 'y '_, 'c '1} | _sub2wc] ),
   {.x.0 x, .y._ _ y, .c.1 _1 c} _sub2wc _1,
     -- ({'x '0 ..., 'y '0 ..., 'c '0} -> '0 [{'x $.x.0, 'y $.y.0, 'c '0} | _sub2wc]),
@@ -175,7 +174,7 @@ mod   = < { shift mod x, .y y } mod, .x >;
 shift = { x_minus_y x, { .y x, .y y } plus y } ; -- (x,y)->(x-y,2y);
 
 ----------------------------------------------------------------
-<${int 0, int 1}, [9,4]> {
+[9,4] {
   () input,
   {.0 from_digit x, .1 from_digit y} 
   {x_minus_y to_digit minus, mod to_digit mod} result

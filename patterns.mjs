@@ -15,89 +15,93 @@ function patterns(codes, representatives, rels) {
   // 1.1 initialize patternNodes and rels
 
   function augment(rel, rootDef) {
-    switch (rel.op) {
-      case "product":
-        rel["product"].forEach(({label, exp}) => {
-          augment(exp, rootDef)
-        });
-        augmentProduct(rel,rootDef);
-        break;
-      case "union":
-        rel["union"].forEach((exp) => {
-          augment(exp,rootDef);
-        });
-        augmentUnion(rel,rootDef);
-        break;
-      case "comp":
-        rel["comp"].forEach((exp) => {
-          augment(exp,rootDef);
-        });
-        augmentComp(rel,rootDef);
-        break;
-      case "vector":
-        rel["vector"].forEach((exp) => {
-          augment(exp,rootDef);
-        });
-        augmentVector(rel,rootDef);
-        break;
-      case "code":
-        rel["code"] = representatives[rel.code] || rel.code;
-        rel.patterns = [];
-        rel.patterns[0] = rootDef.typePatternGraph.getTypeId(rel["code"]);
-        rel.patterns[1] = rel.patterns[0]; 
-        break;
-      case "caret":
-        augment(rel.caret,rootDef);
-        rel.patterns = [
-          rel.caret.patterns[0],
-          rootDef.typePatternGraph.addNewNode(
-            {pattern: '[]'}, 
-            {"vector-member": [rel.caret.patterns[1]]})
-        ];
-        break;
-      case "pipe":
-        rel.patterns = [];
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode(
-          {pattern: '[]'}, 
-          {"vector-member": [rel.patterns[1]]});
-        break;
-
-      case "ref":
-          augmentRef(rel, rootDef);
+    try {
+      switch (rel.op) {
+        case "product":
+          rel["product"].forEach(({label, exp}) => {
+            augment(exp, rootDef)
+          });
+          augmentProduct(rel,rootDef);
           break;
-        //----------------
-      
-      case "int":
-        rel.patterns = [];
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('int');
-        break;
-      case "str":
-        rel.patterns = [];
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('string');
-        break;
-      case "identity":
-        rel.patterns = [];
-        rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-        break;
-      case "dot":
-        rel.patterns = [];
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
-        break;
-      
-      default:
-        console.error("NOT EXPECTED OP:", rel);
-        break;
-    }
+        case "union":
+          rel["union"].forEach((exp) => {
+            augment(exp,rootDef);
+          });
+          augmentUnion(rel,rootDef);
+          break;
+        case "comp":
+          rel["comp"].forEach((exp) => {
+            augment(exp,rootDef);
+          });
+          augmentComp(rel,rootDef);
+          break;
+        case "vector":
+          rel["vector"].forEach((exp) => {
+            augment(exp,rootDef);
+          });
+          augmentVector(rel,rootDef);
+          break;
+        case "code":
+          rel["code"] = representatives[rel.code] || rel.code;
+          rel.patterns = [];
+          rel.patterns[0] = rootDef.typePatternGraph.getTypeId(rel["code"]);
+          rel.patterns[1] = rel.patterns[0]; 
+          break;
+        case "caret":
+          augment(rel.caret,rootDef);
+          rel.patterns = [
+            rel.caret.patterns[0],
+            rootDef.typePatternGraph.addNewNode(
+              {pattern: '[]'}, 
+              {"vector-member": [rel.caret.patterns[1]]})
+          ];
+          break;
+        case "pipe":
+          rel.patterns = [];
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode(
+            {pattern: '[]'}, 
+            {"vector-member": [rel.patterns[1]]});
+          break;
 
+        case "ref":
+            augmentRef(rel, rootDef);
+            break;
+          //----------------
+        
+        case "int":
+          rel.patterns = [];
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('int');
+          break;
+        case "str":
+          rel.patterns = [];
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('string');
+          break;
+        case "identity":
+          rel.patterns = [];
+          rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
+          break;
+        case "dot":
+          rel.patterns = [];
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
+          break;
+        
+        default:
+          console.error("NOT EXPECTED OP:", rel);
+          break;
+      }
+    } catch (e) {
+      console.error(`Code Derivation Error for '${rel.op}' (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column}): ${e.message}.`);
+      throw e;
+    }   
   }
 
   for (const relName in rels) {
     const rootDef = rels[relName];
-    rootDef.typePatternGraph = new TypePatternGraph();
+    rootDef.typePatternGraph = new TypePatternGraph(codes);
     rootDef.varRefs = []; // the list of non-built references as pointers to AST nodes
     augment(rootDef.def, rootDef);
   }
@@ -611,47 +615,53 @@ function patterns(codes, representatives, rels) {
 
   let changed = true;
   let count = 0;
-  let count_max = 3;
+  let count_max = 2;
   while (changed) {  
     changed = false;
     if (count_max > count) { 
-      console.log(` * Inspecting ${++count} time...`);   
+      count++;
+      console.log(` * Inspecting count: ${count}/${count_max}`);   
       for (const relName in rels) {
         const { def, typePatternGraph, varRefs } = rels[relName];
         console.log  (`    -- relation: ${relName}...`);
         for (let i = 0; i < varRefs.length; i++) {
-          console.log(`       - calling: ${varRefs[i].ref} - at position :${i}`);
+          console.log(`       - calling: ${varRefs[i].ref} [${i}]`);
           let varRel = varRefs[i];
           let varName = varRel.ref;
-          let varRootDef = rels[varName];
-          let varInputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[0]);
-          let varOutputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[1]);
-          let cloned = varRootDef.typePatternGraph.clone([varInputPatternId, varOutputPatternId], typePatternGraph);
-          let aux_changed = !!(
-            typePatternGraph.unify(
-              "ref:input",
-              varRel.patterns[0],
-              cloned[varInputPatternId])
-            |
-            typePatternGraph.unify(
-              "ref:output",
-              varRel.patterns[1],
-              cloned[varOutputPatternId]));
-          changed = changed || aux_changed;
-          let newInputPatternId = typePatternGraph.find(varRel.patterns[0]);
-          let newOutputPatternId = typePatternGraph.find(varRel.patterns[1]);
-        //   console.log(`        changed flag?: ${aux_changed}`);
-        //   console.log(`        ${varRefs[i].ref}.patterns[0]: ${JSON.stringify(typePatternGraph.get_pattern(newInputPatternId))}`);
-        //   console.log(`        ${varRefs[i].ref}.patterns[1]: ${JSON.stringify(typePatternGraph.get_pattern(newOutputPatternId))}`);
-        //   // let g = new TypePatternGraph();
-        //   // typePatternGraph.clone([newInputPatternId,newOutputPatternId], g);
-        //   // console.log(JSON.stringify(g, null, 2));
-        //   console.log(`        * ${relName}.patterns[0]: ${JSON.stringify(typePatternGraph.get_pattern(def.patterns[0]))}`);
-        //   console.log(`        * ${relName}.patterns[1]: ${JSON.stringify(typePatternGraph.get_pattern(def.patterns[1]))}`);
-        // //  console.log(JSON.stringify(typePatternGraph, null, 2));
-        //   console.log("---------------------------------------------------");
-        }
+          try {
+            let varRootDef = rels[varName];
+            let varInputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[0]);
+            let varOutputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[1]);
+            let cloned = varRootDef.typePatternGraph.clone([varInputPatternId, varOutputPatternId], typePatternGraph);
+            let aux_changed = !!(
+              typePatternGraph.unify(
+                "ref:input",
+                varRel.patterns[0],
+                cloned[varInputPatternId])
+              |
+              typePatternGraph.unify(
+                "ref:output",
+                varRel.patterns[1],
+                cloned[varOutputPatternId]));
+            changed = changed || aux_changed;
+            let newInputPatternId = typePatternGraph.find(varRel.patterns[0]);
+            let newOutputPatternId = typePatternGraph.find(varRel.patterns[1]);
+          //   console.log(`        changed flag?: ${aux_changed}`);
+          //   console.log(`        ${varRefs[i].ref}.patterns[0]: ${JSON.stringify(typePatternGraph.get_pattern(newInputPatternId))}`);
+          //   console.log(`        ${varRefs[i].ref}.patterns[1]: ${JSON.stringify(typePatternGraph.get_pattern(newOutputPatternId))}`);
+          //   // let g = new TypePatternGraph();
+          //   // typePatternGraph.clone([newInputPatternId,newOutputPatternId], g);
+          //   // console.log(JSON.stringify(g, null, 2));
+          //   console.log(`        * ${relName}.patterns[0]: ${JSON.stringify(typePatternGraph.get_pattern(def.patterns[0]))}`);
+          //   console.log(`        * ${relName}.patterns[1]: ${JSON.stringify(typePatternGraph.get_pattern(def.patterns[1]))}`);
+          // //  console.log(JSON.stringify(typePatternGraph, null, 2));
+          //   console.log("---------------------------------------------------");
+          } catch (e) {
+            console.error(`Type Error in call to ${varName} in definition of ${relName}: lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}): ${e.message}.`);
       
+            throw e;
+          }
+        }
       }
     } else 
       console.log("Too many iterations in the pattern graph derivation!");

@@ -40,13 +40,14 @@ function compile(script) {
     run.defs = annotate(script);
   } catch (e) {
     console.error(e);
+    console.error("WARN: Recompiling without type reconciliation due to the type error above.");
     const { defs, exp } = parse(script);
     const { codes, representatives } = finalize(defs.codes);
     run.defs = {
       rels: {...defs.rels, "__main__": {def: exp}}, 
       codes, representatives
     };
-    console.error("WARN: Recompiled without type reconciliation due to the type error above.");
+    
   }
   return run.bind(null, run.defs.rels.__main__.def);
 }
