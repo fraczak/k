@@ -3,26 +3,26 @@ import assert from 'assert';
 
 t('[]', (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.type, null);
-  assert.equal(output.type, "vector");
+  assert.equal(input.pattern, '(...)');
+  assert.equal(output.pattern, "[]");
   console.log("OK");
 });
 
 t(`$int [ $int true, false ]`, (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.code, "int");
-  assert.equal(output.type, "vector");
+  assert.equal(input.type, "int");
+  assert.equal(output.pattern, "[]");
   console.log("OK");
 });
 
-t(`$int [ $int true, false ] .0`,  (annotated) => {
+t("$int [ $int true, false ] .0",  (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.code, "int");
-  assert.equal(output.code, "bool");
+  assert.equal(input.type, "int");
+  assert.equal(output.type, "bool");
   console.log("OK");
 });
 
-// assert.throws(() => t(`$int [ $int true, 12 ]`), /Error/);
-// console.log("OK");
+assert.throws(() => t(`$int [ $int true, 12 ]`), /Error/);
+console.log("OK");
 
 // t(`[]`);

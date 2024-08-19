@@ -336,10 +336,9 @@ class TypePatternGraph {
     for (const i of reps) {
       const edges = this.edges[i];
       for (const lab in edges) {
-        const new_edges = this.edges[new_id][lab] || {};
         // if the pattern is [] all labels are treated as 'vector-member'
         const new_lab = new_pattern.pattern == '[]' ? 'vector-member' : lab;
-        this.edges[new_id][new_lab] = {...new_edges, ...edges[new_lab]};
+        this.edges[new_id][new_lab] = {...this.edges[new_id][new_lab], ...edges[lab]};
       }
     }
     // add stuff for types

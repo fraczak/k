@@ -1,10 +1,13 @@
 import { t, in_out } from './index.mjs';
 import assert from 'assert';
+import hash from "../hash.mjs";
+
+const unitCode = hash('$C0={};');
 
 t('{}', (annotated) => {
   const {input,output} = in_out(annotated);
   assert.equal(input.type, null);
-  assert.equal(output.code, annotated.representatives["{}"]);
+  assert.equal(output.type, unitCode);
   console.log("OK");
 });
 
@@ -15,7 +18,7 @@ t(`
    {() one, () two} $pair
 `, (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.code, annotated.representatives["b"]);
-  assert.equal(output.code, annotated.representatives["pair"]);
+  assert.equal(input.type, annotated.representatives["b"]);
+  assert.equal(output.type, annotated.representatives["pair"]);
   console.log("OK");
 });

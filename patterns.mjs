@@ -625,7 +625,7 @@ function patterns(codes, representatives, rels) {
         const { def, typePatternGraph, varRefs } = rels[relName];
         console.log  (`    -- relation: ${relName}...`);
         for (let i = 0; i < varRefs.length; i++) {
-          console.log(`       - calling: ${varRefs[i].ref} [${i}]`);
+          // console.log(`       - calling: ${varRefs[i].ref} [${i}]`);
           let varRel = varRefs[i];
           let varName = varRel.ref;
           try {
@@ -664,7 +664,7 @@ function patterns(codes, representatives, rels) {
         }
       }
     } else 
-      console.log("Too many iterations in the pattern graph derivation!");
+      console.log("Done...");
   }
 
 }

@@ -4,7 +4,7 @@ import assert from 'assert';
 function is_result_code(code) {
     return function(annotated) {
         const {output} = in_out(annotated);
-        assert.strictEqual(output.code, code);
+        assert.strictEqual(output.type, code);
         console.log('OK');
     }
 }
