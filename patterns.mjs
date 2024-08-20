@@ -1,6 +1,7 @@
 
 import hash from "./hash.mjs";
 import { TypePatternGraph } from "./typing.mjs";
+import { Graph, sccs } from "./Graph.mjs";
 
 const unitCode = hash('$C0={};'); 
 
@@ -98,17 +99,6 @@ function patterns(codes, representatives, rels) {
       throw e;
     }   
   }
-
-  for (const relName in rels) {
-    const rootDef = rels[relName];
-    rootDef.typePatternGraph = new TypePatternGraph(codes);
-    rootDef.varRefs = []; // the list of non-built references as pointers to AST nodes
-    augment(rootDef.def, rootDef);
-  }
-   
- 
-  //------
-
 
   function augmentProduct(rel,rootDef) {
     rel.patterns = [];
@@ -261,357 +251,46 @@ function patterns(codes, representatives, rels) {
     }
   }  
 
+  // 1. Initialize the typePatternGraph and varRefs for each relation
 
-   // -------- helper functions -------- 
-
-   function inspect(rel) {
-    const op = rel.op;
-    // console.log(`Inspecting ${op} ${JSON.stringify(rel)}`);
-    try {
-      switch (op) {
-        case "product":
-          return inspectProduct(rel);
-        case "union":
-          return inspectUnion(rel);
-        case "comp": 
-          return inspectComp(rel);
-        case "identity":
-          return inspectIdentity(rel);
-        case "vector":
-          return inspectVector(rel);
-        case "dot":
-          return inspectDot(rel);
-        case "code": 
-          return inspectCode(rel);
-        case "ref":
-          return inspectRef(rel);
-        case "int":
-          return inspectInt(rel);
-        case "str":
-          return inspectStr(rel);
-        case "caret":
-          return inspectCaret(rel);
-        case "pipe":
-          return inspectPipe(rel);
-        case "filter":
-          return false;
-      }
-      throw new Error(`Unknown op: ${op}`);
-    } catch (e) {
-      console.error(`Code Derivation Error for '${op}' (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column}): ${e.message}.`);
-      throw e;
-    }   
+  for (const relName in rels) {
+    const rootDef = rels[relName];
+    rootDef.typePatternGraph = new TypePatternGraph(codes);
+    rootDef.varRefs = []; // the list of non-built references as pointers to AST nodes
+    augment(rootDef.def, rootDef);
   }
-
-  //-----
+   
   
-  function inspectInt(rel) {
-    return rel.typePatternGraph.unify(
-      "int:output",
-      rel.patterns[1],
-      rel.typePatternGraph.getTypeId('int')
-    );
-  }
+  // 2. Compute DAG of strongly connected components in varRefs
+  //    A rel_1 -> rel_2 if rel1,varRefs contains a reference to {op: "ref", ref: rel_2}
   
-  function inspectStr(rel) {
-    return rel.typePatternGraph.unify(
-      "str:output",
-      rel.patterns[1],
-      rel.typePatternGraph.getTypeId('string')
-    );
-  }
+  const DAG = new Graph(
+    // 1st argument: edges
+    [].concat(...Object.keys(rels).map( relName => 
+      rels[relName].varRefs.map(({ref}) => 
+        ({src: relName, dst: ref})))),
+    // 2nd argument: vertices
+    rels
+  );
+  console.log(DAG);
 
-  function inspectPipe(rel) {
-    return rel.typePatternGraph.unify(
-      "pipe",
-      rel.typePatternGraph.addNewNode(
-        {pattern: '[]'}, 
-        {"vector-member": [rel.patterns[1]]}),
-      rel.patterns[0]); 
-  }
-
-  function inspectCaret(rel) {
-    return !!(
-      rel.typePatternGraph.unify(
-        "caret:input",
-        rel.patterns[0],
-        rel.caret.patterns[0] ) 
-      |
-      rel.typePatternGraph.unify(
-        "caret:output",
-        rel.typePatternGraph.addNewNode(
-          {pattern: '[]'}, 
-          {"vector-member": [rel.caret.patterns[1]]}),
-        rel.patterns[1]
-      )
-    );
-  }
-
-  function inspectDot(rel) {
-    return rel.typePatternGraph.unify(
-      "dot",
-      rel.typePatternGraph.addNewNode(
-        {pattern: '(...)'},
-        {[rel.dot]: [rel.patterns[1]]}),
-      rel.patterns[0]
-    );
-  }
+  const sccs_ = sccs(DAG);
+  console.log("------", sccs_);
   
-  function inspectProduct(rel) {
-    switch (rel.product.length) {
-      case 0: 
-        return rel.typePatternGraph.unify(
-          "unit:output",
-          rel.typePatternGraph.addNewNode({pattern: '()'}),
-          rel.patterns[1]
-        );
-      case 1:
-        // union/variant constructor:  %old_i { %exp_i exp %exp_o field } %old_o 
-        return !!(
-          rel.typePatternGraph.unify(
-            "variant:output",
-            rel.typePatternGraph.addNewNode({pattern: '<...>'}, 
-              {[rel.product[0].label]: [rel.patterns[0]]}),
-            rel.patterns[1]) 
-          |
-          rel.typePatternGraph.unify(
-            "variant:input",
-            rel.patterns[0],
-            rel.product[0].exp.patterns[0])
-        );
-      default:
-        // product constructor %old_i { %exp0_i exp0 %exp0_o field0, ... %expk_i expk %expk_o fieldk } %old_o
-        return !!(
-          rel.typePatternGraph.unify(
-            "product:input",
-            rel.patterns[0], 
-            ...rel.product.map(({exp}) => exp.patterns[0]))
-          | 
-          rel.typePatternGraph.unify(
-            "product:output",
-            rel.typePatternGraph.addNewNode(
-              {pattern: '{}'},
-              rel.product.reduce((edges, {label, exp}) => {
-                edges[label] = [exp.patterns[1]];
-                return edges;
-              }, {}),
-              rel.patterns[1])
-          )
-        );
-    };
-  }
-  
-  function inspectUnion(rel) {
-    if (rel.union.length == 0) {
-      return rel.typePatternGraph.unify(
-        "empty-union:output",
-        rel.typePatternGraph.addNewNode({pattern: '<>'}),
-        rel.patterns[1]
-      );
-    }
-
-    return !!(
-      rel.typePatternGraph.unify(
-        "union:input",
-        rel.patterns[0],
-        ...rel.union.map(exp => exp.patterns[0]))
-      |
-      rel.typePatternGraph.unify(
-        "union:output",
-        rel.patterns[1],
-        ...rel.union.map(exp => exp.patterns[1]))
-    );
-  }
-
-  function inspectComp(rel) {
-    if (rel.comp.length == 0) { return inspectIdentity(rel); }
-
-    let modified = false;
-    for (let i = 0; i < rel.comp.length - 1; i++) {
-      modified = rel.typePatternGraph.unify(
-        "comp:chain",
-        rel.comp[i].patterns[1],
-        rel.comp[i+1].patterns[0]
-      ) || modified;
-    }
-    return !!(
-      rel.typePatternGraph.unify(
-        "comp:input",
-        rel.patterns[0],
-        rel.comp[0].patterns[0])
-      |
-      rel.typePatternGraph.unify(
-        "comp:output",
-        rel.patterns[1],
-        rel.comp[rel.comp.length - 1].patterns[1])
-    ) || modified;
-  }
-  
-  function inspectIdentity(rel) { 
-    return rel.typePatternGraph.unify(
-      "identity",
-      rel.patterns[0],
-      rel.patterns[1]
-    );
-  }
-  
-  function inspectVector(rel) { 
-    return !!(
-      rel.typePatternGraph.unify(
-        "vector:input",
-        rel.patterns[0],
-        ...rel.vector.map(exp => exp.patterns[0]))
-      |
-      rel.typePatternGraph.unify(
-        "vector:output",
-        rel.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": rel.vector.map(exp => exp.patterns[1])}),
-        rel.patterns[1])
-    );
-  }
-  
-  function inspectCode(rel) {
-    const {pattern, type} = rel.typePatternGraph.get(rel.patterns[0]) || {};
-    if ((pattern == "type") && (type == (representatives[rel.code] || rel.code))) { 
-      return false;
-    }
+  for (const relName in rels) {
     
-    return rel.typePatternGraph.unify(
-      "code",
-      rel.typePatternGraph.getTypeId(representatives[rel.code] || rel.code),
-      ...rel.patterns
-    );
   }
+  // 3. Topological sort of the DAG 
+  // 4. For each strongly connected component C in a bottom-up order
+  //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
+  //        - find singleton 'patterns'
+  //        - add them all to 'codes' and merge those codes into the typePatternGraph
+  //        - compress the typePatternGraph
+  //    4.2 For every r in C, and for every reference to x in varRefs, clone the typePatternGraph of x
+  //        into the typePatternGraph of r
+  //    4.3 Redo step 4.1 for every r in C
+  //    4.3 If any of the typePatternGraphs of r has changed, got to 4.2
   
-  function inspectRef(rel) { 
-    const relDefs = rels[rel.ref];
-    if (!relDefs) {
-      switch (rel.ref) {
-        case "_log!":
-          return inspectIdentity(rel);
-        case "true": 
-        case "false": 
-          return ref.typePatternGraph.unify(
-            "bool",
-            rel.typePatternGraph.addNewNode({pattern: 'type', type: 'bool'}),
-            rel.patterns[1]
-          );
-        case "PLUS":
-        case "TIMES": {
-          let int_pattern = ref.typePatternGraph.addNewNode({pattern: 'type', type: 'int'});
-          return !!(
-            rel.typePatternGraph.unify(
-              `${rel.ref}:input`,
-              rel.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [int_pattern]}),
-              rel.patterns[0])
-            |
-            rel.typePatternGraph.unify(
-              `${rel.ref}:output`,
-              int_pattern,
-              rel.patterns[1])
-          );
-        }
-        case "CONCAT": {
-          let string_pattern = ref.typePatternGraph.addNewNode({pattern: 'type', type: 'string'});
-          return !!(
-            rel.typePatternGraph.unify(
-              `CONCAT:input`,
-              rel.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [string_pattern]}),
-              rel.patterns[0])
-            |
-            rel.typePatternGraph.unify(
-              `CONCAT:output`,
-              string_pattern,
-              rel.patterns[1])
-          );
-        }
-        case "toDateMsec":
-          return rel.typePatternGraph.unify(
-            `toDateMsec:output`,
-            rel.typePatternGraph.addNewNode({pattern: 'type', type: 'int'}),
-            rel.patterns[1]);
-
-        case "toJSON":
-          return rel.typePatternGraph.unify(
-            `toJSON:output`,
-            rel.typePatternGraph.addNewNode({pattern: 'type', type: 'string'}),
-            rel.patterns[1]);
-
-        case "toDateStr":
-          return ref.typePatternGraph.unify(
-            `toDateStr:output`,
-            rel.typePatternGraph.addNewNode({pattern: 'type', type: 'string'}),
-            rel.patterns[1]);
-            
-
-        case "GT":
-          return ref.typePatternGraph.unify(
-            "GT",
-            rel.typePatternGraph.addNewNode({pattern: '[]'}),
-            rel.patterns[0],
-            rel.patterns[1]
-          );
-        case "EQ":  
-          return ref.typePatternGraph.unify(
-            "EQ",
-            rel.typePatternGraph.addNewNode({pattern: '[]'}),
-            rel.patterns[0],
-            rel.patterns[1]
-          );
-        case "fromJSON":
-          return ref.typePatternGraph.unify(
-            "fromJSON:input",
-            ref.typePatternGraph.addNewNode({pattern: 'type', type: 'string'}),
-            rel.patterns[0]
-          );
-        case "CONS": {
-          let member_pattern = ref.typePatternGraph.addNewNode();
-          let vec_pattern = ref.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member_pattern]});
-          return !!(
-            ref.typePatternGraph.unify(
-              "CONS:input",
-              rel.typePatternGraph.addNewNode({pattern: '{}'}, 
-                {
-                  "0": [member_pattern],
-                  "1": [vec_pattern]
-                }),
-              rel.patterns[0])
-            |
-            ref.typePatternGraph.unify(
-              "CONS:output",
-              vec_pattern,
-              rel.patterns[1])
-          );
-        } 
-        // TO DO
-        case "null":
-        case "DIV":
-        case "FDIV":
-        case "SNOC":
-          return false;
-      }
-      throw new Error(`No definition found for ${rel.ref}`);  
-    }
-    // We take the last definition.
-    let def = relDefs[relDefs.length - 1];
-    let ids = def.patterns.map( x => def.typePatternGraph.find(x) );
-    let cloned = def.typePatternGraph.clone(ids, rel.typePatternGraph);
-    return !!(
-      rel.typePatternGraph.unify(
-        "ref:input",
-        rel.patterns[0],
-        cloned[ids[0]])
-      |
-      rel.typePatternGraph.unify(
-        "ref:output",
-        rel.patterns[1],
-        cloned[[1]])
-    );
-  }
-
-
-  // --------- main loop --------------
-
-  // 2. loop until no more changes
 
   let changed = true;
   let count = 0;
