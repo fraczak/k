@@ -1,6 +1,7 @@
+import { Graph } from "./Graph.mjs";
 import hash from "./hash.mjs";
-
 const unitCode = hash('$C0={};');
+
 
 function asMapSet(vector) { 
   return vector.reduce( (mapSet, x) => ({...mapSet, [JSON.stringify(x)]: x}), {})
@@ -81,6 +82,41 @@ class TypePatternGraph {
 
   find(id) {
     return this.patterns.find(id);
+  }
+
+  findSingletonPatterns() {
+    const gNodes = this.patterns.nodes.map((x,i) => i).filter(x => this.patterns.parent[x] == undefined);
+    const gEdges = [].concat(
+      ...gNodes.map(x => 
+        [].concat( 
+          ...Object.values(this.edges[x]).map( asMap =>
+            [].concat(...Object.values(asMap).map(y => 
+              ({src: x, dst: this.find(y)}))
+            )
+          )
+        )
+      )
+    );
+    const gGraph = new Graph(gEdges);
+    console.log(gGraph);
+    const queue = gNodes.filter(x => 
+      this.patterns.nodes[x].pattern in {'()':1, '(...)':1,'{...}':1, '<...>':1});
+    const excluded = asMapSet(queue);
+    while (queue.length > 0) {
+      const x = queue.pop();
+      for (const e of gGraph.dst[x] || []) {
+        const y = gGraph.edges[e].src;
+        if (y in excluded) continue;
+        excluded[y] = y;
+        queue.push(y);
+      }
+    }
+
+    return gNodes.filter(x => !(x in excluded));
+
+
+    
+
   }
 
   clone(roots,targetGraph = this) { 
@@ -312,8 +348,7 @@ class TypePatternGraph {
         break;
     }
     return this.unify_two_patterns(p2, p1);
-}  
-
+  }  
 
   unify_patterns(...patterns) {  
     const unify_two_patterns = this.unify_two_patterns.bind(this);

@@ -300,6 +300,45 @@ function patterns(codes, representatives, rels) {
     //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
     for(const relName of DAGnodes[scc].scc) {
       //        - find singleton 'patterns'
+      const { def, typePatternGraph, varRefs } = rels[relName];
+      const singletonPatterns = typePatternGraph.findSingletonPatterns();
+      const newCodeDefs= {}
+      for(const patternId of singletonPatterns) {
+        const pattern = typePatternGraph.get_pattern(patternId);
+        switch (pattern.pattern) {
+          case '<>': 
+          case '{}': {
+            const code = (pattern.pattern == '<>') ? 'union' : 'product';
+            const fieldsWithDest = typePatternGraph.edges[patternId];
+            newCodeDefs[`-${patternId}-`] = {
+              code: code,
+              [code]: Object.keys(fieldsWithDest).reduce((fields, lab) => {
+                const dests = Object.values(fieldsWithDest[lab]);
+                if (dests.length != 1) {
+                  throw new Error(`Expected one destination for ${lab} in ${patternId}`); 
+                }
+                const destPattern = typePatternGraph.get_pattern(dests[0]);
+                fields[lab] = (destPattern.pattern == 'type') ? destPattern.type : `-${dests[0]}-`;
+                return fields;
+              }, {})
+            }; 
+          }; break;
+          case '[]': {
+            const dests = Object.values(typePatternGraph.edges[patternId]["vector-member"]);
+            if (dests.length != 1) {
+              console.log(dests.map(d => typePatternGraph.get_pattern(d)));
+              throw new Error(`Expected one destination 'vector-member' in ${JSON.stringify(pattern)}, but got ${JSON.stringify(dests)}`); 
+            }
+            const destPattern = typePatternGraph.get_pattern(dests[0]);
+            newCodeDefs[`-${patternId}-`] = {
+              code: 'vector',
+              vector: (destPattern.pattern == 'type') ? destPattern.type : `-${dests[0]}-`
+            };
+          }; break;
+        }
+      }
+      console.log(`    - newCodeDefs: ${JSON.stringify(newCodeDefs, null, 2)}`);
+
       //        - add them all to 'codes' and merge those codes into the typePatternGraph
       //        - compress the typePatternGraph
 
