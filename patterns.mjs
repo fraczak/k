@@ -1,7 +1,7 @@
 
 import hash from "./hash.mjs";
 import { TypePatternGraph } from "./typing.mjs";
-import { Graph, sccs } from "./Graph.mjs";
+import { Graph, sccs, topoOrder } from "./Graph.mjs";
 
 const unitCode = hash('$C0={};'); 
 
@@ -263,7 +263,7 @@ function patterns(codes, representatives, rels) {
   // 2. Compute DAG of strongly connected components in varRefs
   //    A rel_1 -> rel_2 if rel1,varRefs contains a reference to {op: "ref", ref: rel_2}
   
-  const DAG = new Graph(
+  const graph = new Graph(
     // 1st argument: edges
     [].concat(...Object.keys(rels).map( relName => 
       rels[relName].varRefs.map(({ref}) => 
@@ -271,25 +271,46 @@ function patterns(codes, representatives, rels) {
     // 2nd argument: vertices
     rels
   );
-  console.log(DAG);
 
-  const sccs_ = sccs(DAG);
-  console.log("------", sccs_);
-  
-  for (const relName in rels) {
-    
-  }
-  // 3. Topological sort of the DAG 
+  const sccs_ = sccs(graph);
+
+  const DAGnodes = sccs_.reduce ((nodes, scc) => 
+    ({...nodes, [scc[0]]: {scc}}), {});
+  const fromRelNameToDAGnode = Object.keys(DAGnodes).reduce((map, node) =>
+    DAGnodes[node].scc.reduce((map, relName) => ({...map, [relName]: node}), map), {});
+  const DAGedges = [].concat(
+    ...Object.keys(rels).map( x =>
+      rels[x].varRefs.map(({ref}) => 
+        ({src: fromRelNameToDAGnode[x], dst: fromRelNameToDAGnode[ref]})
+      ) // don't forget to remove loops
+      .filter(({src, dst}) => src !== dst )
+    )
+  );
+  const DAG = new Graph(DAGedges, DAGnodes);
+
+  // 3. Topological sort of the DAG
+
+  const sccInOrder = topoOrder(DAG);
+
   // 4. For each strongly connected component C in a bottom-up order
-  //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
-  //        - find singleton 'patterns'
-  //        - add them all to 'codes' and merge those codes into the typePatternGraph
-  //        - compress the typePatternGraph
+
+  for (const scc of sccInOrder.reverse()) {
+    console.log(`SCC[${scc}]: { ${DAGnodes[scc].scc} }`);
+    
+    //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
+    for(const relName of DAGnodes[scc].scc) {
+      //        - find singleton 'patterns'
+      //        - add them all to 'codes' and merge those codes into the typePatternGraph
+      //        - compress the typePatternGraph
+
+    }
+
   //    4.2 For every r in C, and for every reference to x in varRefs, clone the typePatternGraph of x
   //        into the typePatternGraph of r
   //    4.3 Redo step 4.1 for every r in C
   //    4.3 If any of the typePatternGraphs of r has changed, got to 4.2
-  
+ 
+  }
 
   let changed = true;
   let count = 0;

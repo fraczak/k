@@ -5,7 +5,6 @@ class Graph {
     for (const dir of ['src', 'dst']) {
       this[dir] = {};
       for (let i=0; i < edges.length; i++) {
-        console.log("i",i);
         const e = edges[i];
         if (vertices[e[dir]] == undefined) {
           vertices[e[dir]] = {
@@ -64,6 +63,33 @@ function sccs(graph) {
   return sccs;
 };
 
+function topoOrder(graph){
+  const starts = [];
+  const result = [];
+  const inDegree = {};
+  for (const v in graph.vertices) {
+    const degree = graph.dst[v]?.length || 0;
+    if (degree == 0) {
+      starts.push(v);
+    } else {
+      inDegree[v] = degree;
+    }
+  } 
 
-export { Graph, sccs };
-export default { Graph, sccs };
+  let x;
+  while (x = starts.pop()) {
+    result.push(x);
+    const outs = graph.src[x] || [];
+    for (const e of outs) {
+      const y = graph.edges[e].dst;
+      inDegree[y]--;
+      if (inDegree[y] == 0) {
+        starts.push(y);
+      }
+    }
+  }
+  return result;
+}
+
+export { Graph, sccs, topoOrder };
+export default { Graph, sccs, topoOrder };
