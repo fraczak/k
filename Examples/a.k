@@ -44,7 +44,7 @@ log2_floor = ${int x, int step}
 
 
 log2_floor_ = <
-  [[.step,.x] GT, .log] .1,
+  {[.step,.x] GT if, .log then} .then,
   {.x x, .step [(),()] PLUS step, .log [(),1] PLUS log} log2_floor_
 >;
 
@@ -121,8 +121,8 @@ plus_rat = ${rat x, rat y}
   }
   { 
     [
-      { .args.0 a, .lcm lcm} [.a.n, {.lcm 0, .a.d 1} div .div] TIMES,
-      { .args.1 a, .lcm lcm} [.a.n, {.lcm 0, .a.d 1} div .div] TIMES
+      { .args.0 a, .lcm lcm} [.a.n, {.lcm x, .a.d y} div .div] TIMES,
+      { .args.1 a, .lcm lcm} [.a.n, {.lcm x, .a.d y} div .div] TIMES
     ] PLUS n, 
     .lcm d
   }
@@ -159,14 +159,14 @@ int_rat = $rat
 _rat! = $rat {
   () 0, 
   [
-    [.n] CONCAT, 
+    .n toJSON, 
     "/", 
-    [.d] CONCAT, 
+    .d toJSON, 
     " = ",
     <
-      [.d,.n] GT [.1,"/",.0] CONCAT,
-      {.n 0,[.d,1] EQ 1} [.0] CONCAT,
-      int_rat [.int,"+",.rat.n,"/",.rat.d] CONCAT
+      [.d,.n] GT [.1 toJSON ,"/", .0 toJSON] CONCAT,
+      {.n 0,[.d,1] EQ 1} [.0 toJSON] CONCAT,
+      int_rat [.int toJSON,"+",.rat.n toJSON,"/",.rat.d toJSON] CONCAT
     >
   ] CONCAT _log! 1
  } .0;

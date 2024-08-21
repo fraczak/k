@@ -363,19 +363,22 @@ class TypePatternGraph {
             }
           }; break;
           case 'vector': {
-            const target_type_id = this.getTypeId(code[code.code]['vector-member']);
+            
+            const target_type_id = this.getTypeId(code.vector);
+
             this.edges[new_id]['vector-member'] = 
               asMapSet(
                 setUnion(
                   [target_type_id],
-                  this.edges[new_id].map(x => Object.values(x))
+                  ...Object.values(this.edges[new_id]).map(x => Object.values(x))
                 )
               );
             }
         }
     }
-    for ( const aSet of Object.values(this.edges[new_id]) )
+    for ( const aSet of Object.values(this.edges[new_id]) ) {
       this.unify(rule, ...Object.values(aSet));      
+    }
 
     return true;
   }
@@ -391,6 +394,7 @@ class TypePatternGraph {
   }
 
   getTypeId(type) {
+    if (type == undefined) throw new Error("code name cannot be 'undefined'! "); //TODO: remove after testing
     if ( this.codeId[type] == undefined )
       this.codeId[type] = this.addNewNode({pattern: 'type', type: type});
     return this.codeId[type];

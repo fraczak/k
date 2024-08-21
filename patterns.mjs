@@ -226,8 +226,7 @@ function patterns(codes, representatives, rels) {
         break;
       case "GT":
       case "EQ":  
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[1]]});
+        rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rootDef.typePatternGraph.addNewNode()]});
         break;
       case "fromJSON":
         rel.patterns[0] = rootDef.typePatternGraph.getTypeId('string');

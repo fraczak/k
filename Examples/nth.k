@@ -15,8 +15,8 @@ take_ =
 -- ${ int n, [int] head, [int] tail}
 <
   {.head reverse head, .tail empty? tail},
-  [[.n,0] EQ, {.head reverse head, .tail tail}] .1,
-  {.n dec n, [.tail car, .head] CONS head, .tail cdr tail} take_
+  {[.n,0] EQ if, {.head reverse head, .tail tail} then} .then,
+  {.n dec n, {.tail car 0, .head 1} CONS head, .tail cdr tail} take_
 >
 -- ${[int] head, [int] tail}
 ;
@@ -27,7 +27,7 @@ reverse_ =
 -- ${[int] in, [int] out}
 < 
   [.in empty?, .out] .1,
-  {[.in car, .out] CONS out, .in cdr in} reverse_
+  {{.in car 0, .out 1} CONS out, .in cdr in} reverse_
 >
 -- $[int]
 ;
@@ -169,7 +169,7 @@ join_ =
 -- len = | 1 ^ PLUS; -- using PIPES
 len = {() list, 0 res} len_;
 len_ = <
-  [.list empty?, .res].1,
+  {.list empty? if, .res then} .then,
   {.list cdr list, .res inc res} len_
 >;
 
@@ -189,7 +189,7 @@ set =
 zip = 
 -- ${[int] x, [int] y} 
 < 
-  [[.x car, .y car], {.x cdr x, .y cdr y} zip] CONS, 
+  {[.x car, .y car] 0, {.x cdr x, .y cdr y} zip 1} CONS, 
   []
 >;
 
@@ -203,7 +203,7 @@ map_with_PLUS = $[[int]]
 pascal = 
 -- next line in pascal's triangle
 $[int]
-{{0 0,() 1} CONS x, [0,reverse] CONS reverse y} zip map_with_PLUS
+{{0 0,() 1} CONS x, {0 0, reverse 1} CONS reverse y} zip map_with_PLUS
 $[int]
 ;
 
