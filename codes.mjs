@@ -153,6 +153,35 @@ function normalizeAll(codes, representatives) {
   }, {});
 }
 
+function finalize(codes) {
+  const representatives = minimize(codes).representatives;
+  const normalizedCodes = normalizeAll(codes, representatives);
+  const globalNames = Object.keys(normalizedCodes).reduce((globalNames, name) => {
+    const globalDef = encodeCodeToString(name, normalizedCodes);
+    normalizedCodes[name].def = globalDef;
+    globalNames[name] = hash(globalDef);
+    return globalNames;
+  }, {});
+  const globalCodes = Object.keys(normalizedCodes).reduce((globalCodes, name) => {
+    globalCodes[globalNames[name]] = normalizedCodes[name];
+    return globalCodes;
+  },{});
+  // console.log("globalCodes",globalCodes);
 
-export default { minimize, normalize, normalizeAll, encodeCodeToString };
-export { minimize, normalize, normalizeAll, encodeCodeToString };
+  const extendedRepresentatives = Object.keys(representatives).reduce((result, name) => {
+    result[name] = globalNames[representatives[name]] || name;
+    return result;
+  }, Object.values(globalNames).reduce((result, name) => ({[name]: name, ...result}),{}));
+  // console.log("extendedRepresentatives",extendedRepresentatives);
+
+  const normalizedGlobalCodes = normalizeAll(globalCodes, extendedRepresentatives);
+  // console.log("normalizedGlobalCodes",normalizedGlobalCodes);
+
+  return {
+    codes: normalizedGlobalCodes,
+    representatives: extendedRepresentatives
+  };
+}
+
+export default { minimize, normalize, normalizeAll, encodeCodeToString, finalize};
+export { minimize, normalize, normalizeAll, encodeCodeToString, finalize };

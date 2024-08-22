@@ -1,7 +1,7 @@
 import { Graph } from "./Graph.mjs";
 import hash from "./hash.mjs";
 const unitCode = hash('$C0={};');
-
+import { finalize } from "./codes.mjs";
 
 function asMapSet(vector) { 
   return vector.reduce( (mapSet, x) => ({...mapSet, [JSON.stringify(x)]: x}), {})
@@ -67,14 +67,72 @@ class TypePatternForest {
   }
 }
 
+// concider it as a world-wild global repo of codes
+let theCodes = {};
+
 class TypePatternGraph {
-  constructor(codes = {}) {
-    this.codes = codes;
+  constructor(newCodes = {}) {
+    theCodes = {... theCodes, ... newCodes};
     this.patterns = new TypePatternForest();
     this.edges = []; // an edge at index i is a map {lab: asMapSet([i1,...]), ...}
                      // representing `patterns.node[i] --[lab]--> {i1:i1,...}, ...
     this.codeId = { }; // type-name -> index
   }
+
+  turnSingletonPatternsIntoCodes() {
+    const singletonPatterns = this.findSingletonPatterns();
+    const newCodeDefs= {}
+    for(const patternId of singletonPatterns) {
+      const pattern = this.get_pattern(patternId);
+      switch (pattern.pattern) {
+        case '<>': 
+        case '{}': {
+          const code = (pattern.pattern == '<>') ? 'union' : 'product';
+          const fieldsWithDest = this.edges[patternId];
+          newCodeDefs[`-${patternId}-`] = {
+            code: code,
+            [code]: Object.keys(fieldsWithDest).reduce((fields, lab) => {
+              const auxDests = Object.values(fieldsWithDest[lab]).map(id => this.find(id));
+              const destAsMapSet = auxDests.reduce( (mapSet, x) => ({...mapSet, [JSON.stringify(x)]: x}), {});
+              const dests = Object.values(destAsMapSet);
+              if (dests.length != 1) {
+                throw new Error(`Expected one destination for ${lab} in ${patternId}`); 
+              }
+              const destPattern = this.get_pattern(dests[0]);
+              fields[lab] = (destPattern.pattern == 'type') ? destPattern.type : `-${dests[0]}-`;
+              return fields;
+            }, {})
+          }; 
+        }; break;
+        case '[]': {
+          const auxDests = Object.values(this.edges[patternId]["vector-member"]).map(id => this.find(id));
+          const destAsMapSet = auxDests.reduce( (mapSet, x) => ({...mapSet, [JSON.stringify(x)]: x}), {});
+          const dests = Object.values(destAsMapSet);
+          if (dests.length != 1) {
+            console.log(dests.map(d => this.get_pattern(d)));
+            throw new Error(`Expected one destination 'vector-member' in ${JSON.stringify(pattern)}, but got ${JSON.stringify(dests)}`); 
+          }
+          const destPattern = this.get_pattern(dests[0]);
+          newCodeDefs[`-${patternId}-`] = {
+            code: 'vector',
+            vector: (destPattern.pattern == 'type') ? destPattern.type : `-${dests[0]}-`
+          };
+        }; break;
+        default: 
+          throw new Error(`Unexpected pattern ${JSON.stringify(pattern)}`);
+      }
+    } 
+    //        - add them all to 'codes'
+    const { codes, representatives}  = finalize({...theCodes, ...newCodeDefs})
+    console.log(JSON.stringify({codes,representatives}));
+    theCodes = codes;
+
+    for( const id of singletonPatterns) {
+      this.unify('singleton', id, this.getTypeId(representatives[`-${id}-`]));
+    }
+
+  }
+
 
   get_pattern(id) {
     return this.patterns.nodes[this.find(id)];
@@ -111,12 +169,7 @@ class TypePatternGraph {
         queue.push(y);
       }
     }
-
-    return gNodes.filter(x => !(x in excluded));
-
-
-    
-
+    return gNodes.filter(x => !((x in excluded) || (this.patterns.nodes[x].pattern == 'type')));
   }
 
   clone(roots,targetGraph = this) { 
@@ -177,7 +230,7 @@ class TypePatternGraph {
             if (subsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields},...) with <${p2.fields}>`);
           case 'type': {
-              const code = this.codes[p2.type] || {code: p2.type, def: "build-in"};
+              const code = theCodes[p2.type] || {code: p2.type, def: "build-in"};
               switch (code.code) {
                 case 'int':
                   // supports (2 .2) which returns unit
@@ -219,7 +272,7 @@ class TypePatternGraph {
           case '<>':
             throw new Error('Cannot unify {...} with <>');
           case 'type': {
-            const code = this.codes[p2.type] || {code: p2.type, def: "build-in"};
+            const code = theCodes[p2.type] || {code: p2.type, def: "build-in"};
             switch (code.code) {
               case 'product':{
                 let p2_fields = Object.keys(code[code.code]);
@@ -246,7 +299,7 @@ class TypePatternGraph {
             if (subsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify <${p1.fields},...> with <${p2.fields}>`);
           case 'type':{
-            const code = this.codes[p2.type] || {code: p2.type, def: "build-in"};
+            const code = theCodes[p2.type] || {code: p2.type, def: "build-in"};
             switch (code.code) {
               case 'union': {
                 let p2_fields = Object.keys(code[code.code]);
@@ -271,7 +324,7 @@ class TypePatternGraph {
             if (eqsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields}) with <${p2.fields}>`);
           case 'type':{
-            const code = this.codes[p2.type] || {code: p2.type, def: "build-in"};
+            const code = theCodes[p2.type] || {code: p2.type, def: "build-in"};
             switch (code.code) {
               case 'product':
               case 'union': {
@@ -293,7 +346,7 @@ class TypePatternGraph {
           case '<>':
             throw new Error('Cannot unify [] with <>');
           case 'type': {
-            const code = this.codes[p2.type] || {code: p2.type, def: "build-in"};
+            const code = theCodes[p2.type] || {code: p2.type, def: "build-in"};
             switch (code.code) {
               case 'vector':  
                 return {...p2, fields: ['vector-member']};
@@ -310,7 +363,7 @@ class TypePatternGraph {
           case '<>':
             throw new Error('Cannot unify {} with <>');
           case 'type': {
-            const code = this.codes[p2.type] || {code: p2.type, def: "build-in"};
+            const code = theCodes[p2.type] || {code: p2.type, def: "build-in"};
             switch (code.code) {
               case 'product':{
                 let p2_fields = Object.keys(code[code.code]);
@@ -327,7 +380,7 @@ class TypePatternGraph {
             if (eqsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify <${p1.fields}> with <${p2.fields}>`);
           case 'type': {
-            const code = this.codes[p2.type] || {code: p2.type, def: "build-in"};
+            const code = theCodes[p2.type] || {code: p2.type, def: "build-in"};
             switch (code.code) {
               case 'union':{
                 let p2_fields = Object.keys(code[code.code]);
@@ -378,7 +431,7 @@ class TypePatternGraph {
     }
     // add stuff for types
     if (new_pattern.pattern == 'type') {
-      const code = this.codes[new_pattern.type] || {code: new_pattern.type, def: "build-in"};
+      const code = theCodes[new_pattern.type] || {code: new_pattern.type, def: "build-in"};
         switch (code.code) {
           case 'int':
           case 'string':

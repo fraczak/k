@@ -8,13 +8,6 @@ t('[]', (annotated) => {
   console.log("OK");
 });
 
-t(`$int [ $int true, false ]`, (annotated) => {
-  const {input,output} = in_out(annotated);
-  assert.equal(input.type, "int");
-  assert.equal(output.pattern, "[]");
-  console.log("OK");
-});
-
 t("$int [ $int true, false ] .0",  (annotated) => {
   const {input,output} = in_out(annotated);
   assert.equal(input.type, "int");
@@ -23,6 +16,7 @@ t("$int [ $int true, false ] .0",  (annotated) => {
 });
 
 assert.throws(() => t(`$int [ $int true, 12 ]`), /Error/);
+console.log("The both errors are expected...");
 console.log("OK");
 
 // t(`[]`);

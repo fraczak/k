@@ -3,8 +3,6 @@
 import fs from "node:fs";
 import k from "./index.mjs";
 
-const splice = [].splice;
-
 const prog = process.argv[1];
 
 let kScript, jsonStream, oneJson;
