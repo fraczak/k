@@ -14,3 +14,11 @@ $b {1 one, () two, () c} .one
     assert.equal(output.type, "int");
     console.log("OK");
 });
+
+t(`
+    $a = < int true, bool false > ;
+    $a .true
+  `, (annotated) => {
+  const {input,output} = in_out(annotated);
+  console.log({input,output});
+});

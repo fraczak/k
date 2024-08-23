@@ -52,8 +52,22 @@ class TypePatternForest {
     let parent = this.parent[result];
     while (parent != undefined) {
       parent = this.parent[result = parent];
+      if (parent == result) {
+        console.log("Can happen a loop in the forest? It shouldn't!");
+        break;
+      }
+        
     }
     return result;
+  }
+
+  addChildren(parentId, childrenIds) {
+    const parent = this.find(parentId);
+    childrenIds.forEach(childId => {
+      const child = this.find(childId);
+      if (this.nodes[child].pattern != 'type')
+        this.parent[child] = parent;
+    });
   }
 
   addNewNode(flatTypePattern, children = []) {
@@ -171,7 +185,7 @@ class TypePatternGraph {
 
   clone(roots,targetGraph = this) { 
     const result = {}; // mapping from original ids to cloned ids
-    const find = (x) => this.patterns.find(x);
+    const find = (x) => this.find(x);
     let ids = [...roots];
     while (ids.length > 0) {
       const old_id = ids.pop();
@@ -180,9 +194,14 @@ class TypePatternGraph {
         result[old_id] = result[i];
         continue;
       }
-      const cloned = targetGraph.patterns.addNewNode(this.patterns.nodes[i]);
+      const cloned = (pattern => {
+        if (pattern.pattern == 'type') return targetGraph.getTypeId(pattern.type);
+        return targetGraph.patterns.addNewNode(pattern);
+      })(this.patterns.nodes[i]);
       result[i] = cloned;
       result[old_id] = cloned;
+      if (this.patterns.nodes[i].pattern == 'type') 
+        continue;
       const edges = this.edges[i];
       for (const lab in edges) {
         ids = ids.concat(Object.values(edges[lab]));
@@ -190,6 +209,8 @@ class TypePatternGraph {
     }
     for (const i in result) {
       if (i != find(i)) continue;
+      if (this.patterns.nodes[i].pattern == 'type') 
+        continue;
       const edges = this.edges[i];
       const new_id = result[i];
       targetGraph.edges[new_id] = {};
@@ -406,17 +427,26 @@ class TypePatternGraph {
   }
 
   unify(rule, ...ids) {
-    console.log(`unify(${rule}, ${ids})`);
     const find = (x) => this.find(x);
     const reps = Object.values(asMapSet(ids.map(find)));
     if (reps.length < 2) return false;
     const rep_patters = reps.map(x => {
       const pattern = this.get_pattern(x);
-      const fields = Object.keys(this.edges[x]);
+      const fields = Object.keys(this.edges[x] || {});
       return {...pattern, fields: fields};
     });
     const new_pattern = {...this.unify_patterns(...rep_patters), rule : rule};
-    const new_id = this.patterns.addNewNode(new_pattern, reps);
+
+    const new_id = (() => {
+      if (new_pattern.pattern == 'type') {
+        const id = this.getTypeId(new_pattern.type);
+        this.patterns.addChildren(id, reps);
+        return id;
+      };
+      return this.patterns.addNewNode(new_pattern, reps);
+    })();
+    // console.log("    * new ", JSON.stringify({new_id, new_pattern}));
+    // console.log("          ", JSON.stringify(rep_patters));
     this.edges[new_id] = {};
 
     for (const i of reps) {
@@ -464,18 +494,18 @@ class TypePatternGraph {
           }
         }
     }
-    for ( const aSet of Object.values(this.edges[new_id]) ) {
-      this.unify(rule+'+', ...Object.values(aSet));      
+    for ( const lab of Object.keys(this.edges[new_id]) ) {
+      this.unify(rule+'.', ...Object.values(this.edges[new_id][lab]));      
     }
 
     return true;
   }
 
-  addNewNode(pattern = matchAllPattern, vec_edges = {}) {
+  addNewNode(pattern = matchAllPattern, fields = {}) {
     const id = this.patterns.addNewNode(pattern);
     const find = (x) => this.patterns.find(x);
     this.edges[id] = {};
-    for (const [lab,dest] of Object.entries(vec_edges)) {
+    for (const [lab,dest] of Object.entries(fields)) {
       this.edges[id][lab] = asMapSet(dest.map(find));
     }
     return id;
@@ -488,6 +518,10 @@ class TypePatternGraph {
     return this.codeId[type];
   }
 
+  size() {
+    const typeNodes = this.patterns.nodes.filter(x => x.pattern == 'type').length;
+    return [this.patterns.nodes.length,typeNodes];
+  }
 }
 
 export {TypePatternForest, TypePatternGraph};

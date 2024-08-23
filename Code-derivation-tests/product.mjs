@@ -6,7 +6,7 @@ const unitCode = hash('$C0={};');
 
 t('{}', (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.type, null);
+  assert.equal(input.pattern, '(...)');
   assert.equal(output.type, unitCode);
   console.log("OK");
 });
@@ -15,10 +15,10 @@ t(`
   $b = < {} true, {} false > ; 
   $pair = { b one, b two } ;
 
-   {() one, () two} $pair
+  {() one, () two} $pair
 `, (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.type, annotated.representatives["b"]);
+  assert.equal(input.pattern, '(...)');
   assert.equal(output.type, annotated.representatives["pair"]);
   console.log("OK");
 });

@@ -36,6 +36,8 @@ function relDefToString(relDef) {
 
 function compactRel(relDef) {
   const {def, typePatternGraph, varRefs } = relDef;
+  // console.log("COMPACTING typePatternGraph of size", typePatternGraph.size());
+
 
   const newTypePatternGraph = new TypePatternGraph();
   const renumbering = typePatternGraph.cloneAll(newTypePatternGraph);
@@ -77,6 +79,7 @@ function compactRel(relDef) {
     x.inputPatternId = renumbering[x.inputPatternId];
     x.outputPatternId = renumbering[x.outputPatternId];  
   });
+  console.log("COMPACTED typePatternGraph", typePatternGraph.size(), '->', newTypePatternGraph.size());
 }
 
 function patterns(usedCodes, representatives, rels) {
@@ -380,11 +383,11 @@ function patterns(usedCodes, representatives, rels) {
   for (const scc of sccInOrder.reverse()) {
     console.log(`SCC: { ${DAGnodes[scc].scc} }`);
 
-    const maxNumberOfIterations = 100;
+    const maxNumberOfIterations = 10;
     
     for (let iteration = 1; iteration <= maxNumberOfIterations; iteration++) {
       
-      console.log(`Iteration ${iteration}  for SCC: { ${DAGnodes[scc].scc} }`);
+      console.log(`>>>>>> Iteration ${iteration}  for SCC: { ${DAGnodes[scc].scc} }`);
       //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
 
       let before = DAGnodes[scc].scc.map( relName => {
@@ -412,10 +415,9 @@ function patterns(usedCodes, representatives, rels) {
             console.error(`Type Error in call to ${varName} in definition of ${relName}: lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}): ${e.message}.`);       
             throw e;
           }
-          compactRel(relDef);
         }
 
-        //compactRel(relDef);
+        compactRel(relDef);
         return relDefToString(relDef); 
       }).join(":");
 

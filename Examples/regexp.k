@@ -38,7 +38,7 @@ $ string
 sink = { {} sink} $re;
 epsilon = sink star $re;
 char = {$ string char} $re;
-star = < .star, {() star} > $re;
+star = < .star, () > {() star} $re;
 concat = <
   .0.sink sink,
   .1.sink sink,
@@ -51,7 +51,7 @@ concat = <
 union = <
   {.0.sink if, .1 then} .then,
   {.1.sink if, .0 then} .then,
-  eq?,
+  [.0,.1] eq?,
   [.0.star, .1] eq? star,
   [.1.star, .0] eq? star,
   -- could also reduce ((a+b)+a), ((a+b)+b), (a+(a+b)) or (b+(a+b)) -> a+b
