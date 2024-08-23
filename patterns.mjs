@@ -31,36 +31,38 @@ function relDefToString(relDef) {
     throw new Error("NOT EXPECTED OP:", rel);
   };
 
-  return dumpPatterns(relDef.def).map(x => JSON.stringify(relDef.typePatternGraph.get_pattern(x))).join("");
+  return JSON.stringify(dumpPatterns(relDef.def).map((x) => {
+    const { pattern, fields, type} = relDef.typePatternGraph.get_pattern(x);
+    return {pattern, fields, type};
+  }));
 }
 
-function compactRel(relDef) {
+function compactRel(relDef, name = "") {
   const {def, typePatternGraph, varRefs } = relDef;
   // console.log("COMPACTING typePatternGraph of size", typePatternGraph.size());
 
-
   const newTypePatternGraph = new TypePatternGraph();
   const renumbering = typePatternGraph.cloneAll(newTypePatternGraph);
-  relDef.typePatternGraph = newTypePatternGraph;
 
+  newTypePatternGraph.turnSingletonPatternsIntoCodes();
 
-  const updatePatternIds = (rel) => {
-    rel.patterns = [renumbering[rel.patterns[0]], renumbering[rel.patterns[1]]];
+  const copyRel = (rel) => {
+    const newRel = {...rel, patterns:[renumbering[rel.patterns[0]], renumbering[rel.patterns[1]]]};
     switch (rel.op) {
       case "product":
-        rel.product.forEach(({exp}) => updatePatternIds(exp));
+        newRel.product = rel.product.map(({label, exp}) => ({label, exp: copyRel(exp)}));
         break;
       case "union":
-        rel.union.forEach(exp => updatePatternIds(exp));
+        newRel.union = rel.union.map(exp => copyRel(exp));
         break;
       case "comp":
-        rel.comp.forEach(exp => updatePatternIds(exp));
+        newRel.comp = rel.comp.map(exp => copyRel(exp));
         break;
       case "vector":
-        rel.vector.forEach(exp => updatePatternIds(exp));
+        newRel.vector = rel.vector.map(exp => copyRel(exp));
         break;
       case "caret":
-        updatePatternIds(rel.caret);
+        newRel.caret = copyRel(rel.caret);
         break;
       case "ref":
       case "int":
@@ -73,13 +75,17 @@ function compactRel(relDef) {
         console.error("NOT EXPECTED OP:", rel);
         break;
     };
+    return newRel;
   };
-  updatePatternIds(def);
-  varRefs.forEach(x => {
-    x.inputPatternId = renumbering[x.inputPatternId];
-    x.outputPatternId = renumbering[x.outputPatternId];  
-  });
-  console.log("COMPACTED typePatternGraph", typePatternGraph.size(), '->', newTypePatternGraph.size());
+  const newDef = copyRel(def);
+  const newVarRefs = varRefs.map(x => ({
+    ...x,
+    inputPatternId: renumbering[x.inputPatternId],
+    outputPatternId: renumbering[x.outputPatternId]
+  }));;
+    
+  console.log(`COMPACTED ${name}.typePatternGraph`, typePatternGraph.size(), '->', newTypePatternGraph.size());
+  return {def: newDef, typePatternGraph: newTypePatternGraph, varRefs: newVarRefs};
 }
 
 function patterns(usedCodes, representatives, rels) {
@@ -390,17 +396,19 @@ function patterns(usedCodes, representatives, rels) {
       console.log(`>>>>>> Iteration ${iteration}  for SCC: { ${DAGnodes[scc].scc} }`);
       //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
 
-      let before = DAGnodes[scc].scc.map( relName => {
+      let before = JSON.stringify(DAGnodes[scc].scc.map( relName => {
         const relDef = rels[relName];
-        compactRel(relDef);
-        return relDefToString(relDef);
-      }).join(":");
-
+        // console.log("-----------------------------------");
+        // console.log(relDefToString(relDef));
+        rels[relName] = compactRel(relDef,relName);
+        // console.log(relDefToString(rels[relName]));
+        return relDefToString(rels[relName]);
+      }));
     
-      let after = DAGnodes[scc].scc.map( relName => {
-        const relDef = rels[relName];
+      let after = JSON.stringify(DAGnodes[scc].scc.map( relName => {
+        const relDef = compactRel(rels[relName],relName);
         for (let i = 0; i < relDef.varRefs.length; i++) {
-          console.log(` ####### Processing ${relName} -> ${relDef.varRefs[i].varName}[${i}]`);
+          console.log(` ####### Processing ${relName}(..x${i}=${relDef.varRefs[i].varName}..)`);
           let varRel = relDef.varRefs[i];
           let { varName } = varRel;
           try {
@@ -417,9 +425,10 @@ function patterns(usedCodes, representatives, rels) {
           }
         }
 
-        compactRel(relDef);
-        return relDefToString(relDef); 
-      }).join(":");
+        rels[relName] = compactRel(relDef,relName);
+        
+        return relDefToString(rels[relName]); 
+      }));
 
       if (before == after) {
         console.log("SUCCESS!");

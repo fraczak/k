@@ -18,7 +18,8 @@ t(`
   {() one, () two} $pair
 `, (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.pattern, '(...)');
+
+  assert.equal(input.type, annotated.representatives["b"]);
   assert.equal(output.type, annotated.representatives["pair"]);
   console.log("OK");
 });
