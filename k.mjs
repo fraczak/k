@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/node --stack-size=8000
 
 import fs from "node:fs";
 import k from "./index.mjs";

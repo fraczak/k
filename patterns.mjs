@@ -2,10 +2,85 @@
 import hash from "./hash.mjs";
 import { TypePatternGraph } from "./typing.mjs";
 import { Graph, sccs, topoOrder } from "./Graph.mjs";
+import codes from "./codes.mjs";
 
-const unitCode = hash('$C0={};'); 
+const unitCode = codes.unitCode;
 
-function patterns(codes, representatives, rels) {
+function relDefToString(relDef) {
+
+  const dumpPatterns = (rel) => {
+    switch (rel.op) {
+      case "product":
+        return [].concat(rel.patterns, ...rel.product.map(({exp}) => dumpPatterns(exp)));
+      case "union":
+        return [].concat(rel.patterns, ...rel.union.map(exp => dumpPatterns(exp)));
+      case "comp":
+        return [].concat(rel.patterns, ...rel.comp.map(exp => dumpPatterns(exp)));
+      case "vector":
+        return [].concat(rel.patterns, ...rel.vector.map(exp => dumpPatterns(exp)));
+      case "caret":
+        return [].concat(rel.patterns, dumpPatterns(rel.caret));
+      case "ref":
+      case "int":
+      case "str":
+      case "identity":
+      case "dot":
+      case "code":
+        return [...rel.patterns];
+    }
+    throw new Error("NOT EXPECTED OP:", rel);
+  };
+
+  return dumpPatterns(relDef.def).map(x => JSON.stringify(relDef.typePatternGraph.get_pattern(x))).join("");
+}
+
+function compactRel(relDef) {
+  const {def, typePatternGraph, varRefs } = relDef;
+
+  const newTypePatternGraph = new TypePatternGraph();
+  const renumbering = typePatternGraph.cloneAll(newTypePatternGraph);
+  relDef.typePatternGraph = newTypePatternGraph;
+
+
+  const updatePatternIds = (rel) => {
+    rel.patterns = [renumbering[rel.patterns[0]], renumbering[rel.patterns[1]]];
+    switch (rel.op) {
+      case "product":
+        rel.product.forEach(({exp}) => updatePatternIds(exp));
+        break;
+      case "union":
+        rel.union.forEach(exp => updatePatternIds(exp));
+        break;
+      case "comp":
+        rel.comp.forEach(exp => updatePatternIds(exp));
+        break;
+      case "vector":
+        rel.vector.forEach(exp => updatePatternIds(exp));
+        break;
+      case "caret":
+        updatePatternIds(rel.caret);
+        break;
+      case "ref":
+      case "int":
+      case "str":
+      case "identity":
+      case "dot":
+      case "code":
+        break;
+      default:
+        console.error("NOT EXPECTED OP:", rel);
+        break;
+    };
+  };
+  updatePatternIds(def);
+  varRefs.forEach(x => {
+    x.inputPatternId = renumbering[x.inputPatternId];
+    x.outputPatternId = renumbering[x.outputPatternId];  
+  });
+}
+
+function patterns(usedCodes, representatives, rels) {
+  codes.register(usedCodes);
   // INPUT: 
   //   codes: {"BG": {"code": "product", "product": {}}, ...}
   //   representatives:{"{}": "BG", ...}
@@ -189,8 +264,14 @@ function patterns(codes, representatives, rels) {
   function augmentRef(rel,rootDef) { 
     rel.patterns = [];
     if (rel.ref in rels) {
-      rootDef.varRefs.push(rel);
       rel.patterns = [rootDef.typePatternGraph.addNewNode(), rootDef.typePatternGraph.addNewNode()];
+      rootDef.varRefs.push( {
+          varName: rel.ref, 
+          inputPatternId: rel.patterns[0], 
+          outputPatternId: rel.patterns[1],
+          start: rel.start,
+          end: rel.end
+        });
       return;
     }
     // it is built-in
@@ -250,11 +331,13 @@ function patterns(codes, representatives, rels) {
     }
   }  
 
+  // ==================================================================================
+  // ----------------------------------------------------------------------------------
   // 1. Initialize the typePatternGraph and varRefs for each relation
 
   for (const relName in rels) {
     const rootDef = rels[relName];
-    rootDef.typePatternGraph = new TypePatternGraph(codes);
+    rootDef.typePatternGraph = new TypePatternGraph();
     rootDef.varRefs = []; // the list of non-built references as pointers to AST nodes
     augment(rootDef.def, rootDef);
   }
@@ -266,8 +349,8 @@ function patterns(codes, representatives, rels) {
   const graph = new Graph(
     // 1st argument: edges
     [].concat(...Object.keys(rels).map( relName => 
-      rels[relName].varRefs.map(({ref}) => 
-        ({src: relName, dst: ref})))),
+      rels[relName].varRefs.map( ({varName}) => 
+        ({src: relName, dst: varName})))),
     // 2nd argument: vertices
     rels
   );
@@ -280,8 +363,8 @@ function patterns(codes, representatives, rels) {
     DAGnodes[node].scc.reduce((map, relName) => ({...map, [relName]: node}), map), {});
   const DAGedges = [].concat(
     ...Object.keys(rels).map( x =>
-      rels[x].varRefs.map(({ref}) => 
-        ({src: fromRelNameToDAGnode[x], dst: fromRelNameToDAGnode[ref]})
+      rels[x].varRefs.map(({ varName }) => 
+        ({src: fromRelNameToDAGnode[x], dst: fromRelNameToDAGnode[varName]})
       ) // don't forget to remove loops
       .filter(({src, dst}) => src !== dst )
     )
@@ -295,83 +378,55 @@ function patterns(codes, representatives, rels) {
   // 4. For each strongly connected component C in a bottom-up order
 
   for (const scc of sccInOrder.reverse()) {
-    console.log(`SCC[${scc}]: { ${DAGnodes[scc].scc} }`);
+    console.log(`SCC: { ${DAGnodes[scc].scc} }`);
+
+    const maxNumberOfIterations = 100;
     
-    //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
-    for(const relName of DAGnodes[scc].scc) {
-      //        - find singleton 'patterns'
-      const { def, typePatternGraph, varRefs } = rels[relName];
-      typePatternGraph.turnSingletonPatternsIntoCodes();
+    for (let iteration = 1; iteration <= maxNumberOfIterations; iteration++) {
+      
+      console.log(`Iteration ${iteration}  for SCC: { ${DAGnodes[scc].scc} }`);
+      //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
 
-      //        - merge those codes into the typePatternGraph
-      //        - compress the typePatternGraph
+      let before = DAGnodes[scc].scc.map( relName => {
+        const relDef = rels[relName];
+        compactRel(relDef);
+        return relDefToString(relDef);
+      }).join(":");
 
-    }
-
-  //    4.2 For every r in C, and for every reference to x in varRefs, clone the typePatternGraph of x
-  //        into the typePatternGraph of r
-  //    4.3 Redo step 4.1 for every r in C
-  //    4.3 If any of the typePatternGraphs of r has changed, got to 4.2
- 
-  }
-
-  let changed = true;
-  let count = 0;
-  let count_max = 2;
-  while (changed) {  
-    changed = false;
-    if (count_max > count) { 
-      count++;
-      console.log(` * Inspecting count: ${count}/${count_max}`);   
-      for (const relName in rels) {
-        const { def, typePatternGraph, varRefs } = rels[relName];
-        console.log  (`    -- relation: ${relName}...`);
-        for (let i = 0; i < varRefs.length; i++) {
-          // console.log(`       - calling: ${varRefs[i].ref} [${i}]`);
-          let varRel = varRefs[i];
-          let varName = varRel.ref;
+    
+      let after = DAGnodes[scc].scc.map( relName => {
+        const relDef = rels[relName];
+        for (let i = 0; i < relDef.varRefs.length; i++) {
+          console.log(` ####### Processing ${relName} -> ${relDef.varRefs[i].varName}[${i}]`);
+          let varRel = relDef.varRefs[i];
+          let { varName } = varRel;
           try {
             let varRootDef = rels[varName];
             let varInputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[0]);
             let varOutputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[1]);
-            let cloned = varRootDef.typePatternGraph.clone([varInputPatternId, varOutputPatternId], typePatternGraph);
-            let aux_changed = !!(
-              typePatternGraph.unify(
-                "ref:input",
-                varRel.patterns[0],
-                cloned[varInputPatternId])
-              |
-              typePatternGraph.unify(
-                "ref:output",
-                varRel.patterns[1],
-                cloned[varOutputPatternId]));
-            changed = changed || aux_changed;
-            let newInputPatternId = typePatternGraph.find(varRel.patterns[0]);
-            let newOutputPatternId = typePatternGraph.find(varRel.patterns[1]);
-          //   console.log(`        changed flag?: ${aux_changed}`);
-          //   console.log(`        ${varRefs[i].ref}.patterns[0]: ${JSON.stringify(typePatternGraph.get_pattern(newInputPatternId))}`);
-          //   console.log(`        ${varRefs[i].ref}.patterns[1]: ${JSON.stringify(typePatternGraph.get_pattern(newOutputPatternId))}`);
-          //   // let g = new TypePatternGraph();
-          //   // typePatternGraph.clone([newInputPatternId,newOutputPatternId], g);
-          //   // console.log(JSON.stringify(g, null, 2));
-          //   console.log(`        * ${relName}.patterns[0]: ${JSON.stringify(typePatternGraph.get_pattern(def.patterns[0]))}`);
-          //   console.log(`        * ${relName}.patterns[1]: ${JSON.stringify(typePatternGraph.get_pattern(def.patterns[1]))}`);
-          // //  console.log(JSON.stringify(typePatternGraph, null, 2));
-          //   console.log("---------------------------------------------------");
+            let cloned = varRootDef.typePatternGraph.clone([varInputPatternId, varOutputPatternId], relDef.typePatternGraph);
+              
+            relDef.typePatternGraph.unify(`ref:input ${relName}(${varName})`, varRel.inputPatternId, cloned[varInputPatternId]);
+            relDef.typePatternGraph.unify("ref:output", varRel.outputPatternId, cloned[varOutputPatternId]);
           } catch (e) {
-            console.error(`Type Error in call to ${varName} in definition of ${relName}: lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}): ${e.message}.`);
-      
+            console.error(`Type Error in call to ${varName} in definition of ${relName}: lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}): ${e.message}.`);       
             throw e;
           }
+          compactRel(relDef);
         }
+
+        //compactRel(relDef);
+        return relDefToString(relDef); 
+      }).join(":");
+
+      if (before == after) {
+        console.log("SUCCESS!");
+        break;
       }
-    } else 
-      console.log("Done...");
+    } // while
+      
   }
-
 }
-
-
 
 export default { patterns };
 export { patterns };

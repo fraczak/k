@@ -1,6 +1,12 @@
 import hash from "./hash.mjs";
 
-const unitCode = hash('$C0={};'); 
+
+const theRepository = { codes: {  } };
+
+const unitCode = function() {
+  const unitCodeDef = encodeCodeToString("{}", { "{}": { code: "product", product: [] } });
+  return hash(unitCodeDef);
+}();
 
 function isBuiltIn(code) {  
   return code.match(/^(int|string|bool)$/);
@@ -183,5 +189,22 @@ function finalize(codes) {
   };
 }
 
-export default { minimize, normalize, normalizeAll, encodeCodeToString, finalize};
-export { minimize, normalize, normalizeAll, encodeCodeToString, finalize };
+function register(newCodes) {
+  const { codes, representatives } = finalize( {...newCodes,...theRepository.codes});
+  const reps = Object.values(representatives).reduce((reps,rep) => 
+    ({...reps, [rep]:rep})
+  , {});
+  for (const rep in reps) {
+    theRepository.codes[rep] = codes[rep];
+  };
+  return representatives;
+}
+
+function find(codeName) {
+  if (isBuiltIn(codeName))
+    return {code: codeName, def: "built-in["+codeName+"]"};
+  return JSON.parse(JSON.stringify(theRepository.codes[codeName]));
+};
+
+export default { minimize, normalize, normalizeAll, encodeCodeToString, finalize, unitCode, register, find };
+export { minimize, normalize, normalizeAll, encodeCodeToString, finalize, unitCode, register, find };

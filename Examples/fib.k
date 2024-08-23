@@ -3,7 +3,7 @@ dec = [$int, -1] PLUS;
 fib_aux =
   <
     { .n pos? dec n,
-      ."fib(n),fib(n-1),..." [[.0,.1] PLUS, ()] CONS "fib(n),fib(n-1),..."
+      ."fib(n),fib(n-1),..." {[.0,.1] PLUS 0, () 1} CONS "fib(n),fib(n-1),..."
     } fib_aux,
     ."fib(n),fib(n-1),..."
   >
