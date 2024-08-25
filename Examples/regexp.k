@@ -1,4 +1,4 @@
-cdr = < SNOC.1, []>;
+cdr = < SNOC.cdr, []>;
 empty? = <{.0 nope}, {() empty}>.empty;
 
 $ re = <

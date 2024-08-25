@@ -436,7 +436,7 @@ class TypePatternGraph {
       return {...pattern, fields: fields};
     });
     const new_pattern = {...this.unify_patterns(...rep_patters), rule : rule};
-
+    // console.log(`   new pattern: ${JSON.stringify(new_pattern)}`);
     const new_id = (() => {
       if (new_pattern.pattern == 'type') {
         const id = this.getTypeId(new_pattern.type);

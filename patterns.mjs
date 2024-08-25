@@ -26,6 +26,7 @@ function relDefToString(relDef) {
       case "identity":
       case "dot":
       case "code":
+      case "pipe":  
         return [...rel.patterns];
     }
     throw new Error("NOT EXPECTED OP:", rel);
@@ -70,6 +71,7 @@ function compactRel(relDef, name = "") {
       case "identity":
       case "dot":
       case "code":
+      case "pipe":
         break;
       default:
         console.error("NOT EXPECTED OP:", rel);
@@ -84,7 +86,7 @@ function compactRel(relDef, name = "") {
     outputPatternId: renumbering[x.outputPatternId]
   }));;
     
-  console.log(`COMPACTED ${name}.typePatternGraph`, typePatternGraph.size(), '->', newTypePatternGraph.size());
+  // console.log(`COMPACTED ${name}.typePatternGraph`, typePatternGraph.size(), '->', newTypePatternGraph.size());
   return {def: newDef, typePatternGraph: newTypePatternGraph, varRefs: newVarRefs};
 }
 
@@ -302,6 +304,10 @@ function patterns(usedCodes, representatives, rels) {
         rel.patterns[1] = rootDef.typePatternGraph.getTypeId('string');
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[1]]});
         break;
+      case "toVEC":
+        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
+        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[0]]});
+        break;
       case "toDateMsec":
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
         rel.patterns[1] = rootDef.typePatternGraph.getTypeId('int');
@@ -323,16 +329,19 @@ function patterns(usedCodes, representatives, rels) {
         rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
         break;
       case "CONS": {
-        let member = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"0": [member], "1": [rel.patterns[1]]});
-        break;
-      }
+          let member = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[1]]});
+        }; break;
+      case "SNOC": {
+          let member = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[0]]});
+        }; break;
       // TO DO
       case "null":
       case "DIV":
       case "FDIV":
-      case "SNOC":
         rel.patterns = [rootDef.typePatternGraph.addNewNode(), rootDef.typePatternGraph.addNewNode()];
         break;
       default:
@@ -387,13 +396,13 @@ function patterns(usedCodes, representatives, rels) {
   // 4. For each strongly connected component C in a bottom-up order
 
   for (const scc of sccInOrder.reverse()) {
-    console.log(`SCC: { ${DAGnodes[scc].scc} }`);
+    // console.log(`SCC: { ${DAGnodes[scc].scc} }`);
 
     const maxNumberOfIterations = 10;
     
     for (let iteration = 1; iteration <= maxNumberOfIterations; iteration++) {
       
-      console.log(`>>>>>> Iteration ${iteration}  for SCC: { ${DAGnodes[scc].scc} }`);
+      // console.log(`>>>>>> Iteration ${iteration}  for SCC: { ${DAGnodes[scc].scc} }`);
       //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
 
       let before = JSON.stringify(DAGnodes[scc].scc.map( relName => {
@@ -408,7 +417,7 @@ function patterns(usedCodes, representatives, rels) {
       let after = JSON.stringify(DAGnodes[scc].scc.map( relName => {
         const relDef = compactRel(rels[relName],relName);
         for (let i = 0; i < relDef.varRefs.length; i++) {
-          console.log(` ####### Processing ${relName}(..x${i}=${relDef.varRefs[i].varName}..)`);
+          // console.log(` ####### Processing ${relName}(..x${i}=${relDef.varRefs[i].varName}..)`);
           let varRel = relDef.varRefs[i];
           let { varName } = varRel;
           try {
@@ -431,7 +440,7 @@ function patterns(usedCodes, representatives, rels) {
       }));
 
       if (before == after) {
-        console.log("SUCCESS!");
+        // console.log("SUCCESS!");
         break;
       }
     } // while

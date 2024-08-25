@@ -9,5 +9,7 @@
 -- one of the string vectors is passed to the following partial function, 
 -- which produces a record (map) with one field "x&y", whose value is the
 -- result of concatenating elements of the passed in vector
+
 { CONCAT "x&y" } 
 ------------------------------------------------------------------------------
+-- the type pattern is (x,y...) -> {string 'x&y'}

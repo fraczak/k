@@ -2,7 +2,7 @@
 
 $rat = {int n, int d};
 
-MINUS = SNOC [.0, .1 PLUS [(),-1] TIMES] PLUS;
+MINUS = SNOC [.car, .cdr PLUS [(),-1] TIMES] PLUS;
 
 abs = $int < [0, ()] GT [-1,.1] TIMES, ()>;
 
@@ -68,7 +68,7 @@ div = ${int x, int y}
 rep = ${int x, int count}
   <
     .count.0 [],
-    {.x 0, {.x x, .count [(),-1] PLUS count} rep 1} CONS
+    {.x car, {.x x, .count [(),-1] PLUS count} rep cdr} CONS
   >
 $[int];
 

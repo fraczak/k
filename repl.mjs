@@ -58,7 +58,7 @@ const registers = {};
           console.log(` -- loading file: ${file} ...`);
           kScript = fs.readFileSync(file).toString();
           console.log(` ----------------------------- compiling file: ${file} ...`);
-          console.log(kScript);
+          // console.log(kScript);
           val = k.compile("+++" + kScript + "\n()")(val);
           console.log(`=> ${JSON.stringify(val)}`);
         } else if (line.match(/^[ \n\t]*(?:--a)?$/)) {

@@ -12,5 +12,7 @@ products =
 --  =  [1,2,2,4] 
 
 
-{[1,2,3,4,5] products list, <$int, "Not an integer, using 2 instead!!!" _log! 2> elem} count_occurrences
-$int
+{
+    [1,2,3,4,5] products list, 
+    <$int, "Not an integer, using 2 instead!!!" _log! 2> elem
+} _log! count_occurrences $int

@@ -1,7 +1,7 @@
 inc = [$int,1] PLUS;
 dec = [$int,-1] PLUS;
 car = .0;
-cdr = < SNOC.1, []>;
+cdr = < SNOC.cdr, []>;
 empty? = <{.0 nope}, {() empty}> .empty;
 singleton? = <{.1 nope},{[.0] singleton}> .singleton;
 
@@ -16,7 +16,7 @@ take_ =
 <
   {.head reverse head, .tail empty? tail},
   {[.n,0] EQ if, {.head reverse head, .tail tail} then} .then,
-  {.n dec n, {.tail car 0, .head 1} CONS head, .tail cdr tail} take_
+  {.n dec n, {.tail car car, .head cdr} CONS head, .tail cdr tail} take_
 >
 -- ${[int] head, [int] tail}
 ;
@@ -27,7 +27,7 @@ reverse_ =
 -- ${[int] in, [int] out}
 < 
   [.in empty?, .out] .1,
-  {{.in car 0, .out 1} CONS out, .in cdr in} reverse_
+  {{.in car car, .out cdr} CONS out, .in cdr in} reverse_
 >
 -- $[int]
 ;
@@ -37,26 +37,38 @@ split = {() list, [] one, [] two} split_;
 split_ =
 -- ${[int] list, [int] one, [int] two}
 <
-  [.list empty?, [.one reverse, .two reverse] ] .1,
+  {.list empty? if, {.one reverse 0, .two reverse 1} then} .then,
   {.list cdr             list, 
-    [.list.0, .one] CONS two, 
+    {.list.0 car, .one cdr} CONS two, 
     .two                 one
   } split_
 >
--- ${[int] [int]}
+-- ${[int] 0, [int] 1}
 ;
 
+// TODO: REWRITE WITH NEW CONS/SNOC!!!!
 merge =
 -- ${[int] 0, [int] 1}
  <
-  [.0 SNOC, .1 SNOC]                      -- both lists are at least 2 element long
-    < [[.0.0, .1.0] GT, .0.1, .1.1], [[.1.0, .0.0], .1.1, .0.1]>
-    [.0.0, [.1, [.0.1, .2] CONS] merge] CONS,
-  <[.0 SNOC, .1.0], [.1 SNOC, .0.0]>      -- one list has one element, other at least 2
-    <
-    [[.0.0, .1] GT, .0.1] [.0.0, [.1, [.0.1]] merge] CONS,
-    [.1, .0 CONS] CONS
-    >,
+  {.0 SNOC 0, .1 SNOC 1}                      -- both lists are at least 2 element long
+  -- ${{int car, [int] cdr} 0, {int car, [int] cdr} 1}
+  < 
+    {[.0.car, .1.car] GT 0, .0.cdr 1, .1.cdr 2}, 
+    {[.1.car, .0.car] 0, .1.cdr 1, .0.cdr 2}
+  >
+  -- ${[int] 0, [int] 1, [int] 2}
+  {.0.0 car, {.1 0, {.0.1 car, .2 cdr} CONS 1} merge cdr} CONS,
+  
+  < {.0 SNOC 0, .1.0 1}, {.1 SNOC 0, .0.0 1} >      -- one list has one element, other at least 2
+  -- ${{int car, [int] cdr} 0, int 1}
+  <
+    {[.0.car, .1] GT 0, .0.cdr 1}
+    ${[int] 0, [int] 1} 
+    {.0.0 car, {.1 0, [.0.1] 1} merge cdr} CONS,
+
+    {.1 car, .0 CONS cdr} CONS
+  >,
+  
   [.0.0, .1.0] < GT, [.1,.0] > ,          -- both lists are one element long
   .0,                                     -- first list has one element
   .1                                      -- otherwise
@@ -77,20 +89,24 @@ sort =
 merge_uniq =
 -- ${[int] 0, [int] 1}
  <
-  [.0 SNOC, .1 SNOC]                      -- both lists are at least 2 element long
+  {.0 SNOC 0, .1 SNOC 1}                       -- both lists are at least 2 element long
     < 
-      [[.0.0, .1.0] GT, .0.1, .1.1], 
-      [[.1.0, .0.0], .1.1, .0.1]
+      {[.0.car, .1.car] GT 0, .0.cdr 1, .1.cdr 2}, 
+      {[.1.car, .0.car] 0, .1.cdr 1, .0.cdr 2}
     >
+    -- ${[int] 0, [int] 1, [int] 2}
     < 
-      [.0 EQ .0, [.1,.2] merge_uniq],
-      [.0.0, [.1, [.0.1, .2] CONS] merge_uniq] 
+      {.0 EQ .0 car, {.1 0, .2 1} merge_uniq cdr},
+      {.0.0 car, {.1 0, {.0.1 car, .2 cdr} CONS 1} merge_uniq cdr} 
     > CONS,
-  <[.0 SNOC, .1.0], [.1 SNOC, .0.0]>      -- one list has one element, other at least 2
+
+  <{.0 SNOC 0, .1.0 1}, {.1 SNOC 0, .0.0 1} >      -- one list has one element, other at least 2
+  -- ${{int car, [int] cdr} 0, int 1}
     <
-      [[.0.0, .1] EQ, .0 CONS] .1,
-      [[.0.0, .1] GT, .0.1] [.0.0, [.1, [.0.1]] merge_uniq] CONS,
-      [.1, .0 CONS] CONS
+      {[.0.car, .1] EQ if, .0 CONS then} .then,
+      {[.0.car, .1] GT 0, .0.cdr 1} 
+      {.0.0 car, {.1 0, [.0.1] 1} merge_uniq cdr} CONS,
+      {.1 car, .0 CONS cdr} CONS
     >,
   [.0.0, .1.0] < GT, EQ [.0], [.1,.0] > ,          -- both lists are one element long
   .0,                                     -- first list has one element
@@ -105,7 +121,7 @@ min =
 -- $[int]
 < 
   singleton? .0,
-  SNOC [[.0, .1.0] <GT .1, .0>, .1 cdr] CONS min
+  SNOC {[.car, .cdr.0] <GT .1, .0> car, .cdr cdr cdr} CONS min
 >
 -- $int
 ;
@@ -113,7 +129,7 @@ max =
 -- $[int]
 < 
   singleton? .0,
-  SNOC [[.0, .1.0] <GT .0, .1>, .1 cdr] CONS max
+  SNOC {[.car, .cdr.0] <GT .0, .1> car, .cdr cdr cdr} CONS max
 >
 -- $int
 ;
@@ -126,25 +142,27 @@ cat =
 
 cats = 
 -- $ [[int]]
-{() lists, [] result} cats_
+  {() lists, [] result} cats_
 -- $[int]
 ;
 
 cats_ =
 -- $ {[[int]] lists, [int] result}
 < 
-  [.lists empty?, .result] .1 reverse,
+  {.lists empty? if, .result then} .then reverse,
   < 
     {.lists car empty? if, {.lists cdr lists, .result result} then} .then,
-    {.lists [car cdr, cdr] CONS lists, [.lists car car, .result] CONS result}
+    {.lists {car cdr car, cdr cdr} CONS lists, {.lists car car car, .result cdr} CONS result}
   > cats_
->; 
+>
+-- $[int]
+; 
 
 range = $int {() n, [] result} range_ $[int];
 range_ =
 < 
   {.n.0 if, .result then} .then,
-  {.n dec n, {.n 0, .result 1} CONS result} range_
+  {.n dec n, {.n car, .result cdr} CONS result} range_
 >;
 
 --  using PIPES:  join = [.list .0, [.with, .list cdr |] ^ cats] CONS; 
@@ -189,13 +207,13 @@ set =
 zip = 
 -- ${[int] x, [int] y} 
 < 
-  {[.x car, .y car] 0, {.x cdr x, .y cdr y} zip 1} CONS, 
+  {[.x car, .y car] car, {.x cdr x, .y cdr y} zip cdr} CONS, 
   []
 >;
 
 map_with_PLUS = $[[int]]
   < 
-    {car PLUS 0, cdr map_with_PLUS 1} CONS,
+    {car PLUS car, cdr map_with_PLUS cdr} CONS,
     []
   >
   $[int];
@@ -203,7 +221,7 @@ map_with_PLUS = $[[int]]
 pascal = 
 -- next line in pascal's triangle
 $[int]
-{{0 0,() 1} CONS x, {0 0, reverse 1} CONS reverse y} zip map_with_PLUS
+{{0 car,() cdr} CONS x, {0 car, reverse cdr} CONS reverse y} zip map_with_PLUS
 $[int]
 ;
 

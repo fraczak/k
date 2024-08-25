@@ -1,10 +1,10 @@
 car = .0;
-cdr = < SNOC.1, .0 [] >;
+cdr = < SNOC.cdr, .0 [] >;
 empty? = $[{}] <.0 'nope', 'yes'> .yes [];
 
 
-map_f = [(),"+",(),"=",[(),()]PLUS] CONCAT;
-map = <[car map_f, cdr map] CONS, []> ;
+map_f = [() toJSON,"+",() toJSON ,"=", [(),()] PLUS toJSON] CONCAT;
+map = <{car map_f car, cdr map cdr} CONS, []> ;
 
 
 # reduce_f = <GT.0,.1>; -- maximum

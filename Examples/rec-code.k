@@ -20,7 +20,7 @@ $ t
 sort = 
 $ [ int ]
   <
-    SNOC { .0 x, .1 sort t } insert,
+    SNOC { .car x, .cdr sort t } insert,
     { empty l, .0 v, empty r } t,
     empty
   >
@@ -48,30 +48,30 @@ $ t
 
 inc = $int [(),1] PLUS $int;
 len = 
- < SNOC .1 len inc,
+ < SNOC .cdr len inc,
    .0 1,
    0
  >
 ;
 
 concat = 
-$ [ [ int ] ] 
   < 
     SNOC 
-      < [.0 SNOC, .1] {.0.0 0, {.0.1 0, .1 1} CONS concat 1} CONS,
-        {.0.0 0, .1 concat 1} CONS,
-        .1 concat
+    ${[int] car, [ [ int ] ] cdr}
+      < {.car SNOC 0, .cdr 1}
+        {.0.car car, {.0.cdr car, .1 cdr} CONS concat cdr} CONS,
+        {.car.0 car, .cdr concat cdr} CONS,
+        .cdr concat
       >,
     .0,
     []
   >
-$ [ int ]
 ; 
 
 toVector = 
 $ t 
   < ._ [],
-    .t [.l toVector, [.v], .r toVector] concat
+    .t [.l toVector, [.v], .r toVector] $[[int]] concat
   >
 $ [ int ] 
 ;

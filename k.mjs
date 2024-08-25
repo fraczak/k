@@ -1,4 +1,5 @@
-#!/usr/bin/env node
+#!/usr/bin/node --stack-size=8000
+// #!/usr/bin/env node
 // !/usr/bin/node --stack-size=8000
 
 import fs from "node:fs";
