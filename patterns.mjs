@@ -27,11 +27,15 @@ function relDefToString(relDef) {
       case "dot":
       case "code":
       case "pipe":  
-        return [...rel.patterns];
+      case "filter":
+        return [...rel.patterns]; 
     }
-    throw new Error("NOT EXPECTED OP:", rel);
+    throw new Error("NOT EXPECTED OP:", JSON.stringify(rel, null, 2));
   };
 
+  // console.log("SIZE", relDef.typePatternGraph.size());
+  // console.log(relDef.typePatternGraph.patterns.nodes);
+  // console.log(relDef.typePatternGraph.edges);
   return JSON.stringify(dumpPatterns(relDef.def).map((x) => {
     const { pattern, fields, type} = relDef.typePatternGraph.get_pattern(x);
     return {pattern, fields, type};
@@ -72,9 +76,10 @@ function compactRel(relDef, name = "") {
       case "dot":
       case "code":
       case "pipe":
+      case "filter":
         break;
       default:
-        console.error("NOT EXPECTED OP:", rel);
+        console.error("NOT EXPECTED OP:", JSON.stringify(rel, null, 2));
         break;
     };
     return newRel;
@@ -175,15 +180,54 @@ function patterns(usedCodes, representatives, rels) {
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
           break;
-        
+        case "filter":
+          rel.patterns = [];
+          rel.patterns[1] = rel.patterns[0] = filterToPattern(rel.filter, rootDef);
+          break;
         default:
-          console.error("NOT EXPECTED OP:", rel);
+          console.error("NOT EXPECTED OP for aumentation:", JSON.stringify(rel, null, 2));
           break;
       }
     } catch (e) {
       console.error(`Code Derivation Error for '${rel.op}' (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column}): ${e.message}.`);
       throw e;
     }   
+  }
+
+  function filterToPattern(filter, rootDef, context = {}) {
+    const getFields = () => 
+      Object.keys(filter.fields || {}).reduce( (fields, label) => {
+        const patternId = filterToPattern(filter.fields[label], rootDef, context);
+        fields[label] = [patternId];
+        return fields;
+      }, {});
+    switch (filter.type) {
+      case "name":
+        if (! (filter.name in context)) {
+          context[filter.name] = rootDef.typePatternGraph.addNewNode();
+        }
+        return context[filter.name];
+      case "code":
+        return rootDef.typePatternGraph.getTypeId(filter.code);
+      case "union":
+        return rootDef.typePatternGraph.addNewNode(
+          {pattern: filter.open ? '<...>' : '<>', fields:Object.keys(filter.fields || {})},
+          getFields());
+      case "product": 
+        return rootDef.typePatternGraph.addNewNode(
+          {pattern: filter.open ? '{...}' : '{}', fields:Object.keys(filter.fields || {})},
+          getFields());
+      case "vector": {
+          const vector = filterToPattern(filter.vector, rootDef, context);
+          return rootDef.typePatternGraph.addNewNode(
+            {pattern: '[]', fields: ["vector-member"]},
+            {"vector-member": [vector]});
+        }
+      default:
+        return rootDef.typePatternGraph.addNewNode(
+          {pattern: filter.open ? '(...)' : '()'},
+          getFields());
+    }
   }
 
   function augmentProduct(rel,rootDef) {
@@ -429,7 +473,7 @@ function patterns(usedCodes, representatives, rels) {
             relDef.typePatternGraph.unify(`ref:input ${relName}(${varName})`, varRel.inputPatternId, cloned[varInputPatternId]);
             relDef.typePatternGraph.unify("ref:output", varRel.outputPatternId, cloned[varOutputPatternId]);
           } catch (e) {
-            console.error(`Type Error in call to ${varName} in definition of ${relName}: lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}): ${e.message}.`);       
+            // console.error(`Type Error in call to ${varName} in definition of ${relName}: lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}): ${e.message}.`);       
             throw e;
           }
         }

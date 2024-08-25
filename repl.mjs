@@ -16,7 +16,7 @@ const help = function () {
   console.log(" --c          print codes");
   console.log(" --r          print rels");
   console.log(" --p          pretty-print last value");
-  console.log(" --pp         pretty-print last value (abrevaited)");
+  console.log(" --pp         print last value via node.js 'console.log'");
   console.log(" --s reg      store the last value in register 'reg'");
   console.log(" --g reg      get the value from register 'reg'");
   console.log(" --regs       print registers names");

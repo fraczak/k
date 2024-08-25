@@ -353,16 +353,13 @@ A comment explaining how the node was created is added as well.
 
 As the name indicates, adds an edge which can lead to many nodes.
 
-
-
-
 Repeat the procedure until the type pattern graph is not changing anymore.
 
-# TODO:
+## TODO:
 
 - [X] Redefine built-in CONS and SNOC to allign with no support for non-homogeneous lists
-- [ ] Introduce a bound for typing 
-- [ ] Check for loops, e.g., `$x = < x f, ...>`, `$x = [x]`, `$x = {x f, ...}` -- this 
+- [X] Integrate filters into typePatters (execution is not affected)
+- [ ] Introduce a space/time bounds for type derivation
+- [ ] Check for loops, e.g., `$x = < x f, ...>`, `$x = [x]`, `$x = {x f, ...}` -- this
       looks a little arbitrary, but maybe this is actually an important part
-- [ ] Integrate filters into typePatters (executions?)
 - [ ] better error repporting - the info exists in the pattern parent tree
