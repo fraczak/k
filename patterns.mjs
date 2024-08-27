@@ -194,10 +194,11 @@ function patterns(usedCodes, representatives, rels) {
     }   
   }
 
-  function filterToPattern(filter, rootDef, context = {}) {
+  function filterToPattern(filter, rootDef) {
+    const context = rootDef.patternVars;
     const getFields = () => 
       Object.keys(filter.fields || {}).reduce( (fields, label) => {
-        const patternId = filterToPattern(filter.fields[label], rootDef, context);
+        const patternId = filterToPattern(filter.fields[label], rootDef);
         fields[label] = [patternId];
         return fields;
       }, {});
@@ -218,7 +219,7 @@ function patterns(usedCodes, representatives, rels) {
           {pattern: filter.open ? '{...}' : '{}', fields:Object.keys(filter.fields || {})},
           getFields());
       case "vector": {
-          const vector = filterToPattern(filter.vector, rootDef, context);
+          const vector = filterToPattern(filter.vector, rootDef);
           return rootDef.typePatternGraph.addNewNode(
             {pattern: '[]', fields: ["vector-member"]},
             {"vector-member": [vector]});
@@ -401,7 +402,9 @@ function patterns(usedCodes, representatives, rels) {
     const rootDef = rels[relName];
     rootDef.typePatternGraph = new TypePatternGraph();
     rootDef.varRefs = []; // the list of non-built references as pointers to AST nodes
+    rootDef.patternVars = {}; 
     augment(rootDef.def, rootDef);
+    delete rootDef.patternVars;
   }
    
   

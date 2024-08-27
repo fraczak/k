@@ -319,6 +319,17 @@ class TypePatternGraph {
           case 'type':{
             const code = codes.find(p2.type);
             switch (code.code) {
+              case 'int':
+                  // supports (2 .2) which returns unit
+                  if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
+                    return p2;
+                  break;
+                case 'string':
+                  return p2;
+                case 'bool':
+                  if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
+                    return p2;
+                  break;
               case 'union': {
                 let p2_fields = Object.keys(code[code.code]);
                 if (subsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};

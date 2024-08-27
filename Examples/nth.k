@@ -2,40 +2,43 @@ inc = [$int,1] PLUS;
 dec = [$int,-1] PLUS;
 car = .0;
 cdr = < SNOC.cdr, []>;
-empty? = <{.0 nope}, {() empty}> .empty;
-singleton? = <{.1 nope},{[.0] singleton}> .singleton;
+empty? = ?[X] <{.0 nope}, {() empty}> .empty;
+singleton? = ?[X] <{.1 nope},{[.0] singleton}> .singleton;
 
 take = 
--- ${ int n, [int] list}
+?{ $int n, [X] list}
   {.n n, [] head, .list tail} take_
--- ${[int] head, [int] tail}
+?{[X] head, [X] tail}
 ;
 
 take_ = 
--- ${ int n, [int] head, [int] tail}
+?{ $int n, [X] head, [X] tail}
 <
   {.head reverse head, .tail empty? tail},
   {[.n,0] EQ if, {.head reverse head, .tail tail} then} .then,
   {.n dec n, {.tail car car, .head cdr} CONS head, .tail cdr tail} take_
 >
--- ${[int] head, [int] tail}
+?{ [X] head, [X] tail}
 ;
 
-reverse = {() in, [] out} reverse_;
+reverse = ?[X] {() in, [] out} reverse_ ?[X];
 
 reverse_ =
--- ${[int] in, [int] out}
+?{ [X] in, [X] out}
 < 
-  [.in empty?, .out] .1,
+  {.in empty? if, .out then} .then,
   {{.in car car, .out cdr} CONS out, .in cdr in} reverse_
 >
--- $[int]
+?[X]
 ;
 
-split = {() list, [] one, [] two} split_;
+split = 
+? [X]
+  {() list, [] one, [] two} split_
+? { [X] 0, [X] 1 };
 
 split_ =
--- ${[int] list, [int] one, [int] two}
+? {[X] list, [X] one, [X] two}
 <
   {.list empty? if, {.one reverse 0, .two reverse 1} then} .then,
   {.list cdr             list, 
@@ -43,27 +46,26 @@ split_ =
     .two                 one
   } split_
 >
--- ${[int] 0, [int] 1}
+? {[X] 0, [X] 1}
 ;
 
-// TODO: REWRITE WITH NEW CONS/SNOC!!!!
 merge =
--- ${[int] 0, [int] 1}
+?{ [X] 0, [X] 1 }
  <
   {.0 SNOC 0, .1 SNOC 1}                      -- both lists are at least 2 element long
-  -- ${{int car, [int] cdr} 0, {int car, [int] cdr} 1}
+  ? {{X car, [X] cdr} 0, {X car, [X] cdr} 1}
   < 
     {[.0.car, .1.car] GT 0, .0.cdr 1, .1.cdr 2}, 
     {[.1.car, .0.car] 0, .1.cdr 1, .0.cdr 2}
   >
-  -- ${[int] 0, [int] 1, [int] 2}
+  ? {[X] 0, [X] 1, [X] 2}
   {.0.0 car, {.1 0, {.0.1 car, .2 cdr} CONS 1} merge cdr} CONS,
   
   < {.0 SNOC 0, .1.0 1}, {.1 SNOC 0, .0.0 1} >      -- one list has one element, other at least 2
-  -- ${{int car, [int] cdr} 0, int 1}
+  --? {{X car, [X] cdr} 0, X 1}
   <
     {[.0.car, .1] GT 0, .0.cdr 1}
-    ${[int] 0, [int] 1} 
+    ?{[X] 0, [X] 1} 
     {.0.0 car, {.1 0, [.0.1] 1} merge cdr} CONS,
 
     {.1 car, .0 CONS cdr} CONS
@@ -73,7 +75,7 @@ merge =
   .0,                                     -- first list has one element
   .1                                      -- otherwise
 >
--- $[int]
+? [X]
 ;
 
 sort = 
@@ -81,7 +83,7 @@ sort =
 <
   empty?,
   singleton?,
-  split [.0 sort, .1 sort] merge
+  split {.0 sort 0, .1 sort 1} merge
 >
 -- $[int]
 ;
