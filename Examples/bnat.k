@@ -46,22 +46,6 @@ to_digit = <
 remove_leading_zeros =
       < .0 remove_leading_zeros, () >;
 
-/****
-typing:    <    .0     remove_leading_zeros    ,   ()    >
-        :0   :1    :2                       :3  :4    :5    :6
-
-?X0 = ?X1 = ?X4  -- comp+product+union-left -- 0,1,4 --> 0 
-?X6 = ?X5 = ?X3  -- comp-union-right        -- 3,5,6 --> 3 -->0
-?X0 = ?X2  -- input type of 'remove_leading_zeros' -- 0,2 --> 0
-?X4 = ?X5  - identity type                         -- 4,5 --> 4 --> 0
-
-?X1 = /?X2 0, .../ -- projection 
-  ?X0 = /?X0 0, .../ -- only union type is possible here!!!
-  ?X0 = <?X0 0, ...>
-remove_leading_zeros: <?X0 0, ...> --> <?X0 0, ...> where ?X0 = <?X0 0, ...>
-
-
-*/
 
 _append_zero =
      < ._ _ _0,             -- ( _ ->  0 _)
@@ -89,32 +73,32 @@ _reverse_bnat =
 
 _add2wc =
 -- least significant bit first addition with carry
-    ${bnat x, bnat y, bnat c}
+    ${bnat x, bnat y, <{} 0, {} 1> c}
     <
-      {.x.0 x, .y.0 y, .c.0 c} {.x x, .y y, _ _0 c} _add2wc _0,
-      {.x.0 x, .y.0 y, .c.1 c} {.x x, .y y, _ _0 c} _add2wc _1,
+      {.x.0 x, .y.0 y, .c.0 c} {.x x, .y y, {} _0  c} _add2wc _0,
+      {.x.0 x, .y.0 y, .c.1 c} {.x x, .y y, {} _0 c} _add2wc _1,
 
-      {.x.0 x, .y.1 y, .c.0 c} {.x x, .y y, _ _0 c} _add2wc _1,
-      {.x.0 x, .y.1 y, .c.1 c} {.x x, .y y, _ _1 c} _add2wc _0,
+      {.x.0 x, .y.1 y, .c.0 c} {.x x, .y y, {} _0 c} _add2wc _1,
+      {.x.0 x, .y.1 y, .c.1 c} {.x x, .y y, {} _1 c} _add2wc _0,
       
-      {.x.1 x, .y.0 y, .c.0 c} {.x x, .y y, _ _0 c} _add2wc _1,
-      {.x.1 x, .y.0 y, .c.1 c} {.x x, .y y, _ _1 c} _add2wc _0,
+      {.x.1 x, .y.0 y, .c.0 c} {.x x, .y y, {} _0 c} _add2wc _1,
+      {.x.1 x, .y.0 y, .c.1 c} {.x x, .y y, {} _1 c} _add2wc _0,
       
-      {.x.1 x, .y.1 y, .c.0 c} {.x x, .y y, _ _1 c} _add2wc _0,
-      {.x.1 x, .y.1 y, .c.1 c} {.x x, .y y, _ _1 c} _add2wc _1,
+      {.x.1 x, .y.1 y, .c.0 c} {.x x, .y y, {} _1 c} _add2wc _0,
+      {.x.1 x, .y.1 y, .c.1 c} {.x x, .y y, {} _1 c} _add2wc _1,
       {.x._ x, .c.0 c, .y y} .y,
       {.y._ y, .c.0 c, .x x} .x,
       {.x._ x, .c.1 c, .y._ y} n1,
       {.x._ x, .y.0 y, .c.1 c} .y _1,
       {.x.0 x, .y._ y, .c.1 c} .x _1,
-      {.x._ x, .y.1 y, .c.1 c} {_ x, .y y, _ _1 c} _add2wc _0,
-      {.x.1 x, .y._ y, .c.1 c} {.x x, _ y, _ _1 c} _add2wc _0      
+      {.x._ x, .y.1 y, .c.1 c} {_ x, .y y, {} _1 c} _add2wc _0,
+      {.x.1 x, .y._ y, .c.1 c} {.x x, _ y, {} _1 c} _add2wc _0      
 >;
 
 plus = { 
   .x remove_leading_zeros reverse_bnat x, 
   .y remove_leading_zeros reverse_bnat y, 
-  _ _0 c } 
+  {} _0 c } 
   _add2wc reverse_bnat;
 
 to_string = <
@@ -137,6 +121,7 @@ toStr = <
 _sub2wc = 
 -- least significat bit first substraction with carry
 -- _log!
+  ${bnat x, bnat y, <{} 0, {} 1> c}
 <
     -- ({...,       'y '_, 'c '0 } -> $.x ),
   {.x x, .y._ y, .c.0 c} .x,
@@ -165,7 +150,7 @@ _sub2wc =
 x_minus_y =
   { .x remove_leading_zeros reverse_bnat x,
     .y remove_leading_zeros reverse_bnat y,
-    _ _0 c}
+    {} _0 c}
   _sub2wc
   reverse_bnat remove_leading_zeros;
 
@@ -179,19 +164,4 @@ shift = { x_minus_y x, { .y x, .y y } plus y } ; -- (x,y)->(x-y,2y);
   {.0 from_digit x, .1 from_digit y} 
   {x_minus_y to_digit minus, mod to_digit mod} result
 } 
-----------------------------------------------------------------
-/****
-typing mod =   <    {    shift    mod    x,    .y    y }    mod   ,    .x     >
-positions:  :0 < :1 { :2 shift :3 mod :4 x, :5 .y :6 y } :7 mod :8, :9 .x :10 > :11
 
-variables:
-?X0 = ?X1 = ?X2 = ?X5 = ?X9 -- comp + product + union (input) 0,1,2,5,9 --> 0
-?X11 = ?X10 = ?X8 -- comp + union  (output)                   8,10,11   --> 8
-?X3 = ?X0 = ?X7 -- input type of 'mod'                        0,3,7     --> 0
-?X4 = ?X11 =* ?X8-- output type of 'mod'                      4,8,11    --> 8
-                                                              6         --> 6
-?X7 = {?X4 x, ?X6 y} -- output for product
-  ?X0 = {?X8 x, ?X6 y}
-
-mod: {$X x, $Y y} -> $X
-*******/

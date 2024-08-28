@@ -1,7 +1,7 @@
 inc = [$int,1] PLUS;
 dec = [$int,-1] PLUS;
-car = .0;
-cdr = < SNOC.cdr, []>;
+car = ?[X] .0;
+cdr = ?[X] < SNOC.cdr, []>;
 empty? = ?[X] <{.0 nope}, {() empty}> .empty;
 singleton? = ?[X] <{.1 nope},{[.0] singleton}> .singleton;
 
@@ -21,7 +21,7 @@ take_ =
 ?{ [X] head, [X] tail}
 ;
 
-reverse = ?[X] {() in, [] out} reverse_ ?[X];
+reverse = ?[X] {() in, [] ?[X] out} reverse_;
 
 reverse_ =
 ?{ [X] in, [X] out}
@@ -34,7 +34,7 @@ reverse_ =
 
 split = 
 ? [X]
-  {() list, [] one, [] two} split_
+  {() list, [] ?[X] one, [] ?[X] two} split_
 ? { [X] 0, [X] 1 };
 
 split_ =
@@ -79,31 +79,29 @@ merge =
 ;
 
 sort = 
--- $[int]
+?[X]
 <
   empty?,
   singleton?,
   split {.0 sort 0, .1 sort 1} merge
 >
--- $[int]
+?[X]
 ;
 
 merge_uniq =
--- ${[int] 0, [int] 1}
+?{[X] 0, [X] 1}
  <
   {.0 SNOC 0, .1 SNOC 1}                       -- both lists are at least 2 element long
     < 
       {[.0.car, .1.car] GT 0, .0.cdr 1, .1.cdr 2}, 
       {[.1.car, .0.car] 0, .1.cdr 1, .0.cdr 2}
     >
-    -- ${[int] 0, [int] 1, [int] 2}
     < 
       {.0 EQ .0 car, {.1 0, .2 1} merge_uniq cdr},
       {.0.0 car, {.1 0, {.0.1 car, .2 cdr} CONS 1} merge_uniq cdr} 
     > CONS,
 
   <{.0 SNOC 0, .1.0 1}, {.1 SNOC 0, .0.0 1} >      -- one list has one element, other at least 2
-  -- ${{int car, [int] cdr} 0, int 1}
     <
       {[.0.car, .1] EQ if, .0 CONS then} .then,
       {[.0.car, .1] GT 0, .0.cdr 1} 
@@ -114,42 +112,44 @@ merge_uniq =
   .0,                                     -- first list has one element
   .1                                      -- otherwise
 >
--- $[int]
+?[X]
 ;
 
-sort_uniq = <empty?, singleton?, split [.0 sort_uniq, .1 sort_uniq] merge_uniq >;
+sort_uniq = <empty?, singleton?, split {.0 sort_uniq 0, .1 sort_uniq 1} merge_uniq >;
 
 min = 
--- $[int]
+?[X]
 < 
   singleton? .0,
   SNOC {[.car, .cdr.0] <GT .1, .0> car, .cdr cdr cdr} CONS min
 >
--- $int
+?X
 ;
+
 max = 
--- $[int]
+?[X]
 < 
   singleton? .0,
   SNOC {[.car, .cdr.0] <GT .0, .1> car, .cdr cdr cdr} CONS max
 >
--- $int
+?X
 ;
 
+
 cat = 
--- ${[int] x, [int] y} 
+?{[X] x, [X] y} 
 {.x reverse in, .y out} reverse_
--- $[int]
+?[X]
 ;
 
 cats = 
--- $ [[int]]
+?[[X]]
   {() lists, [] result} cats_
--- $[int]
+?[X]
 ;
 
 cats_ =
--- $ {[[int]] lists, [int] result}
+?{[[X]] lists, [X] result}
 < 
   {.lists empty? if, .result then} .then reverse,
   < 
@@ -157,7 +157,7 @@ cats_ =
     {.lists {car cdr car, cdr cdr} CONS lists, {.lists car car car, .result cdr} CONS result}
   > cats_
 >
--- $[int]
+?[X]
 ; 
 
 range = $int {() n, [] result} range_ $[int];
@@ -167,20 +167,21 @@ range_ =
   {.n dec n, {.n car, .result cdr} CONS result} range_
 >;
 
+
 --  using PIPES:  join = [.list .0, [.with, .list cdr |] ^ cats] CONS; 
 join = 
--- ${[str] list, str with}
+?{[X] list, X with}
   {.list list, .with with, [] result} 
   join_ 
   reverse
--- $[str]
+?[X]
 ;
 
 join_ = 
 <
-  [.list empty?, .result] .1,
-  [.list singleton?, [.list car, .result] CONS] .1,
-  {.list cdr list, .with with, [.with, [.list.0, .result] CONS] CONS result} 
+  {.list empty? if, .result then} .then,
+  {.list singleton? if, {.list car car, .result cdr} CONS then} .then,
+  {.list cdr list, .with with, {.with car, {.list.0 car, .result cdr} CONS cdr} CONS result} 
   join_
 >;
 
@@ -227,7 +228,8 @@ $[int]
 $[int]
 ;
 
-// pascal2 = {{0 0,() 1} CONS x, [0,reverse] CONS reverse y} zip | PLUS ^;
+pascal2 = {{0 car,() cdr} CONS x, {0 car, reverse cdr} CONS reverse y} zip | PLUS ^;
+
 
 -- loaded
 ()

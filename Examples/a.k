@@ -2,7 +2,7 @@
 
 $rat = {int n, int d};
 
-MINUS = SNOC [.car, .cdr PLUS [(),-1] TIMES] PLUS;
+MINUS = $[int] SNOC [.car, .cdr PLUS [(),-1] TIMES] PLUS;
 
 abs = $int < [0, ()] GT [-1,.1] TIMES, ()>;
 
@@ -36,12 +36,10 @@ gcd_ = <
 
 // div
 
-
 log2_floor = ${int x, int step} 
 -- finds the largest k, such that 'step * 2^k <= x',
 -- returns k+1, i.e., 0 if x < step, and k+1 otherwise.
   {.x x, .step step, 0 log} log2_floor_;
-
 
 log2_floor_ = <
   {[.step,.x] GT if, .log then} .then,
@@ -138,37 +136,48 @@ times_rat = ${rat x, rat y}
 minus_rat = ${rat x, rat y}
   {
     .x x, 
-    .y { [0, .n] MINUS n, .d d} y
+    .y {[0, .n] MINUS n, .d d} y
   } 
   plus_rat;
 
-inverse_rat = $rat
+inverse_rat = 
+$rat
   { .d n, .n d }
-  normalize_rat;
+  normalize_rat
+;
 
-div_rat = ${rat x, rat y}
-  { .x x, .y inverse_rat y} times_rat;
+div_rat = 
+${rat x, rat y}
+  { .x x, .y inverse_rat y} times_rat
+;
 
 --------------------
 
 int_rat = $rat 
   { .n n, .d d, {.n x,.d y} div div }
   { .div.div int, {.div.rem n, .d d} rat}
+${int int, rat rat}
 ;
 
-_rat! = $rat {
-  () 0, 
-  [
+ratToString = $rat
+[
     .n toJSON, 
     "/", 
     .d toJSON, 
     " = ",
+    normalize_rat
     <
       [.d,.n] GT [.1 toJSON ,"/", .0 toJSON] CONCAT,
       {.n 0,[.d,1] EQ 1} [.0 toJSON] CONCAT,
       int_rat [.int toJSON,"+",.rat.n toJSON,"/",.rat.d toJSON] CONCAT
     >
-  ] CONCAT _log! 1
- } .0;
+  ] CONCAT
+$string
+;
+
+_rat! = $rat {
+  () carryOn, 
+  ratToString _log! drop
+ } .carryOn;
 
 ()

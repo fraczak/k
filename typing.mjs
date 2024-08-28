@@ -240,7 +240,8 @@ class TypePatternGraph {
             if (subsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields},...) with (${p2.fields})`);
           case '[]':
-            return p2;
+            if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) return p2;
+            throw new Error(`Cannot unify [] with (${p1.fields},...)`);
           case '{}':
             if (subsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields},...) with {${p2.fields}}`);
@@ -283,7 +284,8 @@ class TypePatternGraph {
             if (subsetP(p1.fields, p2.fields))
               return {pattern: '{}', fields: p2.fields};
           case '[]':
-            return p2;
+            if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) return p2;
+            throw new Error(`Cannot unify [] with {${p1.fields},...}`);
           case '{}':
             if (subsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify {${p1.fields},...} with {${p2.fields}}`);
@@ -340,6 +342,8 @@ class TypePatternGraph {
         }; 
         break;
       case '()':
+        console.log(`!!!!!!!!!!!!!!!!!!!!!!!!! VERY UNLIKELY: p1: ${JSON.stringify(p1)}, p2: ${JSON.stringify(p2)}`);
+        throw new Error('Unexpected pattern ()');
         switch (p2.pattern) {
           case '()':
             if (eqsetP(p1.fields, p2.fields)) return p2;
@@ -348,7 +352,8 @@ class TypePatternGraph {
             if (eqsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields}) with {${p2.fields}}`);
           case '[]':
-            return p2;
+            if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) return p2;
+            throw new Error(`Cannot unify [] with (${p1.fields})`);
           case '<>':
             if (eqsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields}) with <${p2.fields}>`);
@@ -367,10 +372,11 @@ class TypePatternGraph {
         break;
       case '[]':
         switch (p2.pattern) {
-          case '[]':
-            if (eqsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify [${p1.fields}] with [${p2.fields}]`);
           case '{}':
+            // if (p2.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
+            // return p1;
+            throw new Error(`Cannot unify [] with {${p2.fields}}`);
+          case '[]':
             return p1;
           case '<>':
             throw new Error('Cannot unify [] with <>');

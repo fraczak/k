@@ -1,15 +1,14 @@
-$elemType = < int a, int b, int c >;
-$list = < {} nil, { elemType car, list cdr} list >;
+car = ?[X] .0;
+cdr = ?[X] <SNOC .cdr, car []>;
 
-filter_f = [.c,()].1;
+filter_f = {<.a, .c> if , () then} .then;
 filter = <
-    .list <
-        {{.car filter_f car, .cdr filter cdr} list},
-        .cdr filter
-    >,
-    {.nil nil}
+    {car filter_f car, cdr filter cdr} CONS,
+    cdr filter,
+    []
 > ;
 
+["a","b","c", "c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","a","s","t","u","v","w","c","y","z"]
 filter
 
 
