@@ -189,7 +189,7 @@ function patterns(usedCodes, representatives, rels) {
           break;
       }
     } catch (e) {
-      console.error(`Code Derivation Error for '${rel.op}' (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column}): ${e.message}.`);
+      e.message = `Type Error in '${rel.op}' (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column})\n - ${e.message}`;
       throw e;
     }   
   }
@@ -476,7 +476,9 @@ function patterns(usedCodes, representatives, rels) {
             relDef.typePatternGraph.unify(`ref:input ${relName}(${varName})`, varRel.inputPatternId, cloned[varInputPatternId]);
             relDef.typePatternGraph.unify("ref:output", varRel.outputPatternId, cloned[varOutputPatternId]);
           } catch (e) {
-            // console.error(`Type Error in call to ${varName} in definition of ${relName}: lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}): ${e.message}.`);       
+            e.message = 
+`Type Error in definition of '${relName}' at call to '${varName}': lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}):
+ - ${e.message}`;       
             throw e;
           }
         }

@@ -332,13 +332,12 @@ Just copy the edges from the source nodes to the target node by combining destin
 `Flat-unify` is defined as reduce over the list of nodes, with initial value being `(...)`.
 The binary reduce function is defined as follows (it is commutative):
 
-| f-unify  | (...) | {...} | <...> |  ()  |  []  |  {}  |  <>  | type
-|----------|-------|-------|-------|------|------|------|------|------
-|**type**  | type  | type  | type  | type | type | type | type | type
-|**<>**    |  <>   | ERROR | <>    | <>   | ERROR| ERROR| <>
-|**{}**    |  {}   |  {}   | ERROR |  {}  |  []  |  {}
-|**[]**    |  []   |  []   | ERROR |  []  |  []
-|**()**    |  ()   |  {}   | <>    |  ()
+| f-unify  | (...) | {...} | <...> |  []  |  {}  |  <>  | type
+|----------|-------|-------|-------|------|------|------|------
+|**type**  | type  | type  | type  | type | type | type | type
+|**<>**    |  <>   | ERROR | <>    | ERROR| ERROR| <>
+|**{}**    |  {}   |  {}   | ERROR | ERROR|  {}
+|**[]**    |  []   |  []   | ERROR |  []
 |**<...>** | <...> | ERROR | <...>
 |**{...}** | {...} | {...}
 |**(...)** | (...)
@@ -359,7 +358,7 @@ Repeat the procedure until the type pattern graph is not changing anymore.
 
 - [X] Redefine built-in CONS and SNOC to allign with no support for non-homogeneous lists
 - [X] Integrate filters into typePatters (execution is not affected)
+- [ ] better error repporting - the info exists in the pattern parent tree
 - [ ] Introduce a space/time bounds for type derivation
 - [ ] Check for loops, e.g., `$x = < x f, ...>`, `$x = [x]`, `$x = {x f, ...}` -- this
       looks a little arbitrary, but maybe this is actually an important part
-- [ ] better error repporting - the info exists in the pattern parent tree
