@@ -59,7 +59,7 @@ union = <
   {() union}
 >;
 
-eq? =  <
+eq? = <
   [.0.sink, .1.sink] sink,
   [.0.char, .1.char] EQ .0 char,
   [.0.star, .1.star] eq? star,

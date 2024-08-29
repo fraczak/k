@@ -322,16 +322,16 @@ class TypePatternGraph {
             const code = codes.find(p2.type);
             switch (code.code) {
               case 'int':
-                  // supports (2 .2) which returns unit
-                  if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
-                    return p2;
-                  break;
-                case 'string':
+                // supports (2 .2) which returns unit
+                if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
                   return p2;
-                case 'bool':
-                  if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
-                    return p2;
-                  break;
+                break;
+              case 'string':
+                return p2;
+              case 'bool':
+                if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
+                  return p2;
+                break;
               case 'union': {
                 let p2_fields = Object.keys(code[code.code]);
                 if (subsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
@@ -341,9 +341,7 @@ class TypePatternGraph {
           };
         }; 
         break;
-      case '()':
-        console.log(`!!!!!!!!!!!!!!!!!!!!!!!!! VERY UNLIKELY: p1: ${JSON.stringify(p1)}, p2: ${JSON.stringify(p2)}`);
-        throw new Error('Unexpected pattern ()');
+      case '()': // Pattern '()' can be introduced by filter e.g., ?(X x, Y x)
         switch (p2.pattern) {
           case '()':
             if (eqsetP(p1.fields, p2.fields)) return p2;
@@ -360,11 +358,24 @@ class TypePatternGraph {
           case 'type':{
             const code = codes.find(p2.type);
             switch (code.code) {
+              case 'int':
+                if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
+                  return p2;
+                break;
+              case 'string':
+                return p2;
+              case 'bool':
+                if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
+                  return p2;
+                break;
               case 'product':
               case 'union': {
                 let p2_fields = Object.keys(code[code.code]);
                 if (eqsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
-              }
+              }; break;
+              case 'vector':
+                if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
+                  return {...p2, fields: ['vector-member']};
             }
             throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
           };
