@@ -3,6 +3,7 @@
 import k from "./index.mjs";
 import {run, closeVector } from "./run.mjs";
 import { prettyCode, prettyRel } from "./pretty.mjs";
+import { find } from "./codes.mjs";
 
 import fs from "node:fs";
 
@@ -81,28 +82,23 @@ const registers = {};
               })(
                 prettyRel.bind(
                   null,
-                  prettyCode.bind(null, defs.codes, defs.representatives)
+                  prettyCode.bind(null, defs.representatives)
                 )
               );
             })(run.defs, {}));
+            // --c
         } else if (line.match(/^[ \n\t]*(?:--c)?$/)) {
           console.log(
             (function (defs, result) {
-              var codeExp, codeName, ref1;
-              if (defs == null) {
-                return result;
-              }
-              ref1 = defs.codes;
-              for (codeName in ref1) {
-                codeExp = ref1[codeName];
+              for (const codeName of Object.keys(defs.representatives || {})) {
+                const codeExp = find(defs.representatives[codeName] || codeName);
                 result[codeName] = prettyCode(
-                  defs.codes,
                   defs.representatives,
                   codeExp
                 );
               }
               return result;
-            })(run.defs, {})
+            })(run.defs || {}, {})
           );
           // --pp
         } else if (line.match(/^[ \n\t]*(?:--pp)?$/)) {

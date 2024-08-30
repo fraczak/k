@@ -1,3 +1,5 @@
+import { find } from "./codes.mjs";
+
 function compareAs(fn) {
   return function (a, b) {
     [a, b] = [a, b].map(fn);
@@ -9,12 +11,12 @@ function compareAs(fn) {
 
 const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
 
-function prettyCode_labels (codes, representatives, label_ref_map) {
+function prettyCode_labels (representatives, label_ref_map) {
   return Object.keys(label_ref_map)
     .sort( compareAs((x) => x) )
     .map( (label) => {
       const plabel = nameRE.test(label) ? label : `'${label}'`;
-      return `${prettyCode(codes, representatives, {
+      return `${prettyCode(representatives, {
         code: "ref",
         ref: label_ref_map[label],
       })} ${plabel}`;
@@ -22,21 +24,21 @@ function prettyCode_labels (codes, representatives, label_ref_map) {
     .join(", ");
 };
 
-function prettyCode (codes, representatives, codeExp) {
+function prettyCode (representatives, codeExp) {
   switch (codeExp.code) {
     case "ref":
       const name = representatives[codeExp.ref] || codeExp.ref;
       if (name.startsWith(":")) {
-        return prettyCode(codes, representatives, codes[name]);
+        return prettyCode(representatives, find(name));
       } else {
         return name;
       }
     case "product":
-      return `{${prettyCode_labels(codes, representatives, codeExp.product)}}`;
+      return `{${prettyCode_labels(representatives, codeExp.product)}}`;
     case "union":
-      return `< ${prettyCode_labels(codes, representatives, codeExp.union)} >`;
+      return `< ${prettyCode_labels(representatives, codeExp.union)} >`;
     case "vector":
-      return `[${prettyCode(codes,representatives, {code:'ref', ref:codeExp.vector})}]`;
+      return `[${prettyCode(representatives, {code:'ref', ref:codeExp.vector})}]`;
       // return `[${representatives[codeExp.vector] || codeExp.vector}]`;
     default:
       return ":error";
