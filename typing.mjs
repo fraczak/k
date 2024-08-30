@@ -557,5 +557,5 @@ class TypePatternGraph {
   }
 }
 
-export {TypePatternForest, TypePatternGraph};
-export default {TypePatternForest, TypePatternGraph};
+export { TypePatternGraph };
+export default { TypePatternGraph };

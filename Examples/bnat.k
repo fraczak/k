@@ -159,7 +159,8 @@ mod   = < { shift mod x, .y y } mod, .x >;
 shift = { x_minus_y x, { .y x, .y y } plus y } ; -- (x,y)->(x-y,2y);
 
 ----------------------------------------------------------------
-[9,4] {
+-- [9,4] 
+{
   () input,
   {.0 from_digit x, .1 from_digit y} 
   {x_minus_y to_digit minus, mod to_digit mod} result

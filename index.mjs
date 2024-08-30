@@ -30,13 +30,14 @@ runScriptOnData.doc = "Run 'script' (string) on 'data': (script,data) -> data";
 
 function annotate(script) {
   const { defs, exp } = parse(script);
-  const { codes, representatives } = t.finalize(defs.codes);
+  //const { codes, representatives } = t.finalize(defs.codes);
 
+  const representatives = t.register(defs.codes);
   const rels = {...defs.rels, "__main__": {def: exp}};
 
-  const pats = patterns(codes, representatives, rels);
+  patterns(representatives, rels);
  
-  return {rels,codes,representatives, ...pats}
+  return {rels, representatives}
 }
 annotate.doc = "Annotate all the script expressions with patterns";
 

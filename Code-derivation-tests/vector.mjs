@@ -16,7 +16,4 @@ t("$int [ $int true, false ] .0",  (annotated) => {
 });
 
 assert.throws(() => t(`$int [ $int true, 12 ]`), /Error/);
-console.log("The both errors are expected...");
 console.log("OK");
-
-// t(`[]`);

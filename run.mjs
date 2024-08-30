@@ -1,4 +1,5 @@
 import assert from "assert";
+import { find } from "./codes.mjs";
 
 const modulo = (a, b) => ((+a % (b = +b)) + b) % b;
 const valid = (x) => (isNaN(x) ? undefined : x);
@@ -73,12 +74,9 @@ const codes = {
 };
 
 function verify(code, value) {
-  if (code == null) {
-    // representatives = run.defs.representatives
-    // defCodes = JSON.stringify run.defs.codes
-    // console.log {code,value, representatives, defCodes}
-    return false;
-  }
+  "use strict";
+  if (code == null) return false;
+  code = find(code);
   switch (code.code) {
     case "vector":
       if (!Array.isArray(value)) return false;
@@ -99,11 +97,8 @@ function verify(code, value) {
         if (fields.length !== 1) return false;
         return verify(code.union[fields[0]], value[fields[0]]);
       }
-    default: {
-      const c = run.defs.codes[run.defs.representatives[code]];
-      if (c != null) return verify(c, value);
-      return codes[code](value);
-    }
+    default: 
+      return codes[code.code](value);
   }
 }
 

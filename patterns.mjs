@@ -95,8 +95,7 @@ function compactRel(relDef, name = "") {
   return {def: newDef, typePatternGraph: newTypePatternGraph, varRefs: newVarRefs};
 }
 
-function patterns(usedCodes, representatives, rels) {
-  codes.register(usedCodes);
+function patterns(representatives, rels) {
   // INPUT: 
   //   codes: {"BG": {"code": "product", "product": {}}, ...}
   //   representatives:{"{}": "BG", ...}

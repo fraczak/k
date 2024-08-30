@@ -202,7 +202,7 @@ function register(newCodes) {
 
 function find(codeName) {
   if (isBuiltIn(codeName))
-    return {code: codeName, def: "built-in["+codeName+"]"};
+    return {code: codeName, def: "builtin"};
   return JSON.parse(JSON.stringify(theRepository.codes[codeName]));
 };
 
