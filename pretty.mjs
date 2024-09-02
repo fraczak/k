@@ -1,4 +1,5 @@
 import { find } from "./codes.mjs";
+import { TypePatternGraph } from "./typing.mjs";
 
 function compareAs(fn) {
   return function (a, b) {
@@ -46,10 +47,13 @@ function prettyCode (representatives, codeExp) {
 };
 
 function prettyFilter (prettyCode, filter) {
-  const fieldsStr = (f) => 
-    Object.keys(f.fields).map( (key) => 
+  const fieldsStr = (f) => {
+    const fields = Object.keys(f.fields).map( (key) => 
       `${key}: ${prettyFilter(prettyCode, f.fields[key])}` 
-    ).join(", ") + (f.open ? ", ..." : ""); 
+    );
+    if (f.open) fields.push("...");
+    return fields.join(", ");
+  } 
   switch (filter.type) {
     case "name":
       return filter.name;
@@ -67,6 +71,7 @@ function prettyFilter (prettyCode, filter) {
     case "product":
       return `{${fieldsStr(filter)}}`;
   }
+  console.log(filter);
   throw new Error("unreachable");
 }
 
@@ -125,5 +130,70 @@ function prettyRel (prettyCode, exp) {
   return pretty(exp);
 };
 
-export default { prettyCode, prettyRel };
-export { prettyCode, prettyRel };
+
+function patterns2filters(typePatternGraph, ...patternIds) {
+  const newTypePatternGraph = new TypePatternGraph();
+  const renamed = typePatternGraph.clone(patternIds, newTypePatternGraph);
+  const newPatternIds = patternIds.map((id) => newTypePatternGraph.find(renamed[id]));
+
+  // inDegree - all open patterns, i.e. (...), {...}, <...>, 
+  // with inDegree > 1 are variables  
+  const inDegree = newTypePatternGraph.patterns.nodes.map((x) => 0);
+  newPatternIds.forEach( id => inDegree[id]++);
+  newTypePatternGraph.edges.forEach( outEdges => 
+    Object.values( outEdges ).forEach( destMap =>
+      Object.values(destMap).forEach( dst =>  
+        inDegree[dst]++ ) 
+    )
+  );
+
+  // variables - variables which will have to be added as extra filters
+  const variables = inDegree.reduce( (variables, degree, i) => {
+    if (degree > 1) variables[i] = [];
+    return variables;
+  }, {});
+
+  const buildFilter = (path, patternId, i) => {
+    if (variables[patternId]) {
+      if (variables[patternId][i] == undefined) variables[patternId][i] = [];
+      variables[patternId][i].push(path);
+      return { type: 'name', name: `X${patternId}` };
+    }
+    const pattern = newTypePatternGraph.get_pattern(patternId);
+
+    const edges = newTypePatternGraph.edges[patternId];
+    const fields = () => 
+      Object.keys(edges).reduce( (fields, key) =>{
+        fields[key] = buildFilter([...path, key], Object.values(edges[key])[0], i);
+        return fields;
+      }, {});
+
+    switch (pattern.pattern) {
+      case 'type':
+        return {type: "code", code: pattern.type};
+      case '[]':
+        return {
+          type: "vector", 
+          vector: buildFilter([...path, "vector-member"], Object.values(edges["vector-member"])[0], i)};
+      case '(...)':
+          return { type: null, open: true, fields: fields() };
+      case '{...}': 
+        return { type: 'product', open: true, fields: fields() };
+      case '<...>': 
+        return { type: union, open: true, fields: fields() };
+      case '()':
+        return { type: null, fields: fields() };
+      case  '{}':
+        return { type: 'product', fields: fields() };
+      case '<>':
+        return { type: 'union', fields: fields() };
+    }
+  };
+
+  const filters = newPatternIds.map( (id, i) => buildFilter([], id, i) );
+  return {filters, variables};
+
+}
+
+export default { prettyCode, prettyRel, patterns2filters };
+export { prettyCode, prettyRel, patterns2filters };

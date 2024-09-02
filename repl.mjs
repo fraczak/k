@@ -2,7 +2,7 @@
 
 import k from "./index.mjs";
 import {run, closeVector } from "./run.mjs";
-import { prettyCode, prettyRel } from "./pretty.mjs";
+import { prettyCode, prettyRel, patterns2filters } from "./pretty.mjs";
 import { find } from "./codes.mjs";
 
 import fs from "node:fs";
@@ -22,6 +22,7 @@ const help = function () {
   console.log(" --g reg      get the value from register 'reg'");
   console.log(" --regs       print registers names");
   console.log(" --l file.k   load 'file.k'");
+  console.log(" --x rel      Print the pattern for relation 'rel'");
 };
 
 help();
@@ -29,6 +30,7 @@ help();
 const re__l = /^[ \n\t]*(?:--l[ ]+)(.+)[ ]*?$/;
 const re__s = /^[ \n\t]*(?:--s[ ]+)(.+)[ ]*?$/;
 const re__g = /^[ \n\t]*(?:--g[ ]+)(.+)[ ]*?$/;
+const re__x = /^[ \n\t]*(?:--x[ ]+)(.+)[ ]*?$/;
 
 const registers = {};
 
@@ -66,6 +68,7 @@ const registers = {};
           // --a
           val = run.defs;
           console.log(val);
+          // --r
         } else if (line.match(/^[ \n\t]*(?:--r)?$/)) {
           console.log(
             (function (defs, result) {
@@ -103,13 +106,13 @@ const registers = {};
           // --pp
         } else if (line.match(/^[ \n\t]*(?:--pp)?$/)) {
           console.log(val);
-          // --s
          // --p
         } else if (line.match(/^[ \n\t]*(?:--p)?$/)) {
           console.log(JSON.stringify(val, null, 2));
-          // --s
+          // --regs
         } else if (line.match(/^[ \n\t]*(?:--regs)?$/)) {
           console.log(` -- registers: ${Object.keys(registers).join(", ")}`);
+          // --s
         } else if (line.match(re__s)) {
           let reg = line.match(re__s)[1];
           registers[reg] = val;
@@ -120,6 +123,17 @@ const registers = {};
           let reg = line.match(re__g)[1];
           val = registers[reg];
           console.log(val);
+            // --x
+        } else if (line.match(re__x)) {
+          const relName = line.match(re__x)[1];
+          const rel = run.defs.rels[relName];
+          const {filters, variables} = patterns2filters(rel.typePatternGraph, ...rel.def.patterns);
+          // console.log(filters);
+          console.log(" variables:", JSON.stringify(variables));
+          // console.log(JSON.stringify({filters, variables}, null, 2));
+          for (const filter of filters) {
+            console.log(prettyRel(prettyCode.bind(null, run.defs.representatives), {op: "filter", filter}));
+          }
           // ------ k code
         } else if (!line.match(/^[ \n\t]*(?:#.*)?$/)) {
           try {
