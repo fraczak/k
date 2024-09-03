@@ -14,7 +14,8 @@ console.log("Very! experimental repl shell for 'k-language'...");
 const help = function () {
   console.log(" --h          print help");
   console.log(" --a          print codes and relations");
-  console.log(" --c          print codes");
+  console.log(" --c          print aliased codes");
+  console.log(" --C CODE     print code definition");
   console.log(" --r          print rels");
   console.log(" --p          pretty-print last value");
   console.log(" --pp         print last value via node.js 'console.log'");
@@ -31,6 +32,7 @@ const re__l = /^[ \n\t]*(?:--l[ ]+)(.+)[ ]*?$/;
 const re__s = /^[ \n\t]*(?:--s[ ]+)(.+)[ ]*?$/;
 const re__g = /^[ \n\t]*(?:--g[ ]+)(.+)[ ]*?$/;
 const re__x = /^[ \n\t]*(?:--x[ ]+)(.+)[ ]*?$/;
+const re__C = /^[ \n\t]*(?:--C[ ]+)(.+)[ ]*?$/;
 
 const registers = {};
 
@@ -103,6 +105,16 @@ const registers = {};
               return result;
             })(run.defs || {}, {})
           );
+          // --C
+        } else if (line.match(re__C)) {
+          let codeName = line.match(re__C)[1];
+          if (codeName.startsWith("?"))
+            codeName = codeName.slice(1);
+          if (codeName.startsWith("$"))
+            codeName = codeName.slice(1);
+          const canonicalName = run.defs.representatives[codeName] || codeName;
+          const codeExp = find( canonicalName );
+          console.log(` ${canonicalName} = ${prettyCode(run.defs.representatives, codeExp)} --`, codeExp);
           // --pp
         } else if (line.match(/^[ \n\t]*(?:--pp)?$/)) {
           console.log(val);
@@ -127,9 +139,9 @@ const registers = {};
         } else if (line.match(re__x)) {
           const relName = line.match(re__x)[1];
           const rel = run.defs.rels[relName];
-          const {filters, variables} = patterns2filters(rel.typePatternGraph, ...rel.def.patterns);
+          const filters = patterns2filters(rel.typePatternGraph, ...rel.def.patterns);
           // console.log(filters);
-          console.log(" variables:", JSON.stringify(variables));
+          // console.log(" variables:", JSON.stringify(variables));
           // console.log(JSON.stringify({filters, variables}, null, 2));
           for (const filter of filters) {
             console.log(prettyRel(prettyCode.bind(null, run.defs.representatives), {op: "filter", filter}));

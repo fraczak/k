@@ -147,15 +147,19 @@ code_label
     | int col code                      { $$ = {label: $1.value, code: $3}; }
     ;
 
-filter
-    : name                        { $$ = { type: "name", name: $1.value, start: $1.start, end: $1.end}; }
-    | dollar code                 { $$ = { type: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
-    | lp labelled_filters      rp { $$ = { open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
+filter_
+    : dollar code                 { $$ = { type: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
+    | lp labelled_filters      rp { $$ = { type: null, open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | la labelled_filters      ra { $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | lc labelled_filters      rc { $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | lb filter rb                { $$ = { type: "vector", vector: $2, start: $1.start, end: $3.end }; }
     ;
 
+filter
+    : filter_                      { $$ = $1; }
+    | filter_ EQ name              { $$ = { name: $3.value, ...$1, start: $1.start, end: $3.end }; }
+    | name                         { $$ = { type: 'name', name: $1.value, open: true, start: $1.start, end: $1.end}; }
+    ;
 labelled_filters
     :                                   { $$ = { fields: {}}; }
     | non_empty_labelled_filters        { $$ = $1.reduce((r, lc) => {

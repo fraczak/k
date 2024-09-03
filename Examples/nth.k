@@ -6,9 +6,9 @@ empty? = ?[X] <{.0 nope}, {() empty}> .empty;
 singleton? = ?[X] <{.1 nope},{[.0] singleton}> .singleton;
 
 take = 
-?{ $int n, [X] list}
+--?{ $int n, [(...)] list}
   {.n n, [] head, .list tail} take_
-?{[X] head, [X] tail}
+--?{[X] head, [X] tail}
 ;
 
 take_ = 
@@ -79,13 +79,13 @@ merge =
 ;
 
 sort = 
-?[X]
+?[(...)]=X0
 <
   empty?,
   singleton?,
   split {.0 sort 0, .1 sort 1} merge
 >
-?[X]
+?X0
 ;
 
 merge_uniq =

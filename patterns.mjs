@@ -36,6 +36,8 @@ function relDefToString(relDef) {
   // console.log("SIZE", relDef.typePatternGraph.size());
   // console.log(relDef.typePatternGraph.patterns.nodes);
   // console.log(relDef.typePatternGraph.edges);
+  // console.log(relDef.def);
+  
   return JSON.stringify(dumpPatterns(relDef.def).map((x) => {
     const { pattern, fields, type} = relDef.typePatternGraph.get_pattern(x);
     return {pattern, fields, type};
@@ -43,13 +45,11 @@ function relDefToString(relDef) {
 }
 
 function compactRel(relDef, name = "") {
+  // console.log("********************************* compacting", name);
   const {def, typePatternGraph, varRefs } = relDef;
   // console.log("COMPACTING typePatternGraph of size", typePatternGraph.size());
 
-  const newTypePatternGraph = new TypePatternGraph();
-  const renumbering = typePatternGraph.cloneAll(newTypePatternGraph);
-
-  newTypePatternGraph.turnSingletonPatternsIntoCodes();
+  const {typePatternGraph : newTypePatternGraph, remapping: renumbering}  = typePatternGraph.getCompressed();
 
   const copyRel = (rel) => {
     const newRel = {...rel, patterns:[renumbering[rel.patterns[0]], renumbering[rel.patterns[1]]]};
@@ -201,33 +201,44 @@ function patterns(representatives, rels) {
         fields[label] = [patternId];
         return fields;
       }, {});
+    if (filter.name && ! (filter.name in context)) {
+      context[filter.name] = rootDef.typePatternGraph.addNewNode();
+    }
+    let newPatternId = null;
     switch (filter.type) {
       case "name":
-        if (! (filter.name in context)) {
-          context[filter.name] = rootDef.typePatternGraph.addNewNode();
-        }
-        return context[filter.name];
+        newPatternId = context[filter.name];
+        break;
       case "code":
-        return rootDef.typePatternGraph.getTypeId(filter.code);
+        newPatternId = rootDef.typePatternGraph.getTypeId(filter.code);
+        break;
       case "union":
-        return rootDef.typePatternGraph.addNewNode(
+        newPatternId = rootDef.typePatternGraph.addNewNode(
           {pattern: filter.open ? '<...>' : '<>', fields:Object.keys(filter.fields || {})},
           getFields());
+        break;
       case "product": 
-        return rootDef.typePatternGraph.addNewNode(
+        newPatternId = rootDef.typePatternGraph.addNewNode(
           {pattern: filter.open ? '{...}' : '{}', fields:Object.keys(filter.fields || {})},
           getFields());
+        break;
       case "vector": {
           const vector = filterToPattern(filter.vector, rootDef);
-          return rootDef.typePatternGraph.addNewNode(
+          newPatternId = rootDef.typePatternGraph.addNewNode(
             {pattern: '[]', fields: ["vector-member"]},
             {"vector-member": [vector]});
-        }
+        };
+        break;
       default:
-        return rootDef.typePatternGraph.addNewNode(
+        newPatternId = rootDef.typePatternGraph.addNewNode(
           {pattern: filter.open ? '(...)' : '()'},
           getFields());
     }
+    if (filter.name) {
+      rootDef.typePatternGraph.unify(`filter: ${filter.name}`, newPatternId, context[filter.name]);
+    }
+    
+    return newPatternId;
   }
 
   function augmentProduct(rel,rootDef) {

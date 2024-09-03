@@ -47,32 +47,31 @@ function prettyCode (representatives, codeExp) {
 };
 
 function prettyFilter (prettyCode, filter) {
-  const fieldsStr = (f) => {
-    const fields = Object.keys(f.fields).map( (key) => 
-      `${key}: ${prettyFilter(prettyCode, f.fields[key])}` 
+  const fieldsStr = () => {
+    const fields = Object.keys(filter.fields).map( (key) => 
+      `${prettyFilter(prettyCode, filter.fields[key])} ${key}` 
     );
-    if (f.open) fields.push("...");
+    if (filter.open) fields.push("...");
     return fields.join(", ");
   } 
   switch (filter.type) {
+    
+    case "code":
+      return `$${prettyCode({code: "ref",ref: filter.code,})}`;
     case "name":
       return filter.name;
-    case "code":
-      return `$${prettyCode({
-          code: "ref",
-          ref: filter.code,
-        })}`;
     case "vector":
-      return `[${prettyFilter(prettyCode, filter.vector)}]`;
+      return `[${prettyFilter(prettyCode, filter.vector)}]${filter.name ? "=" + filter.name : ""}`;
     case null:
-      return `(${fieldsStr(filter)})`;
+      if (filter.name && Object.keys(filter.fields).length == 0) 
+        return filter.name;
+      return `(${fieldsStr()})${filter.name ? "=" + filter.name : ""}`;
     case "union":
-      return `<${fieldsStr(filter)}>`;
+      return `<${fieldsStr()}>${filter.name ? "=" + filter.name : ""}`;
     case "product":
-      return `{${fieldsStr(filter)}}`;
+      return `{${fieldsStr()}}${filter.name ? "=" + filter.name : ""}`;
   }
-  console.log(filter);
-  throw new Error("unreachable");
+  throw new Error(`Unknown filter type ${filter.type} in ${JSON.stringify(filter)}`);
 }
 
 function prettyRel (prettyCode, exp) {
@@ -149,17 +148,21 @@ function patterns2filters(typePatternGraph, ...patternIds) {
 
   // variables - variables which will have to be added as extra filters
   const variables = inDegree.reduce( (variables, degree, i) => {
-    if (degree > 1) variables[i] = [];
+    if (degree > 1) variables[i] = "fresh";
     return variables;
   }, {});
 
   const buildFilter = (path, patternId, i) => {
-    if (variables[patternId]) {
-      if (variables[patternId][i] == undefined) variables[patternId][i] = [];
-      variables[patternId][i].push(path);
-      return { type: 'name', name: `X${patternId}` };
-    }
+    let named_filter = {};
     const pattern = newTypePatternGraph.get_pattern(patternId);
+    if (variables[patternId] && pattern.pattern != 'type') {
+      const name = `X${patternId}`;
+      if (variables[patternId] == "done") 
+        return { type: 'name', name: name };
+      variables[patternId] = "done";
+      named_filter = { name: name };
+    }
+    
 
     const edges = newTypePatternGraph.edges[patternId];
     const fields = () => 
@@ -170,28 +173,30 @@ function patterns2filters(typePatternGraph, ...patternIds) {
 
     switch (pattern.pattern) {
       case 'type':
-        return {type: "code", code: pattern.type};
+        return {type: "code", code: pattern.type, ...named_filter};
       case '[]':
         return {
           type: "vector", 
-          vector: buildFilter([...path, "vector-member"], Object.values(edges["vector-member"])[0], i)};
+          vector: buildFilter([...path, "vector-member"], Object.values(edges["vector-member"])[0], i),
+          ...named_filter
+        };
       case '(...)':
-          return { type: null, open: true, fields: fields() };
+          return { type: null, open: true, fields: fields(), ...named_filter };
       case '{...}': 
-        return { type: 'product', open: true, fields: fields() };
+        return { type: 'product', open: true, fields: fields(), ...named_filter };
       case '<...>': 
-        return { type: union, open: true, fields: fields() };
+        return { type: 'union', open: true, fields: fields(), ...named_filter };
       case '()':
-        return { type: null, fields: fields() };
+        return { type: null, fields: fields(), ...named_filter };
       case  '{}':
-        return { type: 'product', fields: fields() };
+        return { type: 'product', fields: fields(), ...named_filter };
       case '<>':
-        return { type: 'union', fields: fields() };
+        return { type: 'union', fields: fields(), ...named_filter };
     }
   };
 
   const filters = newPatternIds.map( (id, i) => buildFilter([], id, i) );
-  return {filters, variables};
+  return filters;
 
 }
 
