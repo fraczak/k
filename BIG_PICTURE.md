@@ -1,3 +1,4 @@
+# Big Picture
 
 `Kernel-code` is an experiment aiming to define a "perfect programming language".
 
@@ -22,7 +23,7 @@ Types are defined by two constructs:
 1. Product
 2. Union (also called tagged or disjoint union)
 
-Given a set (possibly empty) of types `t1, t2, ..., tn` and a set of pairwise different tags (labels) `l1, l2, ..., ln`,
+Given a finite (possibly empty) set of types `t1, t2, ..., tn` and a set of pairwise different tags (labels) `l1, l2, ..., ln`,
 
 - by `{ t1 l1, t2 l2, ..., tn ln }`, we define a _product type_ with exactly `n` projection functions `.l1`, `.l2`, `...`, `.ln`,
   mapping a value of type `{t1 l1, t2 l2, ..., tn ln}` into a value of type `t1`, `t2`, `...`, `tn`, respectively.
@@ -42,7 +43,6 @@ Some properties of these types:
    as a union type value (a variant).  
 2. The empty product type `{}` has a single value, called the _unit_ and also denoted by `{}`, which has no fields.
 3. The empty union type `<>` has no values.
-4. The product and union types form dual categories.
 
 ### Partial functions
 
@@ -64,7 +64,7 @@ empty composition, `()`, defines the identity function.
 
 ### Program
 
-A `kernel-core` program is a set of definitions of types and partial functions followed by an _expression_,
+A `kernel-core` program is a set of definitions of types and partial functions, followed by an _expression_,
 which is the partial function the program defines.
 
 The language syntax is defined by:
@@ -97,7 +97,7 @@ The `typing` expression acts as a type annotation and can be seen as a 'filter',
 function defined only for the values of the corresponding type.
 
 That's it.
-No `int`, no `if` statement, no `loop`, no `throw`, no _closure_, no _annotations_, and no macros.
+No `builtin` types, no `if` statement, no `loop`, no `throw`, no _closure_, no _annotations_, and no macros.
 Just types and partial functions.
 
 ### Normalization
@@ -180,21 +180,16 @@ Functions `inc` and `inc3` are (non-polymorphic) functions of types
 Function `inc_o` is a polymorphic function of type patterns: `?X -> ${ byte byte, bit overflown }` 
 with following constraints:
 
-- `?X` is a product type with at least two fields: `byte` and `overflown`, denoted by:
-   > `?{ $byte byte, Z overflown, ...}`;
+- `?X` is a product or union type with at least two fields: `byte` and `overflown`, denoted by:
+   > `?( $byte byte, Z overflown, ...)`;
 - `?Z` is a type (union or product) with field `i` denoted by:
    > `?( V i, ...)`;
-- `V` is unconstrained;
+- `V` is unconstrained, denoted by `(...)`;
 
-We could write it as: `?{$byte byte, ((...) i, ...) overflown, ...}`.
+We could write it as: `?($byte byte, ((...) i, ...) overflown, ...)`.
 
 The target type `${ byte byte, bit overflown }` was derived from pattern `?{ $byte byte, $bit overflown }`.
 Such a pettern is called _singleton pattern_ as only one type fits the pattern.
-
-In this example, we were able to find the most general type pattern for all sub-expressions of
-the program.
-However, we still do not have a way to find the most general type patterns in the general case.
-This is work in progress.
 
 ## Universal Schema Registry
 
@@ -207,7 +202,7 @@ All functions (non-polymorphic and polymorphic) will be renamed by the hash of t
 definition and stored in the similar key-value store.
 
 Non-polymorphic functions can be easily indexed by the hashes of their input and output types
-so that we can quickly find the function we need, e.g., for autocomplition.
+so that we can quickly find the function we need.
 Searching for polymorphic functions is more complicated, as we need to find the function
 whose input and output type patterns fit given types.
 
@@ -228,10 +223,6 @@ another word) to encode the values.
 ### RUST data structures
 
 A type can be translated into a Rust data structure, and a function can be translated into a Rust function.
-
-
-
-
 
 ## Linking with Other Languages
 

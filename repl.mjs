@@ -114,7 +114,7 @@ const registers = {};
             codeName = codeName.slice(1);
           const canonicalName = run.defs.representatives[codeName] || codeName;
           const codeExp = find( canonicalName );
-          console.log(` ${canonicalName} = ${prettyCode(run.defs.representatives, codeExp)} --`, codeExp);
+          console.log(` $ ${canonicalName} = ${prettyCode(run.defs.representatives, codeExp)}; -- ${codeExp.def}`);
           // --pp
         } else if (line.match(/^[ \n\t]*(?:--pp)?$/)) {
           console.log(val);

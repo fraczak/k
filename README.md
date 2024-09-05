@@ -87,7 +87,7 @@ supported.
 
 ### Basic extensions
 
-#### Constants, i.e., literals for `strings`, `integers`, `booleans`, and `null`
+#### Constants, i.e., literals for `string`, `int`, `bool`, and `null`
 
 A constant defines a function which ignores its argument and produces
 the constant value. E.g.:
@@ -95,7 +95,7 @@ the constant value. E.g.:
     {123 int, "kScript" str, true bool, null null} :
         "any"  --> {"int":123,"str":"kScript","bool":true,"null":null}
 
-Those values, i.e., `strings`, `integers`, `booleans`, and `null`, admit the
+Those values, i.e., _strings_, _integers_, _booleans_, and _null_, admit the
 projection to the canonicat string representation of the value, e.g.:
 
     .2 :
@@ -176,7 +176,6 @@ is not supported in _code derivation_ (explained below).
         "2.12"             --> 2.12
         "[1,2.11,0.3e-32]" --> [1,2.11,3e-33]
 
-
 - other predefined parial functions are: `DIV`, `FDIV`, `CONS`,
   `SNOC`, `toDateMsec`, `toDateStr`, and `_log!`.
 
@@ -185,10 +184,11 @@ is not supported in _code derivation_ (explained below).
 ### Function and code (i.e., _type_) definitions
 
       dec = [(),-1] PLUS;
-      max = <SNOC [.0, .1 max] <GT.0, .1>, .0> ;
+      max = <SNOC [.car, .cdr max] <GT.0, .1>, .0> ;
       factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
 
-### Codes (schemas, i.e., _non-functional types_)
+### Codes (schemas, i.e., _types_)
+
 _Codes_ (prefixed by `$`) can be defined by tagged union and product. E.g.:
 
 
@@ -256,12 +256,15 @@ fail, indicating that the script is invalid.  In some other cases the
 code derivation can succeed even to the point of reducig every pattern
 to a single code making the program fully annotated by codes.
 
-For now, `code derivation` is supported by the core language, i.e., `composition`,
-`projection` and `union` with product and tagged union types.
+The language `k` supports _type patterns_, which is used for type inference, however the patterns are not concidered in the evaluation of the program.
+
+```k
+    tree_pattern = ?<(...) leaf, {T left, T right} tree> = T;
+```
 
 ---
 
-### List comprehension on vectors (experimental!)
+### List comprehension
 
 A vector can be "open" by PIPE (`|`) operator so the following partial function is applied to
 each element of the vector one by one, yielding another open value. An open value can be "closed", 
@@ -355,11 +358,11 @@ times value `x` appears in the list. (see `Examples/list-comprehension.k` for a 
 Another example could be finding the biggest (max) value in a vector:
 
     max = < 
-      SNOC         #   [x0, x1, x2, ...] --> [x0, [x1, x2, ...]]
-      [.0, .1 max] #   [x0, [x1, x2, ...]] --> [x0, max(x1,x2,...)], i.e., recursive call 
-      <GT .0, .1>  #   if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
-    ,              # when SNOC is not defined, i.e., if the input vector has one element:
-      .0           #   [x0] --> x0
+      SNOC             #   [x0, x1, x2, ...] --> {x0 car, [x1, x2, ...] cdr}
+      [.car, .cdr max] #   [x0, [x1, x2, ...]] --> [x0, max(x1,x2,...)], i.e., recursive call 
+      <GT .0, .1>      #   if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
+    ,                  # when SNOC is not defined, i.e., if the input vector has one element:
+      .0               #   [x0] --> x0
     >; 
     max
 
@@ -468,10 +471,10 @@ For example:
 
 1.
         curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | jq '.'
-        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | k  '()' -1 
+        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | k '()' -1 
 2.
         curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | jq '.[0]'
-        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | k  '.0' -1 
+        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | k '.0' -1 
 3.
         jq '.[0] | {message: .commit.message, name: .commit.committer.name}'
         k '.0 {.commit.message message, .commit.committer.name name}' -1
