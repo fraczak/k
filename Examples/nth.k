@@ -160,7 +160,7 @@ cats_ =
 ?[X]
 ; 
 
-range = $int {() n, [] result} range_ $[int];
+range = {() n, [] result} range_;
 range_ =
 < 
   {.n.0 if, .result then} .then,
@@ -223,9 +223,9 @@ map_with_PLUS = $[[int]]
 
 pascal = 
 -- next line in pascal's triangle
-$[int]
+-- $[int]
 {{0 car,() cdr} CONS x, {0 car, reverse cdr} CONS reverse y} zip map_with_PLUS
-$[int]
+-- $[int]
 ;
 
 pascal2 = {{0 car,() cdr} CONS x, {0 car, reverse cdr} CONS reverse y} zip | PLUS ^;
