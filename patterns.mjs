@@ -360,7 +360,7 @@ function patterns(representatives, rels) {
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[1]]});
         break;
       case "toVEC":
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
+        rel.patterns[0] = rootDef.typePatternGraph.getTypeId('string')
         rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[0]]});
         break;
       case "toDateMsec":

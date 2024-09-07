@@ -55,7 +55,7 @@ const builtin = {
   },
   FDIV: ([x, y]) => x / y,
   CONCAT: (strs) => strs.join(""),
-  toVEC: (str) => [...str],
+  toVEC: (str) => [...`${str}`],
   true: () => true,
   false: () => false,
   null: () => null,

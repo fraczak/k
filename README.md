@@ -177,7 +177,7 @@ is not supported in _code derivation_ (explained below).
         "[1,2.11,0.3e-32]" --> [1,2.11,3e-33]
 
 - other predefined parial functions are: `DIV`, `FDIV`, `CONS`,
-  `SNOC`, `toDateMsec`, `toDateStr`, and `_log!`.
+  `SNOC`, `toVEC`, `toDateMsec`, `toDateStr`, and `_log!`.
 
 ---
 

@@ -197,14 +197,12 @@ len_ = <
 get = 
 -- {[int] list, int pos}
 <
- [.pos.0, .list.0].1,
+ {.pos.0 if, .list.0 then} .then,
  {.list cdr list, [.pos, 0] GT .0 dec pos} get
 >;
 
 set = 
--- ${[int] list, int i, int v} 
- [{.i n, .list list} take, .v] [.0.head, [.1], .0.tail cdr] cats
--- $[int] 
+ {{.i n, .list list} take take, .v v} [.take.head, [.v], .take.tail cdr] cats 
 ;
   
 zip = 
@@ -214,12 +212,11 @@ zip =
   []
 >;
 
-map_with_PLUS = $[[int]]
+map_with_PLUS = 
   < 
     {car PLUS car, cdr map_with_PLUS cdr} CONS,
     []
-  >
-  $[int];
+  >;
 
 pascal = 
 -- next line in pascal's triangle

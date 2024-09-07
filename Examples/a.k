@@ -2,17 +2,17 @@
 
 $rat = {int n, int d};
 
-MINUS = $[int] SNOC [.car, .cdr PLUS [(),-1] TIMES] PLUS;
+MINUS = SNOC [.car, .cdr PLUS [(),-1] TIMES] PLUS;
 
-abs = $int < [0, ()] GT [-1,.1] TIMES, ()>;
+abs = < [0, ()] GT [-1,.1] TIMES, ()>;
 
 mod = 
-${int x, int y}
+-- ${int x, int y}
 { .x abs x, .y abs y} mod_
 ;
 
 mod_ = 
-${int x, int y}
+-- ${int x, int y}
 <
     [.y, .x] GT .1,
     { 
@@ -20,14 +20,16 @@ ${int x, int y}
         .y y
     } mod_
 >
-$int
+-- $int
 ;
 
 // gratest common divisor
-gcd = ${int x, int y}
+gcd = 
+--${int x, int y}
   [.x abs, .y abs] <GT {.0 x, .1 y}, {.1 x,.0 y}>
   gcd_
-$int;
+--$int
+;
 
 gcd_ = <
   { .y.0 if, .x then } .then,
@@ -36,7 +38,8 @@ gcd_ = <
 
 // div
 
-log2_floor = ${int x, int step} 
+log2_floor =
+-- ${int x, int step} 
 -- finds the largest k, such that 'step * 2^k <= x',
 -- returns k+1, i.e., 0 if x < step, and k+1 otherwise.
   {.x x, .step step, 0 log} log2_floor_;
@@ -46,7 +49,8 @@ log2_floor_ = <
   {.x x, .step [(),()] PLUS step, .log [(),1] PLUS log} log2_floor_
 >;
 
-div = ${int x, int y} 
+div = 
+-- ${int x, int y} 
   // remember sign
   {
     <
@@ -63,12 +67,14 @@ div = ${int x, int y}
   > 
   ;
 
-rep = ${int x, int count}
+rep = 
+-- ${int x, int count}
   <
     .count.0 [],
     {.x car, {.x x, .count [(),-1] PLUS count} rep cdr} CONS
   >
-$[int];
+-- $[int]
+;
 
 div_ =
   {
@@ -86,16 +92,18 @@ div_ =
     {[.i.x, [.i.step, .factor] TIMES] MINUS x, .i.step step, [.i.res,.factor] PLUS res} div_
   >;
 
-lcm = ${int x, int y}
+lcm = 
+-- ${int x, int y}
   {() x, gcd y} [{.x.x x , .y y} div .div, .x.x] TIMES
-$int;
+-- $int
+;
 
 -- lcm = [(),gcd] [[.0.1,.1] div .div, .0.0] TIMES;
 
 --------------------
 
 normalize_rat =
-  $rat 
+  -- $rat 
   < 
     { [0, .d] GT if, 
       {
@@ -110,9 +118,11 @@ normalize_rat =
     {.x.n x,.y y} div .div n, 
     {.x.d x,.y y} div .div d
   }
-$rat;
+-- $rat
+;
 
-plus_rat = ${rat x, rat y}
+plus_rat = 
+-- ${rat x, rat y}
   { 
     [.x, .y] args,
     {.x.d x,.y.d y} lcm lcm
@@ -126,14 +136,16 @@ plus_rat = ${rat x, rat y}
   }
   normalize_rat;
 
-times_rat = ${rat x, rat y}
+times_rat = 
+-- ${rat x, rat y}
   { 
     [.x.n,.y.n] TIMES n, 
     [.x.d,.y.d] TIMES d
   } 
   normalize_rat;
  
-minus_rat = ${rat x, rat y}
+minus_rat = 
+-- ${rat x, rat y}
   {
     .x x, 
     .y {[0, .n] MINUS n, .d d} y
@@ -141,25 +153,27 @@ minus_rat = ${rat x, rat y}
   plus_rat;
 
 inverse_rat = 
-$rat
+-- $rat
   { .d n, .n d }
   normalize_rat
 ;
 
 div_rat = 
-${rat x, rat y}
+-- ${rat x, rat y}
   { .x x, .y inverse_rat y} times_rat
 ;
 
 --------------------
 
-int_rat = $rat 
+int_rat = 
+-- $rat 
   { .n n, .d d, {.n x,.d y} div div }
   { .div.div int, {.div.rem n, .d d} rat}
-${int int, rat rat}
+-- ${int int, rat rat}
 ;
 
-ratToString = $rat
+ratToString = 
+-- $rat
 [
     .n toJSON, 
     "/", 
@@ -172,7 +186,7 @@ ratToString = $rat
       int_rat [.int toJSON,"+",.rat.n toJSON,"/",.rat.d toJSON] CONCAT
     >
   ] CONCAT
-$string
+-- $string
 ;
 
 _rat! = $rat {

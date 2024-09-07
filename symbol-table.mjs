@@ -124,7 +124,7 @@ class SymbolTable {
 
   add_rel(name, rel) {
     if (this.rels[name] != undefined)
-      console.error(`SymbolTable: rel ${name} already defined (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column})`);
+      console.error(`SymbolTable: rel '${name}' is redefined (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column})`);
 
     this.rels[name] = {def: rel};
   }
