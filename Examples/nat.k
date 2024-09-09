@@ -11,5 +11,5 @@ mult = <
     {{.x.succ x, .y y} mult x, .y y} add
 >;
 
-zero?
+$nat zero?
 

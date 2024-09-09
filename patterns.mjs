@@ -384,19 +384,24 @@ function patterns(representatives, rels) {
         rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
         break;
       case "CONS": {
-          let member = rootDef.typePatternGraph.addNewNode();
+          const member = rootDef.typePatternGraph.addNewNode();
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[1]]});
         }; break;
       case "SNOC": {
-          let member = rootDef.typePatternGraph.addNewNode();
+          const member = rootDef.typePatternGraph.addNewNode();
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[0]]});
         }; break;
+      case "DIV": {
+          const intId = rootDef.typePatternGraph.getTypeId('int');
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [intId]});
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"div": [intId], "rem": [intId]});
+        }; break;
+      break;
       // TO DO
-      case "null":
-      case "DIV":
       case "FDIV":
+      case "null":
         rel.patterns = [rootDef.typePatternGraph.addNewNode(), rootDef.typePatternGraph.addNewNode()];
         break;
       default:
