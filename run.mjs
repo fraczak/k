@@ -62,7 +62,7 @@ const builtin = {
   toJSON: (x) => JSON.stringify(x),
   fromJSON: (x) => JSON.parse(x),
   CONS: ({car, cdr}) => { try { return [car, ...cdr]; } catch (e) { return undefined; } },
-  SNOC: (x) => (x.length > 1 ? {car: x[0], cdr: x.slice(1)} : undefined),
+  SNOC: (x) => (x.length > 0 ? {car: x[0], cdr: x.slice(1)} : undefined),
   toDateMsec: (x) => new Date(x).getTime(),
   toDateStr: (x) => new Date(x).toISOString(),
 };

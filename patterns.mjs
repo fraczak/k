@@ -210,7 +210,7 @@ function patterns(representatives, rels) {
         newPatternId = context[filter.name];
         break;
       case "code":
-        newPatternId = rootDef.typePatternGraph.getTypeId(filter.code);
+        newPatternId = rootDef.typePatternGraph.getTypeId(representatives[filter.code] || filter.code);
         break;
       case "union":
         newPatternId = rootDef.typePatternGraph.addNewNode(
