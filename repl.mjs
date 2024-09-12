@@ -13,18 +13,15 @@ const splice = [].splice;
 console.log("Very! experimental repl shell for 'k-language'...");
 
 const help = function () {
-  console.log(" --h          print help");
-  console.log(" --a          print codes and relations");
-  console.log(" --c          print aliased codes");
-  console.log(" --C code     print code definition");
-  console.log(" --r          print rels");
-  console.log(" --p          pretty-print last value");
-  console.log(" --pp         print last value via node.js 'console.log'");
-  console.log(" --s reg      store the last value in register 'reg'");
-  console.log(" --g reg      get the value from register 'reg'");
-  console.log(" --regs       print registers names");
-  console.log(" --l file.k   load 'file.k'");
-  console.log(" --x rel      print out the type pattern of 'rel'");
+  // console.log("  --debug      loads codes and relations as value");
+  console.log("  --c            print aliased codes");
+  console.log("  --C code       print code definition");
+  console.log("  --r            print rels");
+  console.log("  --R rel        print out the type pattern of 'rel'");
+  console.log("  --p (--pp)     pretty-print last value");
+  console.log("  --s (--g) reg  store (get) the last value in register 'reg'");
+  console.log("  --regs         print register names");
+  console.log("  --l file.k     load 'file.k'");
 };
 
 help();
@@ -32,19 +29,18 @@ help();
 const re__l = /^[ \n\t]*(?:--l[ ]+)(.+)[ ]*?$/;
 const re__s = /^[ \n\t]*(?:--s[ ]+)(.+)[ ]*?$/;
 const re__g = /^[ \n\t]*(?:--g[ ]+)(.+)[ ]*?$/;
-const re__x = /^[ \n\t]*(?:--x[ ]+)(.+)[ ]*?$/;
+const re__R = /^[ \n\t]*(?:--R[ ]+)(.+)[ ]*?$/;
 const re__C = /^[ \n\t]*(?:--C[ ]+)(.+)[ ]*?$/;
 
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
-  prompt: ''
+  prompt: '> '
 });
 
 rl.prompt();
 
 rl.on('line', (line) => {
-  // console.log(`Received: ${line}`);
   evaluate(line);
   rl.prompt();
 }).on('close', () => {
@@ -52,37 +48,48 @@ rl.on('line', (line) => {
   process.exit(0);
 });
 
+let old_val = {};
 let val = {};
+const printVal = function (v = val) {
+  if (v === undefined)
+    console.log("...",v);
+  else
+    console.log(`=> ${JSON.stringify(v)}`);
+  rl.setPrompt('> ');
+}
 const registers = {};
 const buffer = [];
 function evaluate(line) {
   if (line.trim().endsWith('\\')) {
     buffer.push(line.slice(0, -1));
+    rl.setPrompt('  ');
     return;
   }
   line = [...buffer, line].join('\n');
   buffer.length = 0;
   try {
-    if (val === void 0) {
-      val = {};
-    }
+    if (val === undefined) 
+      val = old_val;
+    else
+      old_val = val;
     if (line.match(/^[ \n\t]*(?:--h)?$/)) {
       // --h
       help();
     } else if (line.match(/^[ \n\t]*\^$/)) {
       val = closeVector(val); 
-      console.log(`=> ${JSON.stringify(val)}`);
+      printVal();
+      
     } else if (line.match(re__l)) {
       // --l 
       const file = line.match(re__l)[1];
-      console.log(` -- loading file: ${file} ...`);
+      console.log(`  ... loading file: ${file} ...`);
       const kScript = fs.readFileSync(file).toString();
-      console.log(` ----------------------------- compiling file: ${file} ...`);
+      console.log(`  Done!`);
       // console.log(kScript);
       val = k.compile("+++\n" + kScript + "\n()")(val);
-      console.log(`=> ${JSON.stringify(val)}`);
-    } else if (line.match(/^[ \n\t]*(?:--a)?$/)) {
-      // --a
+      printVal();
+    } else if (line.match(/^[ \n\t]*--debug$/)) {
+      // --debug
       val = run.defs;
       console.log(val);
       // --r
@@ -150,9 +157,9 @@ function evaluate(line) {
       let reg = line.match(re__g)[1];
       val = registers[reg];
       console.log(val);
-        // --x
-    } else if (line.match(re__x)) {
-      const relName = line.match(re__x)[1];
+        // --R rel
+    } else if (line.match(re__R)) {
+      const relName = line.match(re__R)[1];
       const rel = run.defs?.rels[relName];
       if (!rel) {
         console.log(` -- relation '${relName}' not found`);
@@ -171,7 +178,7 @@ function evaluate(line) {
     } else if (!line.match(/^[ \n\t]*(?:#.*)?$/)) {
       try {
         val = k.run(`+++\n${line}\n()`, val);
-        console.log(`=> ${JSON.stringify(val)}`);
+        printVal();
       } catch (error) {
         e = error;
         console.error("ERROR:");

@@ -124,12 +124,11 @@ code
 
 codeDef
     : lc labelled_codes rc              { if (Object.keys($2).length == 1)
-                                            anError(@0,"Product code cannot have one field.");
-                                          $$ = { code: "product", product: $2, start: $1.start, end: $3.end }; }
+                                            $$ = { code: "union", union: $2, start: $1.start, end: $3.end };
+                                          else
+                                            $$ = { code: "product", product: $2, start: $1.start, end: $3.end }; }
     | lb code rb                        { $$ = { code: "vector", vector: s.as_ref($2), start: $1.start, end: $3.end }; }
-    | la labelled_codes ra              { if (Object.keys($2).length < 2)
-                                            anError(@0,"Union code cannot have less than 2 fields.");
-                                          $$ = { code: "union", union: $2, start: $1.start, end: $3.end }; }
+    | la labelled_codes ra              { $$ = { code: "union", union: $2, start: $1.start, end: $3.end }; }
     ;
 
 labelled_codes 
@@ -159,9 +158,15 @@ code_label
 
 filter_
     : dollar code                 { $$ = { type: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
-    | lp labelled_filters      rp { $$ = { type: null, open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
+    | lp labelled_filters      rp { if ( !$2.open && (Object.keys($2.fields).length == 1))
+                                      $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end};
+                                    else 
+                                      $$ = { type: null, open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | la labelled_filters      ra { $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
-    | lc labelled_filters      rc { $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
+    | lc labelled_filters      rc { if ( !$2.open && (Object.keys($2.fields).length == 1))
+                                      $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end};
+                                    else 
+                                      $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | lb filter rb                { $$ = { type: "vector", vector: $2, start: $1.start, end: $3.end }; }
     ;
 
