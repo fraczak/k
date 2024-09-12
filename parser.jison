@@ -3,6 +3,10 @@
 import { SymbolTable, comp, union, identity } from "./symbol-table.mjs";
 let s = new SymbolTable();
 
+function anError(pos,msg) {
+    throw new Error(`Parse Error (lines ${pos.first_line}:${pos.first_column}...${pos.last_line}:${pos.last_column}): ${msg}`);
+}
+
 function getToken(yytext,yy,lstack) {
     const yylloc = yy.lexer.yylloc;
     const loc = lstack[lstack.length - 1]; //  { first_line: 5, last_line: 5, first_column: 2, last_column: 3 };
@@ -38,7 +42,7 @@ function fromEscString(escString) {
 %lex
 
 %%
-[/][*]([*][^/]|[^*])*[*][/]                     /* c-comment */
+[/][*]([^*]*[*]+[^*/])*[^*]*[*]+[/]             /* c-comment */
 ("//"|"#"|"%"|"--")[^\n]*                       /* one line comment */
 \s+                                             /* blanks */
 "<"                                            return 'LA';
@@ -119,17 +123,23 @@ code
     ;
 
 codeDef
-    : lc labelled_codes rc              { $$ = { code: "product", product: $2, start: $1.start, end: $3.end }; }
+    : lc labelled_codes rc              { if (Object.keys($2).length == 1)
+                                            anError(@0,"Product code cannot have one field.");
+                                          $$ = { code: "product", product: $2, start: $1.start, end: $3.end }; }
     | lb code rb                        { $$ = { code: "vector", vector: s.as_ref($2), start: $1.start, end: $3.end }; }
-    | la labelled_codes ra              { $$ = { code: "union", union: $2, start: $1.start, end: $3.end }; }
+    | la labelled_codes ra              { if (Object.keys($2).length < 2)
+                                            anError(@0,"Union code cannot have less than 2 fields.");
+                                          $$ = { code: "union", union: $2, start: $1.start, end: $3.end }; }
     ;
 
 labelled_codes 
     :                                   { $$ = {}; }
     | non_empty_labelled_codes          { $$ = $1.reduce((r, lc) => { 
-                                                  r[lc.label] = s.as_ref(lc.code);
-                                                  return r }
-                                                , {}); }
+                                            if (r[lc.label])
+                                                anError(@0,`Duplicate label '${lc.label}'.`);
+                                            r[lc.label] = s.as_ref(lc.code);
+                                            return r }
+                                        , {}); }
     ;
 
 non_empty_labelled_codes
@@ -166,6 +176,8 @@ labelled_filters
                                                   if (lc.dots) {
                                                     r.open = true;
                                                   } else {
+                                                    if (r.fields[lc.label])
+                                                      anError(@0,`Duplicate label '${lc.label}'.`);
                                                     r.fields[lc.label] = lc.filter;
                                                   }
                                                   return r }
@@ -213,7 +225,12 @@ exp
 
 labelled
     :                                   { $$ = {op: "product", product: []}; }
-    | non_empty_labelled                { $$ = $1; }
+    | non_empty_labelled                { $1.product.reduce( (labels, {label}) =>
+                                            { if (labels[label]) 
+                                                anError(@0,`Duplicate label '${label}'.`)
+                                              labels[label] = true;
+                                              return labels; }, {});
+                                          $$ = $1; }
     ;
 
 non_empty_labelled

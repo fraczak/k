@@ -12,7 +12,7 @@ function isBuiltIn(code) {
   return code.match(/^(int|string|bool)$/);
 }
 
-function encodeCodeToString(code, codes) {
+function encodeCodeToString(code, codes = theRepository.codes) {
   if (isBuiltIn(code)) return code;
   var i = 0;
   const Q = [[code,i]];
