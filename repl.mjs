@@ -15,11 +15,11 @@ console.log("Very! experimental repl shell for 'k-language'...");
 const help = function () {
   // console.log("  --debug      loads codes and relations as value");
   console.log("  --c            print aliased codes");
-  console.log("  --C code       print code definition");
-  console.log("  --r            print rels");
-  console.log("  --R rel        print out the type pattern of 'rel'");
+  console.log("  --C code       print 'code' definition");
+  console.log("  --r            print relations");
+  console.log("  --R rel        print 'rel' definition with type patterns");
   console.log("  --p (--pp)     pretty-print last value");
-  console.log("  --s (--g) reg  store (get) the last value in register 'reg'");
+  console.log("  --s (--g) reg  store (get) the current value in (from) register 'reg'");
   console.log("  --regs         print register names");
   console.log("  --l file.k     load 'file.k'");
 };
@@ -54,7 +54,7 @@ const printVal = function (v = val) {
   if (v === undefined)
     console.log("...",v);
   else
-    console.log(`=> ${JSON.stringify(v)}`);
+    console.log(`--> ${JSON.stringify(v)}`);
   rl.setPrompt('> ');
 }
 const registers = {};
@@ -100,10 +100,9 @@ function evaluate(line) {
             return result;
           }
           return (function (prettyRel) {
-            let ref1, relName;
-            ref1 = defs.rels;
-            for (relName in ref1) {
-              result[relName] = prettyRel(ref1[relName].def);
+            for (const relName in defs.rels) {
+              if (relName != "__main__")
+                result[relName] = prettyRel(defs.rels[relName].def);
             }
             return result;
           })(
@@ -172,7 +171,8 @@ function evaluate(line) {
       // for (const filter of filters) {
       const pcodef= prettyCode.bind(null, run.defs.representatives);
       const filtersStr = filters.map( x => prettyRel(pcodef, {op: "filter", filter: x}));
-      console.log(`  ${relName} :  ${filtersStr[0]}  -->  ${filtersStr[1]}`);
+      console.log(`  ${relName} : ${filtersStr[0]}  -->  ${filtersStr[1]}`);
+      console.log(`  ${relName} = ${prettyRel(pcodef,rel.def)};`);
       // }
       // ------ k code
     } else if (!line.match(/^[ \n\t]*(?:#.*)?$/)) {
