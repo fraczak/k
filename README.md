@@ -4,11 +4,51 @@
 
 From javascript:
 
-    import k from "@fraczak/k";
+```js
+import k from "@fraczak/k"
     
-    const fn = k.compile("<.name,.nom,'?'>");
-    console.log([{name:"x"},{nom:"y"},{}].map(fn));
-    // returns: [ "x", "y", "?" ]
+const fn = k.compile(`   -- complete "pure" k-program
+  $ nat = < {} o, nat i >;     -- unary natural number encoding
+  succ = {() i} $nat;          -- increment relation definition
+  succ succ succ               -- +3 (in the above encoding)
+`);
+const three = {i:{i:{i:{o:{}}}}};
+const six = fn(three);
+console.log(JSON.stringify( six ));
+// {"i":{"i":{"i":{"i":{"i":{"i":{"o":{}}}}}}}}
+
+```
+
+Working with REPL:
+
+```
+$ k-repl
+Very! experimental repl shell for 'k-language'...
+  --c            print aliased codes
+  --C code       print 'code' definition
+  --r            print relations
+  --R rel        print 'rel' definition with type patterns
+  --p (--pp)     pretty-print last value
+  --s (--g) reg  store (get) the current value in (from) register 'reg'
+  --regs         print register names
+  --l file.k     load 'file.k'
+> -- DEMO: comments start with '--', like this line              \
+  -- Code (type) definitions: ` $ code-name = code-expression ;` \
+  $ unit = { } ;                       -- empty product code     \
+  $ bits = <unit _, bits 0, bits 1>; -- union, 3 variants tagged: _, 0, 1 \
+  -- Now, we will define relations: ` name = expression ; ` \
+  empty = {{} _} ;  -- alternative JSON-like syntax {_: {}} allowed \
+  _001 = {0: {0: {1: empty}}}; -- in JSON-like syntax \
+  reverse_ = <       -- priority merge \ 
+    {.in.0 in, {.out 0} out} reverse_, \
+    {.in.1 in, {.out 1} out} reverse_, \
+    .out >; \
+  reverse = {() in, empty out} reverse_ ; \
+  _001 reverse   -- run the expression (composition of 2 relations)
+--> {"1":{"0":{"0":{"_":{}}}}}
+> toStr = < .0 ["0",toStr] CONCAT, .1 ["1",toStr] CONCAT, "" >; toStr
+--> "100"
+```
 
 ---
 
