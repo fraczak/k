@@ -1,10 +1,12 @@
 # k-language
 
-    npm install '@fraczak/k'
+```sh
+npm i '@fraczak/k'
+```
 
 From javascript:
 
-```js
+```javascript
 import k from "@fraczak/k"
     
 const fn = k.compile(`   -- complete "pure" k-program
@@ -16,39 +18,11 @@ const three = {i:{i:{i:{o:{}}}}};
 const six = fn(three);
 console.log(JSON.stringify( six ));
 // {"i":{"i":{"i":{"i":{"i":{"i":{"o":{}}}}}}}}
-
 ```
 
 Working with REPL:
 
-```
-$ k-repl
-Very! experimental repl shell for 'k-language'...
-  --c            print aliased codes
-  --C code       print 'code' definition
-  --r            print relations
-  --R rel        print 'rel' definition with type patterns
-  --p (--pp)     pretty-print last value
-  --s (--g) reg  store (get) the current value in (from) register 'reg'
-  --regs         print register names
-  --l file.k     load 'file.k'
-> -- DEMO: comments start with '--', like this line              \
-  -- Code (type) definitions: ` $ code-name = code-expression ;` \
-  $ unit = { } ;                       -- empty product code     \
-  $ bits = <unit _, bits 0, bits 1>; -- union, 3 variants tagged: _, 0, 1 \
-  -- Now, we will define relations: ` name = expression ; ` \
-  empty = {{} _} ;  -- alternative JSON-like syntax {_: {}} allowed \
-  _001 = {0: {0: {1: empty}}}; -- in JSON-like syntax \
-  reverse_ = <       -- priority merge \ 
-    {.in.0 in, {.out 0} out} reverse_, \
-    {.in.1 in, {.out 1} out} reverse_, \
-    .out >; \
-  reverse = {() in, empty out} reverse_ ; \
-  _001 reverse   -- run the expression (composition of 2 relations)
---> {"1":{"0":{"0":{"_":{}}}}}
-> toStr = < .0 ["0",toStr] CONCAT, .1 ["1",toStr] CONCAT, "" >; toStr
---> "100"
-```
+[![asciicast](https://asciinema.org/a/UZuFpX4a5CQ47JTQngv253EVv.svg)](https://asciinema.org/a/UZuFpX4a5CQ47JTQngv253EVv)
 
 ---
 
@@ -60,9 +34,11 @@ An example of a _partial function_ is the _projection_, e.g., "`.toto`",
 which maps an object to its property named `toto`, or it is not defined if
 the property doesn't exist. E.g.,
 
-    1   .toto :
-    2        {"toto": 5, "titi": 10}  --> 5
-    3        {"titi": 10}             ... undefined // it is not a value!
+```text
+1   .toto :
+2        {"toto": 5, "titi": 10}  --> 5
+3        {"titi": 10}             ... undefined // it is not a value!
+```
 
 > Note: The above 3 lines should be read as follows. A `k`-expression
 > is printed in the first line (before "`:`").  The following lines
@@ -81,25 +57,30 @@ There are three ways of combining functions:
 1. **composition**: `(f1 f2 ...)`, e.g. `(.toto .titi)` extracts
     nested field.
 
-         (.toto .titi) :
-             {"toto": {"titi": 10}}   --> 10
-             {"toto": 10 }            ... undefined
-             {}                       ... undefined
+    ```text
+        (.toto .titi) :
+            {"toto": {"titi": 10}}   --> 10
+            {"toto": {"other": 8}}   ... undefined
+            {"other": {}}            ... undefined
+    ```
 
 2. **merge**: `< f1, f2,... >`, e.g., `<.toto, .titi>` extracts field
     `toto` if present; otherwise extracts `titi`.
 
-         <.toto, .titi> :
-             {"toto": 5, "titi": 10}  --> 5
-             {"titi": 10 }            --> 10
-             {}                       ... undefined
+    ```text
+        < .x.y, .z.y > :
+            {"x":{"y": 5}, "z": {"y":10}}  --> 5
+            {"x":{"o":{}}, "z": {"y":10}}  --> 10
+            {"x":{"o":{}}, "z": {"o":{}}}  ... undefined
+    ```
 
 3. **product**: `{ f1 label1, f2 label2, ...}`, e.g., `{.toto TOTO,
-.titi TITI}` extracts two fields and builds a record out of them.
+    .titi TITI}` extracts two fields and builds a record out of them.
 
-         {.toto TOTO, .titi TITI} :
-             {"toto": 5, "titi": 10, "x": 3}  --> {"TOTO": 5, "TITI": 10}
-             {"titi": 10 }                    ... undefined
+    ```text
+        {.toto TOTO, .titi TITI} :
+            {"toto": 5, "titi": 10, "x": 3}  --> {"TOTO": 5, "TITI": 10}
+    ```
 
 ---
 
@@ -132,46 +113,54 @@ supported.
 A constant defines a function which ignores its argument and produces
 the constant value. E.g.:
 
-    {123 int, "kScript" str, true bool, null null} :
-        "any"  --> {"int":123,"str":"kScript","bool":true,"null":null}
+```text
+{123 int, "kScript" str, true bool, null null} :
+    "any"  --> {"int":123,"str":"kScript","bool":true,"null":null}
+```
 
 Those values, i.e., _strings_, _integers_, _booleans_, and _null_, admit the
-projection to the canonicat string representation of the value, e.g.:
+projection, via (`.`), to the canonical string representation of the value, e.g.:
 
-    .2 :
-        2      --> {}
-        "2"    --> {}
-        4      ... undefined
-        true   ... undefined
-    
-    .true :
-        true   --> {}
-        "true" --> {}
-        4      ... undefined
-        "toto" ... undefined
+```text
+."a string" :
+    "a string" --> {}
+    "other"    ... undefined
+    11         ... undefined
+    null       ... undefined
+.2 :
+    2          --> {}
+    "2"        --> {}
+    4          ... undefined
+    true       ... undefined
 
-    .null :
-        null   --> {}
-        "null" --> {}
-        4      ... undefined
-        false  ... undefined
+.true :
+    true   --> {}
+    "true" --> {}
+    4      ... undefined
+    "toto" ... undefined
+
+.null :
+    null   --> {}
+    "null" --> {}
+    4      ... undefined
+    false  ... undefined
+```
 
 #### Vector product
 
-Vector product can be seen as an abbreviation for product whose field
-names are integers starting from zero.  
+Vector product can be seen as an abbreviation for product whose all fields
+have the same type, and the filed names are integers starting from zero.  
 E.g., `{.toto 0, .titi 1, 123 2}` can be written as  
 `[.toto, .titi, 123]`.
 
-    [.toto, .titi, 12] :
-        {"toto": 5, "titi": 10 }  --> [5, 10, 12] 
+```text
+[.toto, .titi, 12] :
+    {"toto": 5, "titi": 10 }  --> [5, 10, 12] 
 
-    .1 :
-        ["A","B","C"]  --> "B"
-        ["a"]          ... undefined
-
-The vector notation is introduced to satisfy JSON syntax and, for example,
-is not supported in _code derivation_ (explained below).
+. 2 :
+    ["A","B","C"]  --> "C"
+    ["a"]          ... undefined
+```
 
 ---
 
@@ -204,7 +193,7 @@ is not supported in _code derivation_ (explained below).
 
       CONCAT:
         ["a","bc","d"] --> "abcd"
-        ["a","bc","d"] --> "abcd"
+        []             --> ""
 
 - `toJSON` and `fromJSON` -- conversion to and from JSON strings
 
@@ -213,8 +202,6 @@ is not supported in _code derivation_ (explained below).
 
       fromJSON:   
         "{\"a\":12}"       --> {"a":12}
-        "2.12"             --> 2.12
-        "[1,2.11,0.3e-32]" --> [1,2.11,3e-33]
 
 - other predefined parial functions are: `DIV`, `FDIV`, `CONS`,
   `SNOC`, `toVEC`, `toDateMsec`, `toDateStr`, and `_log!`.
@@ -223,24 +210,47 @@ is not supported in _code derivation_ (explained below).
 
 ### Function and code (i.e., _type_) definitions
 
-      dec = [(),-1] PLUS;
-      max = <SNOC [.car, .cdr max] <GT.0, .1>, .0> ;
-      factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
+```k-repl
+  dec = [(),-1] PLUS;
+  max = <SNOC [.car, .cdr max] <GT.0, .1>, .0> ;
+  factorial = < [(),0] GT .0 [dec factorial, ()] TIMES, 1 >;
+  6 factorial
+--> 720
+```
 
 ### Codes (schemas, i.e., _types_)
 
-_Codes_ (prefixed by `$`) can be defined by tagged union and product. E.g.:
+_Codes_ can be defined by tagged union and product. E.g.:
 
+```k-repl
+  $ nat = < nat 1, {} 0 >;
+  $ pair = { nat x, nat y };
 
-      $nat = <nat 1, {} 0>;
-      $pair = {nat x, nat y};
+  suc = { $ nat 1 };
+  add = $ pair <{.x.1 x, .y suc y} add, .y>;
+```
 
-      suc = {$nat 1};
-      add = $pair <{.x.1 x, .y suc y} add, .y>;
+Code definition statement starts with `$`. 
+Also, any code expression occurrig within a `k`-expression is prefixed by `$`.
 
 Two codes are considered equal when they are isomorphic (preserving
 union/product and field names). E.g., `$pair`, `${nat y, nat x}`, and
-`${<nat 1, {} 0> x, nat y}` are all equal.
+`${<nat 1, {} 0> x, nat y}` are all equivalent and corresponds its cannonical form
+`$C0={C1"x",C1"y"};$C1=<C2"0",C1"1">;$C2={};`.
+
+Try in `k-repl`:
+
+```k-repl
+> $ nat = < nat 1, {} 0 >; \
+  $ pair = { nat x, nat y };
+--> {}
+> --C pair
+ $ IxLVRLECv = {BADJOX x, BADJOX y}; -- $C0={C1"x",C1"y"};$C1=<C2"0",C1"1">;$C2={};
+$ myCode = {<nat 1, {} 0> x, nat y};
+--> {}
+> --C myCode
+ $ IxLVRLECv = {BADJOX x, BADJOX y}; -- $C0={C1"x",C1"y"};$C1=<C2"0",C1"1">;$C2={};
+```
 
 #### Basic extension codes
 
@@ -249,26 +259,33 @@ there are three predefined types: `int`, `bool`, and `string`. A
 vector product code can also be defined by `[ codeExp ]`. All members
 of the vector are the same code. E.g.,
 
-     $intVector = [ int ];
-     $boolVector = [ bool ];
-     $tree = [ tree ];
+```k-repl
+  $ intVector = [ int ];
+  $ boolVector = [ bool ];
+  $ tree = [ tree ];
+```
 
 ### Code derivation and Patterns
 
 Intuitively, a _pattern_ represents some set of contraints on
 codes. For example, expression `.toto` is a projection from a value of
-a product or a union with field `toto`.  Therefore, expression `.toto`
+a product or a union code with field `toto`.  Therefore, expression `.toto`
 introduces two patterns `p_i` and `p_o` (for input and output codes,
 respectively); `p_o` imposes no constraint on code, however `p_i` is a
 product or union code with field `toto` leading to a code fulfilling
-`p_o`, i.e., something like `< ? toto, ... >` or `{ ? toto, ... }`.
+`p_o`, which will be denoted by:
 
-         .toto
-     p_i       p_o
+```k-repl
+> toto = .toto;
+--> {}
+> --R toto
+  toto : ?(X0 toto, ...)  -->  ?X0
+  toto = .toto;
+```
 
 In a more complex expression each (occurrence of) subexpression will
 introduce some new patterns.  
-For example, concider `<.toto, ()>`:
+For example, concider ` rel = <.toto, ()>; `.
 
         <    .toto    ,    ()    >
      p1   p2       p3   p4    p5   p6
@@ -278,28 +295,27 @@ and `p6` is the pattern for the output.  We can deduce that patterns
 (`p1`, `p2`, `p4`) defines the same code, as well as (`p6`, `p5`, `p3`),
 because union combines partial functions with the same input and output codes.
 Identity, `()`, implies that (`p4`, `p5`) define the
-same code.  That means that in our expression, we deal with only one
-code, `c`, product or union, with field `toto` of type `c`, i.e.,
+same code. In `k-repl`:
 
-        $c = < c toto, ... >;
-
-or
-
-        $c = { c toto, ... };
-
-Since the product code pattern (i.e., latter case) doesn't admmit any
-(finite) value, we conclude that the code `c` is a union (i.e.,
-former case).
+```k-repl
+> rel = < .toto, () >;
+--> {}
+> --R rel
+  rel : ?(X0 toto, ...)=X0  -->  ?X0
+  rel = <.toto, ()>;
+```
 
 For a given `kScript`, code derivation (as any static analysis) can
 fail, indicating that the script is invalid.  In some other cases the
 code derivation can succeed even to the point of reducig every pattern
 to a single code making the program fully annotated by codes.
 
-The language `k` supports _type patterns_, which is used for type inference, however the patterns are not concidered in the evaluation of the program.
+The language `k` supports _type patterns_, which is used for code
+derivation, however the patterns are not concidered in the
+evaluation of the program.
 
-```k
-    tree_pattern = ?<(...) leaf, {T left, T right} tree> = T;
+```k-repl
+    treePattern = ?<(...) leaf, {T left, T right} tree> = T;
 ```
 
 ---
@@ -307,13 +323,13 @@ The language `k` supports _type patterns_, which is used for type inference, how
 ### List comprehension
 
 A vector can be "open" by PIPE (`|`) operator so the following partial function is applied to
-each element of the vector one by one, yielding another open value. An open value can be "closed", 
+each element of the vector, yielding another open value. An open value can be "closed", 
 i.e., turn into a regular vector using `CARET` (`^`) operator. E.g.:
 
 ```k
     | .x  ^ :
-       [{x:12}, {x:8,y:10}, {y:98}]       -->  [12,8]
-       [1,2,3]                            -->  []
+       [{x:12}, {x:8}, {y:98}]       -->  [12,8]
+       ["a","x","b","x"]             -->  [{},{}]
 ```
 
 The PIPE operator can be used for defining the Cartesian product:
@@ -354,8 +370,8 @@ times value `x` appears in the list. (see `Examples/list-comprehension.k` for a 
 1. projection:
 
         .x
-        ."field name"
-        .4
+        . "field name"
+        (. 4)
 
    The function is defined if its argument "has" the field.
 
@@ -398,11 +414,11 @@ times value `x` appears in the list. (see `Examples/list-comprehension.k` for a 
 Another example could be finding the biggest (max) value in a vector:
 
     max = < 
-      SNOC             #   [x0, x1, x2, ...] --> {x0 car, [x1, x2, ...] cdr}
-      [.car, .cdr max] #   [x0, [x1, x2, ...]] --> [x0, max(x1,x2,...)], i.e., recursive call 
-      <GT .0, .1>      #   if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
+      SNOC             #  [x0, x1, x2, ...] --> {x0 car, [x1, x2, ...] cdr}
+      [.car, .cdr max] #  {car:x0, cdr:[x1, x2, ...]} --> [x0, max(x1,x2,...)], recursive call 
+      <GT .0, .1>      #  if x0 > max(x1,x2,...) then x0 else max(x1,x2,...)
     ,                  # when SNOC is not defined, i.e., if the input vector has one element:
-      .0               #   [x0] --> x0
+      .0               #  [x0] --> x0
     >; 
     max
 
@@ -488,16 +504,16 @@ For example:
 
         > k -k test.k
 
-    If we want to read `json` objects from a file, e.g., `my-objects.json`, we do
+    If we want to read `json` objects from a file, e.g., `my-objects.jsonl`, we do
 
-        > k -k test.k my-objects.json
+        > k -k test.k my-objects.jsonl
          {"x&y":"x=432 & y=123"} 
          {"x&y":"only x=987"} 
          {"x&y":"no x nor y"}
 
     where:
 
-        > cat my-objects.json 
+        > cat my-objects.jsonl 
          ####################################################
          # empty lines and lines starting with # are ignored
          {"y": 123, "x": 432,"others": "..."}
@@ -509,40 +525,28 @@ For example:
 
 ### Short comparaison with `jq` tutorial examples: <https://stedolan.github.io/jq/tutorial/>
 
-1.
-        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | jq '.'
-        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | k '()' -1 
-2.
-        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | jq '.[0]'
-        curl 'https://api.github.com/repositories/5101141/commits?per_page=5' | k '.0' -1 
-3.
-        jq '.[0] | {message: .commit.message, name: .commit.committer.name}'
-        k '.0 {.commit.message message, .commit.committer.name name}' -1
-4. note: `k`-expression defines a partial function yielding a single json object, i.e., as far as `k` is concerned,
-   examples 4 and 5 of the `jq` tutorial are equivalent.
-5.
-        jq '[.[] | {message: .commit.message, name: .commit.committer.name}]'
-        k '| .commit {.message message, .committer.name name} ^' -1 
-6.
-        jq '[.[] | {message: .commit.message, name: .commit.committer.name, parents: [.parents[].html_url]}]'
-        k '| {.commit.message message, .commit.committer.name name, .parents | .html_url ^ parents} ^' -1 
+[![asciicast](https://asciinema.org/a/ItH7nkc5CwFOopH8Fsr23oCWj.svg)](https://asciinema.org/a/ItH7nkc5CwFOopH8Fsr23oCWj)
 
 ---
 
 ## k-REPL (Read-Evaluate-Print Loop)
 
-Also there is a REPL, `k-repl` (`./node_modules/.bin/k-repl`), which acts like a toy
-shell for the language. E.g.:
+Also there is a REPL, `k-repl` (`./node_modules/.bin/k-repl`),
+which acts like a toy shell for the language.
 
-    > ./node_modules/.bin/k-repl 
-     {'a' a, 'b' b} toJSON
-     => "{\"a\":\"a\",\"b\":\"b\"}"
-     {"a" a} toJSON fromJSON
-     => {"a": "a"}
-     inc = [(),1] PLUS; 1 inc inc
-     => 3
-     inc inc inc inc
-     => 7
+```k-repl
+$ k-repl
+Very! experimental repl shell for 'k-language'...
+  --c            print aliased codes
+  --C code       print 'code' definition
+  --r            print relations
+  --R rel        print 'rel' definition with type patterns
+  --p (--pp)     pretty-print last value
+  --s (--g) reg  store (get) the current value in (from) register 'reg'
+  --regs         print register names
+  --l file.k     load 'file.k'
+> 
+```
 
 ---
 
