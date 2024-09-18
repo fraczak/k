@@ -180,12 +180,11 @@ function evaluate(line) {
         val = k.run(`+++\n${line}\n()`, val);
         printVal();
       } catch (error) {
-        e = error;
-        console.error("ERROR:");
-        console.error(e);
+        console.error(error.message);
       }
     }
   } catch (e) {
     console.error(e.message);
+    console.error(e);
   }
 }

@@ -248,7 +248,9 @@ function run(exp, value) {
       }
       case "caret": {
         const result = run(exp.caret, value);
-        assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
+        // assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
+        if (! isOpen(result))
+          throw new Error(`Type Error (line: ${exp.end?.line}:${exp.end?.column}): CARET (^): Only 'unboxed' values can be 'boxed'.`)
         return [...result];
       }  
       case "filter": {
