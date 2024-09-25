@@ -3,6 +3,7 @@ import hash from "./hash.mjs";
 import { TypePatternGraph } from "./typing.mjs";
 import { Graph, sccs, topoOrder } from "./Graph.mjs";
 import codes from "./codes.mjs";
+import { assignCanonicalNames } from "./export.mjs";
 
 const unitCode = codes.unitCode;
 
@@ -101,6 +102,7 @@ function patterns(representatives, rels) {
   //   representatives:{"{}": "BG", ...}
   //   rels: {"rlz": [{op: comp,...}, ...], ...}
  
+  const relAlias = {};
 
   // 1 INITIALIZATION
   // 1.1 initialize patternNodes and rels
@@ -416,7 +418,7 @@ function patterns(representatives, rels) {
   for (const relName in rels) {
     const rootDef = rels[relName];
     rootDef.typePatternGraph = new TypePatternGraph();
-    rootDef.varRefs = []; // the list of non-built references as pointers to AST nodes
+    rootDef.varRefs = []; // the list of references to non-builtin rels as pointers to AST nodes
     rootDef.patternVars = {}; 
     augment(rootDef.def, rootDef);
     delete rootDef.patternVars;
@@ -453,12 +455,18 @@ function patterns(representatives, rels) {
 
   // 3. Topological sort of the DAG
 
-  const sccInOrder = topoOrder(DAG);
+  const sccInOrder = topoOrder(DAG).reverse();
 
   // 4. For each strongly connected component C in a bottom-up order
+  
+  //    we will also generate the canonical representation of the relations in C and replace 
+  //    the name to the relation by the hash of the canonical representation    
 
-  for (const scc of sccInOrder.reverse()) {
-    // console.log(`SCC: { ${DAGnodes[scc].scc} }`);
+  // console.log("----- SCC in order", sccInOrder);
+
+  for (const scc of sccInOrder) {
+
+    assignCanonicalNames(DAGnodes[scc].scc, rels, relAlias);
 
     const maxNumberOfIterations = 10;
     
@@ -507,9 +515,9 @@ function patterns(representatives, rels) {
         // console.log("SUCCESS!");
         break;
       }
-    } // while
-      
+    } // end of iteration loop
   }
+  return relAlias;
 }
 
 export default { patterns };

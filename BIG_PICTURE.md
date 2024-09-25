@@ -78,9 +78,14 @@ type_label_list ::= /* empty */ | ( type_expression label_name ',' ) + type_expr
 type_expression ::= type_name | type
 
 function_definition ::= function_name '=' expression ';'
-expression ::= projection | typing | composition | union | product | function_name
+expression ::= projection | typing | filter | composition | union | product | function_name
 projection ::= '.' label_name
-typing ::= '$' tape_expression 
+typing ::= '$' type_expression 
+filter ::= '?' filter_expression
+filter_expression ::= $ type_expression | filter_name 
+  | '{' filter_label_list '}' | '<' filter_label_list '>' | '(' filter_label_list ')'
+  | filter_expression '=' filter_name
+filter_label_list ::= /* empty */ | ( filter_expression label_name ',' ) * filter_expression label
 composition ::= '(' expression * ')'  
 union ::= '<' (expression ',') + expression '>' 
 product ::= '{' expression_label_list '}'

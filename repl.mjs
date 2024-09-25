@@ -164,6 +164,7 @@ function evaluate(line) {
         console.log(` -- relation '${relName}' not found`);
         return;
       }
+      const canonicalRelName = run.defs.relAlias[relName];
       const filters = patterns2filters(rel.typePatternGraph, ...rel.def.patterns);
       // console.log(filters);
       // console.log(" variables:", JSON.stringify(variables));
@@ -171,6 +172,7 @@ function evaluate(line) {
       // for (const filter of filters) {
       const pcodef= prettyCode.bind(null, run.defs.representatives);
       const filtersStr = filters.map( x => prettyRel(pcodef, {op: "filter", filter: x}));
+      console.log(` -- canonical relation name: ${canonicalRelName} --`);
       console.log(`  ${relName} : ${filtersStr[0]}  -->  ${filtersStr[1]}`);
       console.log(`  ${relName} = ${prettyRel(pcodef,rel.def)};`);
       // }

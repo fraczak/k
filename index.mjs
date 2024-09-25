@@ -35,9 +35,9 @@ function annotate(script) {
   const representatives = t.register(defs.codes);
   const rels = {...defs.rels, "__main__": {def: exp}};
 
-  patterns(representatives, rels);
+  const relAlias = patterns(representatives, rels);
  
-  return {rels, representatives}
+  return {rels, representatives, relAlias};
 }
 annotate.doc = "Annotate all the script expressions with patterns";
 
