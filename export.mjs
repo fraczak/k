@@ -1,12 +1,69 @@
 
-import { prettyCode, prettyRel } from "./pretty.mjs";
+import { prettyCode, prettyRel, patterns2filters } from "./pretty.mjs";
 import { hash } from "./hash.mjs";
 
 const printRel = prettyRel.bind(null, prettyCode.bind(null, {}));
 
+
+function simplifyRel(relDef) {
+  // remove filters and codes
+  const prune = (rel) => {
+    const newRel = {...rel};
+    switch (rel.op) {
+      case "product":
+        newRel.product = rel.product.map(({label, exp}) => ({label, exp: prune(exp)}));
+        break;
+      case "union":
+        newRel.union = rel.union.map(exp => prune(exp));
+        break;
+      case "comp":
+        newRel.comp = rel.comp.reduce((list, exp) => {
+          const newExp = prune(exp);
+          if (newExp.op != "identity") 
+            list.push(newExp);
+          return list;
+        },[]);
+        if (newRel.comp.length == 0) 
+          newRel.op = "identity";
+        break;
+      case "vector":
+        newRel.vector = rel.vector.map(exp => prune(exp));
+        break;
+      case "caret":
+        newRel.caret = prune(rel.caret);
+        break;
+      case 'code':
+      case 'filter':
+        newRel.op = "identity";
+      default:
+        break;
+    };
+    return newRel;
+  };
+
+  const rel = relDef.def;
+  const filters = patterns2filters(relDef.typePatternGraph, ...rel.patterns).map( filter =>
+    ({op: "filter", filter: filter}));
+  const newRel = prune(rel);
+  let resultRel = {...newRel};
+  if (newRel.op == "identity")
+    return filters[0]; 
+
+  if (newRel.op == "comp") { 
+    resultRel.comp = [ filters[0], ...newRel.comp, filters[1] ];
+    return resultRel;
+  }
+  return {
+    op: "comp",
+    comp: [filters[0], newRel, filters[1] ]
+  };
+};
+
+
 function theID(alias, rel, scc, name) {
   const sccNames = new Set(scc);
   const auxNames = {[name]: "X0"};
+  // rename and remove filters and codes
   const reNameX = (rel) => {
     const newRel = {...rel};
     switch (rel.op) {
@@ -42,27 +99,34 @@ function theID(alias, rel, scc, name) {
     return newRel;
   };
 
+  if (rel.op == "ref")
+    return alias[rel.ref];
   const newRel = reNameX(rel);
-  const newRelStr = printRel(newRel);
-  const newName = hash(newRelStr);
+  const resultRelStr = printRel(newRel);
+  console.log(` ${name} = ${resultRelStr}`);
+  const newName = hash(resultRelStr);
   return newName;
 };
 
-
 function assignCanonicalNames(scc, rels, relAlias) {
   const newAlias = scc.reduce( (newAlias,relName) => {
-    newAlias[relName] = theID(relAlias, rels[relName].def, scc, relName);
+    const relDef = rels[relName];
+    relDef.simplified = simplifyRel(relDef);
+    newAlias[relName] = theID(relAlias, relDef.simplified, scc, relName);
     return newAlias;
   }, {});
   const newNames = [...new Set(Object.values(newAlias))];
+  console.log(` --- SCC: {${scc.join(",")}} ---`);
+
   const sccCanonicalName = newNames.sort().join(":");
-  console.log(` --- SCC: {${scc.join(",")}} -> ${sccCanonicalName}`);
   for (let relName in newAlias) {
-    relAlias[relName] = hash(newAlias[relName]+":"+sccCanonicalName);
+    if (newNames.length > 1)
+      relAlias[relName] = hash(newAlias[relName]+":"+sccCanonicalName);
+    else
+      relAlias[relName] = newAlias[relName];
     console.log(`  ${relName} -> ${relAlias[relName]}`);
   };  
 }
-
 
 export default { assignCanonicalNames };
 export { assignCanonicalNames};

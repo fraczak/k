@@ -466,8 +466,6 @@ function patterns(representatives, rels) {
 
   for (const scc of sccInOrder) {
 
-    assignCanonicalNames(DAGnodes[scc].scc, rels, relAlias);
-
     const maxNumberOfIterations = 10;
     
     for (let iteration = 1; iteration <= maxNumberOfIterations; iteration++) {
@@ -505,9 +503,7 @@ function patterns(representatives, rels) {
             throw e;
           }
         }
-
         rels[relName] = compactRel(relDef,relName);
-        
         return relDefToString(rels[relName]); 
       }));
 
@@ -516,6 +512,16 @@ function patterns(representatives, rels) {
         break;
       }
     } // end of iteration loop
+
+    DAGnodes[scc].scc.forEach( relName => {
+      const relDef = rels[relName];
+      const canonical = relDefToString(relDef);
+      const h = hash(canonical);
+      relAlias[relName] = h;
+    });
+
+    assignCanonicalNames(DAGnodes[scc].scc, rels, relAlias);
+
   }
   return relAlias;
 }

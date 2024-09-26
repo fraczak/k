@@ -175,6 +175,7 @@ function evaluate(line) {
       console.log(` -- canonical relation name: ${canonicalRelName} --`);
       console.log(`  ${relName} : ${filtersStr[0]}  -->  ${filtersStr[1]}`);
       console.log(`  ${relName} = ${prettyRel(pcodef,rel.def)};`);
+      console.log(`  ${relName} = ${prettyRel(pcodef,rel.simplified)};`);
       // }
       // ------ k code
     } else if (!line.match(/^[ \n\t]*(?:#.*)?$/)) {

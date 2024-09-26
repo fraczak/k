@@ -8,6 +8,7 @@ function compile(script) {
     run.defs = annotate(script);
   } catch (e) {
     console.error(e.message);
+    console.error(e);
     console.error("WARN: Recompiling without type reconciliation due to the type error above.");
     const { defs, exp } = parse(script);
     const { codes, representatives } = t.finalize(defs.codes);
