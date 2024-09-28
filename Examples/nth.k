@@ -1,6 +1,7 @@
 inc = [$int,1] PLUS;
 dec = [$int,-1] PLUS;
 car = ?[X] .0;
+_SNOC = {.0 car, SNOC .cdr SNOC CONS cdr}; -- old SNOC, not defined for singletons
 cdr = ?[X] < SNOC.cdr, []>;
 empty? = ?[X] <{.0 nope}, {() empty}> .empty;
 singleton? = ?[X] <{.1 nope},{[.0] singleton}> .singleton;
@@ -52,7 +53,7 @@ split_ =
 merge =
 ?{ [X] 0, [X] 1 }
  <
-  {.0 SNOC 0, .1 SNOC 1}                      -- both lists are at least 2 element long
+  {.0 _SNOC 0, .1 _SNOC 1}                      -- both lists are at least 2 element long
   ? {{X car, [X] cdr} 0, {X car, [X] cdr} 1}
   < 
     {[.0.car, .1.car] GT 0, .0.cdr 1, .1.cdr 2}, 
@@ -61,7 +62,7 @@ merge =
   ? {[X] 0, [X] 1, [X] 2}
   {.0.0 car, {.1 0, {.0.1 car, .2 cdr} CONS 1} merge cdr} CONS,
   
-  < {.0 SNOC 0, .1.0 1}, {.1 SNOC 0, .0.0 1} >      -- one list has one element, other at least 2
+  < {.0 _SNOC 0, .1.0 1}, {.1 _SNOC 0, .0.0 1} >      -- one list has one element, other at least 2
   --? {{X car, [X] cdr} 0, X 1}
   <
     {[.0.car, .1] GT 0, .0.cdr 1}
@@ -70,7 +71,6 @@ merge =
 
     {.1 car, .0 CONS cdr} CONS
   >,
-  
   [.0.0, .1.0] < GT, [.1,.0] > ,          -- both lists are one element long
   .0,                                     -- first list has one element
   .1                                      -- otherwise
@@ -91,7 +91,7 @@ sort =
 merge_uniq =
 ?{[X] 0, [X] 1}
  <
-  {.0 SNOC 0, .1 SNOC 1}                       -- both lists are at least 2 element long
+  {.0 _SNOC 0, .1 _SNOC 1}                       -- both lists are at least 2 element long
     < 
       {[.0.car, .1.car] GT 0, .0.cdr 1, .1.cdr 2}, 
       {[.1.car, .0.car] 0, .1.cdr 1, .0.cdr 2}
@@ -101,7 +101,7 @@ merge_uniq =
       {.0.0 car, {.1 0, {.0.1 car, .2 cdr} CONS 1} merge_uniq cdr} 
     > CONS,
 
-  <{.0 SNOC 0, .1.0 1}, {.1 SNOC 0, .0.0 1} >      -- one list has one element, other at least 2
+  <{.0 _SNOC 0, .1.0 1}, {.1 _SNOC 0, .0.0 1} >      -- one list has one element, other at least 2
     <
       {[.0.car, .1] EQ if, .0 CONS then} .then,
       {[.0.car, .1] GT 0, .0.cdr 1} 
