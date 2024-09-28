@@ -131,5 +131,50 @@ function assignCanonicalNames(scc, rels, relAlias) {
   };  
 }
 
-export default { assignCanonicalNames };
-export { assignCanonicalNames};
+function exportRelation(rels, alias, name) {
+  const queue = [name];
+  const inQueue = { [name]: true };
+  const result = {};
+  const reName = (rel) => {
+    const newRel = {...rel};
+    switch (rel.op) {
+      case "product":
+        newRel.product = rel.product.map(({label, exp}) => ({label, exp: reName(exp)}));
+        break;
+      case "union":
+        newRel.union = rel.union.map(exp => reName(exp));
+        break;
+      case "comp":
+        newRel.comp = rel.comp.map(exp => reName(exp));
+        break;
+      case "vector":
+        newRel.vector = rel.vector.map(exp => reName(exp));
+        break;
+      case "caret":
+        newRel.caret = reName(rel.caret);
+        break;
+      case "ref": {
+        const n = rel.ref;
+        if (alias[n] == undefined) // built-in
+          return newRel; 
+        newRel.ref = alias[n];
+        if (! inQueue[n]) {
+          inQueue[n] = true;
+          queue.push(n);
+        }
+      }; break;
+      default:
+        break;
+    };
+    return newRel;
+  };
+  while (queue.length > 0 ) {
+    const name = queue.shift();
+    const canonicalName = alias[name];
+    result[canonicalName] = {...rels[name], def: reName(rels[name].def), name: name};
+  }
+  return result;
+}
+
+export default { assignCanonicalNames, exportRelation };
+export { assignCanonicalNames, exportRelation };

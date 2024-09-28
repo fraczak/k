@@ -6,14 +6,17 @@ import k from "./index.mjs";
 import {run, closeVector } from "./run.mjs";
 import { prettyCode, prettyRel, patterns2filters } from "./pretty.mjs";
 import { find } from "./codes.mjs";
+import { exportRelation } from "./export.mjs";
 
 
-const splice = [].splice;
+let DEBUG_FLAG = false;
 
 console.log("Very! experimental repl shell for 'k-language'...");
 
 const help = function () {
-  // console.log("  --debug      loads codes and relations as value");
+  console.log(`  --debug        toggle debug flag: [${DEBUG_FLAG?'ON':'OFF'}]`);
+  if (DEBUG_FLAG)
+    console.log("  --load         loads codes and relations as value");
   console.log("  --c            print aliased codes");
   console.log("  --C code       print 'code' definition");
   console.log("  --r            print relations");
@@ -88,8 +91,11 @@ function evaluate(line) {
       // console.log(kScript);
       val = k.compile("+++\n" + kScript + "\n()")(val);
       printVal();
-    } else if (line.match(/^[ \n\t]*--debug$/)) {
       // --debug
+    } else if (line.match(/^[ \n\t]*--debug$/)) {
+      DEBUG_FLAG = ! DEBUG_FLAG;
+      // --load
+    } else if (line.match(/^[ \n\t]*--load$/)) {
       val = run.defs;
       console.log(val);
       // --r
@@ -176,6 +182,10 @@ function evaluate(line) {
       console.log(`  ${relName} : ${filtersStr[0]}  -->  ${filtersStr[1]}`);
       console.log(`  ${relName} = ${prettyRel(pcodef,rel.def)};`);
       console.log(`  ${relName} = ${prettyRel(pcodef,rel.simplified)};`);
+      if (DEBUG_FLAG) {
+        val = exportRelation(run.defs.rels, run.defs.relAlias, relName);
+        console.log(val);
+      }
       // }
       // ------ k code
     } else if (!line.match(/^[ \n\t]*(?:#.*)?$/)) {
