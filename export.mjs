@@ -99,11 +99,9 @@ function theID(alias, rel, scc, name) {
     return newRel;
   };
 
-  if (rel.op == "ref")
-    return alias[rel.ref];
   const newRel = reNameX(rel);
   const resultRelStr = printRel(newRel);
-  console.log(` ${name} = ${resultRelStr}`);
+  // console.log(` ${name} = ${resultRelStr}`);
   const newName = hash(resultRelStr);
   return newName;
 };
@@ -111,12 +109,17 @@ function theID(alias, rel, scc, name) {
 function assignCanonicalNames(scc, rels, relAlias) {
   const newAlias = scc.reduce( (newAlias,relName) => {
     const relDef = rels[relName];
-    relDef.simplified = simplifyRel(relDef);
+    if (relDef.def.op == "ref" && rels[relDef.def.ref] != undefined) {
+      // inlining if direct alias to a non built-in relation
+      relDef.simplified = simplifyRel(rels[relDef.def.ref]);
+    } else {
+      relDef.simplified = simplifyRel(relDef);
+    }
     newAlias[relName] = theID(relAlias, relDef.simplified, scc, relName);
     return newAlias;
   }, {});
   const newNames = [...new Set(Object.values(newAlias))];
-  console.log(` --- SCC: {${scc.join(",")}} ---`);
+  // console.log(` --- SCC: {${scc.join(",")}} ---`);
 
   const sccCanonicalName = newNames.sort().join(":");
   for (let relName in newAlias) {
@@ -124,7 +127,7 @@ function assignCanonicalNames(scc, rels, relAlias) {
       relAlias[relName] = hash(newAlias[relName]+":"+sccCanonicalName);
     else
       relAlias[relName] = newAlias[relName];
-    console.log(`  ${relName} -> ${relAlias[relName]}`);
+    // console.log(`  ${relName} -> ${relAlias[relName]}`);
   };  
 }
 

@@ -1,20 +1,11 @@
 import { find } from "./codes.mjs";
 import { TypePatternGraph } from "./typing.mjs";
 
-function compareAs(fn) {
-  return function (a, b) {
-    [a, b] = [a, b].map(fn);
-    if (a < b) return -1;
-    if (a > b) return 1;
-    return 0;
-  };
-}
-
 const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
 
 function prettyCode_labels (representatives, label_ref_map) {
   return Object.keys(label_ref_map)
-    .sort( compareAs((x) => x) )
+    .sort()
     .map( (label) => {
       const plabel = nameRE.test(label) ? label : `'${label}'`;
       return `${prettyCode(representatives, {
@@ -148,25 +139,24 @@ function patterns2filters(typePatternGraph, ...patternIds) {
 
   // variables - variables which will have to be added as extra filters
   const variables = inDegree.reduce( (variables, degree, i) => {
-    if (degree > 1) variables[i] = "fresh";
+    if (degree > 1) variables[i] = true;
     return variables;
   }, {});
 
+  const filterVars = {};
   const buildFilter = (path, patternId, i) => {
     let named_filter = {};
     const pattern = newTypePatternGraph.get_pattern(patternId);
     if (variables[patternId] && pattern.pattern != 'type') {
-      const name = `X${patternId}`;
-      if (variables[patternId] == "done") 
-        return { type: 'name', name: name };
-      variables[patternId] = "done";
-      named_filter = { name: name };
+      if (filterVars[patternId]) 
+        return { type: 'name', name: filterVars[patternId] };
+      filterVars[patternId] = `X${Object.keys(filterVars).length}`;
+      named_filter = { name: filterVars[patternId] };
     }
     
-
     const edges = newTypePatternGraph.edges[patternId];
     const fields = () => 
-      Object.keys(edges).reduce( (fields, key) =>{
+      Object.keys(edges).sort().reduce( (fields, key) =>{
         fields[key] = buildFilter([...path, key], Object.values(edges[key])[0], i);
         return fields;
       }, {});
