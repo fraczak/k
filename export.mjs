@@ -1,9 +1,6 @@
 
-import { prettyCode, prettyRel, patterns2filters } from "./pretty.mjs";
+import { prettyRel, patterns2filters } from "./pretty.mjs";
 import { hash } from "./hash.mjs";
-
-const printRel = prettyRel.bind(null, prettyCode.bind(null, {}));
-
 
 function simplifyRel(relDef) {
   // remove filters and codes
@@ -100,7 +97,7 @@ function theID(alias, rel, scc, name) {
   };
 
   const newRel = reNameX(rel);
-  const resultRelStr = printRel(newRel);
+  const resultRelStr = prettyRel(newRel);
   // console.log(` ${name} = ${resultRelStr}`);
   const newName = hash(resultRelStr);
   return newName;

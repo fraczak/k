@@ -37,10 +37,10 @@ function prettyCode (representatives, codeExp) {
   }
 };
 
-function prettyFilter (prettyCode, filter) {
+function prettyFilter ( filter ) {
   const fieldsStr = () => {
     const fields = Object.keys(filter.fields).map( (key) => 
-      `${prettyFilter(prettyCode, filter.fields[key])} ${key}` 
+      `${prettyFilter(filter.fields[key])} ${key}` 
     );
     if (filter.open) fields.push("...");
     return fields.join(", ");
@@ -48,11 +48,11 @@ function prettyFilter (prettyCode, filter) {
   switch (filter.type) {
     
     case "code":
-      return `$${prettyCode({code: "ref",ref: filter.code,})}`;
+      return `$${filter.code}`;
     case "name":
       return filter.name;
     case "vector":
-      return `[${prettyFilter(prettyCode, filter.vector)}]${filter.name ? "=" + filter.name : ""}`;
+      return `[${prettyFilter(filter.vector)}]${filter.name ? "=" + filter.name : ""}`;
     case null:
       if (filter.name && Object.keys(filter.fields).length == 0) 
         return filter.name;
@@ -65,12 +65,13 @@ function prettyFilter (prettyCode, filter) {
   throw new Error(`Unknown filter type ${filter.type} in ${JSON.stringify(filter)}`);
 }
 
-function prettyRel (prettyCode, exp) {
+function prettyRel (exp) {
   "use strict";
   const pretty = (exp) => {
     switch (exp.op) {
       case "filter":
-        return `?${prettyFilter(prettyCode, exp.filter)}`;
+        if (exp.filter.type == 'code') return `$${exp.filter.code}`;
+        return `?${prettyFilter(exp.filter)}`;
       case "pipe":
         return `|`;        
       case "caret":
@@ -99,10 +100,7 @@ function prettyRel (prettyCode, exp) {
         }
         break;
       case "code":
-        return `$${prettyCode({
-          code: "ref",
-          ref: exp.code,
-        })}`;
+        return `$${exp.code}`;
       case "product":
         return (function (labelled) {
           return `{${labelled.join(", ")}}`;
