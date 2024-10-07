@@ -1,5 +1,5 @@
 cdr = < SNOC.cdr, []>;
-empty? = <{.0 nope}, {() empty}>.empty;
+empty? = ?[X] < {.0 nope}, { () empty } >.empty;
 
 $ re = <
     {} sink,

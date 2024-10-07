@@ -65,6 +65,7 @@ _append_one =
 reverse_bnat = {() x, _ y} _reverse_bnat;
 
 _reverse_bnat =
+${bnat x, bnat y}
 <
   {.x._ x, .y y} .y,
   {.x.0 x, .y _0 y} _reverse_bnat,
@@ -95,22 +96,27 @@ _add2wc =
       {.x.1 x, .y._ y, .c.1 c} {.x x, _ y, {} _1 c} _add2wc _0      
 >;
 
-plus = { 
+plus = ${bnat x, bnat y} { 
   .x remove_leading_zeros reverse_bnat x, 
   .y remove_leading_zeros reverse_bnat y, 
   {} _0 c } 
   _add2wc reverse_bnat;
 
+sum = <
+  SNOC {.car x, .cdr sum y} plus,
+  _
+  >; 
+
 to_string = <
   ._ "0",
   toStr
->;
+  >;
 
 toStr = <
   ._ "",
   ["0", .0 toStr] CONCAT,
   ["1", .1 toStr] CONCAT
->;
+  >;
 
 --[(), plus] 
 --{
@@ -154,15 +160,58 @@ x_minus_y =
   _sub2wc
   reverse_bnat remove_leading_zeros;
 
+_sm =
+/* This function "smart mult" calculates
+   result + (multipl * reverse_nat(times))
+*/
+  ${bnat result, bnat multipl, bnat times}
+  <
+    {.times._ if, .result then} .then,
+    {.times.0 times, .result result, .multipl _append_zero multipl } _sm,
+    {.times.1 times, {.result x, .multipl y} plus result, .multipl _append_zero multipl} _sm
+  >;
 
-mod   = < { shift mod x, .y y } mod, .x >;
-shift = { x_minus_y x, { .y x, .y y } plus y } ; -- (x,y)->(x-y,2y);
+times = ${bnat x, bnat y} 
+  { _ result, .x remove_leading_zeros multipl, .y remove_leading_zeros reverse_bnat times } _sm;
 
+b_inc = {() x, _ _1 y} plus;
+b_dec = {() x, _ _1 y} x_minus_y;
+
+mod   = < { shift mod x, .y y } mod, .x >; -- (x,y)->((x-y mod 2y) mod y);
+shift = ${bnat x, bnat y} { x_minus_y x, { .y x, .y y } plus y } ; -- (x,y)->(x-y,2y);
+
+---
+
+fromStr = $string toVEC fromVec;
+fromVec = < {.0.0 if, SNOC.cdr fromVec _0 then} .then, {.0.1 if, SNOC.cdr fromVec _1 then} .then, _>;
+bmod = {.0 fromStr x, .1 fromStr y} mod to_string;
+bplus = {.0 fromStr x, .1 fromStr y} plus to_string;
+
+b_pow = 
+  ${bnat x, bnat pow}
+  <
+    .pow remove_leading_zeros ._ _ _1,
+    {.x x, {.x x, .pow b_dec pow} b_pow y} times  
+  >;
+
+b_10 = 10 from_digit;
+positions = {() in, [] out} positions_ ;
+positions_ = <
+  {.in SNOC.cdr in, {.out <{.0 x, b_10 y} times , _ _1> car, .out cdr} CONS out} positions_,
+  .out
+>;
+
+
+
+/*
+-- needs 'nth.k' for Zip
+fromDigits = toVEC { () x, positions y} Zip (| {.x fromJSON from_digit x, .y y} times ^) sum;
+*/
 ----------------------------------------------------------------
 -- [9,4] 
 {
   () input,
+  | from_digit to_string ^ bitinput, 
   {.0 from_digit x, .1 from_digit y} 
-  {x_minus_y to_digit minus, mod to_digit mod} result
+  {x_minus_y to_digit minus, mod to_digit mod, times to_string times} result
 } 
-
