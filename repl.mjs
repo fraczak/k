@@ -117,11 +117,15 @@ function evaluate(line) {
       console.log(
         (function (defs, result) {
           for (const codeName of Object.keys(defs.representatives || {})) {
-            const codeExp = find(defs.representatives[codeName] || codeName);
-            result[codeName] = prettyCode(
-              defs.representatives,
-              codeExp
-            );
+            const codeRep = defs.representatives[codeName] || codeName;
+            if (codeName == codeRep) {
+              result[codeName] = prettyCode(
+                defs.representatives,
+                find(codeRep)
+              );
+            } else if (! codeName.startsWith(":")) {
+              result[codeName] = codeRep;
+            }
           }
           return result;
         })(run.defs || {}, {})
@@ -171,10 +175,15 @@ function evaluate(line) {
       // console.log(JSON.stringify({filters, variables}, null, 2));
       // for (const filter of filters) {
       const filtersStr = filters.map( x => prettyRel( {op: "filter", filter: x}));
-      console.log(` -- canonical relation name: ${canonicalRelName} --`);
-      console.log(`  ${relName} : ${filtersStr[0]}  -->  ${filtersStr[1]}`);
-      console.log(`  ${relName} = ${prettyRel(rel.def)};`);
-      console.log(`  ${relName} = ${prettyRel(rel.simplified)};`);
+      // console.log(` -- canonical relation name: ${canonicalRelName} --`);
+      // console.log(`  ${relName} : ${filtersStr[0]}  -->  ${filtersStr[1]}`);
+      // console.log(`  ${relName} = ${prettyRel(rel.def)};`);
+      // console.log(`  ${relName} = ${prettyRel(rel.simplified)};`);
+      console.log({
+        name: canonicalRelName,
+        type: `${filtersStr[0]}  -->  ${filtersStr[1]}`,
+        def: prettyRel(rel.simplified)
+      });
       if (DEBUG_FLAG) {
         val = exportRelation(run.defs.rels, run.defs.relAlias, relName);
         console.log(val);
