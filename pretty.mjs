@@ -2,16 +2,21 @@ import { find } from "./codes.mjs";
 import { TypePatternGraph } from "./typing.mjs";
 
 const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
+function pLabel_(label) {
+  return nameRE.test(label) ? ` ${label}` : `${JSON.stringify(label)}`;
+}
+function pLabel(label) {
+  return nameRE.test(label) ? `${label}` : `${JSON.stringify(label)}`;
+}
 
 function prettyCode_labels (representatives, label_ref_map) {
   return Object.keys(label_ref_map)
     .sort()
     .map( (label) => {
-      const plabel = nameRE.test(label) ? label : `'${label}'`;
       return `${prettyCode(representatives, {
         code: "ref",
         ref: label_ref_map[label],
-      })} ${plabel}`;
+      })}${pLabel_(label)}`;
     })
     .join(", ");
 };
@@ -40,7 +45,7 @@ function prettyCode (representatives, codeExp) {
 function prettyFilter ( filter ) {
   const fieldsStr = () => {
     const fields = Object.keys(filter.fields).map( (key) => 
-      `${prettyFilter(filter.fields[key])} ${key}` 
+      `${prettyFilter(filter.fields[key])}${pLabel_(key)}` 
     );
     if (filter.open) fields.push("...");
     return fields.join(", ");
@@ -93,12 +98,8 @@ function prettyRel (exp) {
       case "dot":
         if ("number" === typeof exp.dot) {
           return `.${exp.dot}`;
-        } else if (nameRE.test(exp.dot)) {
-          return `.${exp.dot}`;
-        } else {
-          return `'${exp.dot}'`;
-        }
-        break;
+        } else 
+          return `.${pLabel(exp.dot)}`;
       case "code":
         return `$${exp.code}`;
       case "product":
@@ -106,11 +107,7 @@ function prettyRel (exp) {
           return `{${labelled.join(", ")}}`;
         })(
           exp.product.map(function ({ label, exp }) {
-            if (nameRE.test(label)) {
-              return `${pretty(exp)} ${label}`;
-            } else {
-              return `${pretty(exp)} '${label}'`;
-            }
+              return `${pretty(exp)}${pLabel_(label)}`;
           })
         );
     }
