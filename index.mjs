@@ -4,20 +4,7 @@ import run from "./run.mjs";
 import t from "./codes.mjs";
 
 function compile(script) {
-  try {
-    run.defs = annotate(script);
-  } catch (e) {
-    console.error(e.message);
-    // console.error(e);
-    // console.error("WARN: Recompiling without type reconciliation due to the type error above.");
-    // const { defs, exp } = parse(script);
-    // const { codes, representatives } = t.finalize(defs.codes);
-    // run.defs = {
-    //   rels: {...defs.rels, "__main__": {def: exp}}, 
-    //   codes, representatives
-    // };
-    
-  }
+  run.defs = annotate(script);
   return run.bind(null, run.defs.rels.__main__.def);
 }
 
