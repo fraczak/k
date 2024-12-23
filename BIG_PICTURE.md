@@ -25,8 +25,10 @@ Types are defined by two constructs:
 
 Given a finite (possibly empty) set of types `t1, t2, ..., tn` and a set of pairwise different tags (labels) `l1, l2, ..., ln`,
 
-- by `{ t1 l1, t2 l2, ..., tn ln }`, we define a _product type_ with exactly `n` projection functions `.l1`, `.l2`, `...`, `.ln`,
-  mapping a value of type `{t1 l1, t2 l2, ..., tn ln}` into a value of type `t1`, `t2`, `...`, `tn`, respectively.
+- by `{ t1 l1, t2 l2, ..., tn ln }`, we define a _product type_ with exactly `n`
+  _projection_ functions: `.l1`, `.l2`, `...`, `.ln`.
+  Each projection function is mapping a value of type `{t1 l1, t2 l2, ..., tn ln}`
+  into a value of type `t1`, `t2`, `...`, `tn`, respectively.
 - by `< t1 l1, t2 l2, ..., tn ln >`, we define a _union type_ with exactly `n` projection functions `.l1`, `.l2`, `...`, `.ln`,
   mapping a value of type `<t1 l1, t2 l2, ..., tn ln>` into a value of type `t1`, `t2`, `...`, `tn`, respectively.
 
@@ -38,8 +40,8 @@ Some properties of these types:
 
 1. Singleton product and singleton union types, `{ t label }` and `< t label >`, are equivalent as they have
    the same set of values (and the same projection function `.label`). That's why, we not allow singleton product nor
-   singleton union types in the syntax of the language. The other benefit is that we will be able to use the same systax
-   for values of both product and union types, interpretting every singleton product-like value, e.g., `{ a_value label }`,
+   singleton union types in the syntax of the language. The other benefit is that we will be able to use the same syntax
+   for writing out values of both product and union types, interpretting every singleton product-like value, e.g., `{ a_value label }`,
    as a union type value (a variant).  
 2. The empty product type `{}` has a single value, called the _unit_ and also denoted by `{}`, which has no fields.
 3. The empty union type `<>` has no values.
@@ -50,7 +52,7 @@ A _partial function_ is a function that is not defined for every value of its do
 
 There are three ways of combining partial functions:
 
-1. __Composition__: we write a composition of `f` and `g` as `(f  g)`, meaning that if `f` is defined on valye `x` producing `y`,
+1. __Composition__: we write a composition of `f` and `g` as `(f  g)`, meaning that if `f` is defined on value `x` producing `y`,
    and `g` is defined on value `y` producing `z`, then `(f g)` is defined on value `x` producing `z`.
 2. __Union__: we write `< f1, f2 >` for a union of two functions `f1` and `f2`, meaning that
    if `f1` is defined on value `x` producing `y`, then `< f1, f2 >`
@@ -59,7 +61,7 @@ There are three ways of combining partial functions:
    are both defined on value `x` producing `y1` and `y2`, respectively, then `{f1 lab1, f2 lab2 }`
    is defined on value `x` producing `{y1 lab1, y2 lab2}`. Otherwise, `{f1 lab1, f2 lab2 }` is not defined for `x`.
 
-Actually, all of the above operations take any number of arguments, not only two. For example,
+Actually, composition, union, and product combine any number of partial functions, not only two. For example,
 empty composition, `()`, defines the identity function.
 
 ### Program
@@ -92,7 +94,7 @@ product ::= '{' expression_label_list '}'
 expression_label_list ::= /* empty */ | ( expression label_name ',' ) * expression label
 ```
 
-We assume that the `type_name`, `function_name`, and `label_name` are identifiers (strings) such that:
+We assume that in a `kernel-core` program the `type_name`, `function_name`, and `label_name` are identifiers (strings) such that:
 
 1. All defined type names are distinct.
 2. All defined function names are distinct.
@@ -102,6 +104,7 @@ The `typing` expression acts as a type annotation and can be seen as a 'filter',
 function defined only for the values of the corresponding type.
 
 That's it.
+
 No `builtin` types, no `if` statement, no `loop`, no `throw`, no _closure_, no _annotations_, and no macros.
 Just types and partial functions.
 
@@ -109,22 +112,22 @@ Just types and partial functions.
 
 All type names are replaced by the hash of their canonical representation.
 
-We will also replace the function name by the hash of the normalized unfolded definition of the function.
-Obviously, two different definitions of the same function may have different hashes.
+We replace the function name by the hash of the normalized definition of the function as provided by the program defining the function.
+Obviously, a function may have many different definitions so the hash-based names are not canonical. By using hash-based function names we avoid the problem of name clashes when bringing together many `kernel-core` programs.
 
-This approach solves the problem of modules and imports and opens the door to a universal
+This approach solves the problem of modules, imports, etc., and opens the door to a universal
 registry of types (schemas) and functions.
 
 ## Typing and Polymorphism (codes and filters/patterns)
 
-Abstract Syntax Tree of a program after parsing consists of a dictionary of _type definitions_,
+Abstract Syntax Tree of a program consists of a dictionary of _type definitions_,
 a dictionary  of _function definitions_, and the final _main expression_.
 
 In principle, the initial form of the Abstract Syntax Tree, _raw_ AST, is enough to evaluate
 the program on an input.
 
 Our objective however is to compute canonicals representations for types and normalized
-representations for functions, so they could be effectively reused.
+representations for functions, so they could be reused.
 
 The normalization steps are:
 
@@ -132,7 +135,7 @@ The normalization steps are:
    as well as type expressions used in _function definitions_ and the _main expression_.
 2. Annotate the expressions with types or type patterns; every node of the AST is annotated with a pair of type patterns.
 3. Turn the _singleton_ type patterns into types and add them to the _type graph_. Go to (2) unless no change.
-4. Normalize the function definitions by rewriting them as the fix-point of a single equation.
+
 
 ### Example
 
@@ -174,7 +177,7 @@ and a type `byte` as a product, for simplicity, of four `bit`s.
 Functions `bit0`, `bit1`, and `zero` are "constant polymorphic functions", meaning:
 
 - constant: if defined, they always return exactly the same value;
-- polymorphic: they are defined for more than one pair of input and output type: functions
+- polymorphic: they are defined for more than one pair of input and output types: functions
   `bit0` and `bit1` are of type `?X -> $bit`, and `zero` is of type `?X -> $byte`, where `?X`
   denotes an unconstrained type pattern, also denoted as `?(...)`.
 
@@ -191,15 +194,15 @@ with following constraints:
    > `?( V i, ...)`;
 - `V` is unconstrained, denoted by `(...)`;
 
-We could write it as: `?($byte byte, ((...) i, ...) overflown, ...)`.
+We can write it as: `?($byte byte, ((...) i, ...) overflown, ...)`.
 
 The target type `${ byte byte, bit overflown }` was derived from pattern `?{ $byte byte, $bit overflown }`.
-Such a pettern is called _singleton pattern_ as only one type fits the pattern.
+Such a pattern is called _singleton pattern_, as only one type fits the pattern.
 
 ## Universal Schema Registry
 
 Since the normalization process for types is fast and deterministic, we can build a universal
-schema registry that will store all invented types. 
+schema registry that will store all invented types.
 The registry will be a key-value store, where the key is the hash of the normalized type,
 and the value is the normalized type itself.
 
@@ -208,8 +211,7 @@ definition and stored in the similar key-value store.
 
 Non-polymorphic functions can be easily indexed by the hashes of their input and output types
 so that we can quickly find the function we need.
-Searching for polymorphic functions is more complicated, as we need to find the function
-whose input and output type patterns fit given types.
+Indexing polymorphic functions seems complicated (TODO).
 
 ## Serialization and Compilation
 
