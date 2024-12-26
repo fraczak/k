@@ -263,5 +263,7 @@ function run(exp, value) {
   };
 }
 
+run.builtin = builtin;
+
 export default run;
 export { run , closeVector };

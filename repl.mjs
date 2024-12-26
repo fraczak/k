@@ -100,7 +100,8 @@ function evaluate(line) {
       console.log(val);
       // --r
     } else if (line.match(/^[ \n\t]*(?:--r)?$/)) {
-      console.log(
+      console.log("BUILT-IN:", run.builtin);
+      console.log("USER-DEFINED:",
         (function (defs, result) {
           if (defs == null) {
             return result;
@@ -165,6 +166,10 @@ function evaluate(line) {
       const relName = line.match(re__R)[1];
       const rel = run.defs?.rels[relName];
       if (!rel) {
+        if (relName in run.builtin) {
+          console.log(` -- builtin relation: ${relName}\n    ${relName} = ${run.builtin[relName]}`);
+          return;
+        }
         console.log(` -- relation '${relName}' not found`);
         return;
       }
