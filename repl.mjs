@@ -51,8 +51,8 @@ rl.on('line', (line) => {
   process.exit(0);
 });
 
-let old_val = {};
-let val = {};
+let old_val = k.compile("{}")({});
+let val = old_val;
 const printVal = function (v = val) {
   if (v === undefined)
     console.log("...",v);
@@ -140,6 +140,9 @@ function evaluate(line) {
         codeName = codeName.slice(1);
       const canonicalName = run.defs.representatives[codeName] || codeName;
       const codeExp = find( canonicalName );
+      if (codeExp.def == "builtin") {
+        return console.log(` $ ${canonicalName} = :builtin;`);
+      }
       console.log(` $ ${canonicalName} = ${prettyCode(run.defs.representatives, codeExp)}; -- ${codeExp.def}`);
       // --pp
     } else if (line.match(/^[ \n\t]*(?:--pp)?$/)) {

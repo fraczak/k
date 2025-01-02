@@ -407,7 +407,7 @@ function patterns(representatives, rels) {
         rel.patterns = [rootDef.typePatternGraph.addNewNode(), rootDef.typePatternGraph.addNewNode()];
         break;
       default:
-        throw new Error(`No definition found for ${rel.ref}`);  
+        throw new Error(`No definition found for '${rel.ref}'`);  
     }
   }  
 

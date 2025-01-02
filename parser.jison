@@ -43,7 +43,7 @@ function fromEscString(escString) {
 
 %%
 [/][*]([^*]*[*]+[^*/])*[^*]*[*]+[/]             /* c-comment */
-("//"|"#"|"%"|"--")[^\n]*                       /* one line comment */
+("//"|"#"|"%"|"--"|"\\")[^\n]*                  /* one line comment */
 \s+                                             /* blanks */
 "<"                                            return 'LA';
 "{"                                            return 'LC';
