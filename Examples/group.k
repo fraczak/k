@@ -1,24 +1,24 @@
+cdr = SNOC .cdr;
 remove = 
-  ?{X 0, [X] 1}
+  ?{X value, [X] list}
 < 
-    {.0 0, .1 SNOC 1} 
-    { {.0 0,.1.cdr 1} remove r, .0 x, .1.car y } 
-    < [.r, [.x,.y] EQ].0, {.y car, .r cdr} CONS >, 
-    [[],[.0,.1.0] EQ] .0, 
-    .1 
+    { {.value value, .list cdr list} remove result, .value value, .list .0 car } 
+      < {[.value,.car] EQ if, .result then} .then, {.car car, .result cdr} CONS >, 
+    [.value, .list.0] EQ [], 
+    .list 
 >
 ;
 
 distinct = 
   ?[ X ]
 < 
-    SNOC {.car car, {.car 0, .cdr 1} remove distinct cdr} CONS, 
+    SNOC {.car car, {.car value, .cdr list} remove distinct cdr} CONS, 
     () 
 >
 ;
 
 group = 
-  ?[{X x, Y y}]
+  ?[{X x, Y y}] _log!
     { | .x ^ distinct x, () xy}
   ( 
       { .x | x, .xy xy } 
@@ -26,6 +26,7 @@ group =
     ^
   )
 ;
+
 
 [1,2,3] { | x, | y } ^ group
 
