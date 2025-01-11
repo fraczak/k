@@ -14,14 +14,17 @@ Formally, a _type_ is a (subclass of) finite tree automata. The type defines a s
 which corresponds to the set of trees accepted by the automaton.
 Therefore, every type admits a unique normal form in terms of its minimal deterministic tree automaton.
 
-The set of all types can be seen as the universal deterministic (infinite) tree automaton.
-Every node of that automaton defines a type; only a finite set of nodes are reachable from
-any node.
-
 Types are defined by two constructs:
 
 1. Product
 2. Union (also called tagged or disjoint union)
+
+```bnf
+type ::= name | '{' type_label_list '}' | '<' type_label_list '>'
+type_label_list ::= /* empty */ | ( type label ',' )* type label 
+name ::= IDENTIFIER
+label ::= STRING
+```
 
 Given a finite (possibly empty) set of types `t1, t2, ..., tn` and a set of pairwise different tags (labels) `l1, l2, ..., ln`,
 
@@ -43,8 +46,34 @@ Some properties of these types:
    singleton union types in the syntax of the language. The other benefit is that we will be able to use the same syntax
    for writing out values of both product and union types, interpretting every singleton product-like value, e.g., `{ a_value label }`,
    as a union type value (a variant).  
-2. The empty product type `{}` has a single value, called the _unit_ and also denoted by `{}`, which has no fields.
-3. The empty union type `<>` has no values.
+2. The empty product type, `{}`, has a single value, called the _unit_
+   and also denoted by `{}`, which has no fields.
+3. The empty union type, `<>`, has no values.
+
+### Filters (patterns)
+
+A _filter_ is a way of representing a _type class_, i.e, a set of types sharing some struture.
+For example, if I wanted to refer to all product types that have a field `f` of type `T`,
+I would write a pattern: `?{ T f, ... }`. In general, a filter is defined by:
+
+```bnf
+filter ::= name | '$' type_expr | '{' filter_label_list '}'
+   | '<' filter_label_list '>' | '(' filter_label_list ')'
+   | filter '=' name
+filter_label_list ::= /* empty */ | '...'
+   | ( filter label ',' ) * filter label
+```
+
+Examples:
+
+```k-repl
+  X                 -- any type
+  ( ... )           -- any type
+  { ... }           -- any product type
+  ( X x, X y )      -- any type with two fields of the same type
+  < X x, ... > = X  -- a (recursive) type, 'X', with variant 'x'
+                    -- of the same type 'X' 
+```
 
 ### Partial functions
 
@@ -52,14 +81,17 @@ A _partial function_ is a function that is not defined for every value of its do
 
 There are three ways of combining partial functions:
 
-1. __Composition__: we write a composition of `f` and `g` as `(f  g)`, meaning that if `f` is defined on value `x` producing `y`,
+1. __Composition__: we write a composition of `f` and `g` as `(f  g)`,
+   meaning that if `f` is defined on value `x` producing `y`,
    and `g` is defined on value `y` producing `z`, then `(f g)` is defined on value `x` producing `z`.
 2. __Union__: we write `< f1, f2 >` for a union of two functions `f1` and `f2`, meaning that
    if `f1` is defined on value `x` producing `y`, then `< f1, f2 >`
    is defined on value `x` producing `y`. Otherwise, i.e., when `f1` is not defined for `x`, `< f1 f2 >` acts as `f2`.
-3. __Product__: we write `{f1 lab1, f2 lab2 }` for a product of two functions `f1` and `f2`, meaning that if `f1` and `f2`
-   are both defined on value `x` producing `y1` and `y2`, respectively, then `{f1 lab1, f2 lab2 }`
-   is defined on value `x` producing `{y1 lab1, y2 lab2}`. Otherwise, `{f1 lab1, f2 lab2 }` is not defined for `x`.
+3. __Product__: we write `{f1 lab1, f2 lab2 }` for a product of two functions `f1` and `f2`,
+   meaning that if `f1` and `f2` are both defined on value `x` producing `y1` and `y2`,
+   respectively, then `{f1 lab1, f2 lab2 }` is defined on value `x` producing
+   `{y1 lab1, y2 lab2}`. 
+   Otherwise, `{f1 lab1, f2 lab2 }` is not defined for `x`.
 
 Actually, composition, union, and product combine any number of partial functions, not only two. For example,
 empty composition, `()`, defines the identity function.
@@ -72,41 +104,32 @@ which is the partial function the program defines.
 The language syntax is defined by:
 
 ```bnf
-program ::= (type_definition | function_definition) * expression
-
+program ::= (type_definition | function_definition)* expression
 type_definition ::= '$' type_name '=' type ';'
-type ::= '{' type_label_list '}' | '<' type_label_list '>'
-type_label_list ::= /* empty */ | ( type_expression label_name ',' ) + type_expression label_name
-type_expression ::= type_name | type
-
-function_definition ::= function_name '=' expression ';'
-expression ::= projection | typing | filter | composition | union | product | function_name
-projection ::= '.' label_name
-typing ::= '$' type_expression 
-filter ::= '?' filter_expression
-filter_expression ::= $ type_expression | filter_name 
-  | '{' filter_label_list '}' | '<' filter_label_list '>' | '(' filter_label_list ')'
-  | filter_expression '=' filter_name
-filter_label_list ::= /* empty */ | ( filter_expression label_name ',' ) * filter_expression label
+function_definition ::= name '=' expression ';'
+expression ::= name | '$' type | '?' filter 
+   | projection | composition | union | product 
+projection ::= '.' label
 composition ::= '(' expression * ')'  
 union ::= '<' (expression ',') + expression '>' 
-product ::= '{' expression_label_list '}'
-expression_label_list ::= /* empty */ | ( expression label_name ',' ) * expression label
+product ::= '{' expr_label_list '}'
+expr_label_list ::= /* empty */ 
+   | (expression label_name ',')* expression label
 ```
 
-We assume that in a `kernel-core` program the `type_name`, `function_name`, and `label_name` are identifiers (strings) such that:
+We assume that in a `kernel-core` program the names (for types, functions, and labels) are identifiers (strings) such that:
 
 1. All defined type names are distinct.
 2. All defined function names are distinct.
 3. All label names within a type definition or a `product` expression are locally distinct.
 
-The `typing` expression acts as a type annotation and can be seen as a 'filter', i.e., an identity
-function defined only for the values of the corresponding type.
+`Filter` or `type` expressions act as a type annotation, i.e., an identity
+function defined only for the values of the corresponding types.
 
 That's it.
 
 No `builtin` types, no `if` statement, no `loop`, no `throw`, no _closure_, no _annotations_, and no macros.
-Just types and partial functions.
+Just _types_, _filters_, and _functions_.
 
 ### Normalization
 
@@ -126,20 +149,21 @@ a dictionary  of _function definitions_, and the final _main expression_.
 In principle, the initial form of the Abstract Syntax Tree, _raw_ AST, is enough to evaluate
 the program on an input.
 
-Our objective however is to compute canonicals representations for types and normalized
+Our objective however is to compute canonical representations for types and normalized
 representations for functions, so they could be reused.
 
 The normalization steps are:
 
 1. Build the _type graph_ from all types used by the program, i.e., used in _type definitions_ 
    as well as type expressions used in _function definitions_ and the _main expression_.
-2. Annotate the expressions with types or type patterns; every node of the AST is annotated with a pair of type patterns.
-3. Turn the _singleton_ type patterns into types and add them to the _type graph_. Go to (2) unless no change.
+2. Annotate the expressions with filters; every node of the AST is annotated with a pair of filters.
+3. Turn the _singleton_ filters into types and add them to the _type graph_. Go to (2) unless no change.
 
+### Examples
 
-### Example
+#### Example 1
 
-```k
+```k-repl
 $ bit = < {} o, {} i >;
 bit0 = {{} o} $bit;
 bit1 = {{} i} $bit;
@@ -198,6 +222,33 @@ We can write it as: `?($byte byte, ((...) i, ...) overflown, ...)`.
 
 The target type `${ byte byte, bit overflown }` was derived from pattern `?{ $byte byte, $bit overflown }`.
 Such a pattern is called _singleton pattern_, as only one type fits the pattern.
+
+#### Example 2
+
+Polymorphic list functions:
+
+```k-repl
+list? = ?< {} nil, {X car, Y cdr} cons > = Y;
+nil = {{} nil} list?;
+singleton = {{() car, nil cdr} cons} list?;
+cons = {{.car car, .cdr cdr} cons} list?;
+nil? = list? .nil nil;
+car = list? .cons .car;
+cdr = list? .cons .cdr;
+```
+
+For example, the filter annotation for `car` is:
+
+```k-repl
+--R car
+{
+  name: 'yRXGSJrIWCuKV',
+  type: '?<{X1 car, X0 cdr} cons, $KL nil>=X0  -->  ?X1',
+  def: '?<{X1 car, X0 cdr} cons, $KL nil>=X0 .cons .car ?X1'
+}
+--C KL
+$ KL = {}; -- $C0={};
+```
 
 ## Universal Schema Registry
 
