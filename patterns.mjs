@@ -98,8 +98,8 @@ function compactRel(relDef, name = "") {
 
 function patterns(representatives, rels) {
   // INPUT: 
-  //   codes: {"BG": {"code": "product", "product": {}}, ...}
-  //   representatives:{"{}": "BG", ...}
+  //   codes: {"KL": {"code": "product", "product": {}}, ...}
+  //   representatives:{"{}": "KL", ...}
   //   rels: {"rlz": [{op: comp,...}, ...], ...}
  
   const relAlias = {};

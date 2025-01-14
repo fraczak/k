@@ -2,7 +2,7 @@
 import { prettyRel, patterns2filters } from "./pretty.mjs";
 import { hash } from "./hash.mjs";
 
-function simplifyRel(relDef) {
+function simplifyRel(relDef,rels) {
   // remove filters and codes
   const prune = (rel) => {
     const newRel = {...rel};
@@ -32,6 +32,13 @@ function simplifyRel(relDef) {
       case 'code':
       case 'filter':
         newRel.op = "identity";
+        break;
+      case 'ref':
+        // console.log("ref", rel.ref, rels[rel.ref]);
+        if (["filter","code","identity"].includes(rels[rel.ref]?.def.op)){
+          newRel.op = "identity";
+        };
+        break;
       default:
         break;
     };
@@ -44,13 +51,13 @@ function simplifyRel(relDef) {
   const newRel = prune(rel);
   let resultRel = {...newRel};
   if (newRel.op == "identity")
-    return filters[0]; 
+    return {...resultRel, ...filters[0]}; 
 
   if (newRel.op == "comp") { 
     resultRel.comp = [ filters[0], ...newRel.comp, filters[1] ];
     return resultRel;
   }
-  return {
+  return {...resultRel,
     op: "comp",
     comp: [filters[0], newRel, filters[1] ]
   };
@@ -108,11 +115,12 @@ function assignCanonicalNames(scc, rels, relAlias) {
     const relDef = rels[relName];
     if (relDef.def.op == "ref" && rels[relDef.def.ref] != undefined) {
       // inlining if direct alias to a non built-in relation
-      relDef.simplified = simplifyRel(rels[relDef.def.ref]);
+      // relDef.def = rels[relDef.def.ref]; // simplifyRel(rels[relDef.def.ref],rels);
+      rels[relName] = rels[relDef.def.ref];
     } else {
-      relDef.simplified = simplifyRel(relDef);
+      relDef.def = simplifyRel(relDef,rels);
     }
-    newAlias[relName] = theID(relAlias, relDef.simplified, scc, relName);
+    newAlias[relName] = theID(relAlias, rels[relName].def, scc, relName);
     return newAlias;
   }, {});
   const newNames = [...new Set(Object.values(newAlias))];

@@ -190,7 +190,7 @@ function evaluate(line) {
       console.log({
         name: canonicalRelName,
         type: `${filtersStr[0]}  -->  ${filtersStr[1]}`,
-        def: prettyRel(rel.simplified)
+        def: prettyRel(rel.def)
       });
       if (DEBUG_FLAG) {
         val = exportRelation(run.defs.rels, run.defs.relAlias, relName);
