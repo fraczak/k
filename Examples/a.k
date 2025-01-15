@@ -46,7 +46,7 @@ log2_floor =
 
 log2_floor_ = <
   {[.step,.x] GT if, .log then} .then,
-  {.x x, .step [(),()] PLUS step, .log [(),1] PLUS log} log2_floor_
+  {.x x, [.step,0] GT [.0,2] TIMES step, .log [(),1] PLUS log} log2_floor_
 >;
 
 div = 
