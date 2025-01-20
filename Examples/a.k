@@ -50,11 +50,11 @@ log2_floor_ = <
 >;
 
 div = 
--- ${int x, int y} 
+  ${int x, int y} 
   // remember sign
   {
     <
-      { [0, .x] GT, [0, .y] GT if, "+" then } .then,
+      { [0, .x] GT and, [0, .y] GT if, "+" then } .then,
       [0, .x] GT "-",
       [0, .y] GT "-",
       "+"
@@ -94,11 +94,10 @@ div_ =
 
 lcm = 
 -- ${int x, int y}
-  {() x, gcd y} [{.x.x x , .y y} div .div, .x.x] TIMES
+  {[.x,.y] TIMES x , gcd y} div .div
 -- $int
 ;
 
--- lcm = [(),gcd] [[.0.1,.1] div .div, .0.0] TIMES;
 
 --------------------
 
