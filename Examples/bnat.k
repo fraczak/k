@@ -18,11 +18,9 @@ bnat_8 = _ _0 _0 _0 _1 $bnat;
 bnat_9 = _ _1 _0 _0 _1 $bnat;
 bnat_10 = _ _0 _1 _0 _1 $bnat;
 
-remove_leading_zeros =
-  < .0 remove_leading_zeros, () >
-;
+remove_leading_zeros = < .0 remove_leading_zeros, () >;
 
-reverse = {() x, bnat_0 result} _reverse;
+reverse = {() x, _ result} _reverse;
 
 _reverse =
   ${bnat x, bnat result}
@@ -33,11 +31,7 @@ _reverse =
   >
 ;
 
-append_0 =
-  -- i.e., shift_left, double, or times2 
-  reverse _0 reverse
-  -- <._ _0, .0 append_0 _0, .1 append_0 _1>
-;
+append_0 = reverse _0 reverse; -- i.e., shift_left, double, or times2 
 
 $carry = <{} 0, {} 1>;
 c0 = {{} 0} $carry;
@@ -138,7 +132,7 @@ mod =
   < 
     -- if x >= y then (x mod y) = ((x-y mod 2y) mod y)
     { { minus x, .y append_0 y } mod x, .y y } mod,
-    -- if x < y then (x mod y) = x 
+    -- else, i.e., if x < y then, (x mod y) = x 
     .x
   >
 ; 
@@ -165,24 +159,28 @@ _align =
   >
 ;
 
-$compare = <{} "<", {} "=", {} ">" >;
+$compare = <{} lt, {} eq, {} gt >;
+lt = {{} lt};
+eq = {{} eq};
+gt = {{} gt};
+
 compare = align _compare;
 _compare = 
   ${bnat x, bnat y}
   <
-    {.x._ if1, .y._ if2, {{} "="} then} .then,
+    {.x._ if1, .y._ if2 } eq,
     {.x.0 x, .y.0 y} _compare,
     {.x.1 x, .y.1 y} _compare, 
-    .x.0 {{} "<"},
-    {{} ">"}
+    .x.0 lt,
+    gt
   >
   $compare
 ;
 
 zero? = remove_leading_zeros ._ bnat_0;
-eq? = {compare ."=" if, () then} .then;
-gt? = {compare .">" if, () then} .then;
-lt? = {compare ."<" if, () then} .then;
+eq? = {compare .eq if, () then} .then;
+gt? = {compare .gt if, () then} .then;
+lt? = {compare .lt if, () then} .then;
 ge? = < gt?, eq? >;
 le? = < lt?, eq? >;
 
@@ -248,6 +246,12 @@ lcm =
   div .div 
 ;
 
+pow =
+  <
+    {.x x, {.n dec n, .x x} pow y} times,
+    bnat_1
+  >
+;
 --- vector helpers
 
 car = SNOC .car;

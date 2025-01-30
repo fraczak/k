@@ -1,9 +1,9 @@
-inc = [$int,1] PLUS;
-dec = [$int,-1] PLUS;
+incr = [$int,1] PLUS;
+decr = [$int,-1] PLUS;
 pos? = [$int,0] GT .0;
-car = ?[X] .0;
-cdr = ?[X] < SNOC.cdr, []>;
-empty? = ?[X] <{.0 nope}, {() empty}> .empty;
+car = SNOC.car;
+cdr = SNOC.cdr;
+empty? = <{car nope}, {() empty}> .empty;
 singleton? = ?[X] <{.1 nope},{[.0] singleton}> .singleton;
 
 take = 
@@ -15,9 +15,9 @@ take =
 take_ = 
 ?{ $int n, [X] head, [X] tail}
 <
-  {.head reverse head, .tail empty? tail},
-  {[.n,0] EQ if, {.head reverse head, .tail tail} then} .then,
-  {.n dec n, {.tail car car, .head cdr} CONS head, .tail cdr tail} take_
+  {.head inverse head, .tail empty? tail},
+  {[.n,0] EQ if, {.head inverse head, .tail tail} then} .then,
+  {.n decr n, {.tail car car, .head cdr} CONS head, .tail cdr tail} take_
 >
 ?{ [X] head, [X] tail}
 ;
@@ -32,13 +32,13 @@ part =
   } CONS
 ;
 
-reverse = ?[X] {() in, [] ?[X] out} reverse_;
+inverse = ?[X] {() in, [] ?[X] out} inverse_;
 
-reverse_ =
+inverse_ =
 ?{ [X] in, [X] out}
 < 
   {.in empty? if, .out then} .then,
-  {{.in car car, .out cdr} CONS out, .in cdr in} reverse_
+  {{.in car car, .out cdr} CONS out, .in cdr in} inverse_
 >
 ?[X]
 ;
@@ -51,7 +51,7 @@ split =
 split_ =
 ? {[X] list, [X] one, [X] two}
 <
-  {.list empty? if, {.one reverse 0, .two reverse 1} then} .then,
+  {.list empty? if, {.one inverse 0, .two inverse 1} then} .then,
   {.list cdr             list, 
     {.list.0 car, .one cdr} CONS two, 
     .two                 one
@@ -60,12 +60,12 @@ split_ =
 ? {[X] 0, [X] 1}
 ;
 
-merge = { .0 one, .1 two, [] result} merge_ reverse;
+merge = { .0 one, .1 two, [] result} merge_ inverse;
 
 merge_ = ?{[X] one, [X] two, [X] result} 
 <
-  {.one empty? if, {.two in, .result out} reverse_ then} .then,
-  {.two empty? if, {.one in, .result out} reverse_ then} .then,
+  {.one empty? if, {.two in, .result out} inverse_ then} .then,
+  {.two empty? if, {.one in, .result out} inverse_ then} .then,
   {[.two car, .one car] GT if, {.two one, .one two, .result result} merge_ then} .then,
   
   {.one cdr one, .two two, {.one car car, .result cdr} CONS result} merge_
@@ -109,7 +109,7 @@ max =
 
 cat = 
 ?{[X] x, [X] y} 
-{.x reverse in, .y out} reverse_
+{.x inverse in, .y out} inverse_
 ?[X]
 ;
 
@@ -122,7 +122,7 @@ cats =
 cats_ =
 ?{[[X]] lists, [X] result}
 < 
-  {.lists empty? if, .result then} .then reverse,
+  {.lists empty? if, .result then} .then inverse,
   < 
     {.lists car empty? if, {.lists cdr lists, .result result} then} .then,
     {.lists {car cdr car, cdr cdr} CONS lists, {.lists car car car, .result cdr} CONS result}
@@ -135,7 +135,7 @@ range = {() n, [] result} range_;
 range_ =
 < 
   {.n.0 if, .result then} .then,
-  {.n dec n, {.n car, .result cdr} CONS result} range_
+  {.n decr n, {.n car, .result cdr} CONS result} range_
 >;
 
 
@@ -144,7 +144,7 @@ join =
 ?{[X] list, X with}
   {.list list, .with with, [] result} 
   join_ 
-  reverse
+  inverse
 ?[X]
 ;
 
@@ -162,14 +162,14 @@ join_ =
 len = {() list, 0 res} len_;
 len_ = <
   {.list empty? if, .res then} .then,
-  {.list cdr list, .res inc res} len_
+  {.list cdr list, .res incr res} len_
 >;
 
 get = 
 -- {[int] list, int pos}
 <
  {.pos.0 if, .list.0 then} .then,
- {.list cdr list, [.pos, 0] GT .0 dec pos} get
+ {.list cdr list, [.pos, 0] GT .0 decr pos} get
 >;
 
 set = 
@@ -185,7 +185,7 @@ set =
 
 Zip = 
   ?{[X] x, [Y] y, ...} 
-  {.x x, .y y, [] r} Zip_ reverse;
+  {.x x, .y y, [] r} Zip_ inverse;
 Zip_ = < 
   { .x cdr x, .y cdr y, {{.x car x, .y car y} car, .r cdr } CONS r} Zip_, 
   .r 
@@ -195,11 +195,11 @@ zip = Zip | [.x, .y] ^;
 
 pascal_ = 
 -- next line in pascal's triangle
-  {{0 car,() cdr} CONS x, {0 car, reverse cdr} CONS reverse y} zip (| PLUS ^)
+  {{0 car,() cdr} CONS x, {0 car, inverse cdr} CONS inverse y} zip (| PLUS ^)
 ;
 
 pascal = < 
-  pos? dec pascal pascal_, 
+  pos? decr pascal pascal_, 
   [1]
 >;
 
