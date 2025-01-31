@@ -240,18 +240,34 @@ _div =
   >
 ;
 
-lcm = 
+lcm =
   ${bnat x, bnat y}
   {times x, gcd y}
-  div .div 
+  div .div
+;
+
+half =
+  reverse
+  <
+    {.0 reverse div, bnat_0 rem},
+    {.1 reverse div, bnat_1 rem},
+    {bnat_0 div, bnat_0 rem}
+  >
 ;
 
 pow =
+  ${ bnat base, bnat exponent }
   <
-    {.x x, {.n dec n, .x x} pow y} times,
-    bnat_1
+    .exponent zero? bnat_1,
+    {.base base, .exponent half half}
+    {.base base, .half.rem extra, {.base base, .half.div exponent} pow {()x,()y} times pow}
+    <
+      {.extra zero? if, .pow then} .then,
+      {.base x, .pow y} times
+    >
   >
 ;
+
 --- vector helpers
 
 car = SNOC .car;
