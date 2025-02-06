@@ -268,6 +268,24 @@ pow =
   >
 ;
 
+sqrt =
+  <
+    { () x, {bnat_1 min, () max} range } _sqrt
+  >
+;
+
+_sqrt =
+  { () input, {.range.max x, .range.min y} plus half .div middle }
+  <
+    { .input.range.min x, .middle y} eq? .x,
+    { () aux, {.input.x x, .middle y} div .div middle }
+    { 
+      .aux.input.x x, 
+      { .aux.middle x, .middle y } < gt?, {.x y, .y x} > {.y min, .x max} range
+    } _sqrt
+  >
+;
+
 --- vector helpers
 
 car = SNOC .car;
