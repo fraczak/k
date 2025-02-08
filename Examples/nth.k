@@ -1,9 +1,7 @@
 incr = [$int,1] PLUS;
 decr = [$int,-1] PLUS;
 pos? = [$int,0] GT .0;
-car = SNOC.car;
-cdr = SNOC.cdr;
-empty? = <{car nope}, {() empty}> .empty;
+empty? = <{ SNOC.car nope}, {() empty}> .empty;
 singleton? = ?[X] <{.1 nope},{[.0] singleton}> .singleton;
 
 take = 
@@ -17,7 +15,7 @@ take_ =
 <
   {.head inverse head, .tail empty? tail},
   {[.n,0] EQ if, {.head inverse head, .tail tail} then} .then,
-  {.n decr n, {.tail car car, .head cdr} CONS head, .tail cdr tail} take_
+  {.n decr n, {.tail SNOC.car car, .head cdr} CONS head, .tail SNOC.cdr tail} take_
 >
 ?{ [X] head, [X] tail}
 ;
@@ -38,7 +36,7 @@ inverse_ =
 ?{ [X] in, [X] out}
 < 
   {.in empty? if, .out then} .then,
-  {{.in car car, .out cdr} CONS out, .in cdr in} inverse_
+  {{.in SNOC.car car, .out cdr} CONS out, .in SNOC.cdr in} inverse_
 >
 ?[X]
 ;
@@ -52,7 +50,7 @@ split_ =
 ? {[X] list, [X] one, [X] two}
 <
   {.list empty? if, {.one inverse 0, .two inverse 1} then} .then,
-  {.list cdr             list, 
+  {.list SNOC.cdr             list, 
     {.list.0 car, .one cdr} CONS two, 
     .two                 one
   } split_
@@ -66,9 +64,9 @@ merge_ = ?{[X] one, [X] two, [X] result}
 <
   {.one empty? if, {.two in, .result out} inverse_ then} .then,
   {.two empty? if, {.one in, .result out} inverse_ then} .then,
-  {[.two car, .one car] GT if, {.two one, .one two, .result result} merge_ then} .then,
+  {[.two SNOC.car, .one SNOC.car] GT if, {.two one, .one two, .result result} merge_ then} .then,
   
-  {.one cdr one, .two two, {.one car car, .result cdr} CONS result} merge_
+  {.one SNOC.cdr one, .two two, {.one SNOC.car car, .result cdr} CONS result} merge_
 >
 ;
 
@@ -85,14 +83,14 @@ sort =
 uniq =  < 
   empty?, 
   singleton?, 
-  {[.0,.1] EQ if, cdr uniq then} .then, {car car, cdr uniq cdr} CONS 
+  {[.0,.1] EQ if, SNOC.cdr uniq then} .then, { SNOC.car car, SNOC.cdr uniq cdr} CONS 
 >;
 
 min = 
 ?[X]
 < 
   singleton? .0,
-  SNOC {[.car, .cdr.0] <GT .1, .0> car, .cdr cdr cdr} CONS min
+  SNOC {[.car, .cdr.0] <GT .1, .0> car, .cdr SNOC.cdr cdr} CONS min
 >
 ?X
 ;
@@ -101,7 +99,7 @@ max =
 ?[X]
 < 
   singleton? .0,
-  SNOC {[.car, .cdr.0] <GT .0, .1> car, .cdr cdr cdr} CONS max
+  SNOC {[.car, .cdr.0] <GT .0, .1> car, .cdr SNOC.cdr cdr} CONS max
 >
 ?X
 ;
@@ -124,8 +122,8 @@ cats_ =
 < 
   {.lists empty? if, .result then} .then inverse,
   < 
-    {.lists car empty? if, {.lists cdr lists, .result result} then} .then,
-    {.lists {car cdr car, cdr cdr} CONS lists, {.lists car car car, .result cdr} CONS result}
+    {.lists SNOC.car empty? if, {.lists SNOC.cdr lists, .result result} then} .then,
+    {.lists { SNOC.car SNOC.cdr car, SNOC.cdr cdr} CONS lists, {.lists SNOC.car SNOC.car car, .result cdr} CONS result}
   > cats_
 >
 ?[X]
@@ -139,7 +137,7 @@ range_ =
 >;
 
 
---  using PIPES:  join = [.list .0, [.with, .list cdr |] ^ cats] CONS; 
+--  using PIPES:  join = [.list .0, [.with, .list SNOC.cdr |] ^ cats] CONS; 
 join = 
 ?{[X] list, X with}
   {.list list, .with with, [] result} 
@@ -151,8 +149,8 @@ join =
 join_ = 
 <
   {.list empty? if, .result then} .then,
-  {.list singleton? if, {.list car car, .result cdr} CONS then} .then,
-  {.list cdr list, .with with, {.with car, {.list.0 car, .result cdr} CONS cdr} CONS result} 
+  {.list singleton? if, {.list SNOC.car car, .result cdr} CONS then} .then,
+  {.list SNOC.cdr list, .with with, {.with car, {.list.0 car, .result cdr} CONS cdr} CONS result} 
   join_
 >;
 
@@ -162,32 +160,25 @@ join_ =
 len = {() list, 0 res} len_;
 len_ = <
   {.list empty? if, .res then} .then,
-  {.list cdr list, .res incr res} len_
+  {.list SNOC.cdr list, .res incr res} len_
 >;
 
 get = 
 -- {[int] list, int pos}
 <
  {.pos.0 if, .list.0 then} .then,
- {.list cdr list, [.pos, 0] GT .0 decr pos} get
+ {.list SNOC.cdr list, [.pos, 0] GT .0 decr pos} get
 >;
 
 set = 
- {{.i n, .list list} take take, .v v} [.take.head, [.v], .take.tail cdr] cats 
+ {{.i n, .list list} take take, .v v} [.take.head, [.v], .take.tail SNOC.cdr] cats 
 ;
-  
-// zip = 
-// -- ${[int] x, [int] y} 
-// < 
-//   {[.x car, .y car] car, {.x cdr x, .y cdr y} zip cdr} CONS, 
-//   []
-// >;
 
 Zip = 
   ?{[X] x, [Y] y, ...} 
   {.x x, .y y, [] r} Zip_ inverse;
 Zip_ = < 
-  { .x cdr x, .y cdr y, {{.x car x, .y car y} car, .r cdr } CONS r} Zip_, 
+  { .x SNOC.cdr x, .y SNOC.cdr y, {{.x SNOC.car x, .y SNOC.car y} car, .r cdr } CONS r} Zip_, 
   .r 
   >;
 

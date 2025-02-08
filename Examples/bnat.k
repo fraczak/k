@@ -288,15 +288,13 @@ _sqrt =
 
 --- vector helpers
 
-car = SNOC .car;
-cdr = SNOC .cdr;
 empty? =?[X] <{.0 nope}, {() yes}> .yes;
 inverse = {?[X] list, [] result} _inverse;
 _inverse =
   ?{[X] list, [X] result}  
   < 
     {.list empty? if, .result then} .then,
-    {.list cdr list, {.list car car, .result cdr} CONS result} _inverse
+    {.list SNOC.cdr list, {.list SNOC.car car, .result cdr} CONS result} _inverse
   >
 ;
 
@@ -315,9 +313,11 @@ _to2 =
 
 from2 = $string toVEC _from2;
 _from2 = 
-  < 
-    {car .0 if, cdr _from2 _0 then} .then, 
-    {car .1 if, cdr _from2 _1 then} .then, 
+  < SNOC
+    < 
+      {.car .0 if, .cdr _from2 _0 then}, 
+      {.car .1 if, .cdr _from2 _1 then}
+    > .then,
     _
   >
 ;
@@ -368,7 +368,7 @@ fromDigit =
 from10 = $string {toVEC v, bnat_0 b} _from10;
 _from10 = 
   < 
-    {.v cdr v, {{.b x, bnat_10 y} times x, .v.0 fromDigit y} plus b} _from10, 
+    {.v SNOC.cdr v, {{.b x, bnat_10 y} times x, .v.0 fromDigit y} plus b} _from10, 
     .b
   >
 ;
@@ -391,39 +391,42 @@ double_plus_1 =
 ; 
 _double = 
   ${ [ string ] input, carry c, [ string ] result }
-  < 
-    {.input car .0 if, 
-      { .input cdr input, c0 c, {<.c.0 "0", "1"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .1 if, 
-      { .input cdr input, c0 c, {<.c.0 "2", "3"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .2 if, 
-      { .input cdr input, c0 c, {<.c.0 "4", "5"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .3 if, 
-      { .input cdr input, c0 c, {<.c.0 "6", "7"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .4 if, 
-      { .input cdr input, c0 c, {<.c.0 "8", "9"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .5 if, 
-      { .input cdr input, c1 c, {<.c.0 "0", "1"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .6 if, 
-      { .input cdr input, c1 c, {<.c.0 "2", "3"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .7 if, 
-      { .input cdr input, c1 c, {<.c.0 "4", "5"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .8 if, 
-      { .input cdr input, c1 c, {<.c.0 "6", "7"> car, .result cdr} CONS result} then 
-    } .then _double,
-    {.input car .9 if, 
-      { .input cdr input, c1 c, {<.c.0 "8", "9"> car, .result cdr} CONS result} then 
-    } .then _double,
+  <
+    { .input SNOC input, .c c, .result result }
+    < 
+      {.input.car .0 if, 
+        { .input.cdr input, c0 c, {<.c.0 "0", "1"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .1 if, 
+        { .input.cdr input, c0 c, {<.c.0 "2", "3"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .2 if, 
+        { .input.cdr input, c0 c, {<.c.0 "4", "5"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .3 if, 
+        { .input.cdr input, c0 c, {<.c.0 "6", "7"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .4 if, 
+        { .input.cdr input, c0 c, {<.c.0 "8", "9"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .5 if, 
+        { .input.cdr input, c1 c, {<.c.0 "0", "1"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .6 if, 
+        { .input.cdr input, c1 c, {<.c.0 "2", "3"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .7 if, 
+        { .input.cdr input, c1 c, {<.c.0 "4", "5"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .8 if, 
+        { .input.cdr input, c1 c, {<.c.0 "6", "7"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car .9 if, 
+        { .input.cdr input, c1 c, {<.c.0 "8", "9"> car, .result cdr} CONS result} then 
+      } .then _double
+    > ,
     {.c.0 if, .result then} .then,
     {"1" car, .result cdr} CONS
-  >  
+  >
 ;
 
