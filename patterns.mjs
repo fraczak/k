@@ -8,7 +8,7 @@ import { assignCanonicalNames } from "./export.mjs";
 const unitCode = codes.unitCode;
 
 function relDefToString(relDef) {
-
+  const start = new Date().getTime();
   const dumpPatterns = (rel) => {
     switch (rel.op) {
       case "product":
@@ -39,14 +39,20 @@ function relDefToString(relDef) {
   // console.log(relDef.typePatternGraph.edges);
   // console.log(relDef.def);
   
-  return JSON.stringify(dumpPatterns(relDef.def).map((x) => {
+  const result = JSON.stringify(dumpPatterns(relDef.def).map((x) => {
     const { pattern, fields, type} = relDef.typePatternGraph.get_pattern(x);
     return {pattern, fields, type};
   }));
+
+  let took = new Date().getTime() - start;
+  if (took > 200) {
+    console.log(` -- RelDefToString: size=${result.length}, took ${took} msecs`);
+  }
+  return result;
 }
 
 function compactRel(relDef, name = "") {
-  // console.log("********************************* compacting", name);
+  const start = new Date().getTime();
   const {def, typePatternGraph, varRefs } = relDef;
   // console.log("COMPACTING typePatternGraph of size", typePatternGraph.size());
 
@@ -92,7 +98,10 @@ function compactRel(relDef, name = "") {
     outputPatternId: renumbering[x.outputPatternId]
   }));;
     
-  // console.log(`COMPACTED ${name}.typePatternGraph`, typePatternGraph.size(), '->', newTypePatternGraph.size());
+  const time = new Date().getTime() - start;
+  if (time > 500 ) {
+    console.log(`[${new Date().getTime() - start} msecs] - COMPACTED ${name}.typePatternGraph [${typePatternGraph.size()}->${newTypePatternGraph.size()}]`);
+  }
   return {def: newDef, typePatternGraph: newTypePatternGraph, varRefs: newVarRefs};
 }
 
@@ -462,7 +471,7 @@ function patterns(representatives, rels) {
   //    we will also generate the canonical representation of the relations in C and replace 
   //    the name to the relation by the hash of the canonical representation    
 
-  // console.log("----- SCC in order", sccInOrder);
+  // console.log("- SCC in order", sccInOrder);
 
   for (const scc of sccInOrder) {
 
@@ -470,7 +479,7 @@ function patterns(representatives, rels) {
     
     for (let iteration = 1; iteration <= maxNumberOfIterations; iteration++) {
       
-      // console.log(`>>>>>> Iteration ${iteration}  for SCC: { ${DAGnodes[scc].scc} }`);
+      // console.log(`-- Iteration ${iteration}/${maxNumberOfIterations} for SCC: { ${DAGnodes[scc].scc} }`);
       //    4.1 For every r in C, compute the new typePatternGraph of r, i.e.:
 
       let before = JSON.stringify(DAGnodes[scc].scc.map( relName => {
@@ -481,11 +490,11 @@ function patterns(representatives, rels) {
         // console.log(relDefToString(rels[relName]));
         return relDefToString(rels[relName]);
       }));
-    
+
       let after = JSON.stringify(DAGnodes[scc].scc.map( relName => {
         const relDef = compactRel(rels[relName],relName);
         for (let i = 0; i < relDef.varRefs.length; i++) {
-          // console.log(` ####### Processing ${relName}(..x${i}=${relDef.varRefs[i].varName}..)`);
+          const start = new Date().getTime();
           let varRel = relDef.varRefs[i];
           let { varName } = varRel;
           try {
@@ -493,7 +502,6 @@ function patterns(representatives, rels) {
             let varInputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[0]);
             let varOutputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[1]);
             let cloned = varRootDef.typePatternGraph.clone([varInputPatternId, varOutputPatternId], relDef.typePatternGraph);
-              
             relDef.typePatternGraph.unify(`ref:input ${relName}(${varName})`, varRel.inputPatternId, cloned[varInputPatternId]);
             relDef.typePatternGraph.unify("ref:output", varRel.outputPatternId, cloned[varOutputPatternId]);
           } catch (e) {
@@ -501,6 +509,10 @@ function patterns(representatives, rels) {
 `Type Error in definition of '${relName}' at call to '${varName}': lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}):
  - ${e.message}`;       
             throw e;
+          }
+          const tookMs = new Date().getTime() - start;
+          if (tookMs > 200) {
+            console.log(` ---- Processing ${relName}(.., x${i}=${relDef.varRefs[i].varName}, ..) took: ${tookMs} ms`); 
           }
         }
         rels[relName] = compactRel(relDef,relName);

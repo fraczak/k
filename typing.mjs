@@ -76,7 +76,7 @@ class TypePatternForest {
     // const node = {...flatTypePattern, _id: id};
     const node = {...flatTypePattern}
     that.nodes.push(node);
-    Object.values(asMapSet(children.map(that.find.bind(that))))
+    Array.from(new Set(children.map(that.find.bind(that))))
     .forEach(rep => {that.parent[rep] = id});
     return id;
   }
@@ -139,7 +139,6 @@ class TypePatternGraph {
     for( const id of singletonPatterns) {
       this.unify('singleton', id, this.getTypeId(representatives[`-${id}-`]));
     }
-
   }
 
 
@@ -165,27 +164,29 @@ class TypePatternGraph {
       )
     );
 
-    const gEdgesWithoutParrallelEdges  = Object.values(asMapSet(gEdges));
-   
+    const gEdgesWithoutParrallelEdges  = Array.from(new Set(gEdges));
     const gGraph = new Graph(gEdgesWithoutParrallelEdges);
     const queue = gNodes.filter(x => 
       this.patterns.nodes[x].pattern in {'()':1, '(...)':1,'{...}':1, '<...>':1});
-    const excluded = asMapSet(queue);
+    const excludedSet = new Set(queue);
+
     while (queue.length > 0) {
       const x = queue.pop();
       for (const e of gGraph.dst[x] || []) {
         const y = gGraph.edges[e].src;
-        if (y in excluded) continue;
-        excluded[y] = y;
+        if (excludedSet.has(y)) continue;
+        excludedSet.add(y);
         queue.push(y);
       }
     }
-    return gNodes.filter(x => !((x in excluded) || (this.patterns.nodes[x].pattern == 'type')));
+
+    return gNodes.filter(x => !((excludedSet.has(x)) || (this.patterns.nodes[x].pattern == 'type')));
   }
 
   getCompressed() {
     const newTypePatternGraph = new TypePatternGraph();
     const renamed = this.cloneAll(newTypePatternGraph);
+
     newTypePatternGraph.turnSingletonPatternsIntoCodes();
 
     Object.keys(renamed).forEach( id => {
@@ -223,7 +224,9 @@ class TypePatternGraph {
     
     // console.log("equivalence", equivalence);
 
+    let count = 0;
     const areDifferent = (i1,i2) => {
+      count++;
       const p1 = newTypePatternGraph.get_pattern(i1);
       const p2 = newTypePatternGraph.get_pattern(i2);
       if (p1.pattern != p2.pattern) return true;
@@ -239,7 +242,9 @@ class TypePatternGraph {
       return false;
     }
     let changed = true;
+    let count2 = 0;
     while (changed) {
+      count2++;
       changed = false;
       const equivalenceSize = equivalence.length;
       for (let eqClassPos = 0; eqClassPos < equivalenceSize; eqClassPos++) {
@@ -308,6 +313,7 @@ class TypePatternGraph {
     // console.log("nodes", compressedTypePatternGraph.patterns.nodes);
     // console.log("edges", compressedTypePatternGraph.edges);
     // console.log("--------------------")
+
     return {typePatternGraph: compressedTypePatternGraph, remapping};
   }
 
@@ -584,7 +590,7 @@ class TypePatternGraph {
 
   unify(rule, ...ids) {
     const find = (x) => this.find(x);
-    const reps = Object.values(asMapSet(ids.map(find)));
+    const reps = Array.from(new Set(ids.map(find))); 
     if (reps.length < 2) return false;
     const rep_patters = reps.map(x => {
       const pattern = this.get_pattern(x);
