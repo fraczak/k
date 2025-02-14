@@ -3,8 +3,7 @@ import codes from "./codes.mjs";
 
 const unitCode = codes.unitCode;
 
-function asMapSet(vector) { 
-  // return vector.reduce( (mapSet, x) => ({...mapSet, [JSON.stringify(x)]: x}), {})
+function asSet(vector) { 
   return Array.from(new Set(vector));
 };
 
@@ -316,7 +315,7 @@ class TypePatternGraph {
       compressedTypePatternGraph.edges[newId] = {};
       for (const lab in edges) {
         // console.log("edges[lab]", edges[lab]);
-        compressedTypePatternGraph.edges[newId][lab] = asMapSet(Object.values(edges[lab]).map(x => 
+        compressedTypePatternGraph.edges[newId][lab] = asSet(edges[lab].map(x => 
           newIds[reps[newTypePatternGraph.find(x)][0]]));
       }
     }
@@ -366,7 +365,7 @@ class TypePatternGraph {
       const new_id = result[i];
       targetGraph.edges[new_id] = {};
       for (const lab in edges) {
-        targetGraph.edges[new_id][lab] = asMapSet(Object.values(edges[lab]).map(x => result[find(x)]));
+        targetGraph.edges[new_id][lab] = asSet(edges[lab].map(x => result[find(x)]));
       }
     }
     return result;
@@ -638,8 +637,8 @@ class TypePatternGraph {
       for (const lab in edges) {
         // if the pattern is [] all labels are treated as 'vector-member'
         const new_lab = new_pattern.pattern == '[]' ? 'vector-member' : lab;
-        const dests = asMapSet(Object.values(edges[lab]).map(find));
-        this.edges[new_id][new_lab] = asMapSet([...(this.edges[new_id][new_lab] || []), ...dests]);
+        const dests = asSet(edges[lab].map(find));
+        this.edges[new_id][new_lab] = asSet([...(this.edges[new_id][new_lab] || []), ...dests]);
       }
     }
     // add stuff for types
@@ -652,7 +651,7 @@ class TypePatternGraph {
             // all edges are goin to unit type
             const unit_id = this.getTypeId(unitCode);
             for (const lab in this.edges[new_id]) {
-              this.edges[new_id][lab] = asMapSet([unit_id]);
+              this.edges[new_id][lab] = asSet([unit_id]);
             }
           }; break;
           case 'product':
@@ -660,7 +659,7 @@ class TypePatternGraph {
             const type_fields = Object.keys(code[code.code]);
             for (const lab of type_fields) {
               const target_type_id = this.getTypeId(code[code.code][lab]);
-              this.edges[new_id][lab]= asMapSet([...(this.edges[new_id][lab] ||[]), target_type_id]);
+              this.edges[new_id][lab]= asSet([...(this.edges[new_id][lab] ||[]), target_type_id]);
             }
           }; break;
           case 'vector': {
@@ -668,20 +667,13 @@ class TypePatternGraph {
             const target_type_id = this.getTypeId(code.vector);
 
             this.edges[new_id] = {
-              'vector-member': // {
-                // [target_type_id]: target_type_id,
-                [ target_type_id,
-                ...asMapSet( 
-                  setUnion(...Object.values(this.edges[new_id]).map(aSet => Object.values(aSet)))
-                )
-              //}
-                ]
+              'vector-member': asSet([ target_type_id, ...Object.values(this.edges[new_id])])
             }
           }
         }
     }
     for ( const lab of Object.keys(this.edges[new_id]) ) {
-      this.unify(rule+'.', ...Object.values(this.edges[new_id][lab]));      
+      this.unify(rule+'.', ...this.edges[new_id][lab]);      
     }
 
     return true;
@@ -692,7 +684,7 @@ class TypePatternGraph {
     const find = (x) => this.patterns.find(x);
     this.edges[id] = {};
     for (const [lab,dest] of Object.entries(fields)) {
-      this.edges[id][lab] = asMapSet(dest.map(find));
+      this.edges[id][lab] = asSet(dest.map(find));
     }
     return id;
   }

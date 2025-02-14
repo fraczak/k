@@ -98,9 +98,11 @@ $ ASCII = <
 
 toASCII = toVEC _toASCII;
 
+empty? = ?[X] <{.0 nope}, {() empty}> .empty;
 _toASCII = 
   $[string]
   < 
+    empty? {{} ""},
     SNOC
     < 
       { if: .car.a, then: {.cdr _toASCII a}} .then,
@@ -197,8 +199,7 @@ _toASCII =
       { if: .car."`", then: {.cdr _toASCII "`"}} .then,
       { if: .car."~", then: {.cdr _toASCII "~"}} .then,
       { if: .car." ", then: {.cdr _toASCII " "}} .then
-    >,
-    {{} ""}
+    >
   >
   $ASCII
 ;
