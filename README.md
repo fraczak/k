@@ -54,7 +54,7 @@ the property doesn't exist. E.g.,
 
 There are three ways of combining functions:
 
-1. **composition**: `(f1 f2 ...)`, e.g. `(.toto .titi)` extracts
+1. **Composition**: `(f1 f2 ...)`, e.g. `(.toto .titi)` extracts
     nested field.
 
     ```text
@@ -64,7 +64,7 @@ There are three ways of combining functions:
             {"other": {}}            ... undefined
     ```
 
-2. **merge**: `< f1, f2,... >`, e.g., `<.toto, .titi>` extracts field
+2. **Merge**: `< f1, f2,... >`, e.g., `<.toto, .titi>` extracts field
     `toto` if present; otherwise extracts `titi`.
 
     ```text
@@ -74,7 +74,7 @@ There are three ways of combining functions:
             {"x":{"o":{}}, "z": {"o":{}}}  ... undefined
     ```
 
-3. **product**: `{ f1 label1, f2 label2, ...}`, e.g., `{.toto TOTO,
+3. **Product**: `{ f1 label1, f2 label2, ...}`, e.g., `{.toto TOTO,
     .titi TITI}` extracts two fields and builds a record out of them.
 
     ```text
@@ -86,9 +86,9 @@ There are three ways of combining functions:
 
 **QUIZ**: What is:
 
-- empty composition: `()` ?
-- empty merge: `<>` ?
-- empty product: `{}` ?
+- Empty composition: `()` ?
+- Empty merge: `<>` ?
+- Empty product: `{}` ?
 - `{{{{} s} s} s}` ?
 - `({{{() a} b} c} .c .b .a)` ?
 
@@ -96,9 +96,9 @@ There are three ways of combining functions:
 
 ### Syntactic sugar
 
-- parenthesis can be omitted, except for the empty composition `()`,
-- dot (`.`) in "projection" acts as a separator so the space around it
-  can be omitted.
+- Parenthesis can be omitted, except for the empty composition `()`,
+- dot (`.`) in "projection" acts as a separator, so the surrounding
+  space can be omitted.
 
 For example, `(.toto .titi (.0 .1))` can be written as `.toto.titi.0.1`.
 
@@ -148,8 +148,8 @@ projection, via (`.`), to the canonical string representation of the value, e.g.
 
 #### Vector product
 
-Vector product can be seen as an abbreviation for product whose all fields
-have the same type, and the filed names are integers starting from zero.  
+The vector product can be seen as a shorthand for a product in which all fields
+have the same type, and the field names are integers starting from zero.
 E.g., `{.toto 0, .titi 1, 123 2}` can be written as  
 `[.toto, .titi, 123]`.
 
@@ -531,7 +531,7 @@ For example:
 
 ## k-REPL (Read-Evaluate-Print Loop)
 
-Also there is a REPL, `k-repl` (`./node_modules/.bin/k-repl`),
+Also, there is a REPL, `k-repl` (`./node_modules/.bin/k-repl`),
 which acts like a toy shell for the language.
 
 ```k-repl
@@ -552,72 +552,74 @@ Very! experimental repl shell for 'k-language'...
 
 ## Using `k` from `javascript`
 
-     import k from "@fraczak/k";
+```javascript
+import k from "@fraczak/k";
 
-     let k_expression = '()';
-     k.run(k_expression,"ANYTHING...");
-     // RETURNS: "ANYTHING..."
+let k_expression = '()';
+k.run(k_expression,"ANYTHING...");
+// RETURNS: "ANYTHING..."
 
-     k_expression = '{"ala" name, 23 age}';
-     k.run(k_expression,"ANYTHING...");
-     // RETURNS: {"name":"ala","age":23}
+k_expression = '{"ala" name, 23 age}';
+k.run(k_expression,"ANYTHING...");
+// RETURNS: {"name":"ala","age":23}
 
-     k_expression = '[.year, .age]';
-     k.run(k_expression,{"year":2002,"age":19});
-     // RETURNS: [2002,19]
+k_expression = '[.year, .age]';
+k.run(k_expression,{"year":2002,"age":19});
+// RETURNS: [2002,19]
 
-     k_expression = '[(), ()]';
-     k.run(k_expression,"duplicate me");
-     // RETURNS: ["duplicate me","duplicate me"]
+k_expression = '[(), ()]';
+k.run(k_expression,"duplicate me");
+// RETURNS: ["duplicate me","duplicate me"]
 
-     k_expression = '[[[()]]]';
-     k.run(k_expression,"nesting");
-     // RETURNS: [[["nesting"]]]
+k_expression = '[[[()]]]';
+k.run(k_expression,"nesting");
+// RETURNS: [[["nesting"]]]
 
-     k_expression = '[[()]] {() nested, .0.0 val}';
-     k.run(k_expression,"nesting and accessing");
-     // RETURNS: {"nested":[["nesting and accessing"]],"val":"nesting and accessing"}
+k_expression = '[[()]] {() nested, .0.0 val}';
+k.run(k_expression,"nesting and accessing");
+// RETURNS: {"nested":[["nesting and accessing"]],"val":"nesting and accessing"}
 
-     k_expression = '0000';
-     k.run(k_expression,{"test":"parse integer"});
-     // RETURNS: 0
+k_expression = '0000';
+k.run(k_expression,{"test":"parse integer"});
+// RETURNS: 0
 
-     k_expression = '[.y,.x] PLUS';
-     k.run(k_expression,{"x":3,"y":4});
-     // RETURNS: 7
+k_expression = '[.y,.x] PLUS';
+k.run(k_expression,{"x":3,"y":4});
+// RETURNS: 7
 
-     var k_fn = k.compile('{.name nom, <[.age, 18] GT .0, [.age, 12] GT "ado", "enfant"> age}');
+var k_fn = k.compile('{.name nom, <[.age, 18] GT .0, [.age, 12] GT "ado", "enfant"> age}');
 
-     k_fn({"age":23,"name":"Emily"});
-     // RETURNS: {"nom":"Emily","age":23}
+k_fn({"age":23,"name":"Emily"});
+// RETURNS: {"nom":"Emily","age":23}
 
-     k_fn({"age":16,"name":"Katrina"});
-     // RETURNS: {"nom":"Katrina","age":"ado"}
+k_fn({"age":16,"name":"Katrina"});
+// RETURNS: {"nom":"Katrina","age":"ado"}
 
-     k_fn({"age":2,"name":"Mark"});
-     // RETURNS: {"nom":"Mark","age":"enfant"}
+k_fn({"age":2,"name":"Mark"});
+// RETURNS: {"nom":"Mark","age":"enfant"}
 
-     k_fn = k.compile('$t = < i: int, t: [ t ] > ; <$t, $int>');
+k_fn = k.compile('$t = < i: int, t: [ t ] > ; <$t, $int>');
 
-     k_fn(1);
-     // RETURNS: 1
+k_fn(1);
+// RETURNS: 1
 
-     k_fn({"i":1});
-     // RETURNS: {"i":1}
+k_fn({"i":1});
+// RETURNS: {"i":1}
 
-     k_fn([{"i":2},{"i":3},{"t":[]}]);
-     // RETURNS: undefined
+k_fn([{"i":2},{"i":3},{"t":[]}]);
+// RETURNS: undefined
 
-     k_fn({"t":[{"i":2},{"i":3},{"t":[]}]});
-     // RETURNS: {"t":[{"i":2},{"i":3},{"t":[]}]}
+k_fn({"t":[{"i":2},{"i":3},{"t":[]}]});
+// RETURNS: {"t":[{"i":2},{"i":3},{"t":[]}]}
 
-     k_fn = k.compile('$ < < [ int ] ints, [ bool ] bools > list, string None>');
+k_fn = k.compile('$ < < [ int ] ints, [ bool ] bools > list, string None>');
 
-     k_fn({"None":"None"});
-     // RETURNS: {"None":"None"}
+k_fn({"None":"None"});
+// RETURNS: {"None":"None"}
 
-     k_fn({"list":{"ints":[]}});
-     // RETURNS: {"list":{"ints":[]}}
+k_fn({"list":{"ints":[]}});
+// RETURNS: {"list":{"ints":[]}}
 
-     k_fn({"list":{"ints":[1,2,3]}});
-     // RETURNS: {"list":{"ints":[1,2,3]}}
+k_fn({"list":{"ints":[1,2,3]}});
+// RETURNS: {"list":{"ints":[1,2,3]}}
+```
