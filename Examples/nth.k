@@ -194,6 +194,41 @@ pascal = <
   [1]
 >;
 
+MINUS = $[int]
+  SNOC [.car, [.cdr PLUS, -1] TIMES] PLUS;
+
+nth = 
+  ?{$int n, [X] list}
+  <
+    {[.list len, 5] GT if, () then} .then 
+    {.n n, .list list, {.list list, 5 n} part (| <{3 n, () list} nth, .0> ^) medians }
+    {.n n, .list list, {[.medians len,2] DIV .div n, .medians list} nth median} 
+    {
+      .n n, 
+      [.median, .list |] GT .1 ^ smaller,
+      [.median, .list |] EQ .1 ^ equal,
+      [.list |, .median] GT .0 ^ bigger
+    }
+    { 
+      .n n, .smaller smaller, .equal equal, .bigger bigger,
+      .smaller len smaller_len
+    }
+    < 
+      {[.smaller_len, .n] <GT,EQ> if, {.n n, .smaller list} nth then} .then,
+      { 
+        .n n, .equal equal, .bigger bigger, .smaller_len smaller_len, 
+        [.smaller_len, .equal len] PLUS smaller_equal_len
+      }
+      <
+        {[.smaller_equal_len, .n] <GT,EQ> if, .equal .0 then} .then,
+        {[.n, .smaller_equal_len] MINUS n, .bigger list} nth
+      >
+    >
+    ,
+    {.list sort inverse list, .n decr pos} get
+  >
+  ?X
+;
 
 -- loaded
 ()
