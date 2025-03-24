@@ -103,6 +103,7 @@ function minimize(codes) {
     for (const name1 in classes) {
       const [eq_names, dif_names] = classes[name1].reduce(
         ([eq_names, dif_names], name2) => {
+          // console.log(JSON.stringify({classes,codes,representatives,name1,name2},null,2));
           if (are_different(classes, representatives, name1, name2, codes)) {
             dif_names.push(name2);
           } else {
@@ -136,6 +137,8 @@ function normalize(label_ref_map, representatives) {
 
 function normalizeAll(codes, representatives) {
   return Object.keys(codes).reduce(function (normalized, name) {
+    console.log(' *** ');
+    console.log(JSON.stringify({name,representatives,normalized}, null, 2));
     if (name === representatives[name]) {
       const code = codes[name];
       switch (code.code) {
@@ -152,6 +155,9 @@ function normalizeAll(codes, representatives) {
             ...code,
             vector: representatives[code.vector] || code.vector,
           };
+          break;
+        default:
+          throw new Error(`Unexpected code ${code.code}`);
       }
     }
 
@@ -160,6 +166,10 @@ function normalizeAll(codes, representatives) {
 }
 
 function finalize(codes) {
+  console.log("FINALIZE CODES:")
+  console.log(new Error("FINALIZE CODES").stack);
+  console.log(codes);
+  console.log("----------------------------------------------------------------")
   const representatives = minimize(codes).representatives;
   const normalizedCodes = normalizeAll(codes, representatives);
   const globalNames = Object.keys(normalizedCodes).reduce((globalNames, name) => {
@@ -190,7 +200,7 @@ function finalize(codes) {
 }
 
 function register(newCodes) {
-  const { codes, representatives } = finalize( {...newCodes,...theRepository.codes});
+  const { codes, representatives } = finalize( {...theRepository.codes,...newCodes});
   const reps = Object.values(representatives).reduce((reps,rep) => 
     ({...reps, [rep]:rep})
   , {});
