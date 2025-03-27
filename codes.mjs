@@ -103,6 +103,7 @@ function minimize(codes) {
     for (const name1 in classes) {
       const [eq_names, dif_names] = classes[name1].reduce(
         ([eq_names, dif_names], name2) => {
+          // console.log(JSON.stringify({classes,codes,representatives,name1,name2},null,2));
           if (are_different(classes, representatives, name1, name2, codes)) {
             dif_names.push(name2);
           } else {
@@ -152,6 +153,9 @@ function normalizeAll(codes, representatives) {
             ...code,
             vector: representatives[code.vector] || code.vector,
           };
+          break;
+        default:
+          throw new Error(`Unexpected code ${code.code}`);
       }
     }
 
@@ -190,7 +194,7 @@ function finalize(codes) {
 }
 
 function register(newCodes) {
-  const { codes, representatives } = finalize( {...newCodes,...theRepository.codes});
+  const { codes, representatives } = finalize( {...theRepository.codes,...newCodes});
   const reps = Object.values(representatives).reduce((reps,rep) => 
     ({...reps, [rep]:rep})
   , {});
