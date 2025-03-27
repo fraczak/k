@@ -33,7 +33,7 @@ function hash(inputString) {
         hashValue = (hashValue * prime + charCode) % mod;
     }
 
-    return shifString(hashValue.toString(base));
+    return "@"+shifString(hashValue.toString(base));
 }
 
 export default hash;

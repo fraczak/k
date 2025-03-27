@@ -63,6 +63,7 @@ function fromEscString(escString) {
 "?"                                            return 'QMARK';
 "|"                                            return 'PIPE';
 "^"                                            return 'CARET';
+"@"                                            return 'AT';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
 0|[-]?[1-9][0-9]*                              return 'INT';
@@ -72,7 +73,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING INT
-%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE CARET QMARK DOTS
+%token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE CARET AT QMARK DOTS
 %token EOF
 
 %start input_with_eof
@@ -119,6 +120,7 @@ defs:                                   {  }
 
 code
     : name                              { $$ = { code: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
+    | AT name                          { $$ = { code: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     | codeDef                           { $$ = $1; }
     ;
 

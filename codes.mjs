@@ -137,8 +137,6 @@ function normalize(label_ref_map, representatives) {
 
 function normalizeAll(codes, representatives) {
   return Object.keys(codes).reduce(function (normalized, name) {
-    console.log(' *** ');
-    console.log(JSON.stringify({name,representatives,normalized}, null, 2));
     if (name === representatives[name]) {
       const code = codes[name];
       switch (code.code) {
@@ -166,10 +164,6 @@ function normalizeAll(codes, representatives) {
 }
 
 function finalize(codes) {
-  console.log("FINALIZE CODES:")
-  console.log(new Error("FINALIZE CODES").stack);
-  console.log(codes);
-  console.log("----------------------------------------------------------------")
   const representatives = minimize(codes).representatives;
   const normalizedCodes = normalizeAll(codes, representatives);
   const globalNames = Object.keys(normalizedCodes).reduce((globalNames, name) => {
