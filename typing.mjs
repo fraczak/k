@@ -667,7 +667,7 @@ class TypePatternGraph {
             const target_type_id = this.getTypeId(code.vector);
 
             this.edges[new_id] = {
-              'vector-member': asSet([ target_type_id, ...Object.values(this.edges[new_id])])
+              'vector-member': asSet([ target_type_id, ...[].concat(...Object.values(this.edges[new_id]))])
             }
           }
         }
