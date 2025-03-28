@@ -401,14 +401,14 @@ class TypePatternGraph {
           case 'type': {
               const code = codes.find(p2.type);
               switch (code.code) {
-                case 'int':
+                case '@int':
                   // supports (2 .2) which returns unit
                   if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
                     return p2;
                   break;
-                case 'string':
+                case '@string':
                   return p2;
-                case 'bool':
+                case '@bool':
                   if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
                     return p2;
                   break;
@@ -471,14 +471,14 @@ class TypePatternGraph {
           case 'type':{
             const code = codes.find(p2.type);
             switch (code.code) {
-              case 'int':
+              case '@int':
                 // supports (2 .2) which returns unit
                 if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
                   return p2;
                 break;
-              case 'string':
+              case '@string':
                 return p2;
-              case 'bool':
+              case '@bool':
                 if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
                   return p2;
                 break;
@@ -508,13 +508,13 @@ class TypePatternGraph {
           case 'type':{
             const code = codes.find(p2.type);
             switch (code.code) {
-              case 'int':
+              case '@int':
                 if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
                   return p2;
                 break;
-              case 'string':
+              case '@string':
                 return p2;
-              case 'bool':
+              case '@bool':
                 if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
                   return p2;
                 break;
@@ -645,9 +645,9 @@ class TypePatternGraph {
     if (new_pattern.pattern == 'type') {
       const code = codes.find(new_pattern.type);
         switch (code.code) {
-          case 'int':
-          case 'string':
-          case 'bool': {
+          case '@int':
+          case '@string':
+          case '@bool': {
             // all edges are goin to unit type
             const unit_id = this.getTypeId(unitCode);
             for (const lab in this.edges[new_id]) {

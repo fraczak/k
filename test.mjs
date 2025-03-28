@@ -62,7 +62,7 @@ console.log("");
 });
 
 
-k_expression = "$ < < [ int ] ints, [ bool ] bools > list, string None>";
+k_expression = "$ < < [ @int ] ints, [ @bool ] bools > list, @string None>";
 
 k_fn = k.compile(k_expression);
 

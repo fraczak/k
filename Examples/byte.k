@@ -34,7 +34,7 @@ inc8 = inc7 inc_o;
 
 
 
-digitToByte = $int < 
+digitToByte = $@int < 
   .0 zero,
   .1 zero inc .byte,
   .2 zero inc2 .byte,
@@ -53,7 +53,7 @@ digitToByte = $int <
   .15 zero inc8 .byte inc7 .byte
 > ;
 
-strToByte = $string toVEC
+strToByte = $@string toVEC
   { .0 <.0 bit0, bit1> b3,
     .1 <.0 bit0, bit1> b2,
     .2 <.0 bit0, bit1> b1,

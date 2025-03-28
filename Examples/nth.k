@@ -1,17 +1,17 @@
-incr = [$int,1] PLUS;
-decr = [$int,-1] PLUS;
-pos? = [$int,0] GT .0;
+incr = [$@int,1] PLUS;
+decr = [$@int,-1] PLUS;
+pos? = [$@int,0] GT .0;
 empty? = <{ SNOC.car nope}, {() empty}> .empty;
 singleton? = ?[X] <{.1 nope},{[.0] singleton}> .singleton;
 
 take = 
---?{ $int n, [(...)] list}
+--?{ $@int n, [(...)] list}
   {.n n, [] head, .list tail} take_
 --?{[X] head, [X] tail}
 ;
 
 take_ = 
-?{ $int n, [X] head, [X] tail}
+?{ $@int n, [X] head, [X] tail}
 <
   {.head inverse head, .tail empty? tail},
   {[.n,0] EQ if, {.head inverse head, .tail tail} then} .then,
@@ -164,7 +164,7 @@ len_ = <
 >;
 
 get = 
--- {[int] list, int pos}
+-- {[@int] list, @int pos}
 <
  {.pos.0 if, .list.0 then} .then,
  {.list SNOC.cdr list, [.pos, 0] GT .0 decr pos} get
@@ -194,11 +194,11 @@ pascal = <
   [1]
 >;
 
-MINUS = $[int]
+MINUS = $[@int]
   SNOC [.car, [.cdr PLUS, -1] TIMES] PLUS;
 
 nth = 
-  ?{$int n, [X] list}
+  ?{$@int n, [X] list}
   <
     {[.list len, 5] GT if, () then} .then 
     {.n n, .list list, {.list list, 5 n} part (| <{3 n, () list} nth, .0> ^) medians }

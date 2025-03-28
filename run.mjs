@@ -68,9 +68,9 @@ const builtin = {
 };
 
 const codes = {
-  int: (x) => Number.isInteger(x),
-  string: (x) => x instanceof String || "string" === typeof x,
-  bool: (x) => x === true || x === false,
+  "@int": (x) => Number.isInteger(x),
+  "@string": (x) => x instanceof String || "string" === typeof x,
+  "@bool": (x) => x === true || x === false,
 };
 
 function verify(code, value) {

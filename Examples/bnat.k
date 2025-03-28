@@ -303,7 +303,7 @@ _inverse =
 to2 = $bnat < ._ "0", {() x, [] acc} _to2 >;
 
 _to2 = 
-  ${bnat x, [string] acc}
+  ${bnat x, [@string] acc}
   <
     { .x._ if, .acc then } .then inverse CONCAT,
     { .x.0 x, { "0" car, .acc cdr} CONS acc } _to2,
@@ -311,7 +311,7 @@ _to2 =
   >
 ;
 
-from2 = $string toVEC _from2;
+from2 = $@string toVEC _from2;
 _from2 = 
   < SNOC
     < 
@@ -350,7 +350,7 @@ toDigit =
 ;
 
 fromDigit =
-  $string
+  $@string
   <
     .0 bnat_0,
     .1 bnat_1,
@@ -365,7 +365,7 @@ fromDigit =
   >
 ;
 
-from10 = $string {toVEC v, bnat_0 b} _from10;
+from10 = $@string {toVEC v, bnat_0 b} _from10;
 _from10 = 
   < 
     {.v SNOC.cdr v, {{.b x, bnat_10 y} times x, .v.0 fromDigit y} plus b} _from10, 
@@ -380,17 +380,17 @@ times10 = {.x from10 x, .y from10 y} times to10;
 div10 = {.x from10 x, .y from10 y} div {.div to10 div, .rem to10 rem};
 
 double = 
-  $[ string ]
+  $[ @string ]
   { inverse input, c0 c, [] result }
   _double
 ; 
 double_plus_1 = 
-  $[ string ]
+  $[ @string ]
   { inverse input, c1 c, [] result }
   _double
 ; 
 _double = 
-  ${ [ string ] input, carry c, [ string ] result }
+  ${ [ @string ] input, carry c, [ @string ] result }
   <
     { .input SNOC input, .c c, .result result }
     < 

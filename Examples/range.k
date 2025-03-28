@@ -1,15 +1,15 @@
-pos? = [$int,0] GT .0;
-dec = [$int,"-1" fromJSON] PLUS;
+pos? = [$ @int, 0] GT .0;
+dec = [$ @int, -1] PLUS;
 
-rangeTill = ${int i, [ int ] range }
+rangeTill = ${@int i, [ @int ] range }
 < {.i pos? dec i, {.i car,.range cdr} CONS range} rangeTill,
   .range
 >
-$[int];
+$[@int];
 
-range = $int
+range = $@int
  {() i, [] range} rangeTill
- $[int]
+ $[@int]
  ;
 
 range {() range, .0 first}

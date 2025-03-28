@@ -3,7 +3,7 @@ empty? = ?[X] < {.0 nope}, { () empty } >.empty;
 
 $ re = <
     {} sink,
-    string  char,
+    @string  char,
     re star,
     {re 0, re 1} concat,
     {re 0, re 1} union
@@ -31,13 +31,13 @@ $ re
     [.0 print, "|", .1 print] CONCAT
   >
 >
-$ string
+$ @string
 ;
 
 -- 're' constructors:
 sink = { {} sink} $re;
 epsilon = sink star $re;
-char = {$ string char} $re;
+char = {$ @string char} $re;
 star = < .star, () > {() star} $re;
 -- star = < .star, () > {() star} $re;
 concat = <
@@ -78,7 +78,7 @@ ${}
 ;
 
 derive = 
-${string char, re re}
+${@string char, re re}
 <
   .re.sink sink,
   [.re.char, .char] < EQ epsilon, sink >,
@@ -101,7 +101,7 @@ $re
 
 
 check? = 
-${[string] w, re re}
+${[@string] w, re re}
   <
     {.w empty? if, .re accepts? then} .then,
     {.w cdr w, {.w.0 char, .re re} derive re} check?

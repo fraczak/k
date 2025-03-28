@@ -11,12 +11,12 @@ $b {1 one, () two, () c} .one
     const {input,output} = in_out(annotated);
     // console.log({input,output});
     assert.equal(input.type, annotated.representatives["b"]);
-    assert.equal(output.type, "int");
+    assert.equal(output.type, "@int");
     console.log("OK");
 });
 
 t(`
-    $a = < int true, bool false > ;
+    $a = < @int true, @bool false > ;
     $a .true
   `, (annotated) => {
   const {input,output} = in_out(annotated);
@@ -35,6 +35,6 @@ t(`
   const {input,output} = in_out(annotated);
   console.log({input,output});
   assert.equal(input.pattern, '(...)');
-    assert.equal(output.type, "bool");
+    assert.equal(output.type, "@bool");
     console.log("OK");
 });

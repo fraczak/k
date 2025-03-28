@@ -15,6 +15,6 @@ f = {
   true g xyzv b 
 };
 
-f .i $int 
+f .i $@int 
 
 -- $ echo '[8,false]' | ./k.mjs -k Examples/p.k

@@ -1,7 +1,7 @@
-$ t = < { t l, int v, t r } t, {} _ >;
+$ t = < { t l, @int v, t r } t, {} _ >;
 
 t = 
-$ {t l, int v, t r} 
+$ {t l, @int v, t r} 
   {() t} 
 $ t
 ;
@@ -9,7 +9,7 @@ $ t
 empty = {{} _} $t;
 
 leave = 
-$ int 
+$ @int 
   { empty l, 
     () v, 
     empty r 
@@ -18,7 +18,7 @@ $ t
 ; 
 
 sort = 
-$ [ int ]
+$ [ @int ]
   <
     SNOC { .car x, .cdr sort t } insert,
     { empty l, .0 v, empty r } t,
@@ -28,7 +28,7 @@ $ t
 ;
 
 insert = 
-$ { int x, t t } 
+$ { @int x, t t } 
   <
     {.t._ if, .x leave then} .then,
     {[.x, .t.t.v] GT .0 0, .t.t 1}
@@ -46,7 +46,7 @@ $ { int x, t t }
 $ t
 ;
 
-inc = $int [(),1] PLUS $int;
+inc = $@int [(),1] PLUS $@int;
 len = 
  < SNOC .cdr len inc,
    .0 1,
@@ -57,7 +57,7 @@ len =
 concat = 
   < 
     SNOC 
-    ${[int] car, [ [ int ] ] cdr}
+    ${[@int] car, [ [ @int ] ] cdr}
       < {.car SNOC 0, .cdr 1}
         {.0.car car, {.0.cdr car, .1 cdr} CONS concat cdr} CONS,
         {.car.0 car, .cdr concat cdr} CONS,
@@ -71,9 +71,9 @@ concat =
 toVector = 
 $ t 
   < ._ [],
-    .t [.l toVector, [.v], .r toVector] $[[int]] concat
+    .t [.l toVector, [.v], .r toVector] $[[@int]] concat
   >
-$ [ int ] 
+$ [ @int ] 
 ;
 
 {len len, sort toVector sorted}

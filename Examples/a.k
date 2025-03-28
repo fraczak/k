@@ -1,18 +1,18 @@
 -- Examples for defining arithmetic functions natively
 
-$rat = {int n, int d};
+$rat = {@int n, @int d};
 
 MINUS = SNOC [.car, .cdr PLUS [(),-1] TIMES] PLUS;
 
 abs = < [0, ()] GT [-1,.1] TIMES, ()>;
 
 mod = 
--- ${int x, int y}
+-- ${@int x, @int y}
 { .x abs x, .y abs y} mod_
 ;
 
 mod_ = 
--- ${int x, int y}
+-- ${@int x, @int y}
 <
     [.y, .x] GT .1,
     { 
@@ -20,15 +20,15 @@ mod_ =
         .y y
     } mod_
 >
--- $int
+-- $@int
 ;
 
 // gratest common divisor
 gcd = 
---${int x, int y}
+--${@int x, @int y}
   [.x abs, .y abs] <GT {.0 x, .1 y}, {.1 x,.0 y}>
   gcd_
---$int
+--$@int
 ;
 
 gcd_ = <
@@ -39,7 +39,7 @@ gcd_ = <
 // div
 
 log2_floor =
--- ${int x, int step} 
+-- ${@int x, @int step} 
 -- finds the largest k, such that 'step * 2^k <= x',
 -- returns k+1, i.e., 0 if x < step, and k+1 otherwise.
   {.x x, .step step, 0 log} log2_floor_;
@@ -50,7 +50,7 @@ log2_floor_ = <
 >;
 
 div = 
-  ${int x, int y} 
+  ${@int x, @int y} 
   // remember sign
   {
     <
@@ -68,12 +68,12 @@ div =
   ;
 
 rep = 
--- ${int x, int count}
+-- ${@int x, @int count}
   <
     .count.0 [],
     {.x car, {.x x, .count [(),-1] PLUS count} rep cdr} CONS
   >
--- $[int]
+-- $[@int]
 ;
 
 div_ =
@@ -93,9 +93,9 @@ div_ =
   >;
 
 lcm = 
--- ${int x, int y}
+-- ${@int x, @int y}
   {[.x,.y] TIMES x , gcd y} div .div
--- $int
+-- $@int
 ;
 
 
@@ -168,7 +168,7 @@ int_rat =
 -- $rat 
   { .n n, .d d, {.n x,.d y} div div }
   { .div.div int, {.div.rem n, .d d} rat}
--- ${int int, rat rat}
+-- ${@int int, rat rat}
 ;
 
 ratToString = 
@@ -185,7 +185,7 @@ ratToString =
       int_rat [.int toJSON,"+",.rat.n toJSON,"/",.rat.d toJSON] CONCAT
     >
   ] CONCAT
--- $string
+-- $@string
 ;
 
 _rat! = $rat {

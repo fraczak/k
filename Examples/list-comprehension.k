@@ -1,13 +1,13 @@
 count_occurrences =
  ?{[X] list, X elem}
  [.list |, .elem] EQ 1 ^ PLUS
- -- $int
+ -- $@int
  ;
 
 products =
-    -- $ [int]
+    -- $ [@int]
     [ |, | ] TIMES ^
-    -- $ [int]
+    -- $ [@int]
     ;
 -- eg: [1,2] products 
 --  =  [[1,1] TIMES, [1,2] TIMES, [2,1] TIMES, [2,2] TIMES]
@@ -16,5 +16,5 @@ products =
 
 {
     [1,2,3,4,5] products list, 
-    <$int, "Not an integer, using 2 instead!!!" _log! 2> elem
+    <$@int, "Not an integer, using 2 instead!!!" _log! 2> elem
 } _log! count_occurrences 

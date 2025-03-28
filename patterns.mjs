@@ -174,12 +174,12 @@ function patterns(representatives, rels) {
         case "int":
           rel.patterns = [];
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('int');
+          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@int');
           break;
         case "str":
           rel.patterns = [];
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('string');
+          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
           break;
         case "identity":
           rel.patterns = [];
@@ -359,39 +359,39 @@ function patterns(representatives, rels) {
       case "true": 
       case "false":
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('bool');
+        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bool');
         break;
       case "PLUS":
       case "TIMES": 
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('int');
+        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@int');
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[1]]});
         break;
       case "CONCAT":
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('string');
+        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[1]]});
         break;
       case "toVEC":
-        rel.patterns[0] = rootDef.typePatternGraph.getTypeId('string')
+        rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@string')
         rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[0]]});
         break;
       case "toDateMsec":
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('int');
+        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@int');
         break;
       case "toJSON":
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('string');
+        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
         break;
       case "toDateStr":
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('string');
+        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
         break;
       case "GT":
       case "EQ":  
         rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rootDef.typePatternGraph.addNewNode()]});
         break;
       case "fromJSON":
-        rel.patterns[0] = rootDef.typePatternGraph.getTypeId('string');
+        rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@string');
         rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
         break;
       case "CONS": {
@@ -405,7 +405,7 @@ function patterns(representatives, rels) {
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[0]]});
         }; break;
       case "DIV": {
-          const intId = rootDef.typePatternGraph.getTypeId('int');
+          const intId = rootDef.typePatternGraph.getTypeId('@int');
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [intId]});
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"div": [intId], "rem": [intId]});
         }; break;

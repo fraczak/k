@@ -5,8 +5,8 @@ import hash from './hash.mjs';
     `
     $nat = < {} zero, nat succ>;
     $pair = {nat x, nat y};
-    $b = {int"x", bool y};
-    $vector = [int];
+    $b = {@int"x", @bool y};
+    $vector = [@int];
     $tree = <{nat value, tree left, tree right} binary, nat leaf, {nat value, tree tree} unary, [tree] list_of_trees>;
   
     succ = { $nat succ} $nat;
