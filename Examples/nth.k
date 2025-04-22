@@ -230,5 +230,47 @@ nth =
   ?X
 ;
 
+qsort = 
+  ?[X] 
+  < empty?, 
+    singleton?, 
+    split_by_median
+    [."<" qsort, ."=", .">" qsort] cats 
+  >
+;
+
+cdr = SNOC.cdr;
+
+split_by_median =
+  {
+    () list, 
+    {() list, [len, 2] DIV .div n} nth pivot, 
+    [] "<", 
+    [] "=", 
+    [] ">"
+  } _split_by_pivot
+;
+_split_by_pivot = 
+  ?{[X] list, X pivot, [X] "<", [X] "=", [X] ">"}
+  <
+    <
+      {
+        [.list .0, .pivot] EQ if, 
+        {.list cdr list, .pivot pivot, ."<" "<", {.list.0 car, ."=" cdr} CONS "=", .">" ">"} then
+      } .then,
+      {
+        [.list .0, .pivot] GT if, 
+        {.list cdr list, .pivot pivot, ."<" "<", {.list.0 car, .">" cdr} CONS ">", ."=" "="} then
+      } .then,
+      {.list cdr list, .pivot pivot, ."=" "=", {.list.0 car, ."<" cdr} CONS "<", .">" ">"}
+    > _split_by_pivot,
+    
+    {."<" inverse "<", ."=" inverse "=", .">" inverse ">"}
+    
+  >
+  ;
+
+
+
 -- loaded
 ()
