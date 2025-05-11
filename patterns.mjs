@@ -286,7 +286,7 @@ function patterns(representatives, rels) {
     rel.patterns = [];
     if (rel.union.length == 0) {
       rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-      rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '<>'}); 
+      rel.patterns[1] = rootDef.typePatternGraph.addNewNode(); 
     } else {
       rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
       rootDef.typePatternGraph.unify(

@@ -430,3 +430,17 @@ _double =
   >
 ;
 
+fib = {
+  () x, 
+  bnat_1 i, 
+  bnat_1 ii
+} _fib;
+
+_fib = 
+${bnat x, bnat i, bnat ii}
+< 
+  {if: {.x x, bnat_1 y} le?, then: .i} .then, 
+  {.x dec x, {.i x, .ii y} plus i, .i ii} _fib
+>;
+
+fib10 = from10 fib to10;
