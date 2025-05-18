@@ -1,5 +1,6 @@
 import assert from "assert";
 import { find } from "./codes.mjs";
+import { Bits } from "./bits.mjs"
 
 const modulo = (a, b) => ((+a % (b = +b)) + b) % b;
 const valid = (x) => (isNaN(x) ? undefined : x);
@@ -71,6 +72,7 @@ const codes = {
   "@int": (x) => Number.isInteger(x),
   "@string": (x) => x instanceof String || "string" === typeof x,
   "@bool": (x) => x === true || x === false,
+  "@bits": (x) => x instanceof Bits
 };
 
 function verify(code, value) {
@@ -126,6 +128,7 @@ function run(exp, value) {
         return value;
       case "str":
       case "int":
+      case "bits":
         return exp[exp.op];
       case "ref": {
         const defn = run.defs.rels[exp.ref];
@@ -143,6 +146,11 @@ function run(exp, value) {
         // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
         if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
           if (`${value}` === `${exp.dot}`) return {};
+          return;
+        }
+        if (value instanceof Bits) {
+          if (exp.dot instanceof Bits)
+            return value.eatPrefix(exp.dot);
           return;
         }
         return value[exp.dot];

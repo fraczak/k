@@ -9,7 +9,7 @@ const unitCode = function() {
 }();
 
 function isBuiltIn(code) {  
-  return code.match(/^@(int|string|bool)$/);
+  return code.match(/^@(bits|int|string|bool)$/);
 }
 
 function encodeCodeToString(code, codes = theRepository.codes) {

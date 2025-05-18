@@ -400,7 +400,14 @@ class TypePatternGraph {
             throw new Error(`Cannot unify (${p1.fields},...) with <${p2.fields}>`);
           case 'type': {
               const code = codes.find(p2.type);
+              // console.log(JSON.stringify({p1,p2,code}));
               switch (code.code) {
+                case '@bits':
+                  // supports (0b11 . 0b1) which returns bits
+                  // actually we should assume that p1.fields is empty
+                  if (p1.fields.every(x => `${x}`.match(/^0b[01]*$/))) 
+                    return p2;
+                  break;
                 case '@int':
                   // supports (2 .2) which returns unit
                   if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
@@ -645,6 +652,7 @@ class TypePatternGraph {
     if (new_pattern.pattern == 'type') {
       const code = codes.find(new_pattern.type);
         switch (code.code) {
+          case '@bits':
           case '@int':
           case '@string':
           case '@bool': {

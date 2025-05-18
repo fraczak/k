@@ -313,6 +313,7 @@ _to2 =
 
 from2 = $@string toVEC _from2;
 _from2 = 
+  $[@string]
   < SNOC
     < 
       {.car .0 if, .cdr _from2 _0 then}, 
@@ -320,12 +321,14 @@ _from2 =
     > .then,
     _
   >
+  $bnat
 ;
 
 --- Conversion to and from decimal
 
 to10 = {$bnat b, [] v} _to10;
 _to10 =
+  ${bnat b, [@string] v}
   <
     { .b._ if, <.v empty? ["0"], .v> then } .then CONCAT,
     { .b.0 b, .v double v} _to10,
@@ -373,11 +376,11 @@ _from10 =
   >
 ;
 
-mod10 = {.x from10 x, .y from10 y} mod to10;
-plus10 = {.x from10 x, .y from10 y} plus to10;
-minus10 = {.x from10 x, .y from10 y} minus to10;
-times10 = {.x from10 x, .y from10 y} times to10;
-div10 = {.x from10 x, .y from10 y} div {.div to10 div, .rem to10 rem};
+mod10 = ${@string x , @string y} {.x from10 x, .y from10 y} mod to10;
+plus10 = ${@string x , @string y} {.x from10 x, .y from10 y} plus to10;
+minus10 = ${@string x , @string y} {.x from10 x, .y from10 y} minus to10;
+times10 = ${@string x , @string y} {.x from10 x, .y from10 y} times to10;
+div10 = ${@string x , @string y} {.x from10 x, .y from10 y} div {.div to10 div, .rem to10 rem};
 
 double = 
   $[ @string ]

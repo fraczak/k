@@ -3,6 +3,7 @@ import hash from "./hash.mjs";
 import { TypePatternGraph } from "./typing.mjs";
 import { Graph, sccs, topoOrder } from "./Graph.mjs";
 import codes from "./codes.mjs";
+import { Bits } from "./bits.mjs";
 import { assignCanonicalNames } from "./export.mjs";
 
 const unitCode = codes.unitCode;
@@ -24,6 +25,7 @@ function relDefToString(relDef) {
       case "ref":
       case "int":
       case "str":
+      case "bits":
       case "identity":
       case "dot":
       case "code":
@@ -79,6 +81,7 @@ function compactRel(relDef, name = "") {
       case "ref":
       case "int":
       case "str":
+      case "bits":
       case "identity":
       case "dot":
       case "code":
@@ -181,21 +184,32 @@ function patterns(representatives, rels) {
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
           rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
           break;
+        case "bits":
+          rel.patterns = [];
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bits');
+          break;
         case "identity":
           rel.patterns = [];
           rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
           break;
         case "dot":
           rel.patterns = [];
-          rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
+          if (rel.dot instanceof Bits) {
+            rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@bits');
+            rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bits');
+          } else {
+            rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
+            rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
+          } 
           break;
+        
         case "filter":
           rel.patterns = [];
           rel.patterns[1] = rel.patterns[0] = filterToPattern(rel.filter, rootDef);
           break;
         default:
-          console.error("NOT EXPECTED OP for aumentation:", JSON.stringify(rel, null, 2));
+          console.error("NOT EXPECTED OP for augmentation:", JSON.stringify(rel, null, 2));
           break;
       }
     } catch (e) {

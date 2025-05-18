@@ -1,6 +1,7 @@
 %{
 
 import { SymbolTable, comp, union, identity } from "./symbol-table.mjs";
+import { Bits, parse } from "./bits.mjs";
 let s = new SymbolTable();
 
 function anError(pos,msg) {
@@ -37,6 +38,10 @@ function fromEscString(escString) {
   return str;
 }
 
+function fromBits(bits) {
+  return new Bits(parse(bits));
+}
+
 %}
 
 %lex
@@ -66,14 +71,18 @@ function fromEscString(escString) {
 "@"                                            return 'AT';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
+(?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+))*
+                                                return 'BITS';
 0|[-]?[1-9][0-9]*                              return 'INT';
+
 "+++"                                          return 'INCREMENTAL';
 <<EOF>>                                        return 'EOF';
 
 /lex
 
-%token NAME STRING INT
+%token NAME BITS STRING INT
 %token LA LC LB LP RA RP RB RC EQ DOT COMMA SC COL DOLLAR PIPE CARET AT QMARK DOTS
+%token INCREMENTAL
 %token EOF
 
 %start input_with_eof
@@ -100,6 +109,7 @@ col: COL                                { $$ = getToken(yytext,yy,_$); };
 dollar: DOLLAR                          { $$ = getToken(yytext,yy,_$); };
 qmark: QMARK                            { $$ = getToken(yytext,yy,_$); };
 incremental: INCREMENTAL                { $$ = getToken(yytext,yy,_$); };
+bits: BITS                              { $$ = getToken(yytext,yy,_$); $$.value = fromBits($$.value);};
 
 input_with_eof: initialize_symbol_table defs comp EOF               {
     const result = {defs: {rels: s.rels, codes: s.codes}, exp: $3};
@@ -217,14 +227,16 @@ exp
     : lc labelled rc                    { $$ = {...$2, start: $1.start, end: $3.end}; }
     | lb list rb                        { $$ = {op: "vector", vector: $2, start: $1.start, end: $3.end}; }
     | la list ra                        { $$ = {...union($2), start: $1.start, end: $3.end}; }
-    | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
     | AT name                           { $$ = {op: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     | lp rp                             { $$ = {...identity, start: $1.start, end: $2.end};  }
     | lp comp rp                        { $$ = {...$2, start: $1.start, end: $3.end };  }
-    | str                               { $$ = {op: "str", str: $1.value, start: $1.start, end: $1.end }; }
     | int                               { $$ = {op: "int", int: $1.value, start: $1.start, end: $1.end }; }
     | dot int                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
+    | str                               { $$ = {op: "str", str: $1.value, start: $1.start, end: $1.end }; }
     | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
+    | bits                              { $$ = {op: "bits", bits: $1.value, start: $1.start, end: $1.end }; }
+    | dot bits                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
+    | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
     | qmark filter                      { $$ = {op: "filter", filter: $2, start: $1.start, end:$2.end}; }
