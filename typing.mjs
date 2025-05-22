@@ -405,7 +405,8 @@ class TypePatternGraph {
                 case '@bits':
                   // supports (0b11 . 0b1) which returns bits
                   // actually we should assume that p1.fields is empty
-                  if (p1.fields.every(x => `${x}`.match(/^0b[01]*$/))) 
+                  // if (p1.fields.every(x => `${x}`.match(/^0b[01]*$/))) 
+                  if (p1.fields.length == 0)
                     return p2;
                   break;
                 case '@int':

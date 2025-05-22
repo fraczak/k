@@ -300,12 +300,12 @@ _inverse =
 
 -- Conversion to and from binary
 
-to2 = $bnat < ._ "0", {() x, [] acc} _to2 >;
+to2 = $bnat < ._ "0", {reverse x, [] acc} _to2 >;
 
 _to2 = 
   ${bnat x, [@string] acc}
   <
-    { .x._ if, .acc then } .then inverse CONCAT,
+    { .x._ if, .acc then } .then CONCAT,
     { .x.0 x, { "0" car, .acc cdr} CONS acc } _to2,
     { .x.1 x, { "1" car, .acc cdr} CONS acc } _to2
   >

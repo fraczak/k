@@ -28,6 +28,8 @@ function relDefToString(relDef) {
       case "bits":
       case "identity":
       case "dot":
+      case "slash":
+      case "backslash":
       case "code":
       case "pipe":  
       case "filter":
@@ -84,6 +86,8 @@ function compactRel(relDef, name = "") {
       case "bits":
       case "identity":
       case "dot":
+      case "slash":
+      case "backslash":
       case "code":
       case "pipe":
       case "filter":
@@ -195,14 +199,22 @@ function patterns(representatives, rels) {
           break;
         case "dot":
           rel.patterns = [];
-          if (rel.dot instanceof Bits) {
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
+          break;
+        case "slash":
+        case "backslash": {
+          let arg = rel.slash || rel.backslash;
+          rel.patterns = [];
+          if (arg instanceof Bits) {
             rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@bits');
             rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bits');
-          } else {
-            rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-            rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
+          } else { /* it must be String, i.e. typeof arg == 'string' or arg instanceof Strig */
+            rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@string');
+            rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
           } 
           break;
+        }
         
         case "filter":
           rel.patterns = [];

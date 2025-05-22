@@ -148,12 +148,29 @@ function run(exp, value) {
           if (`${value}` === `${exp.dot}`) return {};
           return;
         }
-        if (value instanceof Bits) {
-          if (exp.dot instanceof Bits)
-            return value.eatPrefix(exp.dot);
+        return value[exp.dot];
+
+      case "slash":
+        // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
+        if (typeof value === 'string') {
+          if (value.startsWith(exp.slash)) 
+            return value.slice(exp.slash.length);
           return;
         }
-        return value[exp.dot];
+        if (value instanceof Bits && exp.slash instanceof Bits) {
+          return value.eatPrefix(exp.slash);
+        }
+        return;
+
+      case "backslash":
+        if ( typeof value === 'string' && typeof exp.backslash === 'string') {
+          return `${exp.backslash}${value}`;
+        }
+        if (value instanceof Bits && exp.backslash instanceof Bits) {
+          return value.prepend(exp.backslash);
+        }
+        return;
+
       case "pipe": {
         assert(isClosed(value), `PIPE (|): Only a regular vector value can be "open".`);
         const result = [...value];

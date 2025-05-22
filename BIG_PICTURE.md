@@ -285,3 +285,41 @@ A type can be translated into a Rust data structure, and a function can be trans
 ## Linking with Other Languages
 
 ## Streams and Arrays (Map-Reduce)
+
+## Bits
+
+Extending `@string` into `@bits`. 
+
+```k-repl
+$ bits = < {} _, bits 0, bits 1 >;
+```
+
+### Literals for `@bits` are:
+
+- `0b` for 0 bits
+- `0b10` for 2 bits
+- `0xF` for 4 bits
+- `0xF0` for 8 bits
+- `0o1` for 3 bits
+- `0o7` for 3 bits
+- "" for 0 bits
+- "ala" for 24 bits
+
+### Two operations on `@bits`:
+
+#### Eat `/`
+
+- `$@bits / @bits` --- division, e.g., `0b1011 / 0b10` = `0b11`, `"abc" / "a"` = `"bc"`
+
+#### Prepend `\`
+
+- `$@bits \ @bits` --- multiplication, e.g., `0b11 \ 0b10` = `0b1011`, `"bc" \ "a"` = `"abc"`
+
+Empty `bits` can be checked by
+
+```k
+
+kind = $@bits 
+  < {/ 0b0 \ 0b0 starts_with_0}, {/ 0b1 \ 0b1 starts_with_1}, {() empty} > 
+  $< @bits starts_with_0, @bits starts_with_1, @bits empty >;
+```

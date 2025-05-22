@@ -1,5 +1,5 @@
 
-const literalRegex = /^(?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|\d+)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|\d+))*$/;
+const literalRegex = /^(?:0b[01]*|0x[0-9a-fA-F]+|0o[0-7]+|\d+)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|\d+))*$/;
 
 function parseSegment(segment) {
     if (segment.startsWith('0b')) {
@@ -66,6 +66,14 @@ class Bits {
         // Prefix matches, return a new Bits object with the remainder
         const remainingBitArray = this.bits.slice(prefixBits.length);
         return new Bits(remainingBitArray);
+    }
+
+    prepend(prefixBits) {
+        if (!(prefixBits instanceof Bits)) {
+            throw new Error("Prefix must be an instance of Bits.");
+        }
+        const newBitArray = [...prefixBits.bits, ...this.bits];
+        return new Bits(newBitArray);
     }
 }
 
