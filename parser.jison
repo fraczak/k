@@ -61,8 +61,8 @@ function fromBits(bits) {
 "="                                            return 'EQ'; 
 "..."                                          return 'DOTS';
 "."                                            return 'DOT';
-"/"                                            return 'SLASH';
-"*"                                            return 'BACKSLASH';
+"/"                                            return 'DIV';
+"*"                                            return 'TIMES';
 ","                                            return 'COMMA';
 ";"                                            return 'SC';
 ":"                                            return 'COL';
@@ -82,7 +82,7 @@ function fromBits(bits) {
 /lex
 
 %token NAME BITS STRING
-%token LA LC LB LP RA RP RB RC EQ DOT SLASH BACKSLASH COMMA SC COL DOLLAR PIPE CARET AT QMARK DOTS
+%token LA LC LB LP RA RP RB RC EQ DOT DIV TIMES COMMA SC COL DOLLAR PIPE CARET AT QMARK DOTS
 %token INCREMENTAL
 %token EOF
 
@@ -91,7 +91,8 @@ function fromBits(bits) {
 %%
 
 name: NAME                              { $$ = getToken(yytext,yy,_$); };
-str: STRING                             { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);};
+bits: STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);}
+    | BITS                              { $$ = getToken(yytext,yy,_$); };
 la: LA                                  { $$ = getToken(yytext,yy,_$); };
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
 lb: LB                                  { $$ = getToken(yytext,yy,_$); };
@@ -103,15 +104,14 @@ rp: RP                                  { $$ = getToken(yytext,yy,_$); };
 eq: EQ                                  { $$ = getToken(yytext,yy,_$); };
 dots: DOTS                              { $$ = getToken(yytext,yy,_$); };
 dot: DOT                                { $$ = getToken(yytext,yy,_$); };
-slash: SLASH                            { $$ = getToken(yytext,yy,_$); };
-backslash: BACKSLASH                    { $$ = getToken(yytext,yy,_$); };
+div: DIV                                { $$ = getToken(yytext,yy,_$); };
+times: TIMES                            { $$ = getToken(yytext,yy,_$); };
 comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
 sc: SC                                  { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
 dollar: DOLLAR                          { $$ = getToken(yytext,yy,_$); };
 qmark: QMARK                            { $$ = getToken(yytext,yy,_$); };
 incremental: INCREMENTAL                { $$ = getToken(yytext,yy,_$); };
-bits: BITS                              { $$ = getToken(yytext,yy,_$); };
 
 input_with_eof: initialize_symbol_table defs comp EOF               {
     const result = {defs: {rels: s.rels, codes: s.codes}, exp: $3};
@@ -163,10 +163,8 @@ non_empty_labelled_codes
 
 code_label 
     : code name                         { $$ = {label: $2.value, code: $1}; }
-    | code str                          { $$ = {label: $2.value, code: $1}; }
     | code bits                         { $$ = {label: $2.value, code: $1}; }
     | name col code                     { $$ = {label: $1.value, code: $3}; }
-    | str col code                      { $$ = {label: $1.value, code: $3}; }
     | bits col code                     { $$ = {label: $1.value, code: $3}; }
     ;
 
@@ -212,10 +210,8 @@ non_empty_labelled_filters
 filter_label
     : dots                              { $$ = {dots: true }; }
     | filter name                       { $$ = {label: $2.value, filter: $1}; }
-    | filter str                        { $$ = {label: $2.value, filter: $1}; }
     | filter bits                       { $$ = {label: $2.value, filter: $1}; }
     | name col filter                   { $$ = {label: $1.value, filter: $3}; }
-    | str col filter                    { $$ = {label: $1.value, filter: $3}; }
     | bits col filter                   { $$ = {label: $1.value, filter: $3}; }
     ;
 
@@ -234,12 +230,8 @@ exp
     | lp comp rp                        { $$ = {...$2, start: $1.start, end: $3.end };  }
     | bits                              { $$ = {op: "bits", bits: fromBits($1.value), start: $1.start, end: $1.end }; }
     | dot bits                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | slash bits                        { $$ = {op: "slash", slash: fromBits($2.value), start: $1.start, end: $2.end }; }
-    | backslash bits                    { $$ = {op: "backslash", backslash: fromBits($2.value), start: $1.start, end: $2.end }; }
-    | str                               { $$ = {op: "str", str: $1.value, start: $1.start, end: $1.end }; }
-    | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | slash str                         { $$ = {op: "slash", slash: $2.value, start: $1.start, end: $2.end }; }
-    | backslash str                     { $$ = {op: "backslash", backslash: $2.value, start: $1.start, end: $2.end }; }
+    | div bits                        { $$ = {op: "div", div: fromBits($2.value), start: $1.start, end: $2.end }; }
+    | times bits                    { $$ = {op: "times", times: fromBits($2.value), start: $1.start, end: $2.end }; }
     | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
@@ -266,10 +258,8 @@ non_empty_labelled
 
 comp_label
     : comp name  { $$ = {label: $2.value, exp: $1}; }
-    | comp str   { $$ = {label: $2.value, exp: $1}; }
     | comp bits  { $$ = {label: $2.value, exp: $1}; }
     | name col comp { $$ = {label: $1.value, exp: $3}; }
-    | str col comp  { $$ = {label: $1.value, exp: $3}; }
     | bits col comp { $$ = {label: $1.value, exp: $3}; }
     ;
 

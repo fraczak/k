@@ -19,16 +19,18 @@ function parseSegment(segment) {
     }
 }
 
+function utf8ToBitString(str) {
+    return Array.from(str)
+    .map(char => char.charCodeAt(0).toString(2).padStart(8, '0'))
+    .join('');
+}
 
 function parse(inputStr) {
-    if (!literalRegex.test(inputStr)) {
-        throw new Error(`Invalid input: ${inputStr}`);
-    }
-    const finalBitString = inputStr.split('_')
-    .map(parseSegment)
-    .join('');
-
-    return finalBitString.split('').map(b => parseInt(b, 10));
+    const bitString = (literalRegex.test(inputStr)) ?
+        inputStr.split('_').map(parseSegment).join('') :
+        utf8ToBitString(inputStr);
+    
+    return bitString.split('').map(b => parseInt(b, 2));
 }
 
 class Bits {
@@ -38,13 +40,24 @@ class Bits {
             throw new Error("Bits constructor expects an array of 0s and 1s.");
         }
         this.bits = Object.freeze([...bitArray]); // Store an immutable copy
+        
+        // compute string representation (will be utf8 string if possible, or binary otherwise)
+        const bitString = this.bits.join('');
+        const byteArray = [];
+        for (let i = 0; i < bitString.length; i += 8) {
+            byteArray.push(parseInt(bitString.slice(i, i + 8), 2));
+        }
+        const utf8String = String.fromCharCode(...byteArray);
+        
+        this.string = (bitString === utf8ToBitString(utf8String)) ? utf8String : `0b${bitString}`;
     }
 
     get length() {
         return this.bits.length;
     }
+
     toString() {
-        return `0b${this.bits.join('')}`;
+        return this.string;
     }
 
     toJSON() {

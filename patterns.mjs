@@ -28,8 +28,8 @@ function relDefToString(relDef) {
       case "bits":
       case "identity":
       case "dot":
-      case "slash":
-      case "backslash":
+      case "div":
+      case "times":
       case "code":
       case "pipe":  
       case "filter":
@@ -86,8 +86,8 @@ function compactRel(relDef, name = "") {
       case "bits":
       case "identity":
       case "dot":
-      case "slash":
-      case "backslash":
+      case "div":
+      case "times":
       case "code":
       case "pipe":
       case "filter":
@@ -202,9 +202,9 @@ function patterns(representatives, rels) {
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
           break;
-        case "slash":
-        case "backslash": {
-          let arg = rel.slash || rel.backslash;
+        case "div":
+        case "times": {
+          let arg = rel.div || rel.times;
           rel.patterns = [];
           if (arg instanceof Bits) {
             rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@bits');

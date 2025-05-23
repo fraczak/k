@@ -34,44 +34,11 @@ const builtin = {
     console.error(`_log!: ${JSON.stringify(arg)}`);
     return arg;
   },
-  GT: (args) => {
-    const [last, ...rest] = args;
-    const [ok, _] = rest.reduce(
-      ([ok, last], x) => [ok && last > x, x],
-      [true, last]
-    );
-    if (ok) return args;
-  },
-  EQ: (args) => {
-    const [first, ...rest] = args;
-    const ok = rest.reduce((ok, x) => ok && first === x, true);
-    if (ok) return args;
-  },
-  PLUS: (args) => valid(args.reduce((res, x) => res + x, 0)),
-  TIMES: (args) => valid(args.reduce((res, x) => res * x, 1)),
-  DIV: ([x, y]) => {
-    const div = Math.floor(x / y);
-    const rem = modulo(x, y);
-    if (x === div * y + rem) return { div, rem };
-  },
-  FDIV: ([x, y]) => x / y,
-  CONCAT: (strs) => strs.join(""),
-  toVEC: (str) => [...`${str}`],
-  true: () => true,
-  false: () => false,
-  null: () => null,
-  toJSON: (x) => JSON.stringify(x),
-  fromJSON: (x) => JSON.parse(x),
   CONS: ({car, cdr}) => { try { return [car, ...cdr]; } catch (e) { return undefined; } },
-  SNOC: (x) => (x.length > 0 ? {car: x[0], cdr: x.slice(1)} : undefined),
-  toDateMsec: (x) => new Date(x).getTime(),
-  toDateStr: (x) => new Date(x).toISOString(),
+  SNOC: (x) => (x.length > 0 ? {car: x[0], cdr: x.slice(1)} : undefined)
 };
 
 const codes = {
-  "@int": (x) => Number.isInteger(x),
-  "@string": (x) => x instanceof String || "string" === typeof x,
-  "@bool": (x) => x === true || x === false,
   "@bits": (x) => x instanceof Bits
 };
 
@@ -126,8 +93,6 @@ function run(exp, value) {
         return;
       case "identity":
         return value;
-      case "str":
-      case "int":
       case "bits":
         return exp[exp.op];
       case "ref": {
@@ -143,31 +108,17 @@ function run(exp, value) {
         throw(`Unknown ref: '${exp.ref}'`);
       }
       case "dot":
-        // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
-        if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-          if (`${value}` === `${exp.dot}`) return {};
-          return;
-        }
         return value[exp.dot];
 
-      case "slash":
-        // a hack to allow something like 'null . null' or '0 . 0' to work by returning unit
-        if (typeof value === 'string') {
-          if (value.startsWith(exp.slash)) 
-            return value.slice(exp.slash.length);
-          return;
-        }
-        if (value instanceof Bits && exp.slash instanceof Bits) {
-          return value.eatPrefix(exp.slash);
+      case "div":
+        if (value instanceof Bits && exp.div instanceof Bits) {
+          return value.eatPrefix(exp.div);
         }
         return;
 
-      case "backslash":
-        if ( typeof value === 'string' && typeof exp.backslash === 'string') {
-          return `${exp.backslash}${value}`;
-        }
-        if (value instanceof Bits && exp.backslash instanceof Bits) {
-          return value.prepend(exp.backslash);
+      case "times":
+        if (value instanceof Bits && exp.times instanceof Bits) {
+          return value.prepend(exp.times);
         }
         return;
 
