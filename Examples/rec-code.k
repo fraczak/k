@@ -27,7 +27,22 @@ $ [ @bits ]
 $ t
 ;
 
-GT = < [.0 /0, .1 /0] GT [.0 *0, .1 *0] , [.0 /1, .1 /1] GT [.0 *1, .1 *1], [.0 /1 *1, .1 /0 *0] >;
+inv = {()x, '' r} _inv; 
+_inv = < {.x /0 x, .r *0 r} _inv, {.x /1 x, .r *1 r} _inv, .r >;
+
+$ flag = < {} yes, {} no >;
+swap = < {.yes no}, {.no yes} >;
+inOrder = ${@bits x, @bits y} {.x inv x, .y inv y, {{} yes} $flag inOrder} inOrder_ $flag;
+inOrder_ = < 
+    {.x /0 x, .y /0 y, .inOrder inOrder} inOrder_, 
+    {.x /1 x, .y /1 y, .inOrder inOrder} inOrder_,
+    {.x /0 x, .y /1 y, .inOrder inOrder} inOrder_, 
+    {.x /1 y, .y /0 x, .inOrder swap inOrder} inOrder_, 
+    {.x </0,/1> if, .inOrder swap then} .then, 
+    .inOrder
+>;
+
+GT = {{.0 x, .1 y} inOrder .no if, () then} . then;
 
 insert = 
 $ { @bits x, t t } 
@@ -49,6 +64,7 @@ $ t
 ;
 
 inc = $@bits *1 $@bits;
+
 len = 
  < SNOC .cdr len inc,
    .0 1,
@@ -78,5 +94,5 @@ $ t
 $ [ @bits ] 
 ;
 
-{len len, sort toVector (| < _log! * 0b1 _log!, '?'>  ^) sorted}
+{len len, sort toVector sorted}
 

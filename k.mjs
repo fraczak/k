@@ -11,7 +11,7 @@ let kScript, jsonStream, oneJson;
 ({ kScript, jsonStream, oneJson } = ((oneJson, args) => {
   let e;
   try {
-    kScript = (function (arg) {
+    let kScriptStr = (function (arg) {
       if (arg == null) {
         throw new Error();
       }
@@ -21,7 +21,7 @@ let kScript, jsonStream, oneJson;
         return arg;
       }
     })(args.shift());
-    kScript = k.compile(kScript);
+    let kScript = k.compile(kScriptStr);
     jsonStream = (function (arg) {
       if (arg === "-1") {
         oneJson = true;
@@ -47,7 +47,11 @@ if (oneJson) {
   jsonStream.on("data", (data) => buffer.push(data));
   jsonStream.on("end", () => {
     try {
-      console.log(JSON.stringify(kScript(JSON.parse(buffer.join(""))), null, 2));
+      let b = buffer.join("");
+      // console.log(b);
+      let r = k.run(`+++${b}`, {});
+      // console.log(r);
+      console.log(JSON.stringify(kScript(r), null, 2));
     } catch (error) {
       console.error(error);
     }
@@ -65,7 +69,11 @@ if (oneJson) {
       for (const exp of [todo, ...rest]) {
         if (!exp.match(/^[ \n\t]*(?:#.*)?$/)) {
           try {
-            console.log(JSON.stringify(kScript(JSON.parse(exp))));
+            let b = exp;
+            // console.log(b);
+            let r = k.run(`+++${b}`, {});
+            // console.log(r);
+            console.log(JSON.stringify(kScript(r)));
           } catch (error) {
             console.error(`Problem [line ${line}]: '${exp}'`);
             console.error(error);
