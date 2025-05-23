@@ -8,12 +8,12 @@ t('[]', (annotated) => {
   console.log("OK");
 });
 
-t("$@int [ $@int true, false ] .0",  (annotated) => {
+t("$@bits [ $@bits 'true', 'false' ] .0",  (annotated) => {
   const {input,output} = in_out(annotated);
-  assert.equal(input.type, "@int");
-  assert.equal(output.type, "@bool");
+  assert.equal(input.type, "@bits");
+  assert.equal(output.type, "@bits");
   console.log("OK");
 });
 
-assert.throws(() => t(`$@int [ $@int true, 12 ]`), /Error/);
+assert.throws(() => t(`$@bits [ $@bits 'true', {} ]`), /Error/);
 console.log("OK");

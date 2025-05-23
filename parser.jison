@@ -230,8 +230,10 @@ exp
     | lp comp rp                        { $$ = {...$2, start: $1.start, end: $3.end };  }
     | bits                              { $$ = {op: "bits", bits: fromBits($1.value), start: $1.start, end: $1.end }; }
     | dot bits                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | div bits                        { $$ = {op: "div", div: fromBits($2.value), start: $1.start, end: $2.end }; }
-    | times bits                    { $$ = {op: "times", times: fromBits($2.value), start: $1.start, end: $2.end }; }
+    | div bits                          { $$ = {op: "div", div: fromBits($2.value), start: $1.start, end: $2.end }; }
+    | times bits                        { $$ = {op: "times", times: fromBits($2.value), start: $1.start, end: $2.end }; }
+    | div name                          { $$ = {op: "div", div: fromBits($2.value), start: $1.start, end: $2.end }; }
+    | times name                        { $$ = {op: "times", times: fromBits($2.value), start: $1.start, end: $2.end }; }
     | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }

@@ -119,6 +119,8 @@ function run(exp, value) {
       case "times":
         if (value instanceof Bits && exp.times instanceof Bits) {
           return value.prepend(exp.times);
+        } else {
+          console.log("TIMES: ", value, exp.times);
         }
         return;
 

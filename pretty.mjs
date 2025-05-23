@@ -91,15 +91,14 @@ function prettyRel (exp) {
         return "()";
       case "comp":
         return exp.comp.map(pretty).join(" ");
-      case "str":
-        return `'${exp.str}'`;
-      case "int":
-        return exp.int;
+      case "bits":
+        return `'${exp.bits}'`;
       case "dot":
-        if ("number" === typeof exp.dot) {
-          return `.${exp.dot}`;
-        } else 
-          return `.${pLabel(exp.dot)}`;
+        return `.${pLabel(exp.dot)}`;
+      case "div":
+        return `/${pLabel(exp.div)}`;
+      case "times":
+        return `/${pLabel(exp.times)}`;
       case "code":
         return `$${exp.code}`;
       case "product":

@@ -23,8 +23,6 @@ function relDefToString(relDef) {
       case "caret":
         return [].concat(rel.patterns, dumpPatterns(rel.caret));
       case "ref":
-      case "int":
-      case "str":
       case "bits":
       case "identity":
       case "dot":
@@ -81,8 +79,6 @@ function compactRel(relDef, name = "") {
         newRel.caret = copyRel(rel.caret);
         break;
       case "ref":
-      case "int":
-      case "str":
       case "bits":
       case "identity":
       case "dot":
@@ -177,17 +173,6 @@ function patterns(representatives, rels) {
             augmentRef(rel, rootDef);
             break;
           //----------------
-        
-        case "int":
-          rel.patterns = [];
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@int');
-          break;
-        case "str":
-          rel.patterns = [];
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
-          break;
         case "bits":
           rel.patterns = [];
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
@@ -206,13 +191,8 @@ function patterns(representatives, rels) {
         case "times": {
           let arg = rel.div || rel.times;
           rel.patterns = [];
-          if (arg instanceof Bits) {
-            rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@bits');
-            rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bits');
-          } else { /* it must be String, i.e. typeof arg == 'string' or arg instanceof Strig */
-            rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@string');
-            rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
-          } 
+          rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@bits');
+          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bits');
           break;
         }
         
@@ -382,44 +362,6 @@ function patterns(representatives, rels) {
       case "_log!":
         rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
         break;
-      case "true": 
-      case "false":
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bool');
-        break;
-      case "PLUS":
-      case "TIMES": 
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@int');
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[1]]});
-        break;
-      case "CONCAT":
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[1]]});
-        break;
-      case "toVEC":
-        rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@string')
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rel.patterns[0]]});
-        break;
-      case "toDateMsec":
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@int');
-        break;
-      case "toJSON":
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
-        break;
-      case "toDateStr":
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@string');
-        break;
-      case "GT":
-      case "EQ":  
-        rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [rootDef.typePatternGraph.addNewNode()]});
-        break;
-      case "fromJSON":
-        rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@string');
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-        break;
       case "CONS": {
           const member = rootDef.typePatternGraph.addNewNode();
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
@@ -430,19 +372,8 @@ function patterns(representatives, rels) {
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[0]]});
         }; break;
-      case "DIV": {
-          const intId = rootDef.typePatternGraph.getTypeId('@int');
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [intId]});
-          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"div": [intId], "rem": [intId]});
-        }; break;
-      break;
-      // TO DO
-      case "FDIV":
-      case "null":
-        rel.patterns = [rootDef.typePatternGraph.addNewNode(), rootDef.typePatternGraph.addNewNode()];
-        break;
       default:
-        throw new Error(`No definition found for '${rel.ref}'`);  
+        throw new Error(`No definition found for ${rel.ref}`);  
     }
   }  
 

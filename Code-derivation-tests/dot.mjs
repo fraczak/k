@@ -11,12 +11,12 @@ $b {1 one, () two, () c} .one
     const {input,output} = in_out(annotated);
     // console.log({input,output});
     assert.equal(input.type, annotated.representatives["b"]);
-    assert.equal(output.type, "@int");
+    assert.equal(output.type, "@bits");
     console.log("OK");
 });
 
 t(`
-    $a = < @int true, @bool false > ;
+    $a = < @bits true, @bits false > ;
     $a .true
   `, (annotated) => {
   const {input,output} = in_out(annotated);
@@ -28,13 +28,13 @@ t(`
   xy = x.y;
   f = { 
     { {5    y} x} xy i, 
-    { {true y} x} xy b 
+    { {"true" y} x} xy b 
   };
   f .b
 `, (annotated) => {
   const {input,output} = in_out(annotated);
   console.log({input,output});
   assert.equal(input.pattern, '(...)');
-    assert.equal(output.type, "@bool");
+    assert.equal(output.type, "@bits");
     console.log("OK");
 });

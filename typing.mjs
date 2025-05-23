@@ -403,21 +403,7 @@ class TypePatternGraph {
               // console.log(JSON.stringify({p1,p2,code}));
               switch (code.code) {
                 case '@bits':
-                  // supports (0b11 . 0b1) which returns bits
-                  // actually we should assume that p1.fields is empty
-                  // if (p1.fields.every(x => `${x}`.match(/^0b[01]*$/))) 
                   if (p1.fields.length == 0)
-                    return p2;
-                  break;
-                case '@int':
-                  // supports (2 .2) which returns unit
-                  if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
-                    return p2;
-                  break;
-                case '@string':
-                  return p2;
-                case '@bool':
-                  if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
                     return p2;
                   break;
                 case 'product':
@@ -479,17 +465,8 @@ class TypePatternGraph {
           case 'type':{
             const code = codes.find(p2.type);
             switch (code.code) {
-              case '@int':
-                // supports (2 .2) which returns unit
-                if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
-                  return p2;
-                break;
-              case '@string':
+              case '@bits':
                 return p2;
-              case '@bool':
-                if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
-                  return p2;
-                break;
               case 'union': {
                 let p2_fields = Object.keys(code[code.code]);
                 if (subsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
@@ -516,16 +493,8 @@ class TypePatternGraph {
           case 'type':{
             const code = codes.find(p2.type);
             switch (code.code) {
-              case '@int':
-                if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
-                  return p2;
-                break;
-              case '@string':
+              case '@bits':
                 return p2;
-              case '@bool':
-                if (p1.fields.every(x => `${x}`.match(/^true|false$/)))
-                  return p2;
-                break;
               case 'product':
               case 'union': {
                 let p2_fields = Object.keys(code[code.code]);
@@ -653,10 +622,7 @@ class TypePatternGraph {
     if (new_pattern.pattern == 'type') {
       const code = codes.find(new_pattern.type);
         switch (code.code) {
-          case '@bits':
-          case '@int':
-          case '@string':
-          case '@bool': {
+          case '@bits': {
             // all edges are goin to unit type
             const unit_id = this.getTypeId(unitCode);
             for (const lab in this.edges[new_id]) {

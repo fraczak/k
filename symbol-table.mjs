@@ -10,8 +10,7 @@ function is_identity_rel(rel) {
 
 function is_constant_rel(rel) {
   switch (rel.op) {
-    case "int":
-    case "str":
+    case "bits":
       return true;
     case "vector":
       return Object.values(rel[rel.op]).every(is_constant_rel);
@@ -31,8 +30,7 @@ function is_empty_rel(rel) {
 function is_full_rel(rel) {
   if (is_constant_rel(rel)) return true;
   switch (rel.op) {
-    case "int":
-    case "str":
+    case "bits":
     case "identity":
       return true;
     case "comp":

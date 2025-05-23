@@ -1,6 +1,5 @@
 import hash from "./hash.mjs";
 
-
 const theRepository = { codes: {  } };
 
 const unitCode = function() {
@@ -9,7 +8,7 @@ const unitCode = function() {
 }();
 
 function isBuiltIn(code) {  
-  return code.match(/^@(bits|int|string|bool)$/);
+  return /^@bits$/.test(code);
 }
 
 function encodeCodeToString(code, codes = theRepository.codes) {
