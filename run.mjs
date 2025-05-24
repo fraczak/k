@@ -2,9 +2,6 @@ import assert from "assert";
 import { find } from "./codes.mjs";
 import { Bits } from "./bits.mjs"
 
-const modulo = (a, b) => ((+a % (b = +b)) + b) % b;
-const valid = (x) => (isNaN(x) ? undefined : x);
-
 function isOpen(x) {
   return (Array.isArray(x) && x.open);
 }

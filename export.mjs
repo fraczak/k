@@ -57,6 +57,9 @@ function simplifyRel(relDef,rels) {
     resultRel.comp = [ filters[0], ...newRel.comp, filters[1] ];
     return resultRel;
   }
+
+  let oldOp = resultRel.op;
+  delete resultRel[oldOp];
   return {...resultRel,
     op: "comp",
     comp: [filters[0], newRel, filters[1] ]

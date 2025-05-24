@@ -3,7 +3,6 @@ import hash from "./hash.mjs";
 import { TypePatternGraph } from "./typing.mjs";
 import { Graph, sccs, topoOrder } from "./Graph.mjs";
 import codes from "./codes.mjs";
-import { Bits } from "./bits.mjs";
 import { assignCanonicalNames } from "./export.mjs";
 
 const unitCode = codes.unitCode;
@@ -231,12 +230,12 @@ function patterns(representatives, rels) {
         break;
       case "union":
         newPatternId = rootDef.typePatternGraph.addNewNode(
-          {pattern: filter.open ? '<...>' : '<>', fields:Object.keys(filter.fields || {})},
+          {pattern: filter.open ? '<...>' : '<>', fields: Object.keys(filter.fields || {})},
           getFields());
         break;
       case "product": 
         newPatternId = rootDef.typePatternGraph.addNewNode(
-          {pattern: filter.open ? '{...}' : '{}', fields:Object.keys(filter.fields || {})},
+          {pattern: filter.open ? '{...}' : '{}', fields: Object.keys(filter.fields || {})},
           getFields());
         break;
       case "vector": {
@@ -268,7 +267,7 @@ function patterns(representatives, rels) {
       case 1:
         // union/variant constructor:  %old_i { %exp_i exp %exp_o field } %old_o 
         rel.patterns[0] = rel.product[0].exp.patterns[0];
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '<...>'}, 
+        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '<...>', fields: [rel.product[0].label]}, 
           {[rel.product[0].label]: [rel.product[0].exp.patterns[1]]});
         break;
       default:
@@ -279,7 +278,7 @@ function patterns(representatives, rels) {
           rel.patterns[0], 
           ...rel.product.map(({exp}) => exp.patterns[0]));
         
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'},
+        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}', fields: rel.product.map(({label}) => label)},
           rel.product.reduce((edges, {label, exp}) => {
             edges[label] = [exp.patterns[1]];
             return edges;
@@ -373,7 +372,7 @@ function patterns(representatives, rels) {
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[0]]});
         }; break;
       default:
-        throw new Error(`No definition found for ${rel.ref}`);  
+        throw new Error(`No definition found for '${rel.ref}'`);  
     }
   }  
 
