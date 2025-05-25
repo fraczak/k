@@ -1,7 +1,7 @@
 %{
 
 import { SymbolTable, comp, union, identity } from "./symbol-table.mjs";
-import { Bits, parse } from "./bits.mjs";
+import { Bits } from "./Value.mjs";
 let s = new SymbolTable();
 
 function anError(pos,msg) {
@@ -38,9 +38,6 @@ function fromEscString(escString) {
   return str;
 }
 
-function fromBits(bits) {
-  return new Bits(parse(bits));
-}
 
 %}
 
@@ -90,9 +87,9 @@ function fromBits(bits) {
 
 %%
 
+str : STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);};
 name: NAME                              { $$ = getToken(yytext,yy,_$); };
-bits: STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);}
-    | BITS                              { $$ = getToken(yytext,yy,_$); };
+bits: BITS                              { $$ = getToken(yytext,yy,_$); };
 la: LA                                  { $$ = getToken(yytext,yy,_$); };
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
 lb: LB                                  { $$ = getToken(yytext,yy,_$); };
@@ -164,8 +161,10 @@ non_empty_labelled_codes
 code_label 
     : code name                         { $$ = {label: $2.value, code: $1}; }
     | code bits                         { $$ = {label: $2.value, code: $1}; }
+    | code str                          { $$ = {label: $2.value, code: $1}; }
     | name col code                     { $$ = {label: $1.value, code: $3}; }
     | bits col code                     { $$ = {label: $1.value, code: $3}; }
+    | str col code                     { $$ = {label: $1.value, code: $3}; }
     ;
 
 filter_
@@ -211,8 +210,10 @@ filter_label
     : dots                              { $$ = {dots: true }; }
     | filter name                       { $$ = {label: $2.value, filter: $1}; }
     | filter bits                       { $$ = {label: $2.value, filter: $1}; }
+    | filter str                        { $$ = {label: $2.value, filter: $1}; }
     | name col filter                   { $$ = {label: $1.value, filter: $3}; }
     | bits col filter                   { $$ = {label: $1.value, filter: $3}; }
+    | str col filter                    { $$ = {label: $1.value, filter: $3}; }
     ;
 
 comp 
@@ -228,14 +229,18 @@ exp
     | AT name                           { $$ = {op: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     | lp rp                             { $$ = {...identity, start: $1.start, end: $2.end};  }
     | lp comp rp                        { $$ = {...$2, start: $1.start, end: $3.end };  }
-    | bits                              { $$ = {op: "bits", bits: fromBits($1.value), start: $1.start, end: $1.end }; }
+    | bits                              { $$ = {op: "bits", bits: Bits.segmentsToBits($1.value), start: $1.start, end: $1.end }; }
     | dot bits                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | div bits                          { $$ = {op: "div", div: fromBits($2.value), start: $1.start, end: $2.end }; }
-    | times bits                        { $$ = {op: "times", times: fromBits($2.value), start: $1.start, end: $2.end }; }
-    | div name                          { $$ = {op: "div", div: fromBits($2.value), start: $1.start, end: $2.end }; }
-    | times name                        { $$ = {op: "times", times: fromBits($2.value), start: $1.start, end: $2.end }; }
+    | div bits                          { $$ = {op: "div", div: Bits.segmentsToBits($2.value), start: $1.start, end: $2.end }; }
+    | times bits                        { $$ = {op: "times", times: Bits.segmentsToBits($2.value), start: $1.start, end: $2.end }; }
     | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
+    | div name                          { $$ = {op: "div", div: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
+    | times name                        { $$ = {op: "times", times: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
+    | str                               { $$ = {op: "bits", bits: Bits.utf8ToBits($1.value), start: $1.start, end: $1.end}; }
+    | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
+    | div str                           { $$ = {op: "div", div: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
+    | times str                         { $$ = {op: "times", times: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
     | qmark filter                      { $$ = {op: "filter", filter: $2, start: $1.start, end:$2.end}; }
     | PIPE                              { $$ = {op: "pipe", start: $1.start, end: $1.end}; }
@@ -261,8 +266,10 @@ non_empty_labelled
 comp_label
     : comp name  { $$ = {label: $2.value, exp: $1}; }
     | comp bits  { $$ = {label: $2.value, exp: $1}; }
+    | comp str   { $$ = {label: $2.value, exp: $1}; }
     | name col comp { $$ = {label: $1.value, exp: $3}; }
     | bits col comp { $$ = {label: $1.value, exp: $3}; }
+    | str col comp { $$ = {label: $1.value, exp: $3}; }
     ;
 
 list

@@ -340,7 +340,10 @@ function patterns(representatives, rels) {
       member,
       ...rel.vector.map(exp => exp.patterns[1])
     );
-    rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
+    rel.patterns[1] = rootDef.typePatternGraph.addNewNode(
+      {pattern: '[]', fields: ["vector-member"]}, 
+      {"vector-member": [member]}
+    );
   }
 
   function augmentRef(rel,rootDef) { 

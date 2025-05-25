@@ -3,6 +3,7 @@
 
 import fs from "node:fs";
 import k from "./index.mjs";
+import { parse } from "./valueParser.mjs";
 
 const prog = process.argv[1];
 
@@ -49,9 +50,9 @@ if (oneJson) {
     try {
       let b = buffer.join("");
       // console.log(b);
-      let r = k.run(`+++${b}`, {});
+      let r = parse(b);
       // console.log(r);
-      console.log(JSON.stringify(kScript(r), null, 2));
+      console.log(kScript(r.value).toString());
     } catch (error) {
       console.error(error);
     }
@@ -71,9 +72,9 @@ if (oneJson) {
           try {
             let b = exp;
             // console.log(b);
-            let r = k.run(`+++${b}`, {});
+            let r = parse(b);
             // console.log(r);
-            console.log(JSON.stringify(kScript(r)));
+            console.log(kScript(r.value).toString());
           } catch (error) {
             console.error(`Problem [line ${line}]: '${exp}'`);
             console.error(error);

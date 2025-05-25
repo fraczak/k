@@ -3,4 +3,4 @@
 
 echo "Running './tests.sh' ..."
 
-echo '[4,2,19,1]' | ./k.mjs -k Examples/rec-code.k -1
+echo '["zebara", "ela", "kupa", ala, owca]' | ./k.mjs -k Examples/rec-code.k -1

@@ -56,8 +56,13 @@ let val = old_val;
 const printVal = function (v = val) {
   if (v === undefined)
     console.log("...",v);
-  else
-    console.log(`--> ${JSON.stringify(v)}`);
+  else {
+    console.log(`--> ${v.toString()}`);
+    if (DEBUG_FLAG) {
+      console.log(`  > ${v}`)
+      console.log(`  > ${JSON.stringify(v)}`)
+    }
+  }
   rl.setPrompt('> ');
 }
 const registers = {};

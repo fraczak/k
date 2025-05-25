@@ -92,13 +92,13 @@ function prettyRel (exp) {
       case "comp":
         return exp.comp.map(pretty).join(" ");
       case "bits":
-        return `'${exp.bits}'`;
+        return `${exp.bits}`;
       case "dot":
         return `.${pLabel(exp.dot)}`;
       case "div":
         return `/${pLabel(exp.div)}`;
       case "times":
-        return `/${pLabel(exp.times)}`;
+        return `*${pLabel(exp.times)}`;
       case "code":
         return `$${exp.code}`;
       case "product":

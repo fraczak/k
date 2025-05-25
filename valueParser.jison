@@ -1,17 +1,20 @@
 %{
 
-import { Bits, parse } from "./bits.mjs";
-import { SymbolTable } from "./symbol-table.mjs";
+import { Bits } from "./Value.mjs";
+import { unitCode } from "./codes.mjs";
 import { patterns } from "./patterns.mjs";
 import run from "./run.mjs";
 import t from "./codes.mjs";
 
-const s = new SymbolTable();
-
 function evaluateAST(exp) {
-  const ast = {exp, defs: {rels: s.rels, codes: s.codes}};
+  const ast = {
+    exp, 
+    defs: {
+      rels:{}, 
+      codes:{ [unitCode]: { code: "product", product: {} } }
+    }
+  };
   const annotated = annotate(ast);
-
 
   const [input,output] = annotated.rels.__main__.def.patterns.map( (pat) => 
     annotated.rels.__main__.typePatternGraph.get_pattern(pat)
@@ -69,10 +72,6 @@ function fromEscString(escString) {
   return str;
 }
 
-function fromBits(bits) {
-  return new Bits(parse(bits));
-}
-
 
 %}
 
@@ -104,9 +103,11 @@ function fromBits(bits) {
 
 %%
 
-name: NAME                              { $$ = getToken(yytext,yy,_$); };
-bits: STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);}
-    | BITS                              { $$ = getToken(yytext,yy,_$); };
+// name: NAME                              { $$ = getToken(yytext,yy,_$); };
+str : STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);}
+    | NAME                              { $$ = getToken(yytext,yy,_$); }
+    ;
+bits: BITS                              { $$ = getToken(yytext,yy,_$); };
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
 lb: LB                                  { $$ = getToken(yytext,yy,_$); };
 rc: RC                                  { $$ = getToken(yytext,yy,_$); };
@@ -121,8 +122,8 @@ input_with_eof: exp EOF               {
 exp
     : lc labelled rc                    { $$ = {...$2, start: $1.start, end: $3.end}; }
     | lb list rb                        { $$ = {op: "vector", vector: $2, start: $1.start, end: $3.end}; }
-    | bits                              { $$ = {op: "bits", bits: fromBits($1.value), start: $1.start, end: $1.end }; }
-    | name                              { $$ = {op: "bits", bits: fromBits($1.value), start: $1.start, end: $1.end }; }
+    | bits                              { $$ = {op: "bits", bits: Bits.segmentsToBits($1.value), start: $1.start, end: $1.end }; }
+    | str                               { $$ = {op: "bits", bits: Bits.utf8ToBits($1.value), start: $1.start, end: $1.end }; }
     ;
 
 labelled
@@ -143,9 +144,9 @@ non_empty_labelled
     ;
 
 exp_label
-    : exp name  { $$ = {label: $2.value, exp: $1}; }
-    | exp bits  { $$ = {label: $2.value, exp: $1}; }
-    | name col exp { $$ = {label: $1.value, exp: $3}; }
+    : exp bits  { $$ = {label: $2.value, exp: $1}; }
+    | exp str   { $$ = {label: $2.value, exp: $1}; }
+    | str col exp { $$ = {label: $1.value, exp: $3}; }
     | bits col exp { $$ = {label: $1.value, exp: $3}; }
     ;
 

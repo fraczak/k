@@ -1,13 +1,13 @@
 import assert from "assert";
 import { find } from "./codes.mjs";
-import { Bits } from "./bits.mjs"
+import { Bits, Vector, Product } from "./Value.mjs"
 
 function isOpen(x) {
-  return (Array.isArray(x) && x.open);
+  return (! (x instanceof Vector) && Array.isArray(x) && x.open);
 }
 
 function isClosed(x) {
-  return (Array.isArray(x) && !x.open);
+  return x instanceof Vector;
 }
 
 Array.prototype.toJSON = function () {
@@ -31,8 +31,17 @@ const builtin = {
     console.error(`_log!: ${JSON.stringify(arg)}`);
     return arg;
   },
-  CONS: ({car, cdr}) => { try { return [car, ...cdr]; } catch (e) { return undefined; } },
-  SNOC: (x) => (x.length > 0 ? {car: x[0], cdr: x.slice(1)} : undefined)
+  CONS: (x) => { 
+    try { 
+      return new Vector([x.product.car, ...x.product.cdr.vector]); 
+    } catch (e) { 
+      return undefined; 
+    } },
+  SNOC: (x) => {
+    if ((x instanceof Vector) && (x.vector.length > 0))
+      return new Product({car: x.vector[0], cdr: new Vector(x.vector.slice(1))});
+    return undefined;
+  }
 };
 
 const codes = {
@@ -45,23 +54,23 @@ function verify(code, value) {
   code = find(code);
   switch (code.code) {
     case "vector":
-      if (!Array.isArray(value)) return false;
-      return value.every((x) => verify(code.vector, x));
+      if (! (value instanceof Vector)) return false;
+      return value.vector.every((x) => verify(code.vector, x));
     case "product":
-      if ("object" !== typeof value) return false;
+      if (! (value instanceof Product)) return false;
       else {
-        const fields = Object.keys(value);
+        const fields = Object.keys(value.product);
         if (fields.length !== Object.keys(code.product).length) return false;
         return fields.every((label) =>
-          verify(code.product[label], value[label])
+          verify(code.product[label], value.product[label])
         );
       }
     case "union":
-      if ("object" !== typeof value) return false;
+      if (! (value instanceof Product)) return false;
       else {
-        const fields = Object.keys(value);
+        const fields = Object.keys(value.product);
         if (fields.length !== 1) return false;
-        return verify(code.union[fields[0]], value[fields[0]]);
+        return verify(code.union[fields[0]], value.product[fields[0]]);
       }
     default: 
       return codes[code.code](value);
@@ -73,7 +82,7 @@ function run(exp, value) {
   if (value === undefined) return;
   while (true) {
     if (isOpen(value)) {
-      if (exp.op === "caret2") return [...value];
+      // if (exp.op === "caret2") return [...value];
       const result = [];
       result.open = true
       for (const v of value) {
@@ -91,7 +100,7 @@ function run(exp, value) {
       case "identity":
         return value;
       case "bits":
-        return exp[exp.op];
+        return exp.bits;
       case "ref": {
         const defn = run.defs.rels[exp.ref];
         if (defn != undefined) {
@@ -105,7 +114,7 @@ function run(exp, value) {
         throw(`Unknown ref: '${exp.ref}'`);
       }
       case "dot":
-        return value[exp.dot];
+        return (value.product || value.vector || {})[exp.dot];
 
       case "div":
         if (value instanceof Bits && exp.div instanceof Bits) {
@@ -123,7 +132,7 @@ function run(exp, value) {
 
       case "pipe": {
         assert(isClosed(value), `PIPE (|): Only a regular vector value can be "open".`);
-        const result = [...value];
+        const result = [...value.vector];
         result.open = true;
         return result;
       }
@@ -178,7 +187,7 @@ function run(exp, value) {
             }
           }
         }
-        return result;
+        return new Vector(result);
       }
       case "product": {
         let result = {};
@@ -219,14 +228,14 @@ function run(exp, value) {
             }
           }      
         }
-        return result
+        return new Product(result);
       }
       case "caret": {
         const result = run(exp.caret, value);
         // assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
         if (! isOpen(result))
           throw new Error(`Type Error (line: ${exp.end?.line}:${exp.end?.column}): CARET (^): Only 'unboxed' values can be 'boxed'.`)
-        return [...result];
+        return new Vector([...result]);
       }  
       case "filter": {
         return value;
