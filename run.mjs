@@ -116,17 +116,15 @@ function run(exp, value) {
       case "dot":
         return (value.product || value.vector || {})[exp.dot];
 
-      case "div":
-        if (value instanceof Bits && exp.div instanceof Bits) {
-          return value.eatPrefix(exp.div);
+      case "minus":
+        if (value instanceof Bits && exp.minus instanceof Bits) {
+          return value.eatPrefix(exp.minus);
         }
         return;
 
-      case "times":
-        if (value instanceof Bits && exp.times instanceof Bits) {
-          return value.prepend(exp.times);
-        } else {
-          console.log("TIMES: ", value, exp.times);
+      case "plus":
+        if (value instanceof Bits && exp.plus instanceof Bits) {
+          return value.prepend(exp.plus);
         }
         return;
 

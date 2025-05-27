@@ -95,10 +95,10 @@ function prettyRel (exp) {
         return `${exp.bits}`;
       case "dot":
         return `.${pLabel(exp.dot)}`;
-      case "div":
-        return `/${pLabel(exp.div)}`;
-      case "times":
-        return `*${pLabel(exp.times)}`;
+      case "minus":
+        return `-${pLabel(exp.minus)}`;
+      case "plus":
+        return `+${pLabel(exp.plus)}`;
       case "code":
         return `$${exp.code}`;
       case "product":

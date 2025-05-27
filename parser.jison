@@ -58,8 +58,8 @@ function fromEscString(escString) {
 "="                                            return 'EQ'; 
 "..."                                          return 'DOTS';
 "."                                            return 'DOT';
-"/"                                            return 'DIV';
-"*"                                            return 'TIMES';
+"-"                                            return 'MINUS';
+"+"                                            return 'PLUS';
 ","                                            return 'COMMA';
 ";"                                            return 'SC';
 ":"                                            return 'COL';
@@ -73,13 +73,13 @@ function fromEscString(escString) {
 (?:0b[01]*|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*))*
                                                 return 'BITS';
 
-"+++"                                          return 'INCREMENTAL';
+"~"                                          return 'INCREMENTAL';
 <<EOF>>                                        return 'EOF';
 
 /lex
 
 %token NAME BITS STRING
-%token LA LC LB LP RA RP RB RC EQ DOT DIV TIMES COMMA SC COL DOLLAR PIPE CARET AT QMARK DOTS
+%token LA LC LB LP RA RP RB RC EQ DOT MINUS PLUS COMMA SC COL DOLLAR PIPE CARET AT QMARK DOTS
 %token INCREMENTAL
 %token EOF
 
@@ -101,8 +101,8 @@ rp: RP                                  { $$ = getToken(yytext,yy,_$); };
 eq: EQ                                  { $$ = getToken(yytext,yy,_$); };
 dots: DOTS                              { $$ = getToken(yytext,yy,_$); };
 dot: DOT                                { $$ = getToken(yytext,yy,_$); };
-div: DIV                                { $$ = getToken(yytext,yy,_$); };
-times: TIMES                            { $$ = getToken(yytext,yy,_$); };
+minus: MINUS                            { $$ = getToken(yytext,yy,_$); };
+plus: PLUS                              { $$ = getToken(yytext,yy,_$); };
 comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
 sc: SC                                  { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
@@ -164,7 +164,7 @@ code_label
     | code str                          { $$ = {label: $2.value, code: $1}; }
     | name col code                     { $$ = {label: $1.value, code: $3}; }
     | bits col code                     { $$ = {label: $1.value, code: $3}; }
-    | str col code                     { $$ = {label: $1.value, code: $3}; }
+    | str col code                      { $$ = {label: $1.value, code: $3}; }
     ;
 
 filter_
@@ -231,16 +231,16 @@ exp
     | lp comp rp                        { $$ = {...$2, start: $1.start, end: $3.end };  }
     | bits                              { $$ = {op: "bits", bits: Bits.segmentsToBits($1.value), start: $1.start, end: $1.end }; }
     | dot bits                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | div bits                          { $$ = {op: "div", div: Bits.segmentsToBits($2.value), start: $1.start, end: $2.end }; }
-    | times bits                        { $$ = {op: "times", times: Bits.segmentsToBits($2.value), start: $1.start, end: $2.end }; }
+    | minus bits                        { $$ = {op: "minus", minus: Bits.segmentsToBits($2.value), start: $1.start, end: $2.end }; }
+    | plus bits                         { $$ = {op: "plus", plus: Bits.segmentsToBits($2.value), start: $1.start, end: $2.end }; }
     | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | div name                          { $$ = {op: "div", div: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
-    | times name                        { $$ = {op: "times", times: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
+    | minus name                        { $$ = {op: "minus", minus: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
+    | plus name                         { $$ = {op: "plus", plus: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
     | str                               { $$ = {op: "bits", bits: Bits.utf8ToBits($1.value), start: $1.start, end: $1.end}; }
     | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | div str                           { $$ = {op: "div", div: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
-    | times str                         { $$ = {op: "times", times: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
+    | minus str                         { $$ = {op: "minus", minus: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
+    | plus str                          { $$ = {op: "plus", plus: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
     | qmark filter                      { $$ = {op: "filter", filter: $2, start: $1.start, end:$2.end}; }
     | PIPE                              { $$ = {op: "pipe", start: $1.start, end: $1.end}; }

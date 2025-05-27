@@ -94,7 +94,7 @@ function evaluate(line) {
       const kScript = fs.readFileSync(file).toString();
       console.log(`  Done!`);
       // console.log(kScript);
-      val = k.compile("+++\n" + kScript + "\n()")(val);
+      val = k.compile("~" + kScript + "\n()")(val);
       printVal();
       // --debug
     } else if (line.match(/^[ \n\t]*--debug$/)) {
@@ -205,7 +205,7 @@ function evaluate(line) {
       // ------ k code
     } else if (!line.match(/^[ \n\t]*(?:#.*)?$/)) {
       try {
-        val = k.run(`+++\n${line}\n()`, val);
+        val = k.run(`~\n${line}\n()`, val);
         printVal();
       } catch (error) {
         console.error(error.message);

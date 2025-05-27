@@ -84,11 +84,26 @@ class Bits extends Value {
       this.string = utf8String;
     } else {
       const parts = [];
-      for (let i = 0; i < bitString.length; i += 8) {
-        parts.push(bitString.slice(i, i + 8));
+      const segmentSize = 32; // Each segment is 8 bits
+      for (let i = 0; i < bitString.length; i += segmentSize) {
+        const segment = bitString.slice(i, i + segmentSize);
+        const firstOneIndex = segment.indexOf('1');
+        if (firstOneIndex === -1) {
+          if (segment.length === 1) {
+            parts.push('0'); 
+        } else if (segment.length < segmentSize) {
+            parts.push(`0b${segment}`); // binary representation of leading zeros
+          } else {
+            parts.push('0x00000000'); // hexadecimal representation of leading zeros
+          }
+        } else {
+          if (firstOneIndex > 0) 
+            parts.push(`0b${segment.slice(0,firstOneIndex)}`); // binary leading zeros
+          parts.push(parseInt(segment.slice(firstOneIndex),2).toString(10)); 
+        }
       }
       // console.log(parts);
-      this.string = `0b${parts.join('_0b')}`;
+      this.string = parts.join('_');
     }
     Object.freeze(this);
   }
@@ -133,7 +148,6 @@ class Bits extends Value {
   }
 }
 
-  
 class Vector extends Value {
   constructor(vector) {
     super('[]');
@@ -161,7 +175,7 @@ class Product extends Value {
   }
 
   toString() {
-    return `{${Object.entries(this.product).map(([k, v]) => `${v.toString()} ${JSON.stringify(k)}`).join(',')}}`;
+    return `{${Object.entries(this.product).map(([k, v]) => `${JSON.stringify(k)}:${v.toString()}`).join(',')}}`;
   }
   toJSON() {
     return this.product
