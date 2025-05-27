@@ -1,16 +1,13 @@
-
 class Value {
   constructor(type) {
     this.type = type;
   }
-
   toString() {
     return `${this.constructor.name}(type: ${this.type})`;
   }
   toJSON() {
     return { type: this.type };
   }
-
 }
 
 class Bits extends Value {
@@ -39,6 +36,18 @@ class Bits extends Value {
     return Array.from(str)
       .map(char => char.charCodeAt(0).toString(2).padStart(8, '0'))
       .join('')
+  }
+
+  static bitStringToString(bitString) {
+    const byteArray = [];
+    if (0 == (bitString.length % 8)) {
+      for (let i = 0; i < bitString.length; i += 8) {
+          byteArray.push(parseInt(bitString.slice(i, i + 8), 2));
+        }
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(byteArray));
+      } catch (e) { }
+    }  
   }
 
   static segmentsToBitString(str) {
@@ -74,12 +83,9 @@ class Bits extends Value {
     
     // compute string representation (will be utf8 string if possible, or binary otherwise)
     const bitString = this.bits.join('');
-    const byteArray = [];
-    for (let i = 0; i < bitString.length; i += 8) {
-      byteArray.push(parseInt(bitString.slice(i, i + 8), 2));
-    }
-    const utf8String = String.fromCharCode(...byteArray);
-    this.utf8Flag = (bitString === Bits.utf8ToBitString(utf8String));
+    
+    const utf8String = Bits.bitStringToString(bitString);
+    this.utf8Flag = (utf8String != null);
     if (this.utf8Flag) {
       this.string = utf8String;
     } else {
