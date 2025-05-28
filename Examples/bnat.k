@@ -57,8 +57,8 @@ _plus =
     {.x._ if1, .c.0 if2, .y                    then} .then,
 
     {.x     y, .y._ _ x, .c      c} _plus, --swap x with y, if y = 0
-    {.x._ <.c.0 bnat_0, bnat_1> 
-            x, .y     y, c0      c} _plus,
+    {<.c.0 bnat_0, bnat_1> x, 
+               .y     y, .x._ c0 c} _plus,
 
     {.x.0   x, .y.0   y, .c.0 c0 c} _plus _0,
     {.x.0   x, .y.0   y, .c.1 c0 c} _plus _1,
