@@ -125,7 +125,11 @@ class Bits extends Value {
 
   toJSON() {
     if (this.utf8Flag) return this.string;
-    return { "@bits": this.string };
+    try {
+      return JSON.parse(this.string);
+    } catch (e) {
+      return `@bits:${this.string}`;
+    }
   }
 
   eatPrefix(prefixBits) {
@@ -183,6 +187,7 @@ class Product extends Value {
   toString() {
     return `{${Object.entries(this.product).map(([k, v]) => `${JSON.stringify(k)}:${v.toString()}`).join(',')}}`;
   }
+
   toJSON() {
     return this.product
   }

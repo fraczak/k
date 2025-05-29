@@ -87,6 +87,8 @@ function fromEscString(escString) {
 "]"                                            return 'RB';
 ","                                            return 'COMMA';
 ":"                                            return 'COL';
+\"([@]bits[:](?:0b[01]*|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*))*)\"  
+                                               return 'SBITS';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
 (?:0b[01]*|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*))*
@@ -95,7 +97,7 @@ function fromEscString(escString) {
 
 /lex
 
-%token NAME BITS STRING
+%token NAME BITS SBITS STRING
 %token  LC LB RB RC COMMA COL
 %token EOF
 
@@ -107,7 +109,9 @@ function fromEscString(escString) {
 str : STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);}
     | NAME                              { $$ = getToken(yytext,yy,_$); }
     ;
-bits: BITS                              { $$ = getToken(yytext,yy,_$); };
+bits: BITS                              { $$ = getToken(yytext,yy,_$); }
+    | SBITS                             { $$ = getToken(yytext,yy,_$); $$.value = $$.value.slice(7,-1); }
+    ;
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
 lb: LB                                  { $$ = getToken(yytext,yy,_$); };
 rc: RC                                  { $$ = getToken(yytext,yy,_$); };

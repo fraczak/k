@@ -57,10 +57,16 @@ const printVal = function (v = val) {
   if (v === undefined)
     console.log("...",v);
   else {
-    console.log(`--> ${v.toString()}`);
+    const valString = v.toString();
+    console.log(`--> ${valString}`);
     if (DEBUG_FLAG) {
       console.log(`  > ${v}`)
       console.log(`  > ${JSON.stringify(v)}`)
+      try {
+        console.log(JSON.stringify(JSON.parse(valString), null, 2));
+      } catch (e) {
+        console.log(JSON.stringify(v, null, 2));
+      }
     }
   }
   rl.setPrompt('> ');
