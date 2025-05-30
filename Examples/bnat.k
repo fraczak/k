@@ -298,12 +298,30 @@ _inverse =
   >
 ;
 
+concat = ${@bits x, @bits y} {.x inv x, .y y} concat_; 
+concat_ = ${@bits x, @bits y} 
+  < 
+    {.x -0 x, .y +0 y} concat_, 
+    {.x -1 x, .y +1 y} concat_, 
+    .y 
+  >;
+inv = {()x, '' r} _inv; 
+_inv = < {.x -0 x, .r +0 r} _inv, {.x -1 x, .r +1 r} _inv, .r >;
+
+CONCAT = $[@bits] 
+  <
+    SNOC {.car x, .cdr CONCAT y} concat,
+    ''
+  >
+;
+
+
 -- Conversion to and from binary
 
 to2 = $bnat < ._ "0", {reverse x, [] acc} _to2 >;
 
 _to2 = 
-  ${bnat x, [@string] acc}
+  ${bnat x, [@bits] acc}
   <
     { .x._ if, .acc then } .then CONCAT,
     { .x.0 x, { "0" car, .acc cdr} CONS acc } _to2,
@@ -311,31 +329,78 @@ _to2 =
   >
 ;
 
-from2 = $@string toVEC _from2;
-_from2 = 
-  $[@string]
-  < SNOC
-    < 
-      {.car .0 if, .cdr _from2 _0 then}, 
-      {.car .1 if, .cdr _from2 _1 then}
-    > .then,
+
+from2 = $@bits 
+  < 
+    -"0" from2 _0,
+    -"1" from2 _1,
     _
   >
   $bnat
 ;
 
+
 --- Conversion to and from decimal
 
 to10 = {$bnat b, [] v} _to10;
 _to10 =
-  ${bnat b, [@string] v}
+  ${bnat b, [@bits] v}
   <
     { .b._ if, <.v empty? ["0"], .v> then } .then CONCAT,
     { .b.0 b, .v double v} _to10,
     { .b.1 b, .v double_plus_1 v} _to10
   >
 ;
-
+double = 
+  $[ @bits ]
+  { inverse input, c0 c, [] result }
+  _double
+; 
+double_plus_1 = 
+  $[ @bits ]
+  { inverse input, c1 c, [] result }
+  _double
+; 
+_double = 
+  ${ [ @bits ] input, carry c, [ @bits ] result }
+  <
+    { .input SNOC input, .c c, .result result }
+    < 
+      {.input.car -"0" if, 
+        { .input.cdr input, c0 c, {<.c.0 "0", "1"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"1" if, 
+        { .input.cdr input, c0 c, {<.c.0 "2", "3"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"2" if, 
+        { .input.cdr input, c0 c, {<.c.0 "4", "5"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"3" if, 
+        { .input.cdr input, c0 c, {<.c.0 "6", "7"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"4" if, 
+        { .input.cdr input, c0 c, {<.c.0 "8", "9"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"5" if, 
+        { .input.cdr input, c1 c, {<.c.0 "0", "1"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"6" if, 
+        { .input.cdr input, c1 c, {<.c.0 "2", "3"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"7" if, 
+        { .input.cdr input, c1 c, {<.c.0 "4", "5"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"8" if, 
+        { .input.cdr input, c1 c, {<.c.0 "6", "7"> car, .result cdr} CONS result} then 
+      } .then _double,
+      {.input.car -"9" if, 
+        { .input.cdr input, c1 c, {<.c.0 "8", "9"> car, .result cdr} CONS result} then 
+      } .then _double
+    > ,
+    {.c.0 if, .result then} .then,
+    {"1" car, .result cdr} CONS
+  >
+;
 toDigit =
   $bnat 
   <
@@ -353,29 +418,40 @@ toDigit =
 ;
 
 fromDigit =
-  $@string
+  $@bits
   <
-    .0 bnat_0,
-    .1 bnat_1,
-    .2 bnat_2,
-    .3 bnat_3,
-    .4 bnat_4,
-    .5 bnat_5,
-    .6 bnat_6,
-    .7 bnat_7,
-    .8 bnat_8,
-    .9 bnat_9
+    -"0" bnat_0,
+    -"1" bnat_1,
+    -"2" bnat_2,
+    -"3" bnat_3,
+    -"4" bnat_4,
+    -"5" bnat_5,
+    -"6" bnat_6,
+    -"7" bnat_7,
+    -"8" bnat_8,
+    -"9" bnat_9
   >
 ;
 
-from10 = $@string {toVEC v, bnat_0 b} _from10;
+
+from10 = {$@bits v, bnat_0 b} _from10;
 _from10 = 
   < 
-    {.v SNOC.cdr v, {{.b x, bnat_10 y} times x, .v.0 fromDigit y} plus b} _from10, 
+    {.v -"0" v, {{.b x, bnat_10 y} times x, bnat_0 y} plus b} _from10,
+    {.v -"1" v, {{.b x, bnat_10 y} times x, bnat_1 y} plus b} _from10,
+    {.v -"2" v, {{.b x, bnat_10 y} times x, bnat_2 y} plus b} _from10,
+    {.v -"3" v, {{.b x, bnat_10 y} times x, bnat_3 y} plus b} _from10,
+    {.v -"4" v, {{.b x, bnat_10 y} times x, bnat_4 y} plus b} _from10,
+    {.v -"5" v, {{.b x, bnat_10 y} times x, bnat_5 y} plus b} _from10,
+    {.v -"6" v, {{.b x, bnat_10 y} times x, bnat_6 y} plus b} _from10,
+    {.v -"7" v, {{.b x, bnat_10 y} times x, bnat_7 y} plus b} _from10,
+    {.v -"8" v, {{.b x, bnat_10 y} times x, bnat_8 y} plus b} _from10,
+    {.v -"9" v, {{.b x, bnat_10 y} times x, bnat_9 y} plus b} _from10,
     .b
   >
 ;
 
+/* 
 mod10 = ${@string x , @string y} {.x from10 x, .y from10 y} mod to10;
 plus10 = ${@string x , @string y} {.x from10 x, .y from10 y} plus to10;
 minus10 = ${@string x , @string y} {.x from10 x, .y from10 y} minus to10;
@@ -447,3 +523,5 @@ ${bnat x, bnat i, bnat ii}
 >;
 
 fib10 = from10 fib to10;
+*/
+()
