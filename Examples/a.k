@@ -1,82 +1,272 @@
 -- Examples for defining arithmetic functions natively
+$ yes_no = < {} yes, {} no >;
+swap_yes_no = < {.yes no}, {.no yes} > $yes_no;
+yes = {{} yes} $yes_no;
+no = yes swap_yes_no;
 
-$rat = {@int n, @int d};
+empty = $@bits < -0 no, -1 no, yes > $yes_no;
+empty? = {empty .yes if, () then} .then;
 
-MINUS = SNOC [.car, .cdr PLUS [(),-1] TIMES] PLUS;
+concat = ${@bits x, @bits y} {.x inv x, .y y} concat_; 
+concat_ = ${@bits x, @bits y} 
+  < 
+    {.x -0 x, .y +0 y} concat_, 
+    {.x -1 x, .y +1 y} concat_, 
+    .y 
+  >;
+inv = {()x, '' r} _inv; 
+_inv = < {.x -0 x, .r +0 r} _inv, {.x -1 x, .r +1 r} _inv, .r >;
 
-abs = < [0, ()] GT [-1,.1] TIMES, ()>;
+inOrder = ${@bits x, @bits y} {.x inv x, .y inv y, yes inOrder} inOrder_;
+inOrder_ = ${@bits x, @bits y, yes_no inOrder} 
+  < 
+    {.x -0 x, .y -0 y, .inOrder inOrder} inOrder_, 
+    {.x -1 x, .y -1 y, .inOrder inOrder} inOrder_,
+    {.x -0 x, .y -1 y, .inOrder inOrder} inOrder_, 
+    {.x -1 y, .y -0 x, .inOrder swap_yes_no inOrder} inOrder_, 
+    {.x <-0,-1> if, .inOrder swap_yes_no then} .then, 
+    .inOrder
+  >;
 
-mod = 
--- ${@int x, @int y}
-{ .x abs x, .y abs y} mod_
+GT = $[@bits] 
+  {{.0 x, .1 y} inOrder .no if, () then} . then;
+
+toBitArray = {inv x, [] r} _toBitArray; 
+_toBitArray = < 
+  {.x empty? if, .r then }.then, 
+  {.x -0 x, {0 car, .r cdr} CONS r} _toBitArray, 
+  {.x -1 x, {1 car, .r cdr} CONS r} _toBitArray 
+>;
+fromBitArray =
+< 
+  SNOC <
+    {.car -0 if, .cdr fromBitArray +0 then} .then, 
+    {.car -1 if, .cdr fromBitArray +1 then} .then
+  >, 
+  ''
+>;
+
+--------------------------------------
+$ int = < @bits '+', @bits '-' >;
+
+remove_leading_zeros = <
+  -0 remove_leading_zeros, 
+  ()
+>;
+nat = remove_leading_zeros <empty? 0, ()>;
+int = $@bits { nat '+'} $int;
+abs = $int <.'+',.'-'>;
+
+zero_int? = $int {.'+' -0 empty? if, () then} .then;
+minus_one? = $int {.'-' -1 empty? if, () then} .then;
+
+inc = $int <
+  .'+' {inv x, '' y} _inc {nat '+'},
+  minus_one? 0 int,
+  .'-' {inv x, '' y} _dec {nat '-'}
+>;
+
+_inc = <
+    {.x -0 x, .y +1 y} concat_, 
+    {.x -1 x, .y +0 y} _inc,
+    .y +1
+>; 
+
+dec = $int <
+  zero_int? {1 '-'},
+  .'+' {inv x, '' y} _dec {nat '+'},
+  .'-' {inv x, '' y} _inc {nat '-'}
+>;
+
+_dec = <
+    {.x -1 x, .y +0 y} concat_, 
+    {.x -0 x, .y +1 y} _dec
+>;
+
+$carry = <{} 0, {} 1>;
+c0 = {{} 0} $carry;
+c1 = {{} 1} $carry;
+
+plus = ${int x, int y}
+< 
+  {.x.'+' inv x, .y.'+' inv y, c0 c } _plus inv {nat '+'},
+  {.x.'-' inv x, .y.'-' inv y, c0 c } _plus inv {nat '-'},
+  [.y.'-', .x.'+'] GT {.0 inv x, .1 inv y, c0 c} _minus inv {nat '-'},
+  {.x.'+' inv x, .y.'-' inv y, c0 c} _minus inv {nat '+'},
+  [.x.'-', .y.'+'] GT {.0 inv x, .1 inv y, c0 c} _minus inv {nat '-'},
+  {.y.'+' inv x, .x.'-' inv y, c0 c} _minus inv {nat '+'}
+> 
+$int;
+
+swap_sign = <
+  zero_int?,
+  {.'+' '-'},
+  {.'-' '+'}  
+>;
+
+minus = ${int x, int y}
+  {.x x, .y swap_sign y} plus;
+
+_plus =
+  -- least significant bit first addition with carry
+  ${@bits x, @bits y, carry c}
+  <
+    {.x empty? if, .y empty? and, <.c.0 0, 1> then} .then,
+    {.x empty? if, .c.0 and, .y then} .then,
+
+    {.x y, .y empty? x, .c c} _plus,
+    {<.c.0 0, 1> x, 
+              .y y, .x empty? c0 c} _plus,
+
+    {.x -0 x, .y -0 y, .c.0 c0 c} _plus +0,
+    {.x -0 x, .y -0 y, .c.1 c0 c} _plus +1,
+
+    {.x -0 x, .y -1 y, .c.0 c0 c} _plus +1,
+    {.x -0 x, .y -1 y, .c.1 c1 c} _plus +0,
+
+    {.x -1 x, .y -0 y, .c.0 c0 c} _plus +1,
+    {.x -1 x, .y -0 y, .c.1 c1 c} _plus +0,
+
+    {.x -1 x, .y -1 y, .c.0 c1 c} _plus +0,
+    {.x -1 x, .y -1 y, .c.1 c1 c} _plus +1
+  >
 ;
 
-mod_ = 
--- ${@int x, @int y}
-<
-    [.y, .x] GT .1,
+_minus =
+  -- least significat bit first substraction with carry
+  ${@bits x, @bits y, carry c}
+  <
+    {.x then, .y empty? if, .c.0 and} .then,
+    {.x-1 then, .y empty? if, .c.1 and} .then +0,
+    {.x-0 x, .y empty? y, .c.1 c1 c} _minus +1,
+    {.x-0 x, .y-0   y, .c.0 c0 c} _minus +0,
+    {.x-0 x, .y-0   y, .c.1 c1 c} _minus +1,  
+    {.x-0 x, .y-1   y, .c.0 c1 c} _minus +1,
+    {.x-0 x, .y-1   y, .c.1 c1 c} _minus +0,
+    {.x-1 x, .y-0   y, .c.0 c0 c} _minus +1,
+    {.x-1 x, .y-0   y, .c.1 c0 c} _minus +0,
+    {.x-1 x, .y-1   y, .c.0 c0 c} _minus +0,
+    {.x-1 x, .y-1   y, .c.1 c1 c} _minus +1
+  >
+;
+
+$ sign = < {} '+' , {} '-' >;
+sign_plus = {{} '+'} $sign;
+sign_minus = {{} '-'} $sign;
+get_sign = $int <.'+' sign_plus, .'-' sign_minus>;
+
+times = ${int x, int y}
+  {
+    <
+      {.x.'+' if, .y .'+' and} sign_plus, 
+      {.x.'-' if, .y .'-' and} sign_plus, 
+      sign_minus
+    > sign,
+    {
+      0 result,
+      .x abs inv _x,
+      .y abs y
+    } _times result
+  }
+  <
+    {.sign.'+' if, .result inv int then} .then,
+    {.sign.'-' if, .result inv int swap_sign then} .then 
+  >
+;
+
+_times =
+  ${@bits result, @bits _x, @bits y}
+  <
+    { .y empty? if, .result then } .then,
     { 
-        {[.x,.y] MINUS x, [.y,2] TIMES y} mod_ x, 
-        .y y
-    } mod_
->
--- $@int
+      .result +0 result, 
+      ._x _x, 
+      .y -0 y
+    } _times,
+    { 
+      {._x x, .result +0 y, c0 c } _plus result, 
+      ._x _x, 
+      .y -1 y 
+    } _times
+  >
 ;
+
+
+mod =
+  ${@bits x, @bits y}
+  < 
+    -- if y > x then (x mod y) = x 
+    [.y,.x] GT .1,
+    -- else, i.e.
+    -- if x >= y then (x mod y) = ((x-y mod 2y) mod y)
+    { 
+      {  
+        {.x int x, .y int y} minus ."+" x, 
+        .y inv +0 inv y
+      } mod x, 
+      .y y 
+    } mod
+  >
+; 
+
 
 // gratest common divisor
-gcd = 
---${@int x, @int y}
-  [.x abs, .y abs] <GT {.0 x, .1 y}, {.1 x,.0 y}>
-  gcd_
---$@int
+gcd = ${@bits x, @bits y}
+  <
+    [.y, .x]  GT {.0 x, .1 y}, 
+    ()
+  > _gcd
 ;
 
-gcd_ = <
-  { .y.0 if, .x then } .then,
-  { .y x, mod y } gcd_
+_gcd = <
+  { .y -0 if, .x then } .then,
+  { .y x, mod y } _gcd
 >;
+
+
 
 // div
 
 log2_floor =
--- ${@int x, @int step} 
+  ${@bits x, @bits step} 
 -- finds the largest k, such that 'step * 2^k <= x',
 -- returns k+1, i.e., 0 if x < step, and k+1 otherwise.
   {.x x, .step step, 0 log} log2_floor_;
 
 log2_floor_ = <
   {[.step,.x] GT if, .log then} .then,
-  {.x x, [.step,0] GT [.0,2] TIMES step, .log [(),1] PLUS log} log2_floor_
+  {.x x, [.step,0] GT [.0,2] {.0 int x, .1 int y} times abs step, .log int inc abs log} log2_floor_
 >;
 
+
+x_times_2_to_k =
+  ${@bits x, @bits k}
+  {.x inv _x, .k int k} _x_times_2_to_the_power_of_k inv
+;
+
+_x_times_2_to_the_power_of_k = <
+  {.k zero_int? if, ._x then} .then,
+  {._x +0 _x, .k dec k} _x_times_2_to_the_power_of_k
+>
+;
+ 
 div = 
-  ${@int x, @int y} 
+  ${int x, int y} 
   // remember sign
   {
     <
-      { [0, .x] GT and, [0, .y] GT if, "+" then } .then,
-      [0, .x] GT "-",
-      [0, .y] GT "-",
-      "+"
+      { .x.'+' if, .y get_sign then } .then,
+      { .x.'-' if, .y  swap_sign get_sign then } .then
     > sign,
-    {.x abs x, .y abs step, 0 res} div_ res_wo_sign
+    {.x abs x, .y abs step, 0 int res} _div res_wo_sign
   }
   < 
     {.sign."+" if, {.res_wo_sign.div div, .res_wo_sign.rem rem} then} .then,
-    { [0, .res_wo_sign.div] MINUS div, [0,.res_wo_sign.rem] MINUS rem }
+    { .res_wo_sign.div swap_sign div, .res_wo_sign.rem rem }
   > 
   ;
 
-rep = 
--- ${@int x, @int count}
-  <
-    .count.0 [],
-    {.x car, {.x x, .count [(),-1] PLUS count} rep cdr} CONS
-  >
--- $[@int]
-;
-
-div_ =
+_div =
   {
     .x x,
     .step step,
@@ -84,93 +274,104 @@ div_ =
     {.x x, .step step} log2_floor log
   }
   < 
-    { .log.0 if, {.res div, .x rem} then } .then,
+    { .log int zero_int? if, {.res div, .x rem} then } .then,
     { 
-      {2 x, .log [(),1] MINUS count} rep TIMES factor,
+      {1 x, .log int dec abs k} x_times_2_to_k factor,
       () i
     }
-    {[.i.x, [.i.step, .factor] TIMES] MINUS x, .i.step step, [.i.res,.factor] PLUS res} div_
+    {
+      {.i.x int x, {.i.step int x, .factor int y} times y} minus abs x, 
+      .i.step step, 
+      {.i.res x, .factor int y} plus res
+    } _div
   >;
 
+
 lcm = 
--- ${@int x, @int y}
-  {[.x,.y] TIMES x , gcd y} div .div
--- $@int
+  ${@bits x, @bits y}
+  {{.x int x, .y int y} times x, gcd int y} div .div abs
 ;
-
-
+ 
 --------------------
+$ rat = { int n, int d };
 
 normalize_rat =
-  -- $rat 
+  $rat 
   < 
-    { [0, .d] GT if, 
+    { .d."-" if, 
       {
-        [0, .n] MINUS n, 
-        [0, .d] MINUS d
+        .n swap_sign n, 
+        .d swap_sign d
       } then
      } .then,
     ()
   >
-  {() x, {.n x,.d y} gcd y}
+  {() x, {.n abs x,.d abs y} gcd int y}
   {
     {.x.n x,.y y} div .div n, 
     {.x.d x,.y y} div .div d
   }
--- $rat
+  $rat
 ;
 
+
 plus_rat = 
--- ${rat x, rat y}
+  ${rat x, rat y}
   { 
-    [.x, .y] args,
-    {.x.d x,.y.d y} lcm lcm
+    .x x, 
+    .y y,
+    {.x.d abs x,.y.d abs y} lcm int lcm
   }
   { 
-    [
-      { .args.0 a, .lcm lcm} [.a.n, {.lcm x, .a.d y} div .div] TIMES,
-      { .args.1 a, .lcm lcm} [.a.n, {.lcm x, .a.d y} div .div] TIMES
-    ] PLUS n, 
+    {
+      {.x.n x, {.lcm x, .x.d y} div .div y} times x,
+      {.y.n x, {.lcm x, .y.d y} div .div y} times y
+     } plus n, 
     .lcm d
   }
-  normalize_rat;
+  normalize_rat
+;
+
 
 times_rat = 
--- ${rat x, rat y}
+  ${rat x, rat y}
   { 
-    [.x.n,.y.n] TIMES n, 
-    [.x.d,.y.d] TIMES d
+    {.x.n x,.y.n y} times n, 
+    {.x.d x,.y.d y} times d
   } 
   normalize_rat;
  
+
 minus_rat = 
--- ${rat x, rat y}
+  ${rat x, rat y}
   {
     .x x, 
-    .y {[0, .n] MINUS n, .d d} y
+    .y {.n swap_sign n, .d d} y
   } 
   plus_rat;
 
 inverse_rat = 
--- $rat
+  $rat
   { .d n, .n d }
   normalize_rat
 ;
 
 div_rat = 
--- ${rat x, rat y}
+  ${rat x, rat y}
   { .x x, .y inverse_rat y} times_rat
 ;
+
 
 --------------------
 
 int_rat = 
--- $rat 
+  $rat 
   { .n n, .d d, {.n x,.d y} div div }
-  { .div.div int, {.div.rem n, .d d} rat}
--- ${@int int, rat rat}
+  { .div.div int, {.div.rem int n, .d d} rat}
+  ${int int, rat rat}
 ;
 
+/* 
 ratToString = 
 -- $rat
 [
@@ -192,5 +393,9 @@ _rat! = $rat {
   () carryOn, 
   ratToString _log! drop
  } .carryOn;
+
+
+
+*/
 
 ()
