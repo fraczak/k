@@ -3,7 +3,7 @@ import readline from "node:readline";
 import fs from "node:fs";
 
 import k from "./index.mjs";
-import {run, closeVector } from "./run.mjs";
+import {run } from "./run.mjs";
 import { prettyCode, prettyRel, patterns2filters } from "./pretty.mjs";
 import { find } from "./codes.mjs";
 import { exportRelation } from "./export.mjs";
@@ -89,10 +89,6 @@ function evaluate(line) {
     if (line.match(/^[ \n\t]*(?:--h)?$/)) {
       // --h
       help();
-    } else if (line.match(/^[ \n\t]*\^$/)) {
-      val = closeVector(val); 
-      printVal();
-      
     } else if (line.match(re__l)) {
       // --l 
       const file = line.match(re__l)[1];

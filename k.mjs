@@ -38,7 +38,7 @@ let kScript, jsonStream, oneJson;
     e = error;
     console.error(e);
     console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ -1 ] [ json-file ]`);
-    console.error(`       E.g.,  echo '{\"a\": 12}' | ${prog} '[(),()]'`);
+    console.error(`       E.g.,  echo '{\"a\": {}}' | ${prog} '{() x,() y}'`);
     return process.exit(-1);
   }
 })(false, process.argv.slice(2)));

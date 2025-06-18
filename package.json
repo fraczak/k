@@ -1,7 +1,7 @@
 {
     "name": "@fraczak/k",
-    "version": "5.1.2",
-    "description": "k-language for JSON-like data transformation",
+    "version": "6.0.0",
+    "description": "k-language core",
     "main": "index.mjs",
     "scripts": {
         "prepare": "jiwson -m es6 parser.jison -o parser.mjs; jiwson -m es6 valueParser.jison -o valueParser.mjs; ",

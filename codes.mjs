@@ -7,36 +7,16 @@ const unitCode = function() {
   return hash(unitCodeDef);
 }();
 
-function isBuiltIn(code) {  
-  return /^@bits$/.test(code);
-}
-
 function encodeCodeToString(code, codes = theRepository.codes) {
-  if (isBuiltIn(code)) return code;
-  var i = 0;
+  let i = 0;
   const Q = [[code,i]];
   const D = {[code]: i++};
-  var result=[];
+  let result=[];
   while (Q.length > 0) {
     const [x,c] = Q.shift();
     const c_code = codes[x];
-    if (c_code.code == "vector") {
-      const u_arg = c_code.vector;
-      if (isBuiltIn(u_arg)) {
-        result.push(`$C${result.length}=[${u_arg}];`);
-        continue;
-      }
-      if (D[u_arg] === undefined) {
-        Q.push([u_arg,i]);
-        D[u_arg] = i++;
-      }
-      result.push(`$C${result.length}=[C${D[u_arg]}];`);
-      continue;
-    }
     const u_args =  Object.keys(c_code[c_code.code]).sort().map((k) => {
       const u_arg = c_code[c_code.code][k];
-      if (isBuiltIn(u_arg)) 
-        return `${u_arg}${JSON.stringify(k)}`;
       if (D[u_arg] === undefined) {
         Q.push([u_arg,i]);
         D[u_arg] = i++;
@@ -78,12 +58,6 @@ function are_different(classes, representatives, name1, name2, codes) {
       for (const field in fields1) {
         if (fields2[field] !== fields1[field]) return true;
       }
-      break;
-    case "vector":
-      const [arg1, arg2] = [code1, code2].map(
-        ({ vector }) => representatives[vector] || vector
-      );
-      if (arg1 !== arg2) return true;
   }
   return false;
 }
@@ -147,12 +121,6 @@ function normalizeAll(codes, representatives) {
             representatives
           );
           break;
-        case "vector":
-          normalized[name] = {
-            ...code,
-            vector: representatives[code.vector] || code.vector,
-          };
-          break;
         default:
           throw new Error(`Unexpected code ${code.code}`);
       }
@@ -204,8 +172,6 @@ function register(newCodes) {
 }
 
 function find(codeName) {
-  if (isBuiltIn(codeName))
-    return {code: codeName, def: "builtin"};
   return JSON.parse(JSON.stringify(theRepository.codes[codeName] || {code: "undefined"}));
 };
 

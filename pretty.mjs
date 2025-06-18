@@ -34,9 +34,6 @@ function prettyCode (representatives, codeExp) {
       return `{${prettyCode_labels(representatives, codeExp.product)}}`;
     case "union":
       return `< ${prettyCode_labels(representatives, codeExp.union)} >`;
-    case "vector":
-      return `[${prettyCode(representatives, {code:'ref', ref:codeExp.vector})}]`;
-      // return `[${representatives[codeExp.vector] || codeExp.vector}]`;
     default:
       return ":error";
   }
@@ -56,8 +53,6 @@ function prettyFilter ( filter ) {
       return `$${filter.code}`;
     case "name":
       return filter.name;
-    case "vector":
-      return `[${prettyFilter(filter.vector)}]${filter.name ? "=" + filter.name : ""}`;
     case null:
       if (filter.name && Object.keys(filter.fields).length == 0) 
         return filter.name;
@@ -77,12 +72,6 @@ function prettyRel (exp) {
       case "filter":
         if (exp.filter.type == 'code') return `$${exp.filter.code}`;
         return `?${prettyFilter(exp.filter)}`;
-      case "pipe":
-        return `|`;        
-      case "caret":
-        return `(${pretty(exp.caret)} ^)`;        
-      case "vector":
-        return `[${exp.vector.map(pretty).join(", ")}]`;
       case "union":
         return `<${exp.union.map(pretty).join(", ")}>`;
       case "ref":
@@ -91,14 +80,8 @@ function prettyRel (exp) {
         return "()";
       case "comp":
         return exp.comp.map(pretty).join(" ");
-      case "bits":
-        return `${exp.bits}`;
       case "dot":
         return `.${pLabel(exp.dot)}`;
-      case "minus":
-        return `-${pLabel(exp.minus)}`;
-      case "plus":
-        return `+${pLabel(exp.plus)}`;
       case "code":
         return `$${exp.code}`;
       case "product":
@@ -158,12 +141,6 @@ function patterns2filters(typePatternGraph, ...patternIds) {
     switch (pattern.pattern) {
       case 'type':
         return {type: "code", code: pattern.type, ...named_filter};
-      case '[]':
-        return {
-          type: "vector", 
-          vector: buildFilter([...path, "vector-member"], Object.values(edges["vector-member"])[0], i),
-          ...named_filter
-        };
       case '(...)':
           return { type: null, open: true, fields: fields(), ...named_filter };
       case '{...}': 

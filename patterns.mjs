@@ -17,18 +17,10 @@ function relDefToString(relDef) {
         return [].concat(rel.patterns, ...rel.union.map(exp => dumpPatterns(exp)));
       case "comp":
         return [].concat(rel.patterns, ...rel.comp.map(exp => dumpPatterns(exp)));
-      case "vector":
-        return [].concat(rel.patterns, ...rel.vector.map(exp => dumpPatterns(exp)));
-      case "caret":
-        return [].concat(rel.patterns, dumpPatterns(rel.caret));
       case "ref":
-      case "bits":
       case "identity":
       case "dot":
-      case "minus":
-      case "plus":
       case "code":
-      case "pipe":  
       case "filter":
         return [...rel.patterns]; 
     }
@@ -71,20 +63,10 @@ function compactRel(relDef, name = "") {
       case "comp":
         newRel.comp = rel.comp.map(exp => copyRel(exp));
         break;
-      case "vector":
-        newRel.vector = rel.vector.map(exp => copyRel(exp));
-        break;
-      case "caret":
-        newRel.caret = copyRel(rel.caret);
-        break;
       case "ref":
-      case "bits":
       case "identity":
       case "dot":
-      case "minus":
-      case "plus":
       case "code":
-      case "pipe":
       case "filter":
         break;
       default:
@@ -139,44 +121,16 @@ function patterns(representatives, rels) {
           });
           augmentComp(rel,rootDef);
           break;
-        case "vector":
-          rel["vector"].forEach((exp) => {
-            augment(exp,rootDef);
-          });
-          augmentVector(rel,rootDef);
-          break;
         case "code":
           rel["code"] = representatives[rel.code] || rel.code;
           rel.patterns = [];
           rel.patterns[0] = rootDef.typePatternGraph.getTypeId(rel["code"]);
           rel.patterns[1] = rel.patterns[0]; 
           break;
-        case "caret":
-          augment(rel.caret,rootDef);
-          rel.patterns = [
-            rel.caret.patterns[0],
-            rootDef.typePatternGraph.addNewNode(
-              {pattern: '[]'}, 
-              {"vector-member": [rel.caret.patterns[1]]})
-          ];
-          break;
-        case "pipe":
-          rel.patterns = [];
-          rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode(
-            {pattern: '[]'}, 
-            {"vector-member": [rel.patterns[1]]});
-          break;
-
         case "ref":
             augmentRef(rel, rootDef);
             break;
           //----------------
-        case "bits":
-          rel.patterns = [];
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bits');
-          break;
         case "identity":
           rel.patterns = [];
           rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
@@ -186,14 +140,6 @@ function patterns(representatives, rels) {
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
           break;
-        case "minus":
-        case "plus": {
-          let arg = rel.minus || rel.plus;
-          rel.patterns = [];
-          rel.patterns[0] = rootDef.typePatternGraph.getTypeId('@bits');
-          rel.patterns[1] = rootDef.typePatternGraph.getTypeId('@bits');
-          break;
-        }
         
         case "filter":
           rel.patterns = [];
@@ -237,13 +183,6 @@ function patterns(representatives, rels) {
         newPatternId = rootDef.typePatternGraph.addNewNode(
           {pattern: filter.open ? '{...}' : '{}', fields: Object.keys(filter.fields || {})},
           getFields());
-        break;
-      case "vector": {
-          const vector = filterToPattern(filter.vector, rootDef);
-          newPatternId = rootDef.typePatternGraph.addNewNode(
-            {pattern: '[]', fields: ["vector-member"]},
-            {"vector-member": [vector]});
-        };
         break;
       default:
         newPatternId = rootDef.typePatternGraph.addNewNode(
@@ -326,26 +265,6 @@ function patterns(representatives, rels) {
     }
   }
 
-  function augmentVector(rel,rootDef) {
-    rel.patterns = []; 
-    rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-    rootDef.typePatternGraph.unify(
-      "vector:input",
-      rel.patterns[0],
-      ...rel.vector.map(exp => exp.patterns[0]));
-      
-    let member = rootDef.typePatternGraph.addNewNode();
-    rootDef.typePatternGraph.unify(
-      "vector:output",
-      member,
-      ...rel.vector.map(exp => exp.patterns[1])
-    );
-    rel.patterns[1] = rootDef.typePatternGraph.addNewNode(
-      {pattern: '[]', fields: ["vector-member"]}, 
-      {"vector-member": [member]}
-    );
-  }
-
   function augmentRef(rel,rootDef) { 
     rel.patterns = [];
     if (rel.ref in rels) {
@@ -364,16 +283,6 @@ function patterns(representatives, rels) {
       case "_log!":
         rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
         break;
-      case "CONS": {
-          const member = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[1]]});
-        }; break;
-      case "SNOC": {
-          const member = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '[]'}, {"vector-member": [member]});
-          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}'}, {"car": [member], "cdr": [rel.patterns[0]]});
-        }; break;
       default:
         throw new Error(`No definition found for '${rel.ref}'`);  
     }

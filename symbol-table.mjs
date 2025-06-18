@@ -9,18 +9,9 @@ function is_identity_rel(rel) {
 }
 
 function is_constant_rel(rel) {
-  switch (rel.op) {
-    case "bits":
-      return true;
-    case "vector":
-      return Object.values(rel[rel.op]).every(is_constant_rel);
-    case "product":
-      return Object.values(rel[rel.op]).every(({ exp }) =>
-        is_constant_rel(exp)
-      );
-    default:
-      return false;
-  }
+  if (rel.op == "product")
+    return Object.values(rel[rel.op]).every(({ exp }) => is_constant_rel(exp));
+  return false;
 }
 
 function is_empty_rel(rel) {
@@ -30,13 +21,10 @@ function is_empty_rel(rel) {
 function is_full_rel(rel) {
   if (is_constant_rel(rel)) return true;
   switch (rel.op) {
-    case "bits":
     case "identity":
       return true;
     case "comp":
       return rel.comp.every(is_full_rel);
-    case "vector":
-      return Object.values(rel[rel.op]).every(is_full_rel);
     case "product":
       return Object.values(rel[rel.op]).every(({ exp }) =>
         is_full_rel(exp)

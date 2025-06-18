@@ -23,12 +23,6 @@ function simplifyRel(relDef,rels) {
         if (newRel.comp.length == 0) 
           newRel.op = "identity";
         break;
-      case "vector":
-        newRel.vector = rel.vector.map(exp => prune(exp));
-        break;
-      case "caret":
-        newRel.caret = prune(rel.caret);
-        break;
       case 'code':
       case 'filter':
         newRel.op = "identity";
@@ -82,12 +76,6 @@ function theID(alias, rel, scc, name) {
         break;
       case "comp":
         newRel.comp = rel.comp.map(exp => reNameX(exp));
-        break;
-      case "vector":
-        newRel.vector = rel.vector.map(exp => reNameX(exp));
-        break;
-      case "caret":
-        newRel.caret = reNameX(rel.caret);
         break;
       case "ref": {
         const n = rel.ref;
@@ -154,12 +142,6 @@ function exportRelation(rels, alias, name) {
         break;
       case "comp":
         newRel.comp = rel.comp.map(exp => reName(exp));
-        break;
-      case "vector":
-        newRel.vector = rel.vector.map(exp => reName(exp));
-        break;
-      case "caret":
-        newRel.caret = reName(rel.caret);
         break;
       case "ref": {
         const n = rel.ref;

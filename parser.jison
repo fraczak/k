@@ -1,7 +1,6 @@
 %{
 
 import { SymbolTable, comp, union, identity } from "./symbol-table.mjs";
-import { Bits } from "./Value.mjs";
 let s = new SymbolTable();
 
 function anError(pos,msg) {
@@ -49,37 +48,29 @@ function fromEscString(escString) {
 \s+                                             /* blanks */
 "<"                                            return 'LA';
 "{"                                            return 'LC';
-"["                                            return 'LB';
 "("                                            return 'LP';
 ">"                                            return 'RA';
 "}"                                            return 'RC';
-"]"                                            return 'RB';
 ")"                                            return 'RP';
 "="                                            return 'EQ'; 
 "..."                                          return 'DOTS';
 "."                                            return 'DOT';
-"-"                                            return 'MINUS';
-"+"                                            return 'PLUS';
 ","                                            return 'COMMA';
 ";"                                            return 'SC';
 ":"                                            return 'COL';
 "$"                                            return 'DOLLAR'; 
 "?"                                            return 'QMARK';
-"|"                                            return 'PIPE';
-"^"                                            return 'CARET';
 "@"                                            return 'AT';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
-[a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
-(?:0b[01]*|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*))*
-                                                return 'BITS';
+[a-zA-Z0-9_][a-zA-Z0-9_?!]*                    return 'NAME';
 
-"~"                                          return 'INCREMENTAL';
+"~"                                            return 'INCREMENTAL';
 <<EOF>>                                        return 'EOF';
 
 /lex
 
-%token NAME BITS STRING
-%token LA LC LB LP RA RP RB RC EQ DOT MINUS PLUS COMMA SC COL DOLLAR PIPE CARET AT QMARK DOTS
+%token NAME STRING
+%token LA LC LP RA RP RC EQ DOT COMMA SC COL DOLLAR AT QMARK DOTS
 %token INCREMENTAL
 %token EOF
 
@@ -89,20 +80,15 @@ function fromEscString(escString) {
 
 str : STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);};
 name: NAME                              { $$ = getToken(yytext,yy,_$); };
-bits: BITS                              { $$ = getToken(yytext,yy,_$); };
 la: LA                                  { $$ = getToken(yytext,yy,_$); };
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
-lb: LB                                  { $$ = getToken(yytext,yy,_$); };
 lp: LP                                  { $$ = getToken(yytext,yy,_$); };
 ra: RA                                  { $$ = getToken(yytext,yy,_$); };
 rc: RC                                  { $$ = getToken(yytext,yy,_$); };
-rb: RB                                  { $$ = getToken(yytext,yy,_$); };
 rp: RP                                  { $$ = getToken(yytext,yy,_$); };
 eq: EQ                                  { $$ = getToken(yytext,yy,_$); };
 dots: DOTS                              { $$ = getToken(yytext,yy,_$); };
 dot: DOT                                { $$ = getToken(yytext,yy,_$); };
-minus: MINUS                            { $$ = getToken(yytext,yy,_$); };
-plus: PLUS                              { $$ = getToken(yytext,yy,_$); };
 comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
 sc: SC                                  { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
@@ -138,7 +124,6 @@ codeDef
                                             $$ = { code: "union", union: $2, start: $1.start, end: $3.end };
                                           else
                                             $$ = { code: "product", product: $2, start: $1.start, end: $3.end }; }
-    | lb code rb                        { $$ = { code: "vector", vector: s.as_ref($2), start: $1.start, end: $3.end }; }
     | la labelled_codes ra              { $$ = { code: "union", union: $2, start: $1.start, end: $3.end }; }
     ;
 
@@ -160,10 +145,8 @@ non_empty_labelled_codes
 
 code_label 
     : code name                         { $$ = {label: $2.value, code: $1}; }
-    | code bits                         { $$ = {label: $2.value, code: $1}; }
     | code str                          { $$ = {label: $2.value, code: $1}; }
     | name col code                     { $$ = {label: $1.value, code: $3}; }
-    | bits col code                     { $$ = {label: $1.value, code: $3}; }
     | str col code                      { $$ = {label: $1.value, code: $3}; }
     ;
 
@@ -178,7 +161,6 @@ filter_
                                       $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end};
                                     else 
                                       $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
-    | lb filter rb                { $$ = { type: "vector", vector: $2, start: $1.start, end: $3.end }; }
     ;
 
 filter
@@ -209,41 +191,27 @@ non_empty_labelled_filters
 filter_label
     : dots                              { $$ = {dots: true }; }
     | filter name                       { $$ = {label: $2.value, filter: $1}; }
-    | filter bits                       { $$ = {label: $2.value, filter: $1}; }
     | filter str                        { $$ = {label: $2.value, filter: $1}; }
     | name col filter                   { $$ = {label: $1.value, filter: $3}; }
-    | bits col filter                   { $$ = {label: $1.value, filter: $3}; }
     | str col filter                    { $$ = {label: $1.value, filter: $3}; }
     ;
 
 comp 
     : exp                               { $$ = $1; }
     | comp exp                          { $$ = {...comp($1, $2), start: $1.start, end:$2.end}; }
-    | comp CARET                        { $$ = {op: 'caret', caret: $1, start: $1.start, end:$2.end}; }
     ;
 
 exp
     : lc labelled rc                    { $$ = {...$2, start: $1.start, end: $3.end}; }
-    | lb list rb                        { $$ = {op: "vector", vector: $2, start: $1.start, end: $3.end}; }
     | la list ra                        { $$ = {...union($2), start: $1.start, end: $3.end}; }
     | AT name                           { $$ = {op: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     | lp rp                             { $$ = {...identity, start: $1.start, end: $2.end};  }
     | lp comp rp                        { $$ = {...$2, start: $1.start, end: $3.end };  }
-    | bits                              { $$ = {op: "bits", bits: Bits.segmentsToBits($1.value), start: $1.start, end: $1.end }; }
-    | dot bits                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | minus bits                        { $$ = {op: "minus", minus: Bits.segmentsToBits($2.value), start: $1.start, end: $2.end }; }
-    | plus bits                         { $$ = {op: "plus", plus: Bits.segmentsToBits($2.value), start: $1.start, end: $2.end }; }
     | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | minus name                        { $$ = {op: "minus", minus: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
-    | plus name                         { $$ = {op: "plus", plus: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
-    | str                               { $$ = {op: "bits", bits: Bits.utf8ToBits($1.value), start: $1.start, end: $1.end}; }
     | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
-    | minus str                         { $$ = {op: "minus", minus: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
-    | plus str                          { $$ = {op: "plus", plus: Bits.utf8ToBits($2.value), start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
     | qmark filter                      { $$ = {op: "filter", filter: $2, start: $1.start, end:$2.end}; }
-    | PIPE                              { $$ = {op: "pipe", start: $1.start, end: $1.end}; }
     ;
 
 labelled
@@ -265,10 +233,8 @@ non_empty_labelled
 
 comp_label
     : comp name  { $$ = {label: $2.value, exp: $1}; }
-    | comp bits  { $$ = {label: $2.value, exp: $1}; }
     | comp str   { $$ = {label: $2.value, exp: $1}; }
     | name col comp { $$ = {label: $1.value, exp: $3}; }
-    | bits col comp { $$ = {label: $1.value, exp: $3}; }
     | str col comp { $$ = {label: $1.value, exp: $3}; }
     ;
 

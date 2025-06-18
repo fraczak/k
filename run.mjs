@@ -1,61 +1,23 @@
 import assert from "assert";
 import { find } from "./codes.mjs";
-import { Bits, Vector, Product } from "./Value.mjs"
+import { Product } from "./Value.mjs"
 
-function isOpen(x) {
-  return (! (x instanceof Vector) && Array.isArray(x) && x.open);
-}
 
-function isClosed(x) {
-  return x instanceof Vector;
-}
-
-Array.prototype.toJSON = function () {
-  if (this.open) {
-    // throw new Error(`Cannot serialize open vector: ${JSON.stringify([...this])}.`);
-    return {"OPEN VECTOR": [...this]};
-  }
-  return this;
-};
-
-function closeVector(val) {
-  if (isOpen(val)) {
-    return [...val];
-  }
-  console.error("Can close only an open vector.");
-  return val;
-}
 
 const builtin = {
   "_log!": (arg) => {
     console.error(`_log!: ${JSON.stringify(arg)}`);
     return arg;
-  },
-  CONS: (x) => { 
-    try { 
-      return new Vector([x.product.car, ...x.product.cdr.vector]); 
-    } catch (e) { 
-      return undefined; 
-    } },
-  SNOC: (x) => {
-    if ((x instanceof Vector) && (x.vector.length > 0))
-      return new Product({car: x.vector[0], cdr: new Vector(x.vector.slice(1))});
-    return undefined;
   }
 };
 
-const codes = {
-  "@bits": (x) => x instanceof Bits
-};
+const codes = { };
 
 function verify(code, value) {
   "use strict";
   if (code == null) return false;
   code = find(code);
   switch (code.code) {
-    case "vector":
-      if (! (value instanceof Vector)) return false;
-      return value.vector.every((x) => verify(code.vector, x));
     case "product":
       if (! (value instanceof Product)) return false;
       else {
@@ -80,17 +42,7 @@ function verify(code, value) {
 function run(exp, value) {
   "use strict";
   if (value === undefined) return;
-  while (true) {
-    if (isOpen(value)) {
-      // if (exp.op === "caret2") return [...value];
-      const result = [];
-      result.open = true
-      for (const v of value) {
-        const r = run(exp, v);
-        if (r !== undefined) result.push(r);
-      }
-      return result;
-    }
+  while (true) {    
     switch (exp.op) {
       case "code":
         if (verify(exp.code, value)) {
@@ -99,8 +51,6 @@ function run(exp, value) {
         return;
       case "identity":
         return value;
-      case "bits":
-        return exp.bits;
       case "ref": {
         const defn = run.defs.rels[exp.ref];
         if (defn != undefined) {
@@ -116,24 +66,6 @@ function run(exp, value) {
       case "dot":
         return (value.product || value.vector || {})[exp.dot];
 
-      case "minus":
-        if (value instanceof Bits && exp.minus instanceof Bits) {
-          return value.eatPrefix(exp.minus);
-        }
-        return;
-
-      case "plus":
-        if (value instanceof Bits && exp.plus instanceof Bits) {
-          return value.prepend(exp.plus);
-        }
-        return;
-
-      case "pipe": {
-        assert(isClosed(value), `PIPE (|): Only a regular vector value can be "open".`);
-        const result = [...value.vector];
-        result.open = true;
-        return result;
-      }
       case "comp":
         for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
           const result = run(exp.comp[i], value);
@@ -152,41 +84,7 @@ function run(exp, value) {
         }
         exp = exp.union[exp.union.length - 1];
         continue;
-      case "vector": {
-        let result = [];
-        let open = false;
-        for (let i = 0, len = exp.vector.length; i < len; i++) {
-          const r = run(exp.vector[i], value);
-          if (r === undefined) return;
-          if (open) {
-            if (isOpen(r)) {
-              const newResult = [];
-              newResult.open = true;
-              for (const x of result) {
-                for (const y of r) {
-                  newResult.push([...x, y]);
-                }
-              }
-              result = newResult;
-            } else {
-              for (const x of result) x.push(r);
-            }
-          } else {
-            if (isOpen(r)) {
-              open = true;
-              const newResult = [];
-              newResult.open = true;
-              for (const x of r) {
-                newResult.push([...result, x]);
-              } 
-              result = newResult;
-            } else {
-              result.push(r);
-            }
-          }
-        }
-        return new Vector(result);
-      }
+    
       case "product": {
         let result = {};
         let open = false;
@@ -194,47 +92,10 @@ function run(exp, value) {
           const { label, exp: e } = exp.product[i];
           const r = run(e, value);
           if (r === undefined) return;
-          if (open) {
-            if (isOpen(r)) {
-              let newResult = [];
-              newResult.open = true;
-              for (const v of r) {
-                for (const x of result) {
-                  newResult.push({...x, [label]: v});
-                }
-              }
-              result = newResult;
-            } else {
-              let newResult = [];
-              newResult.open = true;
-              for (const x of result) {
-                newResult.push({...x, [label]: r});
-              }
-              result = newResult;
-            } 
-          } else {
-            if (isOpen(r)) {
-              open = true;
-              let newResult = [];
-              newResult.open = true;
-              for (const v of r.values()) {
-                newResult.push({...result, [label]: v});
-              }
-              result = newResult;
-            } else {
-              result[label] = r;
-            }
-          }      
+          result[label] = r;
         }
         return new Product(result);
       }
-      case "caret": {
-        const result = run(exp.caret, value);
-        // assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
-        if (! isOpen(result))
-          throw new Error(`Type Error (line: ${exp.end?.line}:${exp.end?.column}): CARET (^): Only 'unboxed' values can be 'boxed'.`)
-        return new Vector([...result]);
-      }  
       case "filter": {
         return value;
       }
@@ -248,4 +109,4 @@ function run(exp, value) {
 run.builtin = builtin;
 
 export default run;
-export { run , closeVector };
+export { run  };

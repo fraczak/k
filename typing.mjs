@@ -41,13 +41,12 @@ $Pattern = <
   string code, 
   open? product, 
   open? union, 
-  {} vector, 
-   open? unknown
+  open? unknown
 >;
 $open? = < {} open, {} closed >;
 
 we use the string notation: 
-'(...)' | '{...}' | '<...>' |  '()'  |  '[]'  |  '{}'  | '<>'  | 'type'
+'(...)' | '{...}' | '<...>' |  '()'  |  '{}'  | '<>'  | 'type'
 e.g.:
 {pattern: '()'}, 
 {pattern: '<...>'}
@@ -131,20 +130,7 @@ class TypePatternGraph {
             }, {})
           }; 
         }; break;
-        case '[]': {
-          const auxDests = Object.values(this.edges[patternId]["vector-member"]).map(id => this.find(id));
-          const destAsMapSet = auxDests.reduce( (mapSet, x) => ({...mapSet, [JSON.stringify(x)]: x}), {});
-          const dests = Object.values(destAsMapSet);
-          if (dests.length != 1) {
-            // console.log(dests.map(d => this.get_pattern(d)));
-            throw new Error(`Expected one destination 'vector-member' in ${JSON.stringify(pattern)}, but got ${JSON.stringify(dests)}`); 
-          }
-          const destPattern = this.get_pattern(dests[0]);
-          newCodeDefs[`-${patternId}-`] = {
-            code: 'vector',
-            vector: (destPattern.pattern == 'type') ? destPattern.type : `-${dests[0]}-`
-          };
-        }; break;
+        
         default: 
           throw new Error(`Unexpected pattern ${JSON.stringify(pattern)}`);
       }
@@ -389,9 +375,6 @@ class TypePatternGraph {
           case '()':
             if (subsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields},...) with (${p2.fields})`);
-          case '[]':
-            if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) return p2;
-            throw new Error(`Cannot unify [] with (${p1.fields},...)`);
           case '{}':
             if (subsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields},...) with {${p2.fields}}`);
@@ -402,17 +385,11 @@ class TypePatternGraph {
               const code = codes.find(p2.type);
               // console.log(JSON.stringify({p1,p2,code}));
               switch (code.code) {
-                case '@bits':
-                  if (p1.fields.length == 0)
-                    return p2;
-                  break;
                 case 'product':
                 case 'union': {
                   let p2_fields = Object.keys(code[code.code]);
                   if (subsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
                 }; break;
-                case 'vector':
-                  return {...p2, fields: ['vector-member']};
               }
               throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
             }
@@ -427,9 +404,6 @@ class TypePatternGraph {
           case '()':
             if (subsetP(p1.fields, p2.fields))
               return {pattern: '{}', fields: p2.fields};
-          case '[]':
-            if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) return p2;
-            throw new Error(`Cannot unify [] with {${p1.fields},...}`);
           case '{}':
             if (subsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify {${p1.fields},...} with {${p2.fields}}`);
@@ -455,8 +429,6 @@ class TypePatternGraph {
             if (subsetP(p1.fields, p2.fields))
               return {pattern: '<>', fields: p2.fields};
             throw new Error(`Cannot unify <${p1.fields},...> with (${p2.fields})`);
-          case '[]':
-            throw new Error('Cannot unify <...> with []');
           case '{}':
             throw new Error('Cannot unify <...> with {}');
           case '<>':
@@ -465,8 +437,7 @@ class TypePatternGraph {
           case 'type':{
             const code = codes.find(p2.type);
             switch (code.code) {
-              case '@bits':
-                return p2;
+              
               case 'union': {
                 let p2_fields = Object.keys(code[code.code]);
                 if (subsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
@@ -484,50 +455,26 @@ class TypePatternGraph {
           case '{}':
             if (eqsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields}) with {${p2.fields}}`);
-          case '[]':
-            if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) return p2;
-            throw new Error(`Cannot unify [] with (${p1.fields})`);
+
           case '<>':
             if (eqsetP(p1.fields, p2.fields)) return p2;
             throw new Error(`Cannot unify (${p1.fields}) with <${p2.fields}>`);
           case 'type':{
             const code = codes.find(p2.type);
             switch (code.code) {
-              case '@bits':
-                return p2;
+              
               case 'product':
               case 'union': {
                 let p2_fields = Object.keys(code[code.code]);
                 if (eqsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
               }; break;
-              case 'vector':
-                if (p1.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
-                  return {...p2, fields: ['vector-member']};
+              
             }
             throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
           };
         };
         break;
-      case '[]':
-        switch (p2.pattern) {
-          case '{}':
-            // if (p2.fields.every(x => `${x}`.match(/^[0-9]+$/))) 
-            // return p1;
-            throw new Error(`Cannot unify [] with {${p2.fields}}`);
-          case '[]':
-            return p1;
-          case '<>':
-            throw new Error('Cannot unify [] with <>');
-          case 'type': {
-            const code = codes.find(p2.type);
-            switch (code.code) {
-              case 'vector':  
-                return {...p2, fields: ['vector-member']};
-            }
-            throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
-          };
-        };    
-        break;
+      
       case '{}':
         switch (p2.pattern) {
           case '{}':
@@ -637,14 +584,7 @@ class TypePatternGraph {
               this.edges[new_id][lab]= asSet([...(this.edges[new_id][lab] ||[]), target_type_id]);
             }
           }; break;
-          case 'vector': {
-            
-            const target_type_id = this.getTypeId(code.vector);
-
-            this.edges[new_id] = {
-              'vector-member': asSet([ target_type_id, ...[].concat(...Object.values(this.edges[new_id]))])
-            }
-          }
+          
         }
     }
     for ( const lab of Object.keys(this.edges[new_id]) ) {

@@ -6,17 +6,17 @@ _ = {{} _};
 _1 = {() 1};
 _0 = {() 0};
 
-bnat_0 = _ $bnat;
-bnat_1 = _ _1 $bnat;
-bnat_2 = _ _0 _1 $bnat;
-bnat_3 = _ _1 _1 $bnat;
-bnat_4 = _ _0 _0 _1 $bnat;
-bnat_5 = _ _1 _0 _1 $bnat;
-bnat_6 = _ _0 _1 _1 $bnat;
-bnat_7 = _ _1 _1 _1 $bnat;
-bnat_8 = _ _0 _0 _0 _1 $bnat;
-bnat_9 = _ _1 _0 _0 _1 $bnat;
-bnat_10 = _ _0 _1 _0 _1 $bnat;
+0  = _ $bnat;
+1  = _ _1 $bnat;
+2  = _ _0 _1 $bnat;
+3  = _ _1 _1 $bnat;
+4  = _ _0 _0 _1 $bnat;
+5  = _ _1 _0 _1 $bnat;
+6  = _ _0 _1 _1 $bnat;
+7  = _ _1 _1 _1 $bnat;
+8  = _ _0 _0 _0 _1 $bnat;
+9  = _ _1 _0 _0 _1 $bnat;
+10 = _ _0 _1 _0 _1 $bnat;
 
 remove_leading_zeros = < .0 remove_leading_zeros, () >;
 
@@ -53,11 +53,11 @@ _plus =
   -- least significant bit first addition with carry
   ${bnat x, bnat y, carry c}
   <
-    {.x._ if1, .y._ if2, <.c.0 bnat_0, bnat_1> then} .then,
+    {.x._ if1, .y._ if2, <.c.0 0, 1> then} .then,
     {.x._ if1, .c.0 if2, .y                    then} .then,
 
     {.x     y, .y._ _ x, .c      c} _plus, --swap x with y, if y = 0
-    {.x._ <.c.0 bnat_0, bnat_1> 
+    {.x._ <.c.0 0, 1> 
             x, .y     y, c0      c} _plus,
 
     {.x.0   x, .y.0   y, .c.0 c0 c} _plus _0,
@@ -107,7 +107,7 @@ _minus =
 times = 
   ${bnat x, bnat y} 
   { 
-    bnat_0 result, 
+    0 result, 
     .x remove_leading_zeros reverse _x, 
     .y remove_leading_zeros y 
   } 
@@ -124,8 +124,8 @@ _times =
   >
 ;
 
-inc = {() x, bnat_1 y} plus;
-dec = {() x, bnat_1 y} minus;
+inc = {() x, 1 y} plus;
+dec = {() x, 1 y} minus;
 
 mod =
   ${bnat x, bnat y}
@@ -142,8 +142,8 @@ align =
   {
     .x remove_leading_zeros reverse _x, 
     .y remove_leading_zeros reverse _y, 
-    bnat_0 x, 
-    bnat_0 y
+    0 x, 
+    0 y
   }
   _align 
 ;
@@ -177,7 +177,7 @@ _compare =
   $compare
 ;
 
-zero? = remove_leading_zeros ._ bnat_0;
+zero? = remove_leading_zeros ._ 0;
 eq? = {compare .eq if, () then} .then;
 gt? = {compare .gt if, () then} .then;
 lt? = {compare .lt if, () then} .then;
@@ -196,12 +196,12 @@ log2_floor =
   ${bnat x, bnat step} 
 -- finds the largest k, such that 'step * 2^k <= x',
 -- returns k+1, i.e., 0 if x < step, and k+1 otherwise.
-  {.x x, .step step, bnat_0 log} _log2_floor;
+  {.x x, .step step, 0 log} _log2_floor;
 
 _log2_floor =
   <
     {{.step x, .x y} gt? if, .log then} .then,
-    {.x x, {.step x, bnat_0 y} gt? .x append_0 step, .log inc log} _log2_floor
+    {.x x, {.step x, 0 y} gt? .x append_0 step, .log inc log} _log2_floor
   >
 ;
 
@@ -215,7 +215,7 @@ append_n_times_0 =
 
 div = 
   ${bnat x, bnat y}
-  {.x x, .y step, bnat_0 res} _div
+  {.x x, .y step, 0 res} _div
 ;
 
 _div =
@@ -229,7 +229,7 @@ _div =
     { .log zero? if, {.res div, .x rem} then } .then,
     { 
       -- {2 x, .log [(),1] MINUS count} rep TIMES factor,
-      { bnat_1 x, .log dec n} append_n_times_0 factor,
+      { 1 x, .log dec n} append_n_times_0 factor,
       () i
     }
     {
@@ -249,16 +249,16 @@ lcm =
 half =
   reverse
   <
-    {.0 reverse div, bnat_0 rem},
-    {.1 reverse div, bnat_1 rem},
-    {bnat_0 div, bnat_0 rem}
+    {.0 reverse div, 0 rem},
+    {.1 reverse div, 1 rem},
+    {0 div, 0 rem}
   >
 ;
 
 pow =
   ${ bnat base, bnat exponent }
   <
-    .exponent zero? bnat_1,
+    .exponent zero? 1,
     {.base base, .exponent half half}
     {.base base, .half.rem extra, {.base base, .half.div exponent} pow {()x,()y} times pow}
     <
@@ -270,7 +270,7 @@ pow =
 
 sqrt =
   <
-    { () x, {bnat_1 min, () max} range } _sqrt
+    { () x, {1 min, () max} range } _sqrt
   >
 ;
 
@@ -286,6 +286,7 @@ _sqrt =
   >
 ;
 
+/*
 --- vector helpers
 
 empty? =?[X] <{.0 nope}, {() yes}> .yes;
