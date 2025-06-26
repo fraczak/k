@@ -286,6 +286,29 @@ _sqrt =
   >
 ;
 
+--------------------
+
+$ digit = <{} 0, {} 1, {} 2, {} 3, {} 4, {} 5, {} 6, {} 7, {} 8, {} 9>;
+
+$ dnat = <{} _, dnat 0, dnat 1, dnat 2, dnat 3, dnat 4, dnat 5, dnat 6, dnat 7, dnat 8, dnat 9>; 
+
+list? = ?< {} nil, {X car, Y cdr} cons > = Y;
+nil = {{} nil} list?;
+singleton = {{() car, nil cdr} cons} list?;
+cons = {{.car car, .cdr cdr} cons} list?;
+nil? = list? .nil nil;
+car = list? .cons .car;
+cdr = list? .cons .cdr;
+
+inverse = {list? list, nil result} _inverse;
+_inverse =
+  ?{X list, X result}  
+  < 
+    {.list nil? if, .result then} .then,
+    {.list cdr list, {.list car car, .result cdr} cons result} _inverse
+  >
+;
+
 /*
 --- vector helpers
 
