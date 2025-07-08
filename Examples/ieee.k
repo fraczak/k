@@ -28,7 +28,6 @@ exponent_0 = {
   0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10
 } $exponent;
 
-exponent_0? = $exponent {{.0.0 0, .1.0 1, .2.0 2, .3.0 3, .4.0 4, .5.0 5, .6.0 6, .7.0 7, .8.0 8, .9.0 9, .10.0 10} if, () then } .then;
 
 exponent_eq = ${exponent 0, exponent 1} {
   {.0.0 0, .1.0 1} bit_eq 0,
@@ -45,6 +44,8 @@ exponent_eq = ${exponent 0, exponent 1} {
   .0 then
 } .then;
 
+exponent_0? = {exponent_0 0, () 1} exponent_eq;
+
 $ mantissa = {
   bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
   bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
@@ -54,14 +55,12 @@ $ mantissa = {
   bit 50, bit 51
 };
 
-mantissa_0? = $ mantissa {
-  { .0.0 0, .1.0 1, .2.0 2, .3.0 3, .4.0 4, .5.0 5, .6.0 6, .7.0 7, .8.0 8, .9.0 9, .10.0 10,
-    .11.0 11, .12.0 12, .13.0 13, .14.0 14, .15.0 15, .16.0 16, .17.0 17, .18.0 18, .19.0 19, .20.0 20,
-    .21.0 21, .22.0 22, .23.0 23, .24.0 24, .25.0 25, .26.0 26, .27.0 27, .28.0 28, .29.0 29, .30.0 30,
-    .31.0 31, .32.0 32, .33.0 33, .34.0 34, .35.0 35, .36.0 36, .37.0 37, .38.0 38, .39.0 39, .40.0 40,
-    .41.0 41, .42.0 42, .43.0 43, .44.0 44, .45.0 45, .46.0 46, .47.0 47, .48.0 48, .49.0 49, .50.0 50, .51.0 51 } if,
-  () then
-} .then;
+mantissa_0 = {
+  0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 
+  0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 
+  0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51
+} $mantissa;
+
 
 mantissa_eq = ${mantissa 0, mantissa 1} {
   {.0.0 0, .1.0 1} bit_eq 0,
@@ -119,6 +118,10 @@ mantissa_eq = ${mantissa 0, mantissa 1} {
   .0 that
 } .that;
 
+
+mantissa_0? = {mantissa_0 0, () 1} mantissa_eq; 
+
+
 $ IEEE_754 = {
   sign sign,
   exponent exponent,
@@ -135,7 +138,7 @@ shift_left_mantissa = $mantissa {
   .50 49, .51 50, 0 51
 } $mantissa;
 
-decr_exponent = <
+exponent_decr = <
   {.0.1 0 0, .1     1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
   {1      0, .1.1 0 1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
   {1      0, 1      1, .2.1 0 2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
@@ -148,9 +151,24 @@ decr_exponent = <
   {1      0, 1      1, 1      2, 1      3, 1      4, 1      5, 1      6, 1      7, 1      8, .9.1 0 9, .10     10},
   {1      0, 1      1, 1      2, 1      3, 1      4, 1      5, 1      6, 1      7, 1      8, 1      9, .10.1 0 10} 
 >;
+exponent_incr = <
+  {.0.0 1 0, .1     1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
+  {0      0, .1.0 1 1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
+  {0      0, 0      1, .2.0 1 2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
+  {0      0, 0      1, 0      2, .3.0 1 3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
+  {0      0, 0      1, 0      2, 0      3, .4.0 1 4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
+  {0      0, 0      1, 0      2, 0      3, 0      4, .5.0 1 5, .6     6, .7     7, .8     8, .9     9, .10     10},
+  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, .6.0 1 6, .7     7, .8     8, .9     9, .10     10},
+  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, .7.0 1 7, .8     8, .9     9, .10     10},
+  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, 0      7, .8.0 1 8, .9     9, .10     10},
+  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, 0      7, 0      8, .9.0 1 9, .10     10},
+  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, 0      7, 0      8, 0      9, .10.0 1 10} 
+>;
 
 is2047 = $exponent {.0.1 0, .1.1 1, .2.1 2, .3.1 3, .4.1 4, .5.1 5, .6.1 6, .7.1 7, .8.1 8, .9.1 9, .10.1 10} {};
 
+exponent_bias = {0 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} $exponent; 
+exponent_1023 = exponent_bias;
 exponent_2047 = {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} $exponent;
 
 $ ieee_kind = < {} "+infty", {} "-infty", {} NaN, {} number >;
@@ -171,8 +189,8 @@ ieee_kind = <
 -- IEEE 754 representations
 ieee_0 = {
   sign: sign_plus,
-  exponent: {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10},
-  mantissa: {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51}
+  exponent: exponent_0,
+  mantissa: mantissa_0
 };
 
 ieee_0? = $ IEEE_754 {  
@@ -182,50 +200,26 @@ ieee_0? = $ IEEE_754 {
   () then
 } .then;
 
+---
+-- IEEE 754 representations for 1, 2, 4
+
 ieee_1 = {
-  sign: sign_plus,
-  exponent: {0 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10},
-  mantissa: {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 
-             0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40,
-             0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51}
+  sign_plus sign,
+  exponent_bias exponent,
+  mantissa_0 mantissa
 };
 
-ieee_121 = {
-  sign: sign_plus,
-  exponent: {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 1 9, 0 10},
-  mantissa: {1 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
-    0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
-    0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 
-    0 48, 0 49, 0 50, 0 51 }
-};
-ieee_3 = {
+ieee_2 = {
   sign_plus sign,
-  {0 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 0 9, 0 10} exponent,
-  {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19,
-   0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37,
-   0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51} mantissa
+  {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} exponent,
+  mantissa_0 mantissa
 };
 
-ieee_one_third = {
+ieee_4 = {
   sign_plus sign,
-  {0 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 0 8, 1 9, 1 10} exponent,
-  {0 0, 1 1, 0 2, 1 3, 0 4, 1 5, 0 6, 1 7, 0 8, 1 9, 0 10, 1 11, 0 12, 1 13, 0 14, 1 15, 0 16, 1 17, 0 18, 1 19, 0 20, 1 21, 
-   0 22, 1 23, 0 24, 1 25, 0 26, 1 27, 0 28, 1 29, 0 30, 1 31, 0 32, 1 33, 0 34, 1 35, 0 36, 1 37, 0 38, 1 39, 0 40, 1 41, 
-   0 42, 1 43, 0 44, 1 45, 0 46, 1 47, 0 48, 1 49, 0 50, 1 51} mantissa
+  {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} exponent,
+  mantissa_0 mantissa
 };
-
-ieee_10 = {
-  sign_plus sign,
-  {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 1 8, 0 9, 0 10} exponent,
-  {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51} mantissa
-};
-
-ieee_100 = {
-  sign_plus sign,
-  {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 1 6, 0 7, 1 8, 0 9, 0 10} exponent,
-  {1 0, 0 1, 0 2, 1 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51} mantissa
-};
--- Hardware floating-point operations
 
 -- Sign operations
 ieee_abs = $IEEE_754 {sign_plus sign, .exponent exponent, .mantissa mantissa};
@@ -470,73 +464,32 @@ mantissa_gt? = ${mantissa bigger, mantissa smaller} <
     >
   >
 >;
--- Hardware-style parallel FPU operations using K products
+-- IEEE 754 Bias Explanation
 
--- Parallel field extraction (1 cycle in hardware)
-ieee_decode = $IEEE_754 {
-  .sign sign_field,
-  .exponent exp_field, 
-  .mantissa mant_field,
-  ieee_kind kind_field,
-  ieee_nan? nan_check,
-  ieee_inf? inf_check,
-  ieee_0? zero_check
-};
+-- For double precision (64-bit):
+-- - Exponent field: 11 bits
+-- - Bias: 2^(11-1) - 1 = 1023
+-- - Stored exponent range: 0 to 2047
+-- - Actual exponent range: -1023 to +1024
 
--- Parallel comparison (1 cycle in hardware)
-ieee_compare = ${IEEE_754 a, IEEE_754 b} {
-  {.a.sign 0, .b.sign 1} sign_eq sign_same,
-  {.a.exponent bigger, .b.exponent smaller} exponent_gt? exp_gt,
-  {.a.mantissa bigger, .b.mantissa smaller} mantissa_gt? mant_gt,
-  {.a ieee_decode, .b ieee_decode} decode_both
-};
+-- Examples:
+-- Stored=0    → Actual=-1023 (special: subnormal/zero)
+-- Stored=1    → Actual=-1022 (smallest normal)
+-- Stored=1023 → Actual=0     (exponent for 1.0)
+-- Stored=1024 → Actual=+1    (exponent for 2.0)
+-- Stored=2047 → Actual=+1024 (special: infinity/NaN)
 
--- Parallel mantissa alignment (1 cycle with barrel shifter)
-mantissa_align = ${IEEE_754 larger, IEEE_754 smaller, int shift_amount} {
-  .larger.mantissa larger_mant,
-  .smaller.mantissa smaller_mant,
-  {.smaller.mantissa mant, .shift_amount n} shift_right aligned_mant,
-  .shift_amount exp_diff
-};
+-- bias_1023 = 1023;
 
--- Parallel addition pipeline stage (1 cycle)
-add_stage = ${ext_mantissa a, ext_mantissa b, sign result_sign} {
-  {.a mant_a, .b mant_b} mantissa_add sum,
-  .sum normalize norm_result,
-  .norm_result.shift_count leading_zeros,
-  .result_sign final_sign
-};
+-- Convert stored exponent to actual exponent
+-- actual_exponent = $int (.stored_exp - bias_1023);
 
--- Complete parallel FPU add (3-4 cycles total)
-ieee_add_parallel = ${IEEE_754 a, IEEE_754 b} <
-  -- Cycle 1: Decode and compare in parallel
-  {
-    .a ieee_decode decode_a,
-    .b ieee_decode decode_b,
-    {.a a_val, .b b_val} ieee_compare comparison
-  } stage1,
-  
-  -- Handle special cases
-  .stage1.decode_a.nan_check,
-  .stage1.decode_b.nan_check,
-  
-  -- Cycle 2: Align mantissas in parallel
-  {
-    .stage1.comparison.exp_gt exp_diff,
-    {.a larger, .b smaller, .exp_diff shift} mantissa_align alignment
-  } stage2,
-  
-  -- Cycle 3: Add and normalize in parallel
-  {
-    .stage2.alignment.larger_mant mant_a,
-    .stage2.alignment.aligned_mant mant_b,
-    .stage1.comparison.sign_same result_sign
-  } add_stage stage3,
-  
-  -- Cycle 4: Pack result
-  {
-    .stage3.final_sign sign,
-    .stage3.norm_result.exponent exponent,
-    .stage3.norm_result.mantissa mantissa
-  }
->;
+-- Examples in our representations:
+-- ieee_1: stored=1023 → actual=0  → value = 1.0 × 2^0 = 1
+-- ieee_2: stored=1024 → actual=+1 → value = 1.0 × 2^1 = 2  
+-- ieee_4: stored=1025 → actual=+2 → value = 1.0 × 2^2 = 4
+
+-- Why use bias?
+-- 1. Avoids negative number storage in exponent field
+-- 2. Makes exponent comparison easier (larger stored = larger actual)
+-- 3. Zero exponent has special meaning (subnormal numbers)
