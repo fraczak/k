@@ -20,18 +20,14 @@ console.log(JSON.stringify( six ));
 // {"i":{"i":{"i":{"i":{"i":{"i":{"o":{}}}}}}}}
 ```
 
-Working with REPL:
-
-[![asciicast](https://asciinema.org/a/UZuFpX4a5CQ47JTQngv253EVv.svg)](https://asciinema.org/a/UZuFpX4a5CQ47JTQngv253EVv)
-
 ---
 
 ## k - the way of building and manipulating JSON-like data
 
 Technically, `k` is a notation for defining **first-order partial functions**.
 
-An example of a _partial function_ is the _projection_, e.g., "`.toto`",
-which maps an object to its property named `toto`, or it is not defined if
+Examples of a _partial functions_ are _projections_, e.g., "`.toto`",
+which map an object to one of its property, here `toto`, or it is not defined if
 the property doesn't exist. E.g.,
 
 ```text
