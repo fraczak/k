@@ -31,6 +31,8 @@ inOrder_ = ${@bits x, @bits y, yes_no inOrder}
 GT = $[@bits] 
   {{.0 x, .1 y} inOrder .no if, () then} . then;
 
+EQ = [.1, .0] GT [.1, .0] GT;
+
 toBitArray = {inv x, [] r} _toBitArray; 
 _toBitArray = < 
   {.x empty? if, .r then }.then, 
@@ -57,6 +59,8 @@ nat = remove_leading_zeros <empty? 0, ()>;
 int = $@bits { nat '+'} $int;
 abs = $int <.'+',.'-'>;
 
+pos? = $int {dec .'+' if, () then} .then;
+neg? = $int {.'-' if, () then} .then; 
 zero_int? = $int {.'+' -0 empty? if, () then} .then;
 minus_one? = $int {.'-' -1 empty? if, () then} .then;
 
@@ -291,7 +295,24 @@ lcm =
   ${@bits x, @bits y}
   {{.x int x, .y int y} times x, gcd int y} div .div abs
 ;
- 
+
+ factorial = <
+  zero_int? 1 int,
+  ."+" int {dec factorial x, () y} times
+>;
+
+fib_ =
+  <
+    { .n int dec ."+" n,
+      ."fib(n),fib(n-1)" [{.0 x, .1 y} plus, .0] "fib(n),fib(n-1)"
+    } fib_,
+    ."fib(n),fib(n-1)"
+  >
+;
+
+fib = {$@bits n, [1 int, 0 int] "fib(n),fib(n-1)"} fib_ .0;
+
+
 --------------------
 $ rat = { int n, int d };
 

@@ -40,14 +40,27 @@ class Bits extends Value {
 
   static bitStringToString(bitString) {
     const byteArray = [];
-    if (0 == (bitString.length % 8)) {
+    if (bitString.length % 8 === 0) { // Check if length is a multiple of 8
       for (let i = 0; i < bitString.length; i += 8) {
           byteArray.push(parseInt(bitString.slice(i, i + 8), 2));
         }
       try {
-        return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(byteArray));
-      } catch (e) { }
-    }  
+        const decodedString = new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(byteArray));
+
+        // Check for non-printable ASCII control characters,
+        // excluding Tab (U+0009), Line Feed (U+000A), and Carriage Return (U+000D).
+        // This regex matches C0 controls (U+0000-U+001F) except \t, \n, \r, and also DEL (U+007F).
+        const nonPrintableRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+        if (nonPrintableRegex.test(decodedString)) {
+          return undefined; // String contains non-printable characters
+        }
+        return decodedString; // String is valid UTF-8 and printable
+      } catch (e) {
+        // This catch block handles errors from TextDecoder (e.g., invalid UTF-8 sequence)
+        return undefined;
+      }
+    }
+    return undefined; // Length not a multiple of 8, or other issues
   }
 
   static segmentsToBitString(str) {
@@ -97,7 +110,7 @@ class Bits extends Value {
         if (firstOneIndex === -1) {
           if (segment.length === 1) {
             parts.push('0'); 
-        } else if (segment.length < segmentSize) {
+          } else if (segment.length < segmentSize) {
             parts.push(`0b${segment}`); // binary representation of leading zeros
           } else {
             parts.push('0x00000000'); // hexadecimal representation of leading zeros

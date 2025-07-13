@@ -1,21 +1,17 @@
-incr = [$@int,1] PLUS;
-decr = [$@int,-1] PLUS;
-pos? = [$@int,0] GT .0;
-empty? = <{ SNOC.car nope}, {() empty}> .empty;
-singleton? = ?[X] <{.1 nope},{[.0] singleton}> .singleton;
+empty_vector? = ?[X] < {.0 nope}, {() yes}> .yes;
 
 take = 
---?{ $@int n, [(...)] list}
+  -- ?{ $bits n, [(...)] list}
   {.n n, [] head, .list tail} take_
---?{[X] head, [X] tail}
+  --?{[X] head, [X] tail}
 ;
 
 take_ = 
-?{ $@int n, [X] head, [X] tail}
+?{ $int n, [X] head, [X] tail}
 <
-  {.head inverse head, .tail empty? tail},
-  {[.n,0] EQ if, {.head inverse head, .tail tail} then} .then,
-  {.n decr n, {.tail SNOC.car car, .head cdr} CONS head, .tail SNOC.cdr tail} take_
+  {.head inverse head, .tail empty_vector? tail},
+  {.n pos? dec n, {.tail SNOC.car car, .head cdr} CONS head, .tail SNOC.cdr tail} take_,
+  {.n zero_int? if, {.head inverse head, .tail tail} then} .then
 >
 ?{ [X] head, [X] tail}
 ;
