@@ -61,6 +61,11 @@ mantissa_0 = {
   0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51
 } $mantissa;
 
+mantissa_max = {
+  1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10, 1 11, 1 12, 1 13, 1 14, 1 15, 1 16, 1 17, 1 18, 1 19, 1 20, 
+  1 21, 1 22, 1 23, 1 24, 1 25, 1 26, 1 27, 1 28, 1 29, 1 30, 1 31, 1 32, 1 33, 1 34, 1 35, 1 36, 1 37, 1 38, 1 39, 
+  1 40, 1 41, 1 42, 1 43, 1 44, 1 45, 1 46, 1 47, 1 48, 1 49, 1 50, 1 51
+} $mantissa;
 
 mantissa_eq = ${mantissa 0, mantissa 1} {
   {.0.0 0, .1.0 1} bit_eq 0,
@@ -118,16 +123,13 @@ mantissa_eq = ${mantissa 0, mantissa 1} {
   .0 that
 } .that;
 
-
 mantissa_0? = {mantissa_0 0, () 1} mantissa_eq; 
-
 
 $ IEEE_754 = {
   sign sign,
   exponent exponent,
   mantissa mantissa
 };
-
 
 shift_left_mantissa = $mantissa {
   .1 0, .2 1, .3 2, .4 3, .5 4, .6 5, .7 6, .8 7, .9 8,
@@ -165,26 +167,34 @@ exponent_incr = <
   {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, 0      7, 0      8, 0      9, .10.0 1 10} 
 >;
 
-is2047 = $exponent {.0.1 0, .1.1 1, .2.1 2, .3.1 3, .4.1 4, .5.1 5, .6.1 6, .7.1 7, .8.1 8, .9.1 9, .10.1 10} {};
+
 
 exponent_bias = {0 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} $exponent; 
 exponent_1023 = exponent_bias;
 exponent_2047 = {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} $exponent;
 
-$ ieee_kind = < {} "+infty", {} "-infty", {} NaN, {} number >;
+$ ieee_kind = < {} "+infty", {} "-infty", {} NaN, {} normal, {} subnormal >;
 plus_infty = {{}  "+infty"};
 minus_infty = {{} "-infty"};
 NaN = {{} NaN};
-number = {{} number};
+normal = {{} normal};
+subnormal = {{} subnormal};
 
 ieee_kind = <
-  { .exponent is2047 if, () then } .then
+  { {.exponent 0, exponent_2047 1} exponent_eq if, () then } .then
     < {.mantissa mantissa_0? if, .sign sign} .sign
       < ."+" plus_infty, minus_infty >,
       NaN
     >,
-  number
+  .exponent exponent_0? subnormal,
+  normal
 >;
+
+ieee_NaN ={
+  sign_plus sign,
+  exponent_2047 exponent,
+  mantissa_max mantissa
+}
 
 -- IEEE 754 representations
 ieee_0 = {
@@ -229,45 +239,6 @@ ieee_neg = $IEEE_754 <
   {sign_plus sign, .exponent exponent, .mantissa mantissa}
 >;
 
-copysign = ${IEEE_754 0, IEEE_754 1} {.0.sign sign, .1.exponent exponent, .1.mantissa mantissa};
-
--- Classification
-
-ieee_inf? = {
-  ieee_kind <.plus_infty, .minus_infty> if,
-  () then
-} .then;
-
-ieee_nan? = {
-  ieee_kind .NaN if,
-  () then
-} .then;
-
-ieee_eq = ${IEEE_754 0, IEEE_754 1} {
-  {.0.sign 0, .1.sign 1} sign_eq sign_eq,
-  {.0.exponent 0, .1.exponent 1} exponent_eq exponent_eq,
-  {.0.mantissa 0, .1.mantissa 1} mantissa_eq mantissa_eq,
-  .0 then
-} .then;
--- IEEE 754 Addition Algorithm (Full Implementation)
-
--- Extended mantissa with guard, round, sticky bits
-$ ext_mantissa = {
-  bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
-  bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
-  bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29,
-  bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39,
-  bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49,
-  bit 50, bit 51, bit 52, bit 53, bit 54  -- guard, round, sticky
-};
-
--- Mantissa addition with carry
-mantissa_add = ${ext_mantissa a, ext_mantissa b} <
-  -- Full 55-bit adder implementation would go here
-  -- For brevity, showing structure only
-  .a  -- Placeholder
->;
-
 -- Exponent comparison - identity only if bigger > smaller
 exponent_gt? = ${exponent bigger, exponent smaller} <
   -- Compare bit by bit from most significant to least significant
@@ -305,6 +276,7 @@ exponent_gt? = ${exponent bigger, exponent smaller} <
     >
   >
 >;  
+
 -- Mantissa comparison - identity only if bigger > smaller
 mantissa_gt? = ${mantissa bigger, mantissa smaller} <
   {.bigger.0.1 1, .smaller.0.0 0, () then } .then,
@@ -464,6 +436,8 @@ mantissa_gt? = ${mantissa bigger, mantissa smaller} <
     >
   >
 >;
+
+
 -- IEEE 754 Bias Explanation
 
 -- For double precision (64-bit):
@@ -493,3 +467,65 @@ mantissa_gt? = ${mantissa bigger, mantissa smaller} <
 -- 1. Avoids negative number storage in exponent field
 -- 2. Makes exponent comparison easier (larger stored = larger actual)
 -- 3. Zero exponent has special meaning (subnormal numbers)
+
+
+--- ADDITION
+
+// IEEE 754 Double Precision Addition Algorithm
+//
+// Input: Two IEEE 754 numbers A and B, each with:
+// - 1 sign bit (bit 63)
+// - 11 exponent bits (bits 62-52) 
+// - 52 mantissa bits (bits 51-0), with implicit leading 1
+//
+
+ieee_add = ${IEEE_754 x, IEEE_754 y} 
+  {.x x, .y y, .x ieee_kind xkind, .y ieee_kind ykind} 
+<
+  -- special cases: zero, infinity, NaN
+  .xkind.NaN ieee_NaN,
+  .ykind.NaN ieee_NaN,
+  {.xkind."+infty" "xkind+inf", .ykind."-infty" "ykind-inf"} ieee_NaN,
+  {.xkind."-infty" "xkind-inf", .ykind."+infty" "ykind+inf"} ieee_NaN,
+  {.xkind <."+infty","-infty"> if, .x then} .then,
+  {.ykind <."+infty","-infty"> if, .y then} .then,
+
+
+  // Step 2: Align exponents
+  exponent_diff = exponent_a - exponent_b if,
+  () then
+>;
+
+// Step 1: Extract components
+// - Extract sign, exponent, and mantissa from both operands
+// - Handle special cases (zero, infinity, NaN) early
+
+//
+// Step 2: Align operands
+// - Compare exponents to determine which number is larger
+// - Shift the smaller number's mantissa right by the exponent difference
+// - This alignment ensures both numbers have the same scale
+//
+// Step 3: Add/subtract mantissas
+// - If signs are same: add the aligned mantissas
+// - If signs differ: subtract smaller from larger mantissa
+// - The mantissa operation is done in extended precision (extra guard bits)
+//
+// Step 4: Normalize result
+// - If overflow occurred: shift mantissa right, increment exponent
+// - If underflow occurred: shift mantissa left, decrement exponent
+// - Continue until mantissa has proper form (1.xxxxx...)
+//
+// Step 5: Round result
+// - Apply IEEE rounding mode (usually round-to-nearest-even)
+// - May cause another normalization step if rounding overflows
+//
+// Step 6: Handle special cases in result
+// - Check for exponent overflow (→ infinity)
+// - Check for exponent underflow (→ zero or subnormal)
+// - Assemble final IEEE format with proper sign bit
+//
+// Key hardware optimizations:
+// - Parallel exponent comparison and mantissa alignment
+// - Leading zero detection for fast normalization
+// - Sticky bit computation for accurate rounding
