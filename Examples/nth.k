@@ -1,4 +1,5 @@
 empty_vector? = ?[X] < {.0 nope}, {() yes}> .yes;
+singleton? = ?[X] < {.1 nope}, {[.0] yes } > .yes;
 
 take = 
   -- ?{ $bits n, [(...)] list}
@@ -20,7 +21,7 @@ part =
   { take a, .n n } 
   { .a.head car, 
     <
-      .a.tail empty? [], 
+      .a.tail empty_vector? [], 
       {.n n, .a.tail list} part
     >       cdr
   } CONS
@@ -31,7 +32,7 @@ inverse = ?[X] {() in, [] ?[X] out} inverse_;
 inverse_ =
 ?{ [X] in, [X] out}
 < 
-  {.in empty? if, .out then} .then,
+  {.in empty_vector? if, .out then} .then,
   {{.in SNOC.car car, .out cdr} CONS out, .in SNOC.cdr in} inverse_
 >
 ?[X]
@@ -45,7 +46,7 @@ split =
 split_ =
 ? {[X] list, [X] one, [X] two}
 <
-  {.list empty? if, {.one inverse 0, .two inverse 1} then} .then,
+  {.list empty_vector? if, {.one inverse 0, .two inverse 1} then} .then,
   {.list SNOC.cdr             list, 
     {.list.0 car, .one cdr} CONS two, 
     .two                 one
@@ -58,8 +59,8 @@ merge = { .0 one, .1 two, [] result} merge_ inverse;
 
 merge_ = ?{[X] one, [X] two, [X] result} 
 <
-  {.one empty? if, {.two in, .result out} inverse_ then} .then,
-  {.two empty? if, {.one in, .result out} inverse_ then} .then,
+  {.one empty_vector? if, {.two in, .result out} inverse_ then} .then,
+  {.two empty_vector? if, {.one in, .result out} inverse_ then} .then,
   {[.two SNOC.car, .one SNOC.car] GT if, {.two one, .one two, .result result} merge_ then} .then,
   
   {.one SNOC.cdr one, .two two, {.one SNOC.car car, .result cdr} CONS result} merge_
@@ -69,7 +70,7 @@ merge_ = ?{[X] one, [X] two, [X] result}
 sort = 
 ?[X]
 <
-  empty?,
+  empty_vector?,
   singleton?,
   split {.0 sort 0, .1 sort 1} merge
 >
@@ -77,7 +78,7 @@ sort =
 ;
 
 uniq =  < 
-  empty?, 
+  empty_vector?, 
   singleton?, 
   {[.0,.1] EQ if, SNOC.cdr uniq then} .then, { SNOC.car car, SNOC.cdr uniq cdr} CONS 
 >;
@@ -116,9 +117,9 @@ cats =
 cats_ =
 ?{[[X]] lists, [X] result}
 < 
-  {.lists empty? if, .result then} .then inverse,
+  {.lists empty_vector? if, .result then} .then inverse,
   < 
-    {.lists SNOC.car empty? if, {.lists SNOC.cdr lists, .result result} then} .then,
+    {.lists SNOC.car empty_vector? if, {.lists SNOC.cdr lists, .result result} then} .then,
     {.lists { SNOC.car SNOC.cdr car, SNOC.cdr cdr} CONS lists, {.lists SNOC.car SNOC.car car, .result cdr} CONS result}
   > cats_
 >
@@ -128,8 +129,8 @@ cats_ =
 range = {() n, [] result} range_;
 range_ =
 < 
-  {.n.0 if, .result then} .then,
-  {.n decr n, {.n car, .result cdr} CONS result} range_
+  {.n zero_int? if, .result then} .then,
+  {.n dec n, {.n car, .result cdr} CONS result} range_
 >;
 
 
@@ -144,7 +145,7 @@ join =
 
 join_ = 
 <
-  {.list empty? if, .result then} .then,
+  {.list empty_vector? if, .result then} .then,
   {.list singleton? if, {.list SNOC.car car, .result cdr} CONS then} .then,
   {.list SNOC.cdr list, .with with, {.with car, {.list.0 car, .result cdr} CONS cdr} CONS result} 
   join_
@@ -153,17 +154,17 @@ join_ =
 -- vectors
 
 -- len = | 1 ^ PLUS; -- using PIPES
-len = {() list, 0 res} len_;
+len = {() list, 0 int res} len_;
 len_ = <
-  {.list empty? if, .res then} .then,
-  {.list SNOC.cdr list, .res incr res} len_
+  {.list empty_vector? if, .res then} .then,
+  {.list SNOC.cdr list, .res inc res} len_
 >;
 
 get = 
 -- {[@int] list, @int pos}
 <
- {.pos.0 if, .list.0 then} .then,
- {.list SNOC.cdr list, [.pos, 0] GT .0 decr pos} get
+ {.pos zero_int? if, .list.0 then} .then,
+ {.list SNOC.cdr list, [.pos."+", 0] GT .0 int dec pos} get
 >;
 
 set = 
@@ -182,23 +183,20 @@ zip = Zip | [.x, .y] ^;
 
 pascal_ = 
 -- next line in pascal's triangle
-  {{0 car,() cdr} CONS x, {0 car, inverse cdr} CONS inverse y} zip (| PLUS ^)
+  {{0 int car,() cdr} CONS x, {0 int car, inverse cdr} CONS inverse y} Zip (| plus ^)
 ;
 
 pascal = < 
-  pos? decr pascal pascal_, 
-  [1]
+  pos? dec pascal pascal_, 
+  [1 int ]
 >;
 
-MINUS = $[@int]
-  SNOC [.car, [.cdr PLUS, -1] TIMES] PLUS;
-
 nth = 
-  ?{$@int n, [X] list}
+  ?{$int n, [X] list}
   <
-    {[.list len, 5] GT if, () then} .then 
-    {.n n, .list list, {.list list, 5 n} part (| <{3 n, () list} nth, .0> ^) medians }
-    {.n n, .list list, {[.medians len,2] DIV .div n, .medians list} nth median} 
+    {[.list len ."+", 5] GT if, () then} .then 
+    {.n n, .list list, {.list list, 5 int n} part (| <{3 int n, () list} nth, .0> ^) medians }
+    {.n n, .list list, {{.medians len x, 2 int y} div .div n, .medians list} nth median} 
     {
       .n n, 
       [.median, .list |] GT .1 ^ smaller,
@@ -210,25 +208,25 @@ nth =
       .smaller len smaller_len
     }
     < 
-      {[.smaller_len, .n] <GT,EQ> if, {.n n, .smaller list} nth then} .then,
+      {[.smaller_len."+", .n."+"] <GT,EQ> if, {.n n, .smaller list} nth then} .then,
       { 
         .n n, .equal equal, .bigger bigger, .smaller_len smaller_len, 
-        [.smaller_len, .equal len] PLUS smaller_equal_len
+        {.smaller_len x, .equal len y} plus smaller_equal_len
       }
       <
-        {[.smaller_equal_len, .n] <GT,EQ> if, .equal .0 then} .then,
-        {[.n, .smaller_equal_len] MINUS n, .bigger list} nth
+        {[.smaller_equal_len."+", .n."+"] <GT,EQ> if, .equal .0 then} .then,
+        {{.n x, .smaller_equal_len y} minus n, .bigger list} nth
       >
     >
     ,
-    {.list sort inverse list, .n decr pos} get
+    {.list sort inverse list, .n dec pos} get
   >
   ?X
 ;
 
 qsort = 
   ?[X] 
-  < empty?, 
+  < empty_vector?, 
     singleton?, 
     split_by_median
     [."<" qsort, ."=", .">" qsort] cats 
@@ -240,7 +238,7 @@ cdr = SNOC.cdr;
 split_by_median =
   {
     () list, 
-    {() list, [len, 2] DIV .div n} nth pivot, 
+    {() list, {len x, 2 int y} div .div n} nth pivot, 
     [] "<", 
     [] "=", 
     [] ">"

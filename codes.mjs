@@ -20,6 +20,11 @@ function encodeCodeToString(code, codes = theRepository.codes) {
   while (Q.length > 0) {
     const [x,c] = Q.shift();
     const c_code = codes[x];
+    // if (c_code == null) {
+    //   console.log(`${JSON.stringify(x)}`);
+    //   result.push(`$C${result.length}=${JSON.stringify(x)};`);
+    //   continue;
+    // }
     if (c_code.code == "vector") {
       const u_arg = c_code.vector;
       if (isBuiltIn(u_arg)) {
