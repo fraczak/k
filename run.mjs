@@ -185,6 +185,7 @@ function run(exp, value) {
             }
           }
         }
+        if (open) return result;
         return new Vector(result);
       }
       case "product": {
@@ -226,10 +227,12 @@ function run(exp, value) {
             }
           }      
         }
+        if (open) return result;
         return new Product(result);
       }
       case "caret": {
         const result = run(exp.caret, value);
+        // console.log(JSON.stringify({e: exp.caret, value, result}, null, 2));
         // assert(isOpen(result), "CARET (^): Only an 'open' vector can be closed.");
         if (! isOpen(result))
           throw new Error(`Type Error (line: ${exp.end?.line}:${exp.end?.column}): CARET (^): Only 'unboxed' values can be 'boxed'.`)
