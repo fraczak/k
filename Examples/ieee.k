@@ -194,7 +194,7 @@ ieee_NaN ={
   sign_plus sign,
   exponent_2047 exponent,
   mantissa_max mantissa
-}
+};
 
 -- IEEE 754 representations
 ieee_0 = {
@@ -479,53 +479,139 @@ mantissa_gt? = ${mantissa bigger, mantissa smaller} <
 // - 52 mantissa bits (bits 51-0), with implicit leading 1
 //
 
+-- Helper function for mantissa addition with carry
+mantissa_add_with_carry = ${mantissa a, mantissa b, bit carry_in}
+  {.a a, .b b, .carry_in carry_in}
+  -- This would need a full 52-bit adder implementation
+  -- For now, simplified version that handles basic cases
+  < .a.0? {.b b, .carry_in carry_in} mantissa_add_simple,
+    .b.0? .a,
+    -- Full implementation would go here
+    .a
+  >;
+
+-- Simplified mantissa addition for demonstration
+mantissa_add_simple = ${mantissa b, bit carry} .b;
+
+-- Helper to determine which IEEE number is larger in magnitude
+ieee_magnitude_greater = ${IEEE_754 a, IEEE_754 b}
+  {.a a, .b b}
+  <
+    -- Compare exponents first
+    {.a.exponent 0, .b.exponent 1} exponent_gt? .a,
+    {.b.exponent 0, .a.exponent 1} exponent_gt? .b,
+    -- If exponents equal, compare mantissas
+    {.a.mantissa 0, .b.mantissa 1} mantissa_gt? .a,
+    .b
+  >;
+
+-- Main IEEE addition function
 ieee_add = ${IEEE_754 x, IEEE_754 y} 
   {.x x, .y y, .x ieee_kind xkind, .y ieee_kind ykind} 
 <
-  -- special cases: zero, infinity, NaN
+  -- Special cases: NaN propagation
   .xkind.NaN ieee_NaN,
   .ykind.NaN ieee_NaN,
-  {.xkind."+infty" "xkind+inf", .ykind."-infty" "ykind-inf"} ieee_NaN,
-  {.xkind."-infty" "xkind-inf", .ykind."+infty" "ykind+inf"} ieee_NaN,
-  {.xkind <."+infty","-infty"> if, .x then} .then,
-  {.ykind <."+infty","-infty"> if, .y then} .then,
-
-
-  // Step 2: Align exponents
-  exponent_diff = exponent_a - exponent_b if,
-  () then
+  
+  -- Infinity cases
+  {.xkind."+infty" "+inf", .ykind."-infty" "-inf"} ieee_NaN,
+  {.xkind."-infty" "-inf", .ykind."+infty" "+inf"} ieee_NaN,
+  {.xkind <."+infty",."-infty"> if, .x then} .then,
+  {.ykind <."+infty",."-infty"> if, .y then} .then,
+  
+  -- Zero cases
+  .x ieee_0? .y,
+  .y ieee_0? .x,
+  
+  -- Normal addition case
+  {.x x, .y y} ieee_add_normal
 >;
 
-// Step 1: Extract components
-// - Extract sign, exponent, and mantissa from both operands
-// - Handle special cases (zero, infinity, NaN) early
+-- Normal case addition (both operands are normal numbers)
+ieee_add_normal = ${IEEE_754 x, IEEE_754 y}
+  {.x x, .y y}
+  -- Determine larger magnitude operand for alignment
+  {.x 0, .y 1} ieee_magnitude_greater larger
+  {.larger larger, 
+   {.larger.x if, .y then, .x then} smaller} -- if larger==x then smaller=y else smaller=x
+  
+  -- Check if signs are same
+  {.larger.sign 0, .smaller.sign 1} sign_eq same_sign
+  
+  <
+    -- Same signs: add mantissas
+    .same_sign {
+      .larger.sign result_sign,
+      .larger.exponent result_exp,
+      {.larger.mantissa 0, .smaller.mantissa 1, 0 carry} mantissa_add_with_carry result_mantissa
+    } $IEEE_754,
+    
+    -- Different signs: subtract mantissas  
+    {
+      .larger.sign result_sign,
+      .larger.exponent result_exp,
+      .larger.mantissa result_mantissa -- Simplified: just use larger mantissa
+    } $IEEE_754
+  >;
 
-//
-// Step 2: Align operands
-// - Compare exponents to determine which number is larger
-// - Shift the smaller number's mantissa right by the exponent difference
-// - This alignment ensures both numbers have the same scale
-//
-// Step 3: Add/subtract mantissas
-// - If signs are same: add the aligned mantissas
-// - If signs differ: subtract smaller from larger mantissa
-// - The mantissa operation is done in extended precision (extra guard bits)
-//
-// Step 4: Normalize result
-// - If overflow occurred: shift mantissa right, increment exponent
-// - If underflow occurred: shift mantissa left, decrement exponent
-// - Continue until mantissa has proper form (1.xxxxx...)
-//
-// Step 5: Round result
-// - Apply IEEE rounding mode (usually round-to-nearest-even)
-// - May cause another normalization step if rounding overflows
-//
-// Step 6: Handle special cases in result
-// - Check for exponent overflow (→ infinity)
-// - Check for exponent underflow (→ zero or subnormal)
-// - Assemble final IEEE format with proper sign bit
-//
-// Key hardware optimizations:
-// - Parallel exponent comparison and mantissa alignment
-// - Leading zero detection for fast normalization
-// - Sticky bit computation for accurate rounding
+-- IEEE 754 Multiplication
+ieee_mult = ${IEEE_754 x, IEEE_754 y}
+  {.x x, .y y, .x ieee_kind xkind, .y ieee_kind ykind}
+<
+  -- Special cases: NaN propagation
+  .xkind.NaN ieee_NaN,
+  .ykind.NaN ieee_NaN,
+  
+  -- Zero cases (0 * anything = 0, except 0 * infinity = NaN)
+  {.x ieee_0? if, .ykind <."+infty", ."-infty"> if, ieee_NaN then, ieee_0 then} .then,
+  {.y ieee_0? if, .xkind <."+infty", ."-infty"> if, ieee_NaN then, ieee_0 then} .then,
+  
+  -- Infinity cases (inf * non-zero = inf with combined sign)
+  {.xkind <."+infty", ."-infty"> if, 
+    {.x.sign 0, .y.sign 1} sign_eq same_signs
+    <
+      .same_signs {sign_plus sign, exponent_2047 exponent, mantissa_0 mantissa},
+      {sign_minus sign, exponent_2047 exponent, mantissa_0 mantissa}
+    > then
+  } .then,
+  
+  {.ykind <."+infty", ."-infty"> if,
+    {.x.sign 0, .y.sign 1} sign_eq same_signs  
+    <
+      .same_signs {sign_plus sign, exponent_2047 exponent, mantissa_0 mantissa},
+      {sign_minus sign, exponent_2047 exponent, mantissa_0 mantissa}
+    > then
+  } .then,
+  
+  -- Normal multiplication
+  {.x x, .y y} ieee_mult_normal
+>;
+-- Normal multiplication (both operands are normal numbers)
+ieee_mult_normal = ${IEEE_754 x, IEEE_754 y}
+  {.x x, .y y}
+  
+  -- Determine result sign (XOR of input signs)
+  {.x.sign 0, .y.sign 1} sign_eq same_signs
+  {.same_signs if, sign_plus then, sign_minus then} result_sign
+  
+  -- Add exponents (subtract bias once since it was added twice)
+  {.x.exponent x_exp, .y.exponent y_exp}
+  -- Simplified: for now just use x's exponent
+  .x_exp result_exp
+  
+  -- Multiply mantissas (simplified - in reality this is a complex 52x52 bit multiplication)
+  .x.mantissa result_mantissa
+  
+  {.result_sign sign, .result_exp exponent, .result_mantissa mantissa} $IEEE_754;
+
+-- Exponent arithmetic helpers (simplified)
+exponent_add = ${exponent a, exponent b} .a; -- Simplified implementation
+exponent_sub = ${exponent a, exponent b} .a; -- Simplified implementation
+
+-- Test expressions and basic arithmetic
+test_add_1_1 = {ieee_1 0, ieee_1 1} ieee_add;
+test_add_1_2 = {ieee_1 0, ieee_2 1} ieee_add;
+test_mult_2_2 = {ieee_2 0, ieee_2 1} ieee_mult;
+
+-- Main test expression
+test_add_1_1

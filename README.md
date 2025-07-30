@@ -81,7 +81,6 @@ Comments can be introduced by `//`, `--`, `%`, or `#` and extend to
 the end of the line. Multiline C-like comments, `/* ... */`, are also
 supported.
 
-
 ### Codes (Schemas, i.e., Types) and Functions
 
 _Codes_ can be defined by tagged union and product. E.g.:
@@ -116,6 +115,8 @@ $ myCode = {<nat 1, {} 0> x, nat y};
  $ @IxLVRLECv = {@BADJOX x, @BADJOX y}; -- $C0={C1"x",C1"y"};$C1=<C2"0",C1"1">;$C2={};
 ```
 
+There is no 'built-in' nor `predefined` code in the language: no `string`, no `int`, no `bool`, etc.
+
 ### Code Derivation and Patterns
 
 Intuitively, a _pattern_ represents some set of constraints on
@@ -134,12 +135,14 @@ product or union code with field `toto` leading to a code fulfilling
   toto = .toto;
 ```
 
-In a more complex expression, each (occurrence of) subexpression will
+In a more complex expression, each (occurrence of) sub-expression will
 introduce some new patterns.
 For example, consider `rel = <.toto, ()>;`.
 
-        <    .toto    ,    ()    >
-     p1   p2       p3   p4    p5   p6
+```text
+    <    .toto    ,    ()    >
+ p1   p2       p3   p4    p5   p6
+```
 
 where `p1` is the pattern for the input code of the whole expression,
 and `p6` is the pattern for the output. We can deduce that patterns
@@ -156,8 +159,8 @@ same code. In `k-repl`:
   rel = <.toto, ()>;
 ```
 
-For a given `kScript`, code derivation (as any static analysis) can
-fail, indicating that the script is invalid. In some other cases, the
+For a given `k` program, code derivation (as any static analysis) can
+fail, indicating that the program is invalid. In some other cases, the
 code derivation can succeed even to the point of reducing every pattern
 to a single code, making the program fully annotated by codes.
 
