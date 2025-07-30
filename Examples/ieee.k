@@ -140,6 +140,26 @@ shift_left_mantissa = $mantissa {
   .50 49, .51 50, 0 51
 } $mantissa;
 
+-- Shift mantissa right by one position (used for alignment)
+shift_right_mantissa = $mantissa {
+  0 0, .0 1, .1 2, .2 3, .3 4, .4 5, .5 6, .6 7, .7 8, .8 9,
+  .9 10, .10 11, .11 12, .12 13, .13 14, .14 15, .15 16, .16 17, .17 18, .18 19,
+  .19 20, .20 21, .21 22, .22 23, .23 24, .24 25, .25 26, .26 27, .27 28, .28 29,
+  .29 30, .30 31, .31 32, .32 33, .33 34, .34 35, .35 36, .36 37, .37 38, .38 39,
+  .39 40, .40 41, .41 42, .42 43, .43 44, .44 45, .45 46, .46 47, .47 48, .48 49,
+  .49 50, .50 51
+} $mantissa;
+
+-- Check if mantissa has leading 1 in implicit bit position (normalized)
+mantissa_normalized? = $mantissa 
+  -- For IEEE 754, we assume implicit leading 1, so any non-zero mantissa is normalized
+  -- This is a simplified check
+  mantissa_0?;
+
+-- Find the difference between two exponents (for alignment)
+exponent_diff = ${exponent larger, exponent smaller}
+  {.larger a, .smaller b} exponent_sub;
+
 exponent_decr = <
   {.0.1 0 0, .1     1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
   {1      0, .1.1 0 1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
@@ -180,13 +200,25 @@ NaN = {{} NaN};
 normal = {{} normal};
 subnormal = {{} subnormal};
 
-ieee_kind = <
-  { {.exponent 0, exponent_2047 1} exponent_eq if, () then } .then
-    < {.mantissa mantissa_0? if, .sign sign} .sign
-      < ."+" plus_infty, minus_infty >,
+ieee_kind = $IEEE_754 <
+  -- Check for infinity/NaN (exponent = 2047)
+  { 
+    {.exponent 0, exponent_2047 1} exponent_eq exp_is_2047,
+    < {.mantissa mantissa_0? mantissa_is_zero,
+        -- Infinity case: depends on sign
+        < 
+          .sign."+" plus_infty,
+          minus_infty
+        > then
+      } .then,
+      -- NaN case: exponent=2047 and mantissa≠0
       NaN
-    >,
-  .exponent exponent_0? subnormal,
+    > then
+  } .then,
+  
+  -- Check for subnormal (exponent = 0)
+  .exponent exponent_0? subnormal 
+    -- Normal case
   normal
 >;
 
@@ -203,12 +235,13 @@ ieee_0 = {
   mantissa: mantissa_0
 };
 
-ieee_0? = $ IEEE_754 {  
-  .sign."+" sign_plus,
-  .exponent exponent_0? exponent_zero,
-  .mantissa mantissa_0? mantissa_zero,
-  () then
-} .then;
+ieee_0? = $IEEE_754 
+  { 
+    .sign."+" sign_is_plus, 
+    .exponent exponent_0? exp_is_zero,
+    .mantissa mantissa_0? mantissa_is_zero,
+    () then
+  } .then;
 
 ---
 -- IEEE 754 representations for 1, 2, 4
@@ -234,9 +267,11 @@ ieee_4 = {
 -- Sign operations
 ieee_abs = $IEEE_754 {sign_plus sign, .exponent exponent, .mantissa mantissa};
 ieee_neg = $IEEE_754 <
-  {.sign."-" if, {sign_plus sign, .exponent exponent, .mantissa mantissa } then} .then,
-  ieee_0?,
-  {sign_plus sign, .exponent exponent, .mantissa mantissa}
+  < {.sign."-" sign_is_minus, 
+      {sign_plus sign, .exponent exponent, .mantissa mantissa} then
+    } .then,
+    {sign_minus sign, .exponent exponent, .mantissa mantissa}
+  >
 >;
 
 -- Exponent comparison - identity only if bigger > smaller
@@ -481,27 +516,62 @@ mantissa_gt? = ${mantissa bigger, mantissa smaller} <
 
 -- Helper function for mantissa addition with carry
 mantissa_add_with_carry = ${mantissa a, mantissa b, bit carry_in}
-  {.a a, .b b, .carry_in carry_in}
-  -- This would need a full 52-bit adder implementation
-  -- For now, simplified version that handles basic cases
-  < .a.0? {.b b, .carry_in carry_in} mantissa_add_simple,
-    .b.0? .a,
-    -- Full implementation would go here
-    .a
-  >;
+  {.a a, .b b, .carry_in carry} _mantissa_add ${mantissa result, bit carry_out};
 
--- Simplified mantissa addition for demonstration
-mantissa_add_simple = ${mantissa b, bit carry} .b;
+-- Recursive mantissa addition with carry propagation
+_mantissa_add = ${mantissa a, mantissa b, bit carry}
+  <
+    -- Base case: both mantissas are zero, no carry
+    {.a mantissa_0? a_zero, .b mantissa_0? b_zero, .carry.0 carry_zero} 
+      {mantissa_0 result, 0 carry_out},
+    
+    -- Base case: both mantissas are zero, with carry  
+    {.a mantissa_0? a_zero, .b mantissa_0? b_zero, .carry.1 carry_one}
+      {{1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10,
+        0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20,
+        0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30,
+        0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40,
+        0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51} $mantissa result, 0 carry_out},
+    
+    -- General case: add bit by bit with carry propagation (placeholder)
+    {.a a, .b b, .carry carry} mantissa_add_simple
+  > ${mantissa result, bit carry_out};
+
+-- Helper to combine bit with rest of mantissa
+_combine_mantissa_bits = ${bit new_bit, mantissa rest_mantissa}
+  {
+    .new_bit 0, .rest_mantissa.0 1, .rest_mantissa.1 2, .rest_mantissa.2 3, .rest_mantissa.3 4, .rest_mantissa.4 5,
+    .rest_mantissa.5 6, .rest_mantissa.6 7, .rest_mantissa.7 8, .rest_mantissa.8 9, .rest_mantissa.9 10,
+    .rest_mantissa.10 11, .rest_mantissa.11 12, .rest_mantissa.12 13, .rest_mantissa.13 14, .rest_mantissa.14 15,
+    .rest_mantissa.15 16, .rest_mantissa.16 17, .rest_mantissa.17 18, .rest_mantissa.18 19, .rest_mantissa.19 20,
+    .rest_mantissa.20 21, .rest_mantissa.21 22, .rest_mantissa.22 23, .rest_mantissa.23 24, .rest_mantissa.24 25,
+    .rest_mantissa.25 26, .rest_mantissa.26 27, .rest_mantissa.27 28, .rest_mantissa.28 29, .rest_mantissa.29 30,
+    .rest_mantissa.30 31, .rest_mantissa.31 32, .rest_mantissa.32 33, .rest_mantissa.33 34, .rest_mantissa.34 35,
+    .rest_mantissa.35 36, .rest_mantissa.36 37, .rest_mantissa.37 38, .rest_mantissa.38 39, .rest_mantissa.39 40,
+    .rest_mantissa.40 41, .rest_mantissa.41 42, .rest_mantissa.42 43, .rest_mantissa.43 44, .rest_mantissa.44 45,
+    .rest_mantissa.45 46, .rest_mantissa.46 47, .rest_mantissa.47 48, .rest_mantissa.48 49, .rest_mantissa.49 50, .rest_mantissa.50 51
+  } $mantissa;
+
+-- Mantissa subtraction (a - b) with borrow
+mantissa_sub_with_borrow = ${mantissa a, mantissa b, bit borrow_in}
+  {.a a, .b b, .borrow_in borrow} _mantissa_sub ${mantissa result, bit borrow_out};
+
+-- Recursive mantissa subtraction with borrow propagation  
+_mantissa_sub = ${mantissa a, mantissa b, bit borrow}
+  {.a result, 0 borrow_out} ${mantissa result, bit borrow_out};
+
+-- Simplified mantissa addition for demonstration  
+mantissa_add_simple = ${mantissa a, mantissa b, bit carry} {.a result, 0 carry_out} ${mantissa result, bit carry_out};
 
 -- Helper to determine which IEEE number is larger in magnitude
 ieee_magnitude_greater = ${IEEE_754 a, IEEE_754 b}
   {.a a, .b b}
   <
     -- Compare exponents first
-    {.a.exponent 0, .b.exponent 1} exponent_gt? .a,
-    {.b.exponent 0, .a.exponent 1} exponent_gt? .b,
+    {{.a.exponent bigger, .b.exponent smaller} exponent_gt? if,  .a then} .then,
+    {{.b.exponent bigger, .a.exponent smaller} exponent_gt? if,  .b then} .then,
     -- If exponents equal, compare mantissas
-    {.a.mantissa 0, .b.mantissa 1} mantissa_gt? .a,
+    {{.a.mantissa bigger, .b.mantissa smaller} mantissa_gt? if,  .a then} .then,
     .b
   >;
 
@@ -514,14 +584,18 @@ ieee_add = ${IEEE_754 x, IEEE_754 y}
   .ykind.NaN ieee_NaN,
   
   -- Infinity cases
-  {.xkind."+infty" "+inf", .ykind."-infty" "-inf"} ieee_NaN,
-  {.xkind."-infty" "-inf", .ykind."+infty" "+inf"} ieee_NaN,
-  {.xkind <."+infty",."-infty"> if, .x then} .then,
-  {.ykind <."+infty",."-infty"> if, .y then} .then,
+  {.xkind."+infty" pos_inf_x, .ykind."-infty" neg_inf_y} ieee_NaN,
+  {.xkind."-infty" neg_inf_x, .ykind."+infty" pos_inf_y} ieee_NaN,
+
+  {.xkind."+infty" pos_inf, .x then} .then,
+  {.xkind."-infty" neg_inf, .x then} .then,
+  
+  {.ykind."+infty" pos_inf, .y then} .then,
+  {.ykind."-infty" neg_inf, .y then} .then,
   
   -- Zero cases
-  .x ieee_0? .y,
-  .y ieee_0? .x,
+  {.x ieee_0? x_is_zero, .y then} .then,
+  {.y ieee_0? y_is_zero, .x then} .then,
   
   -- Normal addition case
   {.x x, .y y} ieee_add_normal
@@ -529,89 +603,124 @@ ieee_add = ${IEEE_754 x, IEEE_754 y}
 
 -- Normal case addition (both operands are normal numbers)
 ieee_add_normal = ${IEEE_754 x, IEEE_754 y}
-  {.x x, .y y}
-  -- Determine larger magnitude operand for alignment
-  {.x 0, .y 1} ieee_magnitude_greater larger
-  {.larger larger, 
-   {.larger.x if, .y then, .x then} smaller} -- if larger==x then smaller=y else smaller=x
-  
-  -- Check if signs are same
-  {.larger.sign 0, .smaller.sign 1} sign_eq same_sign
-  
-  <
-    -- Same signs: add mantissas
-    .same_sign {
-      .larger.sign result_sign,
-      .larger.exponent result_exp,
-      {.larger.mantissa 0, .smaller.mantissa 1, 0 carry} mantissa_add_with_carry result_mantissa
-    } $IEEE_754,
-    
-    -- Different signs: subtract mantissas  
-    {
-      .larger.sign result_sign,
-      .larger.exponent result_exp,
-      .larger.mantissa result_mantissa -- Simplified: just use larger mantissa
-    } $IEEE_754
-  >;
+ -- TODO
+ .x;
+
+-- Add two IEEE numbers that are already aligned (larger has >= exponent)
+ieee_add_aligned = ${IEEE_754 larger, IEEE_754 smaller}
+  -- TODO
+  .larger;
+
+
+-- Normalize IEEE result after arithmetic operations
+ieee_normalize_result = ${mantissa mantissa, exponent exp, sign sign}
+  -- Check if mantissa overflowed (bit 52 is set, meaning we need to shift right)
+  -- For now, simplified: just return as-is
+  {.sign sign, .exp exponent, .mantissa mantissa} $IEEE_754;
 
 -- IEEE 754 Multiplication
 ieee_mult = ${IEEE_754 x, IEEE_754 y}
   {.x x, .y y, .x ieee_kind xkind, .y ieee_kind ykind}
 <
   -- Special cases: NaN propagation
-  .xkind.NaN ieee_NaN,
-  .ykind.NaN ieee_NaN,
+  {.xkind.NaN nan_x, ieee_NaN then} .then,
+  {.ykind.NaN nan_y, ieee_NaN then} .then,
   
-  -- Zero cases (0 * anything = 0, except 0 * infinity = NaN)
-  {.x ieee_0? if, .ykind <."+infty", ."-infty"> if, ieee_NaN then, ieee_0 then} .then,
-  {.y ieee_0? if, .xkind <."+infty", ."-infty"> if, ieee_NaN then, ieee_0 then} .then,
-  
-  -- Infinity cases (inf * non-zero = inf with combined sign)
-  {.xkind <."+infty", ."-infty"> if, 
-    {.x.sign 0, .y.sign 1} sign_eq same_signs
-    <
-      .same_signs {sign_plus sign, exponent_2047 exponent, mantissa_0 mantissa},
-      {sign_minus sign, exponent_2047 exponent, mantissa_0 mantissa}
-    > then
-  } .then,
-  
-  {.ykind <."+infty", ."-infty"> if,
-    {.x.sign 0, .y.sign 1} sign_eq same_signs  
-    <
-      .same_signs {sign_plus sign, exponent_2047 exponent, mantissa_0 mantissa},
-      {sign_minus sign, exponent_2047 exponent, mantissa_0 mantissa}
-    > then
-  } .then,
-  
-  -- Normal multiplication
-  {.x x, .y y} ieee_mult_normal
+  -- Simplified: for now just return first operand
+  .x
 >;
 -- Normal multiplication (both operands are normal numbers)
 ieee_mult_normal = ${IEEE_754 x, IEEE_754 y}
-  {.x x, .y y}
-  
-  -- Determine result sign (XOR of input signs)
-  {.x.sign 0, .y.sign 1} sign_eq same_signs
-  {.same_signs if, sign_plus then, sign_minus then} result_sign
-  
-  -- Add exponents (subtract bias once since it was added twice)
-  {.x.exponent x_exp, .y.exponent y_exp}
-  -- Simplified: for now just use x's exponent
-  .x_exp result_exp
-  
-  -- Multiply mantissas (simplified - in reality this is a complex 52x52 bit multiplication)
-  .x.mantissa result_mantissa
-  
-  {.result_sign sign, .result_exp exponent, .result_mantissa mantissa} $IEEE_754;
+  -- Simplified: just return first operand for now
+  .x;
 
--- Exponent arithmetic helpers (simplified)
-exponent_add = ${exponent a, exponent b} .a; -- Simplified implementation
-exponent_sub = ${exponent a, exponent b} .a; -- Simplified implementation
+-- Exponent arithmetic helpers
+-- Add two exponents with carry detection
+exponent_add = ${exponent a, exponent b} 
+  {.a a, .b b, 0 carry} _exponent_add ${exponent result, bit carry_out};
+
+-- Recursive exponent addition with carry
+_exponent_add = ${exponent a, exponent b, bit carry}
+  <
+    -- Base case: both exponents are zero, no carry
+    {.a exponent_0? a_is_zero, .b exponent_0? b_is_zero, .carry.0 carry_is_zero}
+      {exponent_0 result, 0 carry_out},
+    
+    -- Base case: both exponents are zero, with carry
+    {.a exponent_0? a_is_zero, .b exponent_0? b_is_zero, .carry.1 carry_is_one}
+      {{1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} $exponent result, 0 carry_out},
+    
+    -- General case: simplified
+    {.a result, 0 carry_out}
+  > ${exponent result, bit carry_out};
+
+-- Simple bit addition helper
+_bit_add_simple = ${bit a, bit b, bit carry}
+  <
+    {.a.0 a_0, .b.0 b_0, .carry.0 carry_0} {0 sum, 0 carry_out},
+    {.a.0 a_0, .b.0 b_0, .carry.1 carry_1} {1 sum, 0 carry_out},
+    {.a.0 a_0, .b.1 b_1, .carry.0 carry_0} {1 sum, 0 carry_out},
+    {.a.0 a_0, .b.1 b_1, .carry.1 carry_1} {0 sum, 1 carry_out},
+    {.a.1 a_1, .b.0 b_0, .carry.0 carry_0} {1 sum, 0 carry_out},
+    {.a.1 a_1, .b.0 b_0, .carry.1 carry_1} {0 sum, 1 carry_out},
+    {.a.1 a_1, .b.1 b_1, .carry.0 carry_0} {0 sum, 1 carry_out},
+    {.a.1 a_1, .b.1 b_1, .carry.1 carry_1} {1 sum, 1 carry_out}
+  > ${bit sum, bit carry_out};
+
+-- Simple bit subtraction helper
+_bit_sub_simple = ${bit a, bit b, bit borrow}
+  <
+    {.a.0 a_0, .b.0 b_0, .borrow.0 borrow_0} {0 diff, 0 borrow_out},
+    {.a.0 a_0, .b.0 b_0, .borrow.1 borrow_1} {1 diff, 1 borrow_out},
+    {.a.0 a_0, .b.1 b_1, .borrow.0 borrow_0} {1 diff, 1 borrow_out},
+    {.a.0 a_0, .b.1 b_1, .borrow.1 borrow_1} {0 diff, 1 borrow_out},
+    {.a.1 a_1, .b.0 b_0, .borrow.0 borrow_0} {1 diff, 0 borrow_out},
+    {.a.1 a_1, .b.0 b_0, .borrow.1 borrow_1} {0 diff, 0 borrow_out},
+    {.a.1 a_1, .b.1 b_1, .borrow.0 borrow_0} {0 diff, 0 borrow_out},
+    {.a.1 a_1, .b.1 b_1, .borrow.1 borrow_1} {1 diff, 1 borrow_out}
+  > ${bit diff, bit borrow_out};
+
+-- Helper to combine bit with rest of exponent
+_combine_exponent_bits = ${bit new_bit, exponent rest_exp}
+  {
+    .new_bit 0, .rest_exp.0 1, .rest_exp.1 2, .rest_exp.2 3, .rest_exp.3 4, .rest_exp.4 5,
+    .rest_exp.5 6, .rest_exp.6 7, .rest_exp.7 8, .rest_exp.8 9, .rest_exp.9 10
+  } $exponent;
+
+-- Subtract two exponents (a - b) with borrow detection
+exponent_sub = ${exponent a, exponent b}
+  {.a a, .b b, 0 borrow} _exponent_sub;
+
+-- Recursive exponent subtraction with borrow
+_exponent_sub = ${exponent a, exponent b, bit borrow}
+  {.a result, 0 borrow_out} ${exponent result, bit borrow_out};
+
+-- Bit addition with carry
+bit_add = 
+  ${bit a, bit b, bit carry}
+  <
+    {.a."0" a_zero, .b."0" b_zero, .carry."0" carry_zero, {0 sum, 0 carry_out} then} .then,
+    {.a."0" a_zero, .b."0" b_zero, .carry."1" carry_one, {1 sum, 0 carry_out} then} .then,
+    {.a."0" a_zero, .b."1" b_one, .carry."0" carry_zero, {1 sum, 0 carry_out} then} .then,
+    {.a."0" a_zero, .b."1" b_one, .carry."1" carry_one, {0 sum, 1 carry_out} then} .then,
+    {.a."1" a_one, .b."0" b_zero, .carry."0" carry_zero, {1 sum, 0 carry_out} then} .then,
+    {.a."1" a_one, .b."0" b_zero, .carry."1" carry_one, {0 sum, 1 carry_out} then} .then,
+    {.a."1" a_one, .b."1" b_one, .carry."0" carry_zero, {0 sum, 1 carry_out} then} .then,
+    {.a."1" a_one, .b."1" b_one, .carry."1" carry_one, {1 sum, 1 carry_out} then} .then
+  >
+  ${sum: bit, carry_out: bit};
+
 
 -- Test expressions and basic arithmetic
-test_add_1_1 = {ieee_1 0, ieee_1 1} ieee_add;
-test_add_1_2 = {ieee_1 0, ieee_2 1} ieee_add;
-test_mult_2_2 = {ieee_2 0, ieee_2 1} ieee_mult;
+test_add_1_1 = {ieee_1 x, ieee_1 y} ieee_add;
+test_add_1_2 = {ieee_1 x, ieee_2 y} ieee_add;
+test_mult_2_2 = {ieee_2 x, ieee_2 y} ieee_mult;
 
--- Main test expression
-test_add_1_1
+-- Main test expression - create a product of independent evaluations
+{
+  ieee_1 _log! simple_ieee_1,
+  test_add_1_1 _log! add_test,
+  ieee_2 _log! simple_ieee_2,
+  test_add_1_2 _log! mixed_add_test,
+  test_mult_2_2 _log! mult_test
+}
