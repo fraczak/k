@@ -1,6 +1,5 @@
 %{
 
-import { Bits } from "./Value.mjs";
 import { unitCode } from "./codes.mjs";
 import { patterns } from "./patterns.mjs";
 import run from "./run.mjs";
@@ -87,17 +86,13 @@ function fromEscString(escString) {
 "]"                                            return 'RB';
 ","                                            return 'COMMA';
 ":"                                            return 'COL';
-\"([@]bits[:](?:0b[01]*|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*))*)\"  
-                                               return 'SBITS';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
 [a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
-(?:0b[01]*|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*)([_](?:0b[01]+|0x[0-9a-fA-F]+|0o[0-7]+|0|[1-9][0-9]*))*
-                                               return 'BITS';
 <<EOF>>                                        return 'EOF';
 
 /lex
 
-%token NAME BITS SBITS STRING
+%token NAME STRING
 %token  LC LB RB RC COMMA COL
 %token EOF
 
@@ -108,9 +103,6 @@ function fromEscString(escString) {
 // name: NAME                              { $$ = getToken(yytext,yy,_$); };
 str : STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);}
     | NAME                              { $$ = getToken(yytext,yy,_$); }
-    ;
-bits: BITS                              { $$ = getToken(yytext,yy,_$); }
-    | SBITS                             { $$ = getToken(yytext,yy,_$); $$.value = $$.value.slice(7,-1); }
     ;
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
 lb: LB                                  { $$ = getToken(yytext,yy,_$); };
@@ -126,8 +118,6 @@ input_with_eof: exp EOF               {
 exp
     : lc labelled rc                    { $$ = {...$2, start: $1.start, end: $3.end}; }
     | lb list rb                        { $$ = {op: "vector", vector: $2, start: $1.start, end: $3.end}; }
-    | bits                              { $$ = {op: "bits", bits: Bits.segmentsToBits($1.value), start: $1.start, end: $1.end }; }
-    | str                               { $$ = {op: "bits", bits: Bits.utf8ToBits($1.value), start: $1.start, end: $1.end }; }
     ;
 
 labelled
