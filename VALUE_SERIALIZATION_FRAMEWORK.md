@@ -1,5 +1,7 @@
 # K Language Value Serialization Framework
 
+> Notation reminder: Angle brackets `< ... >` are used for type/merge syntax. Variant (union) value literals are written using single-field product notation: unit `{{} tag}` or with payload `{ v tag }`. See README (Syntactic Sugar) for details.
+
 ## Problem Statement
 
 The k language syntax for defining partial functions is elegant and should remain unchanged. However, the interface for executing k programs on actual data is cumbersome because values must be manually encoded in verbose JSON format.

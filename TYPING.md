@@ -50,6 +50,16 @@ Still, the fields corresponding to the out-going edges must exist in the type.
 
 The output is a mapping from the nodes of the input AST to the nodes of the type pattern graph.
 
+### Preliminaries: code equivalence and notation
+
+- Notation: We use the native k-like notation as canonical — products `{ T l, ... }` and unions `< T t, ... >`. JSON-like forms `{ l: T, ... }` and `< t: T, ... >` are supported as convenience.
+- Code equivalence: Two (possibly recursive) codes are equivalent iff they are bisimilar over their definition graphs. There exists a relation B such that `(t1, t2) ∈ B` iff:
+  - t1 and t2 have exactly the same set of labels/tags;
+  - if that set is not a singleton, then t1 and t2 are simultaneously products or simultaneously unions;
+  - for each label/tag `ℓ` in the set, the subcodes under `ℓ` are again related by B.
+  Consequences: `{ T x } ≡ < T x >` (singleton); with 2+ labels, constructors must match, so `{ A x, B y } ≢ < A x, B y >`.
+  See `README.md` (Data model) for details.
+
 ## Algorithm
 
 For every node of the input AST, we define a pair of type patterns.

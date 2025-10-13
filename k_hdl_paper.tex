@@ -59,7 +59,7 @@ Functional approaches to hardware description have been explored \cite{sheeran20
 
 \section{The K Language Foundation}
 
-K is a functional language based on first-order partial functions over JSON-like data structures. Its core constructs are:
+K is a functional language based on first-order partial functions over algebraic data types ("codes") built from product (records) and tagged union (variants). Values serialize naturally to JSON/XML-like trees; such notation is provided as a convenience rather than the canonical form.
 
 \begin{itemize}
 \item \textbf{Composition}: $(f_1\ f_2\ \ldots)$ applies functions sequentially
@@ -89,6 +89,10 @@ K-HDL introduces hardware-specific types built on K's algebraic foundation:
 \begin{lstlisting}
 -- Basic bit type
 $ bit = <{} 0, {} 1>;
+
+-- Variant value literals (single-field product form)
+0 = {{} 0};
+1 = {{} 1};
 
 -- N-bit vectors as products
 $ byte = {bit 0, bit 1, bit 2, bit 3, 

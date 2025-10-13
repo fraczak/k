@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-k-language is an experimental programming language for building and manipulating JSON-like data structures. It defines first-order partial functions operating on typed tree structures, with a sophisticated type system based on finite tree automata.
+k-language is an experimental programming language for building and manipulating algebraic data types ("codes")—tree-shaped values built from product and tagged union. The native k-like notation is canonical; a JSON-like notation is available as a convenience for newcomers.
 
 ## Essential Commands
 
@@ -32,6 +32,8 @@ npm test  # Run comprehensive test suite (unit tests, derivation tests, shell te
 - **Union/Merge**: `<f, g>` - try f first, fallback to g
 - **Product**: `{f label1, g label2}` - parallel application building records
 - **Types (Codes)**: Finite tree automata defining value sets, no built-in types
+- **Notation**: Prefer native k-like for products `{A l, ...}` and unions `<A t, ...>`; JSON-like `{l: A, ...}` and `<t: A, ...>` is supported for convenience
+- **Variant value literals**: Use single-field product notation. Unit: `{{} tag}`; with payload `v`: `{ v tag }`. Angle brackets are for types/merge, not value literals.
 
 ### Key Implementation Files
 - `parser.mjs` / `parser.jison` - Language parser (generated from Jison grammar)

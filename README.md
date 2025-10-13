@@ -1,173 +1,238 @@
 # k-language
 
+## Overview
 
-## k - A Language for Building and Manipulating JSON-like Data
-
-Technically, `k` is a notation for defining **first-order partial functions**.
-
-Examples of _partial functions_ are _projections_, e.g., "`.toto`",
-which map an object to one of its properties, here `toto`, or are undefined if
-the property doesn't exist. E.g.,
-
-```text
-1   .toto :
-2        {"toto": {"5":{}}, "titi": {"10":{}}}  -->  {"5":{}}
-3        {"titi": {"10":{}}}                         ... undefined // it is not a value!
-```
-
-> Note: The above 3 lines should be read as follows. A `k`-expression
-> is printed in the first line (before "`:`").  The following lines
-> are examples of the function defined by the `k`-expression applied
-> to JSON values (first part of each line).  If the function for the
-> value is defined, then the result is printed after "`-->`" (line 2 in
-> the above example).  If the function is not defined for the value,
-> then "`... undefined`" is printed (line 3).
+**k** is a language and notation for defining and combining **first-order partial functions** over algebraic data types (called "codes"). Codes are built solely from product (records) and tagged union (variants). The data model is JSON/XML-like in that values are tree-shaped and serialize naturally, but there are no built-in primitive types; the only leaf used in non-recursive definitions is the empty product `{}`.
 
 ---
 
-### Combining Partial Functions
+## Getting started
 
-There are three ways of combining functions:
+Prerequisites: Node.js 18+.
 
-1. **Composition**: `(f1 f2 ...)`, e.g., `(.toto .titi)` extracts
-    nested fields.
+- Install dependencies (this also generates parsers via the `prepare` script):
+  - `npm install`
+- Start the REPL locally:
+  - `node repl.mjs`
+  - Optional: `npm link` then run `k-repl`
+- Run the test suite:
+  - `npm test`
+- Regenerate parsers manually (only needed if you edited `parser.jison` or `valueParser.jison`):
+  - `npm run prepare`
 
-    ```text
-        (.toto .titi) :
-            {"toto": {"titi": {}}}   --> {}
-            {"toto": {"other": {}}}  ... undefined
-            {"other": {}}            ... undefined
-    ```
-
-2. **Merge**: `< f1, f2, ... >`, e.g., `<.toto, .titi>` extracts field
-    `toto` if present; otherwise extracts `titi`.
-
-    ```text
-        < .x.y, .z.y > :
-            {"x":{"y": {"5":{}}}, "z": {"y":{"10":{}}}}  --> {"5":{}}
-            {"x":{"o":{}}, "z": {"y":{"10":{}}}}  --> {"10":{}}
-            {"x":{"o":{}}, "z": {"o":{}}}  ... undefined
-    ```
-
-3. **Product**: `{ f1 label1, f2 label2, ... }`, e.g., `{.toto TOTO,
-    .titi TITI}` extracts two fields and builds a record from them.
-
-    ```text
-        {.toto TOTO, .titi TITI} :
-            {"toto": {"5":{}}, "titi": {"10":{}}, "x": {}}  --> {"TOTO": {"5":{}}, "TITI": {"10":{}}}
-    ```
+> Notes (from `package.json`):
+> - Scripts: `prepare` compiles the grammars; `test` runs all tests.
+> - Binaries: `k` and `k-repl` point to `k.mjs` and `repl.mjs`.
 
 ---
 
-**QUIZ**: What is:
+## Data model: Codes = ADTs
 
-- Empty composition: `()` ?
-- Empty merge: `<>` ?
-- Empty product: `{}` ?
-- `{{{{} s} s} s}` ?
-- `({{{() a} b} c} .c .b .a)` ?
+- Codes are standard algebraic data types built from two constructors:
+  - Product (records): native k-like `{ A label1, B label2, ... }` (canonical). For convenience, JSON-like `{ label1: A, label2: B, ... }` is also supported.
+  - Tagged union (variants): native k-like `< A tag1, B tag2, ... >` (canonical). For convenience, JSON-like `< tag1: A, tag2: B, ... >` is also supported.
+- No built-in scalars (no string/int/bool, etc.).
+- The only leaf allowed in a non-recursive definition is the empty product `{}`.
+- Values are trees whose internal nodes are products or tagged unions; field/tag names carry the structure.
+- Code equivalence is bisimilarity over definition graphs (recursion allowed): there exists a relation B such that (t1, t2) ∈ B iff
+  - t1 and t2 have exactly the same set of labels/tags;
+  - if that set is not a singleton, then t1 and t2 are simultaneously products or simultaneously unions;
+  - for each label/tag ℓ in the set, the subcodes under ℓ are again related by B.
+  Equivalence is the largest such bisimulation. In particular, `{A x}` ≡ `<A x>`, but with 2+ labels the constructors must match.
 
----
+> Note: This documentation uses the native k-like notation by default. The JSON-like form is provided as syntactic sugar to ease onboarding.
 
-### Syntactic Sugar
+### Notation equivalence examples
 
-- Parentheses can be omitted, except for the empty composition `()`
-- The dot (`.`) in "projection" acts as a separator, so surrounding
-  spaces can be omitted
+- Product:
+  - `{ nat x, nat y }  ≡  { x: nat, y: nat }`
+- Union:
+  - `< {} zero, nat succ >  ≡  < zero: {}, succ: nat >`
+- Bisimilarity examples:
+  - `{ A x }  ≡  < A x >` (singleton labels/tags)
+  - `{ A x, B y }  ≢  < A x, B y >` (2+ labels require matching constructors)
 
-For example, `(.toto .titi (.0 .1))` can be written as `.toto.titi.0.1`.
+**Examples from the repo:**
 
-Comments can be introduced by `//`, `--`, `%`, or `#` and extend to
-the end of the line. Multiline C-like comments, `/* ... */`, are also
-supported.
-
-### Codes (Schemas, i.e., Types) and Functions
-
-_Codes_ can be defined by tagged union and product. E.g.:
+- Naturals as Peano numbers (note `{}` as the leaf):
 
 ```k-repl
-  $ nat = < nat 1, {} 0 >;
-  $ pair = { nat x, nat y };
-
-  suc = { $ nat 1 };
-  add = $ pair <{.x.1 x, .y suc y} add, .y>;
+$ nat = < {} zero, nat succ >;         -- native k-like
+$ nat = < zero: {}, succ: nat >;       -- JSON-like (equivalent)
 ```
 
-Code definition statements start with `$`.
-Also, any code expression occurring within a `k`-expression is prefixed by `$`.
+- Bits and bytes (8-tuple product of bits):
 
-Two codes are considered equal when they are isomorphic (preserving
-union/product and field names). E.g., `$pair`, `${nat y, nat x}`, and
-`${<nat 1, {} 0> x, nat y}` are all equivalent and correspond to their canonical form
-`$C0={C1"x",C1"y"};$C1=<C2"0",C1"1">;$C2={};`.
+```k-repl
+$ bit = < {} 0, {} 1 >;                -- native k-like
+$ bit = < 0: {}, 1: {} >;              -- JSON-like (equivalent)
+$ byte = { bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7 };
+$ byte = { 0: bit, 1: bit, 2: bit, 3: bit, 4: bit, 5: bit, 6: bit, 7: bit };
+```
+
+- A recursive list of bits (variant of `nil` or `cons`):
+
+```k-repl
+$ bytes = < {} nil, { bit car, bytes cdr } cons >;   -- native k-like
+$ bytes = < nil: {}, cons: { car: bit, cdr: bytes } >;  -- JSON-like (equivalent)
+```
+
+---
+
+## Partial Functions
+
+A **partial function** is a function that may not return a value for every possible input. In k, a common example is a projection, such as `.toto`, which extracts the `toto` property from an object if it exists, or is undefined otherwise.
+
+**Example:**
+
+```text
+.toto :
+    {"toto": {"5":{}}, "titi": {"10":{}}}  -->  {"5":{}}
+    {"titi": {"10":{}}}                         ... undefined
+```
+
+> **How to read:**
+> - The first line is a k-expression (before `:`).
+> - The following lines show example inputs and outputs.
+> - If the function is defined for the input, the result is shown after `-->`.
+> - If not, `... undefined` is shown.
+
+---
+
+## Combining Partial Functions
+
+There are three ways to combine functions in k:
+
+### 1. Composition
+
+Apply functions in sequence. For example, `(.toto .titi)` extracts the `titi` field from the `toto` field.
+
+```text
+(.toto .titi) :
+    {"toto": {"titi": {}}}    --> {}
+    {"toto": {"other": {}}}   ... undefined
+    {"other": {}}             ... undefined
+```
+
+### 2. Merge
+
+Try each function in order, returning the first defined result. For example, `<.x.y, .z.y>` tries to extract `y` from `x`, then from `z`.
+
+```text
+< .x.y, .z.y > :
+    {"x": {"y": {"5": {}}}, "z": {"y": {"10": {}}}}    --> {"5":{}}
+    {"x": {"o": {}}, "z": {"y": {"10": {}}}}           --> {"10":{}}
+    {"x": {"o": {}}, "z": {"o": {}}}                   ... undefined
+```
+
+### 3. Product
+
+Apply multiple functions and collect their results into a new object with given labels. For example, `{.toto TOTO, .titi TITI}` extracts two fields and builds a record.
+
+```text
+{.toto TOTO, .titi TITI} :
+    {"toto": {"5": {}}, "titi": {"10": {}}, "x": {}}    --> {"TOTO": {"5": {}}, "TITI": {"10": {}}}
+```
+
+---
+
+## Syntactic Sugar
+
+- Parentheses can be omitted, except for the empty composition `()`.
+- Dots (`.`) act as property separators, so `.a.b.c` is the same as `(.a .b .c)`.
+- Comments: Use `//`, `--`, `%`, `#` for single-line, or `/* ... */` for multi-line.
+- Product/union lists support both forms. The native k-like form is canonical and preferred; the JSON-like form is provided as a convenience for readability.
+- Variant (union) value literals are written using single-field product notation:
+  - Unit payload: `{{} tag}` (e.g., `{}` under label `nil` is written `{{} nil}`)
+  - With payload `v`: `{ v tag }`
+  Angle-bracket notation is for type definitions, not for value literals.
+
+### Variant (union) value literal convention
+
+- Unit variants:
+  - `{}` as `zero`: `{{} zero}`
+  - `{}` as `nil`: `{{} nil}`
+- Variants with payload:
+  - If `cons` has payload `{X car, Y cdr}`, then a value is written as `{ { v_car car, v_cdr cdr } cons }`.
+  - Example (list of bits): with `$bit = <{} 0, {} 1>` and `$bytes = <{} nil, {bit car, bytes cdr} cons>`, a singleton list `[1]` is:
+    - `{{ { {{} 1} car, {{} nil} cdr } cons }}`
+- Non-examples (do not use):
+  - `< tag v >` as a value literal — angle brackets are for type/merge syntax, not values.
+
+**Example:**
+`.toto.titi.0.1` is equivalent to `(.toto .titi (.0 .1))`.
+
+---
+
+## Codes (Schemas / Types)
+
+**Codes** define types or schemas using unions (`<...>`) and products (`{...}`), and can be named with `$`.
+
+> We write examples in the native k-like notation first; a JSON-like equivalent may follow for convenience.
+
+**Example:**
+
+```k-repl
+$ nat = < {} zero, nat succ >;      -- native k-like
+$ nat = < zero: {}, succ: nat >;    -- JSON-like (equivalent)
+$ pair = { nat x, nat y };          -- native k-like
+$ pair = { x: nat, y: nat };        -- JSON-like (equivalent)
+```
+
+- Codes are equivalent up to bisimulation (see Data model). Intuitively: same label/tag set; singleton product and union coincide; with 2+ labels, constructors must match; subcodes relate pointwise under each label/tag.
+- There are no built-in types like `string`, `int`, or `bool`; use `{}` as the only leaf in non-recursive definitions.
 
 Try in `k-repl`:
 
 ```k-repl
-> $ nat = < nat 1, {} 0 >; \
-  $ pair = { nat x, nat y };
---> {}
-> --C pair
- $ @IxLVRLECv = {@BADJOX x, @BADJOX y}; -- $C0={C1"x",C1"y"};$C1=<C2"0",C1"1">;$C2={};
-$ myCode = {<nat 1, {} 0> x, nat y};
---> {}
-> --C myCode
- $ @IxLVRLECv = {@BADJOX x, @BADJOX y}; -- $C0={C1"x",C1"y"};$C1=<C2"0",C1"1">;$C2={};
+$ nat = < {} zero, nat succ >;
+$ pair = { nat x, nat y };
+--C pair
+$ myCode = {<{} zero, nat succ> x, nat y};
+--C myCode
 ```
 
-There is no 'built-in' nor `predefined` code in the language: no `string`, no `int`, no `bool`, etc.
+---
 
-### Code Derivation and Patterns
+## Code Derivation and Patterns
 
-Intuitively, a _pattern_ represents some set of constraints on
-codes. For example, expression `.toto` is a projection from a value of
-a product or a union code with field `toto`. Therefore, expression `.toto`
-introduces two patterns `p_i` and `p_o` (for input and output codes,
-respectively); `p_o` imposes no constraint on code, however `p_i` is a
-product or union code with field `toto` leading to a code fulfilling
-`p_o`, which will be denoted by:
+A **pattern** represents constraints on codes (types). Patterns are used for type inference and static analysis, not during program execution.
+
+**Example:**
 
 ```k-repl
-> toto = .toto;
---> {}
-> --R toto
+toto = .toto;
+--R toto
   toto : ?(X0 toto, ...)  -->  ?X0
-  toto = .toto;
 ```
 
-In a more complex expression, each (occurrence of) sub-expression will
-introduce some new patterns.
-For example, consider `rel = <.toto, ()>;`.
+For more complex expressions, patterns are introduced for each sub-expression.
 
-```text
-    <    .toto    ,    ()    >
- p1   p2       p3   p4    p5   p6
-```
-
-where `p1` is the pattern for the input code of the whole expression,
-and `p6` is the pattern for the output. We can deduce that patterns
-(`p1`, `p2`, `p4`) define the same code, as well as (`p6`, `p5`, `p3`),
-because union combines partial functions with the same input and output codes.
-Identity, `()`, implies that (`p4`, `p5`) define the
-same code. In `k-repl`:
+**Example:**
 
 ```k-repl
-> rel = < .toto, () >;
---> {}
-> --R rel
+rel = < .toto, () >;
+--R rel
   rel : ?(X0 toto, ...)=X0  -->  ?X0
-  rel = <.toto, ()>;
 ```
 
-For a given `k` program, code derivation (as any static analysis) can
-fail, indicating that the program is invalid. In some other cases, the
-code derivation can succeed even to the point of reducing every pattern
-to a single code, making the program fully annotated by codes.
-
-The language `k` supports _type patterns_, which are used for code
-derivation; however, the patterns are not considered in the
-evaluation of the program.
+The language supports type patterns for code derivation, but these are not considered during evaluation.
 
 ```k-repl
-    treePattern = ?<(...) leaf, {T left, T right} tree> = T;
+treePattern = ?<(...) leaf, {T left, T right} tree> = T;
 ```
+
+---
+
+## QUIZ
+
+- What is the result of:
+    - Empty composition: `()` ?
+    - Empty merge: `<>` ?
+    - Empty product: `{}` ?
+    - `{{{{} s} s} s}` ?
+    - `({{{() a} b} c} .c .b .a)` ?
+
+---
+
+For more details and examples, see the full documentation or try out expressions in `k-repl`.

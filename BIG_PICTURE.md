@@ -19,6 +19,9 @@ Types are defined by two constructs:
 1. Product
 2. Union (also called tagged or disjoint union)
 
+> Notation: We use native k-like notation as canonical — products `{ T l, ... }` and unions `< T t, ... >`.
+> For convenience, JSON-like forms `{ l: T, ... }` and `< t: T, ... >` are also supported and equivalent in meaning.
+
 ```bnf
 type ::= name | '{' type_label_list '}' | '<' type_label_list '>'
 type_label_list ::= /* empty */ | ( type label ',' )* type label 
@@ -49,6 +52,27 @@ Some properties of these types:
 2. The empty product type, `{}`, has a single value, called the _unit_
    and also denoted by `{}`, which has no fields.
 3. The empty union type, `<>`, has no values.
+
+##### Variant (union) value literal convention
+
+- Variant values are written using single-field product notation.
+  - Unit variant `tag`: `{{} tag}` (e.g., `{{} nil}`, `{{} zero}`)
+  - Variant with payload `v` at label `tag`: `{ v tag }`
+- Example (list): with `$list = < {} nil, {X car, list cdr} cons >`:
+  - Empty list: `{{} nil}`
+  - Singleton `[v]`: `{{ { v car, {{} nil} cdr } cons }}`
+- Angle brackets are for type definitions and merge expressions, not for value literals.
+
+#### Equivalence of types (bisimilarity)
+
+Two (possibly recursive) codes are equivalent iff they are bisimilar over their definition graphs. Concretely, there exists a relation B such that `(t1, t2) ∈ B` if and only if:
+- t1 and t2 have exactly the same set of labels/tags;
+- if that set is not a singleton, then t1 and t2 are simultaneously products or simultaneously unions;
+- for each label/tag `ℓ` in the set, the subcodes under `ℓ` are again related by B.
+
+Equivalence is the largest such bisimulation. Consequences:
+- `{ T x }  ≡  < T x >` (singleton product/union coincide),
+- `{ A x, B y }  ≢  < A x, B y >` (with 2+ labels, constructors must match).
 
 ### Filters (patterns)
 
