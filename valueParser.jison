@@ -1,39 +1,6 @@
 %{
 
-import { unitCode } from "./codes.mjs";
-import { patterns } from "./patterns.mjs";
-import run from "./run.mjs";
-import t from "./codes.mjs";
-
-function evaluateAST(exp) {
-  const ast = {
-    exp, 
-    defs: {
-      rels:{}, 
-      codes:{ [unitCode]: { code: "product", product: {} } }
-    }
-  };
-  const annotated = annotate(ast);
-
-  const [input,output] = annotated.rels.__main__.def.patterns.map( (pat) => 
-    annotated.rels.__main__.typePatternGraph.get_pattern(pat)
-  );
-  return {value: run(annotated.rels.__main__.def, {}), output};
-}
-
-function annotate(ast) {
-  const { defs, exp } = ast;
-  
-  //const { codes, representatives } = t.finalize(defs.codes);
-
-  const representatives = t.register(defs.codes);
-  const rels = {...defs.rels, "__main__": {def: exp}};
-
-  const relAlias = patterns(representatives, rels);
-
- 
-  return {rels, representatives, relAlias};
-}
+import { Product, Variant } from "./Value.mjs";
 
 //--------------------------
 
@@ -81,77 +48,70 @@ function fromEscString(escString) {
 ("//"|"#"|"%"|"--"|"\\")[^\n]*                  /* one line comment */
 \s+                                             /* blanks */
 "{"                                            return 'LC';
-"["                                            return 'LB';
 "}"                                            return 'RC';
-"]"                                            return 'RB';
 ","                                            return 'COMMA';
 ":"                                            return 'COL';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
-[a-zA-Z_][a-zA-Z0-9_?!]*                       return 'NAME';
+[a-zA-Z0-9_][a-zA-Z0-9_?!]*                    return 'NAME';
 <<EOF>>                                        return 'EOF';
 
 /lex
 
 %token NAME STRING
-%token  LC LB RB RC COMMA COL
+%token  LC RC COMMA COL
 %token EOF
 
 %start input_with_eof
 
 %%
 
-// name: NAME                              { $$ = getToken(yytext,yy,_$); };
 str : STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);}
     | NAME                              { $$ = getToken(yytext,yy,_$); }
     ;
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
-lb: LB                                  { $$ = getToken(yytext,yy,_$); };
 rc: RC                                  { $$ = getToken(yytext,yy,_$); };
-rb: RB                                  { $$ = getToken(yytext,yy,_$); };
 comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
 
-input_with_eof: exp EOF               {
-    return evaluateAST($1);
-};
+input_with_eof
+    : exp EOF   {
+                  // console.log(`Parsed: ${$1.value.toString()}`);
+                  return $1.value;
+                }
+    ;
 
 exp
-    : lc labelled rc                    { $$ = {...$2, start: $1.start, end: $3.end}; }
-    | lb list rb                        { $$ = {op: "vector", vector: $2, start: $1.start, end: $3.end}; }
+    : lc labelled rc                    { $$ = {value: $2.value, start: $1.start, end: $3.end}; }
     ;
 
 labelled
-    :                                   { $$ = {op: "product", product: []}; }
-    | non_empty_labelled                { $1.product.reduce( (labels, {label}) =>
-                                            { if (labels[label]) 
-                                                anError(@0,`Duplicate label '${label}'.`)
-                                              labels[label] = true;
-                                              return labels; }, {});
-                                          $$ = $1; }
+    : /* empty */                       { $$ = {value: new Product({})}; }
+    | non_empty_labelled                {
+                                          if ($1.list.length === 1) {
+                                            $$ = {value: new Variant($1.list[0].label, $1.list[0].value)};
+                                          } else {
+                                            const product = {};
+                                            for (const {label, value} of $1.list) {
+                                              if (product.hasOwnProperty(label))
+                                                anError(@0,`Duplicate label '${label}'.`);
+                                              product[label] = value;
+                                            }
+                                            $$ = {value: new Product(product)};
+                                          };
+                                        }
     ;
 
 non_empty_labelled
     : exp_label
-        { $$ = {op: "product", product: [$1]}; }
+        { $$ = {list: [$1]} ; }
     | non_empty_labelled comma exp_label
-        { $1.product = [].concat($1.product,$3); $$ = $1; }
+        { $$ = {list: [].concat($1.list,$3)}; }
     ;
 
 exp_label
-    : exp bits  { $$ = {label: $2.value, exp: $1}; }
-    | exp str   { $$ = {label: $2.value, exp: $1}; }
-    | str col exp { $$ = {label: $1.value, exp: $3}; }
-    | bits col exp { $$ = {label: $1.value, exp: $3}; }
-    ;
-
-list
-    : /*empty */             { $$ = []; }
-    | non_empty_list         { $$ = $1; }
-    ;
-
-non_empty_list
-    : exp                              { $$ = [$1]; }
-    | non_empty_list comma exp  { $$ = [].concat($1,$3); }
+    : exp str   { $$ = {label: $2.value, value: $1.value}; }
+    | str col exp { $$ = {label: $1.value, value: $3.value}; }
+    | bits col exp { $$ = {label: $1.value, value: $3.value}; }
     ;
 
 %%

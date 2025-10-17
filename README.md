@@ -2,7 +2,12 @@
 
 ## Overview
 
-**k** is a language and notation for defining and combining **first-order partial functions** over algebraic data types (called "codes"). Codes are built solely from product (records) and tagged union (variants). The data model is JSON/XML-like in that values are tree-shaped and serialize naturally, but there are no built-in primitive types; the only leaf used in non-recursive definitions is the empty product `{}`.
+**k** is a language and notation for defining and combining **first-order partial functions**
+over algebraic data types (called "codes"). 
+Codes are built solely from product (records) and tagged union (variants). 
+The data model is JSON/XML-like in that values are tree-shaped and serialize naturally,
+but there are no built-in primitive types; the only leaf used in non-recursive definitions
+is the empty product `{}`.
 
 ---
 
@@ -38,6 +43,7 @@ Prerequisites: Node.js 18+.
   - t1 and t2 have exactly the same set of labels/tags;
   - if that set is not a singleton, then t1 and t2 are simultaneously products or simultaneously unions;
   - for each label/tag ℓ in the set, the subcodes under ℓ are again related by B.
+  
   Equivalence is the largest such bisimulation. In particular, `{A x}` ≡ `<A x>`, but with 2+ labels the constructors must match.
 
 > Note: This documentation uses the native k-like notation by default. The JSON-like form is provided as syntactic sugar to ease onboarding.
@@ -142,10 +148,7 @@ Apply multiple functions and collect their results into a new object with given 
 - Dots (`.`) act as property separators, so `.a.b.c` is the same as `(.a .b .c)`.
 - Comments: Use `//`, `--`, `%`, `#` for single-line, or `/* ... */` for multi-line.
 - Product/union lists support both forms. The native k-like form is canonical and preferred; the JSON-like form is provided as a convenience for readability.
-- Variant (union) value literals are written using single-field product notation:
-  - Unit payload: `{{} tag}` (e.g., `{}` under label `nil` is written `{{} nil}`)
-  - With payload `v`: `{ v tag }`
-  Angle-bracket notation is for type definitions, not for value literals.
+- Variant (union) value literals are written using single-field product notation, `{val tag}`, or `{tag:val}` in JSON-like.
 
 ### Variant (union) value literal convention
 

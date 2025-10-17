@@ -52,7 +52,7 @@ if (oneJson) {
       // console.log(b);
       let r = parse(b);
       // console.log(r);
-      let result = kScript(r.value);
+      let result = kScript(r);
       console.log(JSON.stringify(result, null, 2));
       // console.log(kScript(r.value).toString());
     } catch (error) {
@@ -76,7 +76,7 @@ if (oneJson) {
             // console.log(b);
             let r = parse(b);
             // console.log(r);
-            let result = kScript(r.value);
+            let result = kScript(r);
             console.log(JSON.stringify(result));
           } catch (error) {
             console.error(`Problem [line ${line}]: '${exp}'`);

@@ -10,25 +10,6 @@ class Value {
   }
 }
 
-class Vector extends Value {
-  constructor(vector) {
-    super('[]');
-    if (!Array.isArray(vector)) {
-      throw new Error("Vector constructor expects an array.");
-    }
-    this.vector = Object.freeze([...vector]);
-    Object.freeze(this);
-  }
-
-  toString() {
-    return `[${this.vector.map(i => i.toString()).join(',')}]`;
-  }
-
-  toJSON() {
-    return this.vector;
-  }
-}
-
 class Product extends Value {
   constructor(product) {
     super("{}");
@@ -45,5 +26,21 @@ class Product extends Value {
   }
 }
 
-export { Value, Vector, Product };
-export default { Value, Vector, Product };
+class Variant extends Value {
+  constructor(tag, value) {
+    super("<>");
+    this.tag = tag;
+    this.value = value;
+    Object.freeze(this);
+  }
+
+  toString() {
+    return `{${JSON.stringify(this.tag)}:${this.value.toString()}}`;
+  }
+
+  toJSON() {
+    return {[this.tag]: this.value.toJSON()};
+  }
+}
+export { Value, Product, Variant };
+export default { Value, Product, Variant };

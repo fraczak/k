@@ -1,6 +1,6 @@
 import assert from "assert";
 import { find } from "./codes.mjs";
-import { Product } from "./Value.mjs"
+import { Product, Variant } from "./Value.mjs"
 
 
 
@@ -64,7 +64,9 @@ function run(exp, value) {
         throw(`Unknown ref: '${exp.ref}'`);
       }
       case "dot":
-        return (value.product || value.vector || {})[exp.dot];
+        if (value instanceof Product) return value.product[exp.dot];
+        if ((value instanceof Variant) && (value.tag === exp.dot)) return value.value;
+        return
 
       case "comp":
         for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
