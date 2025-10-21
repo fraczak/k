@@ -1,0 +1,6 @@
+book.pdf
+book.html
+book.tex
+*.aux
+*.log
+*.out
