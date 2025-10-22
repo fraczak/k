@@ -1,6 +1,10 @@
 book.pdf
 book.html
 book.tex
+book-combined.md
+book-combined.tex
+book-combined.pdf
+book-combined.html
 *.aux
 *.log
 *.out
