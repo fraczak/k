@@ -1,0 +1,16 @@
+# Python dependencies for k-language compiler
+
+# Core dependencies
+llvmlite>=0.41.0        # LLVM IR generation and manipulation
+typing-extensions>=4.0   # Enhanced typing support for older Python versions
+
+# Development dependencies  
+pytest>=7.0             # Testing framework
+pytest-cov>=4.0         # Coverage reporting
+black>=22.0             # Code formatting
+mypy>=1.0               # Type checking
+flake8>=5.0             # Linting
+
+# Optional dependencies for enhanced features
+graphviz>=0.20          # AST visualization (optional)
+rich>=13.0              # Enhanced CLI output (optional)
