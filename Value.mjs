@@ -33,6 +33,18 @@ class Value {
   }
 }
 
+function toVector(m) {
+  let vector = [];
+  for (let i = 0; i < Object.keys(m).length; i++) {
+    if (m[i] === undefined) {
+      vector = [];
+      break;
+    }
+    vector.push(m[i]);
+  }
+  return vector;
+}
+
 class Product extends Value {
   constructor(product) {
     super("{}");
@@ -41,11 +53,18 @@ class Product extends Value {
   }
 
   toString() {
+    let vector = toVector(this.product);
+
+    if (vector.length > 0) {
+      return `[${vector.map(v => v.toString()).join(',')}]`;
+    }
     return `{${Object.entries(this.product).map(([k, v]) => `${JSON.stringify(k)}:${v.toString()}`).join(',')}}`;
   }
 
   toJSON() {
-    return this.product
+    let vector = toVector(this.product);
+    if (vector.length > 0) return vector;
+    return this.product; 
   }
 }
 
@@ -58,10 +77,16 @@ class Variant extends Value {
   }
 
   toString() {
+    if (this.value instanceof Product && Object.keys(this.value.product).length === 0) {
+      return `${JSON.stringify(this.tag)}`;
+    }
     return `{${JSON.stringify(this.tag)}:${this.value.toString()}}`;
   }
 
   toJSON() {
+    if (this.value instanceof Product && Object.keys(this.value.product).length === 0) {
+      return this.tag;
+    }
     return {[this.tag]: this.value.toJSON()};
   }
 }

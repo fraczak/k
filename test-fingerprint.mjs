@@ -3,11 +3,11 @@ import { encodeCodeToString, find } from './codes.mjs';
 import hash from './hash.mjs';
 [
     `
+    $bits = < bits 0,  bits 1, {} _ >;
     $nat = < {} zero, nat succ>;
     $pair = {nat x, nat y};
-    $b = {@bits"x", @bits y};
-    $vector = [@bits];
-    $tree = <{nat value, tree left, tree right} binary, nat leaf, {nat value, tree tree} unary, [tree] list_of_trees>;
+    $b = { bits"x", bits y};
+    $tree = < {nat value, tree left, tree right} binary, nat leaf, {nat value, tree tree} unary >;
   
     succ = { $nat succ} $nat;
     plus = $pair <

@@ -144,10 +144,19 @@ non_empty_labelled_codes
     ;
 
 code_label 
-    : code name                         { $$ = {label: $2.value, code: $1}; }
-    | code str                          { $$ = {label: $2.value, code: $1}; }
+    : non_name_code name                { $$ = {label: $2.value, code: $1}; }
+    | non_name_code str                 { $$ = {label: $2.value, code: $1}; }
+    | name name                         { $$ = {label: $2.value, code: { code: "ref", ref: $1.value }}; }
+    | name str                          { $$ = {label: $2.value, code: { code: "ref", ref: $1.value }}; }
+    | str                               { $$ = {label: $1.value, code: { code: "product", product: {} } }; }
+    | name                              { $$ = {label: $1.value, code: { code: "product", product: {} } }; }
     | name col code                     { $$ = {label: $1.value, code: $3}; }
-    | str col code                      { $$ = {label: $1.value, code: $3}; }
+    | str col code                      { $$ = {label: $1.value, code: $3}; } 
+    ;
+
+non_name_code
+    : AT name                           { $$ = { code: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
+    | codeDef                           { $$ = $1; }
     ;
 
 filter_
@@ -192,8 +201,6 @@ filter_label
     : dots                              { $$ = {dots: true }; }
     | filter name                       { $$ = {label: $2.value, filter: $1}; }
     | filter str                        { $$ = {label: $2.value, filter: $1}; }
-    | name col filter                   { $$ = {label: $1.value, filter: $3}; }
-    | str col filter                    { $$ = {label: $1.value, filter: $3}; }
     ;
 
 comp 
@@ -203,6 +210,7 @@ comp
 
 exp
     : lc labelled rc                    { $$ = {...$2, start: $1.start, end: $3.end}; }
+    | str                               { $$ = {...$1, op: "product", product: [{label:$1.value, exp: {op: "product", product: []} }]}; }
     | la list ra                        { $$ = {...union($2), start: $1.start, end: $3.end}; }
     | AT name                           { $$ = {op: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     | lp rp                             { $$ = {...identity, start: $1.start, end: $2.end};  }
@@ -235,7 +243,7 @@ comp_label
     : comp name  { $$ = {label: $2.value, exp: $1}; }
     | comp str   { $$ = {label: $2.value, exp: $1}; }
     | name col comp { $$ = {label: $1.value, exp: $3}; }
-    | str col comp { $$ = {label: $1.value, exp: $3}; }
+    | str col comp { $$ = {label: $1.value, exp: $3}; }    
     ;
 
 list
