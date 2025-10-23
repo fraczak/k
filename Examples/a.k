@@ -19,8 +19,19 @@ $ bits = < {} _, bits 0, bits 1 >;
 0_ = {() 0};
 
 0 = 0b 0_;
-1 = 0b 1_;
-2 = 0 1_;
+succ = {inv x, 0b y} _inc;
+1 = 0 succ;
+2 = 1 succ;
+3 = 2 succ;
+4 = 3 succ;
+5 = 4 succ;
+6 = 5 succ;
+7 = 6 succ;
+8 = 7 succ;
+9 = 8 succ;
+10 = 9 succ;
+11 = 10 succ;
+12 = 11 succ;
 
 empty = $bits < ._ yes, no >;
 empty? = {empty .yes if, () then} .then;
@@ -332,6 +343,8 @@ fib = {$bits n, {1 int x, 0 int y} "fib(n),fib(n.1)"} fib_ .x;
 
 --------------------
 $ rat = { int n, int d };
+
+rat = ${bits n, bits d} {.n int n, .d int d } normalize_rat;
 
 normalize_rat =
   $rat 
