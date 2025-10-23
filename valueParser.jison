@@ -49,6 +49,8 @@ function fromEscString(escString) {
 \s+                                             /* blanks */
 "{"                                            return 'LC';
 "}"                                            return 'RC';
+"["                                            return 'LB';
+"]"                                            return 'RB';
 ","                                            return 'COMMA';
 ":"                                            return 'COL';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
@@ -58,7 +60,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING
-%token  LC RC COMMA COL
+%token  LC RC LB RB COMMA COL
 %token EOF
 
 %start input_with_eof
@@ -70,6 +72,8 @@ str : STRING                            { $$ = getToken(yytext,yy,_$); $$.value 
     ;
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
 rc: RC                                  { $$ = getToken(yytext,yy,_$); };
+lb: LB                                  { $$ = getToken(yytext,yy,_$); };
+rb: RB                                  { $$ = getToken(yytext,yy,_$); };
 comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
 
@@ -82,6 +86,28 @@ input_with_eof
 
 exp
     : lc labelled rc                    { $$ = {value: $2.value, start: $1.start, end: $3.end}; }
+    | lb exps rb                        { $$ = {value: $2.value, start: $1.start, end: $3.end}; }
+    | str            { $$ = {value: new Variant($1.value, new Product({})), start: $1.start, end: $1.end}; }
+    | name           { $$ = {value: new Variant($1.value, new Product({})), start: $1.start, end: $1.end}; }
+    ;
+
+exps
+    : /* empty */                       { $$ = {value: new Product({})}; }
+    | non_empty_exps                    {
+                                          if ($1.list.length === 1) {
+                                            $$ = {value: new Variant('0', $1.list[0].value)};
+                                          } else {
+                                            const product = {};
+                                            $1.list.forEach( (e, i) => product[i] = e.value );
+                                            $$ = {value: new Product(product)};
+                                          };
+                                        }
+    ;
+
+non_empty_exps
+    : exp      { $$ = {list: [$1]} ; }
+    | non_empty_exps comma exp
+        { $$ = {list: [].concat($1.list,$3)}; }
     ;
 
 labelled

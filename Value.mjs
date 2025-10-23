@@ -33,6 +33,18 @@ class Value {
   }
 }
 
+function toVector(m) {
+  let vector = [];
+  for (let i = 0; i < Object.keys(m).length; i++) {
+    if (m[i] === undefined) {
+      vector = [];
+      break;
+    }
+    vector.push(m[i]);
+  }
+  return vector;
+}
+
 class Product extends Value {
   constructor(product) {
     super("{}");
@@ -45,7 +57,9 @@ class Product extends Value {
   }
 
   toJSON() {
-    return this.product
+    let vector = toVector(this.product);
+    if (vector.length > 0) return vector;
+    return this.product; 
   }
 }
 
@@ -62,6 +76,9 @@ class Variant extends Value {
   }
 
   toJSON() {
+    if (this.value instanceof Product && Object.keys(this.value.product).length === 0) {
+      return this.tag;
+    }
     return {[this.tag]: this.value.toJSON()};
   }
 }

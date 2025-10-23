@@ -6,7 +6,7 @@ A type in k is a description of a set of finite labeled trees.
 This set can be recognized by a finite tree automaton (FTA).
 An FTA is similar in idea to a finite state machine for strings, but it accepts trees instead of words.
 
-Representing types as automata gives each type a well-defined structure, independent of the names used in source code.
+Representing types as automata gives each type a well-defined structure, independent of the type names used in source code.
 It also allows for canonical normal forms and for comparing types for equality by structure alone.
 
 ---
@@ -29,7 +29,7 @@ C0 -> < C1 "true", C1 "false" >
 C1 -> {}
 ```
 
-Here `C0` is the main state of the type `$bool`.
+Here `C0` is the root state of the type `$bool`.
 `C1` represents the empty product `{}`, which is the leaf state.
 
 ---
@@ -40,11 +40,12 @@ Different type expressions may describe the same automaton.
 For example:
 
 ```
-$pair = { bool x, bool y };
-$pair' = { < {} true, {} false > x, < {} true, {} false > y };
+$ bool = <{} false, {} true >;
+$ pair = { bool x, bool y };
+$ pair2 = { < {} true, {} false > x, bool y };
 ```
 
-Both are structurally equivalent.
+Both types, `pair` and `pair2`, are structurally equivalent.
 Canonicalization removes names and renumbers states to obtain a single, stable representation.
 
 The canonical form uses breadth-first traversal starting from the root state C0:
@@ -66,7 +67,7 @@ States are numbered by breadth-first traversal, so C0 is always the root.
 
 ## **3.4 Examples**
 
-For the unary natural numbers:
+For binary natural numbers:
 
 ```
 $ bnat = < bnat 0, bnat 1, {} _ >;
@@ -89,7 +90,7 @@ Each value of type `bnat` corresponds to a finite derivation in this grammar.
 
 When compiling a program:
 
-1. Collect all types appearing in definitions.
+1. Collect all types appearing in the definitions and the main expression.
 2. Expand named types until only products and unions remain.
 3. Eliminate duplicates by structural comparison.
 4. Assign stable state numbers and produce canonical text.
@@ -108,7 +109,7 @@ $C0=<C0"0",C0"1",C1"_">;$C1={}
 →  hash →  @BsAqRMv
 ```
 
-Program objects can refer to types by hash without ambiguity.
+Program objects can refer to types by hash without ambiguity (canonical name start with `@`).
 
 ---
 
@@ -126,10 +127,9 @@ Every value of the type is a finite tree accepted by this automaton.
 
 ## **3.8 Summary**
 
-* Types in k denote finite labeled trees.
+* Types in k denote (rational) sets of finite labeled trees.
 * Every type can be expressed as a finite tree automaton.
 * Canonical form removes naming differences.
-* The empty product becomes a terminal state.
 * Hash-based names give each canonical type a unique identity.
 
 

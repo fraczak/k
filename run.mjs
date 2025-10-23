@@ -6,7 +6,8 @@ import { Product, Variant } from "./Value.mjs"
 
 const builtin = {
   "_log!": (arg) => {
-    console.error(`_log!: ${JSON.stringify(arg)}`);
+    console.error(`_log!: ${arg}`);
+
     return arg;
   }
 };
@@ -90,11 +91,15 @@ function run(exp, value) {
       case "product": {
         let result = {};
         let open = false;
-        for (let i = 0, len = exp.product.length; i < len; i++) {
+        let len = exp.product.length;
+        for (let i = 0; i < len; i++) {
           const { label, exp: e } = exp.product[i];
           const r = run(e, value);
           if (r === undefined) return;
           result[label] = r;
+        }
+        if (len == 1) {
+          return new Variant(exp.product[0].label, result[exp.product[0].label]);
         }
         return new Product(result);
       }

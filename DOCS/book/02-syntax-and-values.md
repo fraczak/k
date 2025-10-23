@@ -10,7 +10,7 @@ $ type_name = type_expression ;
 function_name = expression ;
 ```
 
-The last expression in the file is the *main expression*; it represents the partial function defined by the program as a whole.
+The definitions are followed in the file by the *main expression*; it represents the partial function defined by the program as a whole.
 
 There is no special syntax for values.
 Every syntactic form describes a **function**—possibly a constant function that always returns the same value.
@@ -22,10 +22,10 @@ Every syntactic form describes a **function**—possibly a constant function tha
 A type describes the possible **tree shapes** of values.
 Types are formed from two constructors:
 
-1. **Product**  – written `{ t₁ l₁, t₂ l₂, … }`
+1. **Product**  – written `{ T₁ l₁, T₂ l₂, … }`
    represents records with fixed labeled fields.
 
-2. **Union**  – written `< t₁ l₁, t₂ l₂, … >`
+2. **Union**  – written `< T₁ l₁, T₂ l₂, … >`
    represents a choice between labeled alternatives.
 
 Both are finite and fully explicit.
@@ -36,14 +36,15 @@ Every type denotes a finite tree automaton whose accepted trees are the possible
 ## **2.3 Special and limiting cases**
 
 1. **Singleton equivalence**
-   A product with one field, `{T x}`, is **equivalent** to the union `<T x>`.
-   However, with two or more labels, the constructors must match: `{A x, B y} ≢ <A x, B y>`.
+   A product with one field, `{T x}`, is **equivalent** to the union `<T x>`. 
    This equivalence only applies to singleton cases.
+   With two or more labels, the constructors must match: `{A x, B y} ≢ <A x, B y>`.
+   
 
 2. **Empty product**
    `{}` has no fields.
-   It represents the *unit* type: a type that admits exactly one value, also written `{}`.
-   There is nothing exceptional about it; it is simply the degenerate case of a product with zero fields.
+   It represents the type that admits exactly one value, called _unit_.
+   There is nothing exceptional about the type and its value; it is simply the degenerate case of a product with zero fields.
 
 3. **Empty union**
    `<>` has no variants.
@@ -62,9 +63,9 @@ true_bool  = {{} true} $ bool;
 false_bool = {{} false} $ bool;
 ```
 
-Each constant definition constructs a function that produces the same variant value and then applies the type identity function `$ bool` to ensure the result is of the correct type.
+Each constant definition constructs a function that produces the same variant value and then applies the type identity function `$bool` to ensure the result is of the correct type.
 The syntax `{{} true}` creates a variant value: the empty product `{}` tagged as `true`.
-The `$ bool` acts as an identity function defined only on values of type `bool`.
+The `$bool` acts as an identity function defined only on values of type `bool`.
 
 Note that whitespace is optional: `{{} true} $ bool` is equivalent to `{{}true}$bool`.
 
@@ -89,9 +90,9 @@ Parentheses may be omitted except for the empty composition `()` —the identity
 
 ```
 $ bool = < {} true, {} false >;
-true_bool  = {{} true} $ bool;
-false_bool = {{} false} $ bool;
-neg = $ bool < .true false_bool, .false true_bool > $ bool;
+true_bool  = {{} true} $bool;
+false_bool = {{} false} $bool;
+neg = $bool < .true false_bool, .false true_bool >;
 ```
 
 This defines a two-variant union type and three functions: two constants and one transformation exchanging the variants.
@@ -102,7 +103,7 @@ This defines a two-variant union type and three functions: two constants and one
 
 * All types describe tree shapes.
 * `< T x >` and `{ T x }` are the same type.
-* `{}` is the empty product (unit).
+* `{}` is the empty product (with one value, called _unit).
 * Values appear only as results of constant functions.
 * There are no primitive literals, only algebraic data types.
 * Functions, not values, are the only expressions in k.

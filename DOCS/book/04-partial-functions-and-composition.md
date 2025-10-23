@@ -29,10 +29,10 @@ Composition is **associative**:
 (f g h)  ≡  ((f g) h)
 ```
 
-Therefore, parentheses are unnecessary except for the special case of the **empty composition**, written `()`, which acts as the identity function:
+Therefore, parentheses are unnecessary except for the special case of the **empty composition**, written `()`, which is the identity function:
 
 ```
-() x  =  x
+() x  =  x () = x
 ```
 
 ---
@@ -88,8 +88,8 @@ A constant function always returns the same value, ignoring its argument.
 Since k has no literal syntax for values, constants are expressed through construction:
 
 ```
-true_bool  =  {{ } true} $bool ;
-false_bool =  {{ } false} $bool ;
+true_bool  =  {{} true} $bool ;
+false_bool =  {{} false} $bool ;
 ```
 
 Each is a partial function defined for all inputs (total functions) producing a fixed value.
@@ -102,7 +102,7 @@ Projection selects a field or variant from a product or union.
 It is written with a leading dot:
 
 ```
-.x
+. x
 ```
 
 If the input is a product containing field `x`, the result is the value of that field.
