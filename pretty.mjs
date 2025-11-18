@@ -82,6 +82,10 @@ function prettyRel (exp) {
         return exp.comp.map(pretty).join(" ");
       case "dot":
         return `.${pLabel(exp.dot)}`;
+      case "div":
+        return `/${pLabel(exp.div)}`;
+      case "vid":
+        return `|${pLabel(exp.vid)}`;
       case "code":
         return `$${exp.code}`;
       case "product":

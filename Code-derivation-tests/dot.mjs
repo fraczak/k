@@ -5,7 +5,7 @@ t(`
 $b = < {} true, {} false > ; 
 $pair = { b one, b two } ;
 $bit = <{} 0, {} 1> ;
-1 = {{} 1} $bit;
+1 = {} |1 $bit;
 $b {1 one, () two, () c} .one
 
 `, (annotated) => {
@@ -19,18 +19,18 @@ $b {1 one, () two, () c} .one
 t(`
     $bit = <{} 0, {} 1> ;
     $a = < bit true, bit false > ;
-    $a .true
+    $a /true
   `, (annotated) => {
   const {input,output} = in_out(annotated);
   console.log({input,output});
 });
 
 t(`
-  x = .x;
-  xy = x.y;
+  x = /x;
+  xy = x/y;
   f = { 
-    { { {}    y} x} xy i, 
-    { { {}    y} x} xy b 
+    {} | y | x xy i, 
+    {} | y | x xy b 
   };
   f .b
 `, (annotated) => {

@@ -13,8 +13,8 @@ import assert from 'assert';
 // });
 
 t(`
-  B = {{} u} A;
-  A = < .a, .b A, .c {() z} A, B  >;
+  B = {}|u A;
+  A = < /a, /b A, /c | z A, B  >;
   A
 `, (annotated) => {
     // console.log(JSON.stringify(annotated,null,2));

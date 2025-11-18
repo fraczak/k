@@ -72,7 +72,8 @@ class Variant extends Value {
   }
 
   toString() {
-    return `{${JSON.stringify(this.tag)}:${this.value.toString()}}`;
+    // return `{${JSON.stringify(this.tag)}:${this.value.toString()}}`;
+    return `${this.value.toString()}|${this.tag}`;
   }
 
   toJSON() {

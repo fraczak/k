@@ -2,9 +2,9 @@
 
 $ bnat = < {} _, bnat 0, bnat 1 >;
 
-_ = {{} _};
-_1 = {() 1};
-_0 = {() 0};
+_ = {}|_;
+_1 = |1;
+_0 = |0;
 
 bnat_0  = _ $bnat;
 bnat_1  = _ _1 $bnat;
@@ -18,24 +18,24 @@ bnat_8  = _ _0 _0 _0 _1 $bnat;
 bnat_9  = _ _1 _0 _0 _1 $bnat;
 bnat_10 = _ _0 _1 _0 _1 $bnat;
 
-remove_leading_zeros = < .0 remove_leading_zeros, () >;
+remove_leading_zeros = < /0 remove_leading_zeros, () >;
 
 reverse = {() x, _ result} _reverse;
 
 _reverse =
   ${bnat x, bnat result}
   <
-    {.x._ if, .result then} .then,
-    {.x.0 x, .result _0 result} _reverse,
-    {.x.1 x, .result _1 result} _reverse
+    {.x/_ if, .result then} .then,
+    {.x/0 x, .result _0 result} _reverse,
+    {.x/1 x, .result _1 result} _reverse
   >
 ;
 
 append_0 = reverse _0 reverse; -- i.e., shift_left, double, or times2 
 
 $carry = <{} 0, {} 1>;
-c0 = {{} 0} $carry;
-c1 = {{} 1} $carry;
+c0 = {} |0 $carry;
+c1 = {} |1 $carry;
 
 $ pair = {bnat x, bnat y};
 
@@ -54,24 +54,23 @@ _plus =
   -- least significant bit first addition with carry
   ${bnat x, bnat y, carry c}
   <
-    {.x._ if1, .y._ if2, <.c.0 bnat_0, bnat_1> then} .then,
-    {.x._ if1, .c.0 if2, .y                    then} .then,
+    {.x/_ if1, .y/_ if2, <.c/0 bnat_0, bnat_1> then} .then,
+    {.x/_ if1, .c/0 if2, .y                    then} .then,
 
-    {.x     y, .y._ _ x, .c      c} _plus, --swap x with y, if y = 0
-    {.x._ <.c.0 bnat_0, bnat_1> 
+    {.x     y, .y/_ _ x, .c      c} _plus, --swap x with y, if y = 0
+    {.x/_ <.c/0 bnat_0, bnat_1> 
             x, .y     y, c0      c} _plus,
 
-    {.x.0   x, .y.0   y, .c.0 c0 c} _plus _0,
-    {.x.0   x, .y.0   y, .c.1 c0 c} _plus _1,
-
-    {.x.0   x, .y.1   y, .c.0 c0 c} _plus _1,
-    {.x.0   x, .y.1   y, .c.1 c1 c} _plus _0,
+    {.x/0   x, .y/0   y, .c/0 c0 c} _plus _0,
+    {.x/0   x, .y/0   y, .c/1 c0 c} _plus _1,
+    {.x/0   x, .y/1   y, .c/0 c0 c} _plus _1,
+    {.x/0   x, .y/1   y, .c/1 c1 c} _plus _0,
     
-    {.x.1   x, .y.0   y, .c.0 c0 c} _plus _1,
-    {.x.1   x, .y.0   y, .c.1 c1 c} _plus _0,
+    {.x/1   x, .y/0   y, .c/0 c0 c} _plus _1,
+    {.x/1   x, .y/0   y, .c/1 c1 c} _plus _0,
     
-    {.x.1   x, .y.1   y, .c.0 c1 c} _plus _0,
-    {.x.1   x, .y.1   y, .c.1 c1 c} _plus _1     
+    {.x/1   x, .y/1   y, .c/0 c1 c} _plus _0,
+    {.x/1   x, .y/1   y, .c/1 c1 c} _plus _1     
   >
 ;
 
@@ -91,17 +90,17 @@ _minus =
   -- least significat bit first substraction with carry
   ${bnat x, bnat y, carry c}
   <
-    {.x   x, .y._   y, .c.0   if} .x,
-    {.x.1 x, .y._   y, .c.1   if} .x _0,
-    {.x.0 x, .y._ _ y, .c.1 c1 c} _minus _1,
-    {.x.0 x, .y.0   y, .c.0 c0 c} _minus _0,
-    {.x.0 x, .y.0   y, .c.1 c1 c} _minus _1,  
-    {.x.0 x, .y.1   y, .c.0 c1 c} _minus _1,
-    {.x.0 x, .y.1   y, .c.1 c1 c} _minus _0,
-    {.x.1 x, .y.0   y, .c.0 c0 c} _minus _1,
-    {.x.1 x, .y.0   y, .c.1 c0 c} _minus _0,
-    {.x.1 x, .y.1   y, .c.0 c0 c} _minus _0,
-    {.x.1 x, .y.1   y, .c.1 c1 c} _minus _1
+    {.x   x, .y/_   y, .c/0   if} .x,
+    {.x/1 x, .y/_   y, .c/1   if} .x _0,
+    {.x/0 x, .y/_ _ y, .c/1 c1 c} _minus _1,
+    {.x/0 x, .y/0   y, .c/0 c0 c} _minus _0,
+    {.x/0 x, .y/0   y, .c/1 c1 c} _minus _1,  
+    {.x/0 x, .y/1   y, .c/0 c1 c} _minus _1,
+    {.x/0 x, .y/1   y, .c/1 c1 c} _minus _0,
+    {.x/1 x, .y/0   y, .c/0 c0 c} _minus _1,
+    {.x/1 x, .y/0   y, .c/1 c0 c} _minus _0,
+    {.x/1 x, .y/1   y, .c/0 c0 c} _minus _0,
+    {.x/1 x, .y/1   y, .c/1 c1 c} _minus _1
   >
 ;
 
@@ -119,9 +118,9 @@ times =
 _times =
   ${bnat result, bnat _x, bnat y}
   <
-    { .y._ if, .result then } .then,
-    { .result _0                           result, ._x _x, .y.0 y } _times,
-    { { ._x x, .result _0 y, c0 c } _plus  result, ._x _x, .y.1 y } _times
+    { .y/_ if, .result then } .then,
+    { .result _0                           result, ._x _x, .y/0 y } _times,
+    { { ._x x, .result _0 y, c0 c } _plus  result, ._x _x, .y/1 y } _times
   >
 ;
 
@@ -152,36 +151,36 @@ align =
 _align = 
   ${bnat _x, bnat _y, bnat x, bnat y}
   <
-    {._x._ if1, ._y._ if2, {.x x, .y y} then} .then,
-    {._x <.0, ._ _> _x, ._y <.0, ._ _> _y, .x _0 x, .y _0 y} _align,
-    {._x.1          _x, ._y <.0, ._ _> _y, .x _1 x, .y _0 y} _align,
-    {._x <.0, ._ _> _x, ._y.1          _y, .x _0 x, .y _1 y} _align,
-    {._x.1          _x, ._y.1          _y, .x _1 x, .y _1 y} _align
+    {._x/_ if1, ._y/_ if2, {.x x, .y y} then} .then,
+    {._x </0, /_ _> _x, ._y </0, /_ _> _y, .x _0 x, .y _0 y} _align,
+    {._x/1          _x, ._y </0, /_ _> _y, .x _1 x, .y _0 y} _align,
+    {._x </0, /_ _> _x, ._y/1          _y, .x _0 x, .y _1 y} _align,
+    {._x/1          _x, ._y/1          _y, .x _1 x, .y _1 y} _align
   >
 ;
 
 $compare = <{} lt, {} eq, {} gt >;
-lt = {{} lt};
-eq = {{} eq};
-gt = {{} gt};
+lt = {} |lt;
+eq = {} |eq;
+gt = {} |gt;
 
 compare = align _compare;
 _compare = 
   ${bnat x, bnat y}
   <
-    {.x._ if1, .y._ if2 } eq,
-    {.x.0 x, .y.0 y} _compare,
-    {.x.1 x, .y.1 y} _compare, 
-    .x.0 lt,
+    {.x/_ if1, .y/_ if2 } eq,
+    {.x/0 x, .y/0 y} _compare,
+    {.x/1 x, .y/1 y} _compare, 
+    .x/0 lt,
     gt
   >
   $compare
 ;
 
-zero? = remove_leading_zeros ._ bnat_0;
-eq? = {compare .eq if, () then} .then;
-gt? = {compare .gt if, () then} .then;
-lt? = {compare .lt if, () then} .then;
+zero? = remove_leading_zeros /_ bnat_0;
+eq? = {compare /eq if, () then} .then;
+gt? = {compare /gt if, () then} .then;
+lt? = {compare /lt if, () then} .then;
 ge? = < gt?, eq? >;
 le? = < lt?, eq? >;
 
@@ -250,8 +249,8 @@ lcm =
 half =
   reverse
   <
-    {.0 reverse div, bnat_0 rem},
-    {.1 reverse div, bnat_1 rem},
+    {/0 reverse div, bnat_0 rem},
+    {/1 reverse div, bnat_1 rem},
     {bnat_0 div, bnat_0 rem}
   >
 ;

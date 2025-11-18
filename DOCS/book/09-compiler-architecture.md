@@ -2,10 +2,10 @@
 
 ## **9.1  What the compiler does**
 
-A *compiler* for the k language is a program that reads another program (written in k) and produces a lower-level version of it.
+A *compiler* for the `k` language is a program that reads another program (written in `k`) and produces a lower-level version of it.
 The lower-level version can then be executed efficiently by a computer.
 
-For k, the compiler’s task is simple in concept:
+For `k`, the compiler’s task is simple in concept:
 
 1. **Read** the definitions of types and functions.
 2. **Understand** their structure and the relationships between them.
@@ -18,7 +18,7 @@ it takes a value as input, may or may not be defined for it, and, if defined, pr
 
 ## **9.2  The main stages**
 
-A k compiler is organized as a sequence of well-defined stages.
+A `k` compiler is organized as a sequence of well-defined stages.
 Each stage transforms one representation of the program into another, simpler one.
 
 1. **Reading and parsing** — The compiler converts the source text into a tree of syntactic objects.
@@ -72,7 +72,7 @@ These tables ensure that generated code can find fields and variants by number r
 
 Consider a simple k program:
 
-```
+```k-lang
 $bool = < {} true, {} false >;
 neg = $bool < .true {{ } false}, .false {{ } true} > $bool;
 ```
@@ -103,7 +103,7 @@ This sequence of steps is fully automatic and follows directly from the semantic
 
 Before producing final code, many compilers use an *intermediate representation* (IR).
 It is a language designed to be easy to generate and easy to translate further into real machine code.
-For k, the IR mirrors the structure of partial functions:
+For `k`, the IR mirrors the structure of partial functions:
 
 | Concept in k          | IR operation                     |
 | --------------------- | -------------------------------- |
@@ -111,7 +111,6 @@ For k, the IR mirrors the structure of partial functions:
 | Composition `(f g)`   | `CALL f; CALL g`                 |
 | Union `<f,g>`         | `TRY f; IF undefined THEN TRY g` |
 | Product `{f,g}`       | `CALL f; CALL g; COMBINE`        |
-| Constant              | `MAKE_CONST node_id`             |
 | Type restriction `$T` | `CHECK_TYPE state_id`            |
 
 The compiler converts each AST node into one or more IR instructions.
@@ -135,22 +134,22 @@ The two together form an executable program.
 
 ## **9.8  Simplicity of the model**
 
-Because every expression in k takes exactly one input and may return one output or be undefined,
+Because every expression in `k` takes exactly one input and may return one output or be undefined,
 the compiler never has to deal with variable environments, loops, or side effects.
 This makes the structure of the generated program very regular:
 
-```
+```text
 input → [series of calls and checks] → output or undefined
 ```
 
 Each compiled function is independent and stateless.
-This regularity is what allows k to map cleanly to low-level code.
+This regularity is what allows `k` to map cleanly to low-level code.
 
 ---
 
 ## **9.9  Summary**
 
-* The compiler transforms k programs into executable form through a sequence of simple, deterministic steps.
+* The compiler transforms `k` programs into executable form through a sequence of simple, deterministic steps.
 * Type information and structure are resolved before code generation.
 * All generated functions follow the same calling convention (`ok`, `val`).
 * The runtime library provides the shared operations needed by every program.

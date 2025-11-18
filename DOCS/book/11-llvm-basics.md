@@ -2,7 +2,7 @@
 
 ## **11.1  Purpose**
 
-The previous chapters described how a k program can be reduced to a small set of intermediate operations.
+The previous chapters described how a `k` program can be reduced to a small set of intermediate operations.
 To execute these operations efficiently, the compiler must translate them into an actual machine language.
 Instead of generating raw machine code directly, we use a common intermediate format called **LLVM IR** (LLVM *Intermediate Representation*).
 
@@ -17,7 +17,7 @@ For the compiler writer, it provides a bridge between high-level language semant
 An LLVM program consists of **global definitions** and **functions**.
 
 * *Global definitions* describe data structures shared between functions.
-  In the k compiler, this includes the runtime metadata tables and constant nodes such as `{}`.
+  In the `k` compiler, this includes the runtime metadata tables and constant nodes such as `{}`.
 
 * *Functions* contain sequences of instructions grouped into **basic blocks**.
   A basic block is a straight-line segment of code with no branches except at the end.
@@ -31,7 +31,7 @@ This property is called *single static assignment* (SSA).
 ## **11.3  Data types**
 
 LLVM provides several primitive types.
-Only a few are required for the k compiler:
+Only a few are required for the `k` compiler:
 
 | LLVM type       | Meaning                                            |
 | --------------- | -------------------------------------------------- |
@@ -55,7 +55,7 @@ The main structures used by generated code are:
 
 ## **11.4  Function signatures**
 
-Every compiled k function is translated into one LLVM function with the following signature:
+Every compiled `k` function is translated into one LLVM function with the following signature:
 
 ```llvm
 define %KOpt @f_name(%KVal %in) { ... }
@@ -149,7 +149,7 @@ These mappings produce correct, low-level code while remaining faithful to the l
 
 For the function `neg` from earlier:
 
-```
+```k-lang
 $bool = < {} true, {} false >;
 neg = $bool < .true {{ } false}, .false {{ } true} > $bool;
 ```
@@ -205,9 +205,9 @@ LLVM also verifies that all types and values are consistent before emitting mach
 ## **11.11  Summary**
 
 * LLVM IR is a portable, low-level language ideal for code generation.
-* Every k function becomes an LLVM function returning the pair `{ok, value}`.
+* Every `k` function becomes an LLVM function returning the pair `{ok, value}`.
 * All constants, type checks, and runtime calls are represented explicitly.
-* The translation from k’s intermediate form to LLVM is direct and systematic.
+* The translation from `k`’s intermediate form to LLVM is direct and systematic.
 * Standard LLVM tools can then optimize and compile the result into executable machine code.
 
 ---

@@ -20,6 +20,8 @@ function relDefToString(relDef) {
       case "ref":
       case "identity":
       case "dot":
+      case "div":
+      case "vid":
       case "code":
       case "filter":
         return [...rel.patterns]; 
@@ -66,6 +68,8 @@ function compactRel(relDef, name = "") {
       case "ref":
       case "identity":
       case "dot":
+      case "div":
+      case "vid":  
       case "code":
       case "filter":
         break;
@@ -138,9 +142,18 @@ function patterns(representatives, rels) {
         case "dot":
           rel.patterns = [];
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '(...)'}, { [rel.dot]: [rel.patterns[1]] }); 
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '{...}'}, { [rel.dot]: [rel.patterns[1]] }); 
           break;
-        
+        case "div":
+          rel.patterns = [];
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '<...>'}, { [rel.div]: [rel.patterns[1]] }); 
+          break;
+        case "vid":
+          rel.patterns = [];
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '<...>'}, { [rel.vid]: [rel.patterns[0]] }); 
+          break;
         case "filter":
           rel.patterns = [];
           rel.patterns[1] = rel.patterns[0] = filterToPattern(rel.filter, rootDef);

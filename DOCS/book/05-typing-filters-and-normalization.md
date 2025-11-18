@@ -2,9 +2,9 @@
 
 ## **5.1 Types as functions**
 
-A type expression in k can appear wherever a function is expected.
+A type expression in `k` can appear wherever a function is expected, prefixed by `$`.
 In this context it behaves as an **identity** function that is defined only for values of that type.
-For example, `$bool` used as an expression is a partial identity: it returns its argument unchanged when the argument is of type `bool`, and it is undefined otherwise.
+For example, `$ bool` used as an expression is a partial identity: it returns its argument unchanged when the argument is of type `bool`, and it is undefined otherwise.
 
 This convention eliminates any special syntax for annotating sub-expressions with types.
 An expression may be *restricted* to a type simply by composing it with the corresponding type expression.
@@ -13,8 +13,8 @@ An expression may be *restricted* to a type simply by composing it with the corr
 
 ## **5.2 Filters**
 
-A **filter** is a syntactic form that denotes a *class of types*—a set of types sharing some structure.
-Filters generalize type expressions in the same way that regular expressions represent sets of specific strings.
+A **filter** is a syntactic form that denotes a *class of types* — a set of types sharing some structure.
+Intuitively, filters generalize type expressions in the same way that regular expressions represent sets of specific strings.
 
 Filter expressions are introduced by `?` and can be:
 
@@ -39,7 +39,7 @@ The filter `? <...>` matches any union type.
 * `?(...)` — represents any type.
 * `?()` — represents an empty product or empty union.
 * `?< (...) f, (...) g >` — represents all union types having exactly two variants `f` and `g`.
-* `?{ X f, X g }` — represents all product types with two fields `f` and `g`, both of the same element type `X`.
+* `?{ X f, X g }` — represents all product types with two fields `f` and `g`, both of the same type.
 
 A filter constrains where a partial function is defined; it does not affect the operational behavior of the function once defined.
 
@@ -52,28 +52,27 @@ They can describe families of recursive types by equating one meta-variable to a
 
 Example (list definition):
 
-```
+```k-lang
 ?< {} nil, {X car, Y cdr} cons > = Y
 ```
 
-This filter states that `Y` is any type satisfying:
-either the empty product `{}` labeled `nil`, or a product with two fields `car` of type `X` and `cdr` of type `Y` labeled `cons`.
-It thus denotes lists of `X`.
+This filter states that `Y` is any union type with two variants `cons` and `nil`. Variant `nil` is of the empty product `{}` and variant `cons` is a product type with two fields `car` of type `X` and `cdr` of type `Y`.
+It thus denotes lists of elements of type `X`.
 
 ---
 
-## **5.5 Filter variables and scope**
+## **5.5 Type variables and scope**
 
 A variable (any identifier) introduced in a filter is visible within the enclosing function definition.
 For example:
 
-```
+```k-lang
 car = ?< {} nil, {X car, Y cdr} cons > = Y .car ?X;
 ```
 
 Here:
 
-* `X` and `Y` are filter variables.
+* `X` and `Y` are type variables.
 * `car` is a function defined on all union types matching the filter, i.e., any type that has a variant `cons` with field `car` of type `X` and field `cdr` of type `Y`.
 * The expression `.car ?X` projects the `car` field and restricts its result to type `X`.
 
@@ -81,7 +80,7 @@ Here:
 
 ## **5.6 Type inference and normalization**
 
-Every k program can be analyzed to assign an input and output filter to every sub-expression.
+Every `k` program can be analyzed to assign an input and output filter to every sub-expression.
 
 Normalization proceeds as follows:
 

@@ -41,6 +41,7 @@ function verify(code, value) {
 }
 
 function run(exp, value) {
+  // console.log("RUN", JSON.stringify({exp, value}, null, 2));
   "use strict";
   if (value === undefined) return;
   while (true) {    
@@ -65,10 +66,10 @@ function run(exp, value) {
         throw(`Unknown ref: '${exp.ref}'`);
       }
       case "dot":
-        if (value instanceof Product) return value.product[exp.dot];
-        if ((value instanceof Variant) && (value.tag === exp.dot)) return value.value;
+        return value.product[exp.dot];
+      case "div":
+        if (value.tag === exp.div) return value.value;
         return
-
       case "comp":
         for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
           const result = run(exp.comp[i], value);
@@ -98,11 +99,10 @@ function run(exp, value) {
           if (r === undefined) return;
           result[label] = r;
         }
-        if (len == 1) {
-          return new Variant(exp.product[0].label, result[exp.product[0].label]);
-        }
         return new Product(result);
       }
+      case "vid":
+        return new Variant(exp.vid, value);
       case "filter": {
         return value;
       }

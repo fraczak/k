@@ -9,12 +9,12 @@ import hash from './hash.mjs';
     $b = { bits"x", bits y};
     $tree = < {nat value, tree left, tree right} binary, nat leaf, {nat value, tree tree} unary >;
   
-    succ = { $nat succ} $nat;
+    succ =  | succ $nat;
     plus = $pair <
-      {.x.zero stop, .y result} .result,
-      {.x.succ x, .y succ y } plus
+      {.x/zero stop, .y result} .result,
+      {.x/succ x, .y succ y } plus
     > $nat;
-  {{} zero} succ succ {() x, () y} plus
+  {}|zero succ succ {() x, () y} plus
     `     
   ].map(function (script) {
     console.log("test-fingerprint:");

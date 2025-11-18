@@ -2,7 +2,7 @@
 
 ## **10.1  The purpose of an intermediate form**
 
-The abstract syntax tree (AST) of a k program directly reflects how the source code was written.
+The abstract syntax tree (AST) of a `k` program directly reflects how the source code was written.
 It is easy to read but not convenient for generating machine code.
 Before code can be produced, the compiler rewrites this tree into a **simpler, regular structure** called the *intermediate representation* (IR).
 
@@ -30,7 +30,6 @@ Only concrete actions remain.
 | **CALL function_id**          | Invoke another function following the ABI.                       |
 | **UNION [f₁, f₂, …]**         | Try several functions in order until one succeeds.               |
 | **PRODUCT [l₁=f₁, l₂=f₂, …]** | Apply each function to the same input and combine results.       |
-| **CONST node_id**             | Return a fixed value.                                            |
 | **FAIL**                      | Always undefined.                                                |
 | **SEQ [f₁, f₂, …]**           | Apply functions in sequence (composition).                       |
 
@@ -42,14 +41,14 @@ Each function in the program becomes a small list or tree of such IR instruction
 
 Source program:
 
-```
+```k-lang
 $bool = < {} true, {} false >;
 neg = $bool < .true {{ } false}, .false {{ } true} > $bool;
 ```
 
 The IR for `neg` can be written informally as:
 
-```
+```text
 neg:
   TYPECHECK bool
   UNION [
@@ -75,7 +74,6 @@ Every IR operation corresponds to a runtime action:
 | CALL         | call another generated function                     |
 | UNION        | sequential `if`–`else` test on success flags        |
 | PRODUCT      | multiple subcalls + `k_make_product`                |
-| CONST        | constant node pointer                               |
 | FAIL         | return `{ ok = 0 }` immediately                     |
 | SEQ          | connect the output of one step as input to the next |
 
@@ -87,7 +85,7 @@ By describing computation in these terms, the compiler can generate executable c
 
 The process of converting the AST to IR follows a recursive pattern:
 
-1. **Projections and constants** become single instructions (`PROJECT`, `CONST`).
+1. **Projections** become single instructions `PROJECT`.
 2. **Compositions** `(f g h)` become a `SEQ` list of their components.
 3. **Unions** `<f,g>` become a `UNION` list.
 4. **Products** `{f l₁, g l₂}` become a `PRODUCT` list with labeled entries.
@@ -102,10 +100,10 @@ Each transformation step produces IR nodes with fixed behavior and explicit orde
 
 Because k programs are defined by simple composition, a small set of checks ensures correctness:
 
-1. Each `SEQ`, `UNION`, or `PRODUCT` list must have at least one element.
-2. Every `PROJECT` or `CONST` must have a valid label or node reference.
+1. Each `UNION` list must have at least one element.
+2. Every `PROJECT` must have a valid label.
 3. Input and output states of consecutive steps must match.
-4. A function must end in an operation that produces a result (`CONST`, `PROJECT`, `CALL`, or combination).
+4. A function must end in an operation that produces a result (`PROJECT`, `CALL`, or combination).
 
 After verification, the IR is guaranteed to represent a valid partial function according to the semantics in Chapter 8.
 
@@ -130,8 +128,7 @@ This means an interpreter for the IR can serve as a reference implementation of 
 For input function `{ .x a, .y b }`,
 the IR is:
 
-```
-TYPECHECK pair
+```text
 PRODUCT [
   a = PROJECT x,
   b = PROJECT y
@@ -140,9 +137,8 @@ PRODUCT [
 
 The runtime sequence is:
 
-1. Check that the input is a product with two fields.
-2. Apply each projection.
-3. If both succeed, build a new node with two children in order `(a,b)`.
+1. Apply each projection.
+2. If both succeed, build a new node with two children in order `(a,b)`.
 
 This pattern covers all record-building operations in the language.
 
@@ -163,9 +159,9 @@ Because of these advantages, most compilers for declarative languages use an int
 ## **10.10  Summary**
 
 * The abstract syntax tree is rewritten into a simpler, machine-oriented form.
-* Each IR instruction represents one operation defined by the k semantics.
+* Each IR instruction represents one operation defined by the `k` semantics.
 * Type and filter information appear as explicit checks.
 * The IR is easy to verify and to translate into executable code.
-* The IR can also serve as a precise description of how k functions behave step by step.
+* The IR can also serve as a precise description of how `k` functions behave step by step.
 
 ---

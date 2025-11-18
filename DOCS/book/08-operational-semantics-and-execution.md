@@ -2,7 +2,7 @@
 
 ## **8.1  Purpose**
 
-The **operational semantics** of k describe how expressions are evaluated step by step on actual value trees.
+The **operational semantics** of `k` describe how expressions are evaluated step by step on actual value trees.
 It defines when a function is *defined* for a particular input and what value it returns.
 All execution—interpretive or compiled—follows these rules.
 
@@ -12,7 +12,7 @@ All execution—interpretive or compiled—follows these rules.
 
 Evaluation is written as:
 
-```
+```text
 ⟨ e , v ⟩ ⇓ r
 ```
 
@@ -28,27 +28,18 @@ Undefined results are expressed by the absence of any rule that produces `r`.
 
 ### **Identity**
 
-```
+```text
 ⟨ () , v ⟩ ⇓ v
 ```
 
 The empty composition `()` returns its argument unchanged.
-
-### **Constant**
-
-```
-⟨ c , v ⟩ ⇓ r₀
-```
-
-for any `v`.
-The constant function ignores its input and returns its predefined value `r₀`.
 
 ### **Projection**
 
 Let `label` be a field or variant name.
 If `v` has a child under `label`,
 
-```
+```text
 ⟨ .label , v ⟩ ⇓ v.label
 ```
 
@@ -56,9 +47,9 @@ Otherwise the projection is undefined.
 
 ### **Type expression**
 
-For a type `$T`,
+For a type `T`,
 
-```
+```text
 ⟨ $T , v ⟩ ⇓ v     if v ∈ T
 ```
 
@@ -71,7 +62,7 @@ Type expressions thus act as identity functions restricted to their type.
 
 ### **Sequential composition**
 
-```
+```text
 ⟨ (f g) , v ⟩ ⇓ r
 ```
 
@@ -81,7 +72,7 @@ if there exists `u` such that
 If either step is undefined, the composition is undefined.
 Because composition is associative,
 
-```
+```text
 (f (g h))  ≡  ((f g) h)  ≡  (f g h)
 ```
 
@@ -91,7 +82,7 @@ Parentheses are needed only for `()`.
 
 ## **8.5  Rules for product composition**
 
-```
+```text
 ⟨ { f₁ l₁ , f₂ l₂ , … , fₙ lₙ } , v ⟩ ⇓ { r₁ l₁ , r₂ l₂ , … , rₙ lₙ }
 ```
 
@@ -105,7 +96,7 @@ each result `rᵢ` becomes one child in canonical field order.
 
 ## **8.6  Rules for union composition**
 
-```
+```text
 ⟨ < f₁ , f₂ , … , fₙ > , v ⟩ ⇓ rⱼ
 ```
 
@@ -118,15 +109,20 @@ If no subfunction is defined, the union composition is undefined.
 
 ## **8.7  Rules for filters**
 
-If a filter `?F` matches the type of value `v`,
+If a filter `F` matches a single type `T`
 
+```text
+⟨ ?F , v ⟩ ⇓ ⟨ $T , v ⟩ 
 ```
+
+otherwise it is an identity
+
+```text
 ⟨ ?F , v ⟩ ⇓ v
 ```
 
-otherwise it is undefined.
-
-Filters therefore act as partial identities defined for all types satisfying the filter pattern.
+Filters therefore act as compile time annotations for type checking only.
+They are ignored at run-time, unless they lead to fully typed expressions (i.e., can be replaced by a type).
 
 ---
 
@@ -145,12 +141,12 @@ for any given input, at most one result tree can be produced.
 
 Given:
 
-```
+```k-lang
 $bool = < {} true, {} false >;
 neg = $bool < .true {{ } false}, .false {{ } true} > $bool;
 ```
 
-and input value `{ {} true } $bool`,
+and input value `{ {} true }` of type `bool`,
 evaluation steps are:
 
 1. `⟨ $bool , { {} true } ⟩ ⇓ { {} true }`
@@ -171,8 +167,7 @@ The evaluation rules map directly onto the runtime ABI:
 | Projection          | `k_project`                           |
 | Product composition | multiple subcalls + `k_make_product`  |
 | Union composition   | sequential subcalls with early return |
-| Type/Filter         | runtime check of `state` or `arity`   |
-| Constant            | predefined node pointer               |
+| Type                | runtime check of `state`              |
 | Composition         | function call chain                   |
 
 In compiled form, the `ok` flag of `KOpt` represents whether a rule applies;
@@ -184,7 +179,7 @@ the node pointer represents the result value.
 
 * Execution follows deterministic, left-to-right rules.
 * All expressions denote partial functions on value trees.
-* Type and filter expressions act as restricted identities.
+* Type expressions act as restricted identities.
 * Composition is associative; undefined propagates automatically.
 * Runtime semantics match the formal evaluation relation exactly.
 

@@ -43,9 +43,9 @@ function fromEscString(escString) {
 %lex
 
 %%
-[/][*]([^*]*[*]+[^*/])*[^*]*[*]+[/]             /* c-comment */
-("//"|"#"|"%"|"--"|"\\")[^\n]*                  /* one line comment */
-\s+                                             /* blanks */
+[/][*]([^*]*[*]+[^*/])*[^*]*[*]+[/]            /* c-comment */
+("//"|"#"|"%"|"--"|"\\\\")[^\n]*               /* one line comment */
+\s+                                            /* blanks */
 "<"                                            return 'LA';
 "{"                                            return 'LC';
 "("                                            return 'LP';
@@ -55,6 +55,8 @@ function fromEscString(escString) {
 "="                                            return 'EQ'; 
 "..."                                          return 'DOTS';
 "."                                            return 'DOT';
+"/"                                            return 'DIV';
+("\\"|"|")                                     return 'VID';
 ","                                            return 'COMMA';
 ";"                                            return 'SC';
 ":"                                            return 'COL';
@@ -70,7 +72,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING
-%token LA LC LP RA RP RC EQ DOT COMMA SC COL DOLLAR AT QMARK DOTS
+%token LA LC LP RA RP RC EQ DOT COMMA SC COL DOLLAR AT QMARK DOTS DIV VID
 %token INCREMENTAL
 %token EOF
 
@@ -89,6 +91,8 @@ rp: RP                                  { $$ = getToken(yytext,yy,_$); };
 eq: EQ                                  { $$ = getToken(yytext,yy,_$); };
 dots: DOTS                              { $$ = getToken(yytext,yy,_$); };
 dot: DOT                                { $$ = getToken(yytext,yy,_$); };
+div: DIV                                { $$ = getToken(yytext,yy,_$); };
+vid: VID                                { $$ = getToken(yytext,yy,_$); };
 comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
 sc: SC                                  { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
@@ -210,6 +214,10 @@ exp
     | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
     | dot name                          { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
     | dot str                           { $$ = {op: "dot", dot: $2.value, start: $1.start, end: $2.end }; }
+    | div name                          { $$ = {op: "div", div: $2.value, start: $1.start, end: $2.end }; }
+    | div str                           { $$ = {op: "div", div: $2.value, start: $1.start, end: $2.end }; }
+    | vid name                          { $$ = {op: "vid", vid: $2.value, start: $1.start, end: $2.end }; }
+    | vid str                           { $$ = {op: "vid", vid: $2.value, start: $1.start, end: $2.end }; }
     | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
     | qmark filter                      { $$ = {op: "filter", filter: $2, start: $1.start, end:$2.end}; }
     ;

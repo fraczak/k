@@ -16,7 +16,7 @@ This unified approach enables programs to operate on serialized inputs without u
 
 All values are represented by a single abstraction:
 
-```
+```c
 struct KValue {
     enum ValueForm {
         SERIALIZED,     // pure bitstream + type info
@@ -65,7 +65,7 @@ This enables **streaming evaluation** where programs can process data incrementa
 
 Nodes in lazy values can be in different states of materialization:
 
-```
+```c
 struct KNode {
     int  state;        // canonical type state (C0, C1,…)
     int  tag;          // variant index, −1 for product
@@ -126,12 +126,15 @@ Each node in the value tree is encoded based on its automaton state:
 #### **Example: Natural numbers**
 
 For type `bnat`, intuitively binary natural numbers defined by `$bnat = < bnat 0, bnat 1, {} _ >`, we get
-```
+
+```k-repl
 --C bnat
 $ @BsAqRMv = < @BsAqRMv 0, @BsAqRMv 1, @KL _ >; -- $C0=<C0"0",C0"1",C1"_">;$C1={};
 ```
+
 The corresponding ContextFree grammar is:
-```
+
+```text
 // 3 rules for C0, so we need two bit strings to encode all variants:
    C0 -> '{' C0"0" '}'  //       encoded by '00'
    C0 -> '{' C0"1" '}'  //       encoded by '01'
@@ -139,18 +142,22 @@ The corresponding ContextFree grammar is:
 // 1 rule for C1 so we need zero bits:
    C1 -> '{' '}';       //       encoded by ''
 ```
+
 - 3 variants require `ceil(log2(3)) = 2` bits
 - Codes: `00` (0-bit), `01` (1-bit), `10` (end marker)
 
 The value `{{{{} _} 0} 1}` or in JSON-like notation `{1:{0:{_:{}}}}` (binary 10₂ = decimal 2) encodes as:
-```
+
+```text
 01 00 10
 ```
+
 This represents the left-most derivation of  `{{{{} _} 0} 1}` from `C0`.
 
 #### **Prefix-free property**
 
 The encoding is **prefix-free**: no valid encoding is a prefix of another. This enables:
+
 - Linear-time parsing without backtracking  
 - Efficient `skip_field()` operations for lazy evaluation
 - Deterministic decoding from any position in the stream
@@ -163,7 +170,7 @@ The canonical serialization can be significantly compressed using **DAG (Directe
 
 Each unique subtree is assigned a **node ID** based on its canonical hash:
 
-```
+```text
 hash(node) = hash(state, tag, arity, hash(child_0), hash(child_1), ...)
 ```
 
@@ -172,17 +179,19 @@ Identical subtrees (same structure and content) get the same hash and share the 
 #### **Two-pass encoding**
 
 **Pass 1: Collection**
+
 - Traverse the value tree and compute hashes for all subtrees
 - Build a **node table** mapping `node_id → (first_occurrence_offset, reference_count)`
 - Subtrees with `reference_count > 1` are candidates for sharing
 
 **Pass 2: Emission**
+
 - **First occurrence**: emit the full subtree encoding
 - **Subsequent occurrences**: emit a **back-reference** to the node ID
 
 #### **Back-reference encoding**
 
-```
+```text
 | Reference Bit (1) | Node ID (variable length) |
 ```
 
@@ -193,7 +202,8 @@ Identical subtrees (same structure and content) get the same hash and share the 
 #### **Example: Shared subtrees**
 
 Consider a binary tree with repeated leaf patterns:
-```
+
+```k-lang
 $tree = < { tree left, tree right } branch, { int value } leaf >;
 ```
 
@@ -203,7 +213,8 @@ Value: `{ {value: 42} left, { {value: 42} right, {value: 17} left } right }`
 **With DAG**: The `{value: 42}` subtree is encoded once, then referenced
 
 **Encoding sequence**:
-```
+
+```text
 Node Table:
   N0: {value: 42}    (appears 2 times)
   N1: {value: 17}    (appears 1 time)
@@ -218,25 +229,26 @@ Bitstream:
 
 ### **6.4.2  Stream structure**
 
-```
+```text
 | Header (8 bytes) | Node Count (4 bytes) | Node Table | Bitstream |
 ```
 
-* **Header** — type hash identifying the canonical automaton
-* **Node Count** — number of shared nodes (0 = no DAG compression)
-* **Node Table** — `[node_id, offset_in_bitstream, size_in_bits]` for each shared node
-* **Bitstream** — concatenated prefix-free codes with back-references
+- **Header** — type hash identifying the canonical automaton
+- **Node Count** — number of shared nodes (0 = no DAG compression)
+- **Node Table** — `[node_id, offset_in_bitstream, size_in_bits]` for each shared node
+- **Bitstream** — concatenated prefix-free codes with back-references
 
 #### **Node table format**
 
 When DAG compression is used (`Node Count > 0`):
 
-```
+```text
 For each shared node:
 | Node ID (4 bytes) | Offset (4 bytes) | Size in bits (4 bytes) |
 ```
 
 This allows the decoder to:
+
 1. **Random access**: Jump directly to any shared subtree definition
 2. **Lazy loading**: Resolve back-references only when needed
 3. **Validation**: Verify subtree boundaries during parsing
@@ -244,14 +256,17 @@ This allows the decoder to:
 #### **Compression algorithms**
 
 **Greedy sharing**: Share any subtree that appears more than once
+
 - Simple to implement
 - Good compression for naturally occurring patterns
 
 **Size-based sharing**: Only share subtrees above a minimum size threshold
+
 - Avoids overhead of referencing tiny subtrees
 - Better compression ratio in practice
 
 **Frequency-weighted sharing**: Prioritize subtrees by `size × frequency`
+
 - Optimal compression for space-constrained scenarios
 - Requires more sophisticated analysis
 
@@ -292,13 +307,15 @@ For **real-time processing**: Skip DAG compression entirely
 #### **Compression example: Repeated data structures**
 
 Consider a list of similar records:
-```k
+
+```k-lang
 $record = { string name, int age, string department };
 $company = < { record head, company tail } cons, {} nil >;
 ```
 
 Value representing 1000 employees where 80% work in "Engineering":
-```
+
+```text
 Without DAG: Each "Engineering" string encoded separately
 - 1000 records × 30 bytes/record = 30KB
 
@@ -309,7 +326,7 @@ With DAG: "Engineering" string shared via back-references
 
 The DAG representation transforms the **tree** into a more efficient **directed acyclic graph**:
 
-```
+```text
 Tree:     Record1 → "Engineering"
           Record2 → "Engineering"  
           Record3 → "Engineering"
@@ -370,6 +387,7 @@ struct ProductLayout {
 ```
 
 Fields are ordered by **access frequency** rather than alphabetical order:
+
 - **Hot fields** (frequently accessed): placed first  
 - **Cold fields** (rarely accessed): placed last
 - **Large fields** (arrays, strings): placed at end to avoid cache pollution
@@ -461,6 +479,7 @@ struct StreamLayout {
 ```
 
 **Memory access patterns**:
+
 - **Sequential reads**: Optimal for streaming workloads
 - **Random access**: Offset table enables O(1) field access
 - **Bulk operations**: SIMD can process multiple discriminators simultaneously
@@ -567,6 +586,7 @@ struct OptimalEncoding {
 ```
 
 **Benefits**:
+
 - **8-byte aligned** structures for optimal memory access
 - **Single cache line** headers for small products  
 - **SIMD-friendly** data layout
@@ -575,7 +595,7 @@ struct OptimalEncoding {
 
 ### **6.4.4  External type integration**
 
-```
+```text
 | External Marker (2 bits) | Type ID | External Data Length | External Data |
 ```
 
@@ -589,14 +609,14 @@ Operations on values trigger selective deserialization:
 
 ### **6.5.1  Access patterns**
 
-* **Identity operation `()`** — no deserialization, direct bitstream copy
-* **Field access `.field`** — deserialize only the path to the requested field
-* **Pattern matching** — deserialize only the discriminator, then the matched branch
-* **Full evaluation** — progressive deserialization as computation proceeds
+- **Identity operation `()`** — no deserialization, direct bitstream copy
+- **Field access `.field`** — deserialize only the path to the requested field
+- **Pattern matching** — deserialize only the discriminator, then the matched branch
+- **Full evaluation** — progressive deserialization as computation proceeds
 
 ### **6.5.2  Lazy evaluation strategy**
 
-```
+```c
 function access_field(value: KValue, field_path: String[]): KValue {
     if (value.form == SERIALIZED) {
         // Partially deserialize to reach the field
@@ -628,7 +648,7 @@ Built-in and foreign types integrate through a plugin interface:
 
 ### **6.6.1  External operations**
 
-```
+```c
 struct ExternalOps {
     KValue* (*serialize)(void* data);
     void*   (*deserialize)(KValue* serialized);
@@ -641,15 +661,15 @@ struct ExternalOps {
 
 ### **6.6.2  Built-in type examples**
 
-* **Strings** — UTF-8 encoded with length prefix
-* **Integers** — variable-length encoding (LEB128)
-* **Floats** — IEEE 754 binary representation
-* **Blobs** — raw binary data with length prefix
-* **Handles** — opaque references to external resources
+- **Strings** — UTF-8 encoded with length prefix
+- **Integers** — variable-length encoding (LEB128)
+- **Floats** — IEEE 754 binary representation
+- **Blobs** — raw binary data with length prefix
+- **Handles** — opaque references to external resources
 
 ### **6.6.3  Type registration**
 
-```
+```c
 void register_external_type(int type_id, const char* name, ExternalOps* ops) {
     external_types[type_id] = {
         .name = name,
@@ -667,7 +687,7 @@ void register_external_type(int type_id, const char* name, ExternalOps* ops) {
 
 All materialized nodes use arena allocation for fast allocation and bulk deallocation:
 
-```
+```c
 struct Arena {
     uint8_t* memory;
     size_t   capacity;
@@ -678,18 +698,18 @@ struct Arena {
 
 ### **6.7.2  Sharing and deduplication**
 
-* **Canonical folding** — identical subtrees share the same materialized nodes
-* **Bitstream sharing** — multiple lazy values can reference the same underlying bitstream
-* **DAG back-references** — shared subtrees in serialized form avoid duplication during lazy materialization
-* **External sharing** — external values use reference counting or garbage collection as appropriate
+- **Canonical folding** — identical subtrees share the same materialized nodes
+- **Bitstream sharing** — multiple lazy values can reference the same underlying bitstream
+- **DAG back-references** — shared subtrees in serialized form avoid duplication during lazy materialization
+- **External sharing** — external values use reference counting or garbage collection as appropriate
 
 ### **6.7.3  Optimization opportunities**
 
-* **Zero-copy operations** — identity, field projection on serialized values
-* **Streaming evaluation** — process large datasets without full materialization  
-* **Parallel deserialization** — independent subtrees can be materialized concurrently
-* **DAG-aware caching** — cache resolutions of frequently accessed back-references
-* **Memoization** — cache frequently accessed paths in lazy structures
+- **Zero-copy operations** — identity, field projection on serialized values
+- **Streaming evaluation** — process large datasets without full materialization  
+- **Parallel deserialization** — independent subtrees can be materialized concurrently
+- **DAG-aware caching** — cache resolutions of frequently accessed back-references
+- **Memoization** — cache frequently accessed paths in lazy structures
 
 ---
 
@@ -697,7 +717,7 @@ struct Arena {
 
 Consider processing a large JSON-like structure where we only need one field:
 
-```
+```k-lang
 $record = { string name, list data, metadata meta };
 $list = < {nat value, list next} cons, {} nil >;
 $metadata = { timestamp created, string author };
@@ -716,7 +736,7 @@ The entire `data` list and `metadata` remain as untouched bitstreams, providing 
 
 The same value can exist in different forms simultaneously:
 
-```
+```c
 // Original input: fully serialized
 KValue input = {
     .form = SERIALIZED,
@@ -742,7 +762,7 @@ KValue hybrid = {
 
 ### **6.8.2  External type integration example**
 
-```
+```c
 // Built-in string type
 KValue string_value = {
     .form = EXTERNAL,
@@ -770,21 +790,21 @@ ExternalOps string_operations = {
 
 This unified representation provides several key advantages:
 
-* **Performance** — avoid unnecessary deserialization through lazy evaluation
-* **Memory efficiency** — share serialized data between multiple references
-* **Composability** — external types integrate seamlessly with k's type system
-* **Streaming** — process large data structures with bounded memory usage
-* **Determinism** — canonical serialization ensures reproducible computation
+- **Performance** — avoid unnecessary deserialization through lazy evaluation
+- **Memory efficiency** — share serialized data between multiple references
+- **Composability** — external types integrate seamlessly with k's type system
+- **Streaming** — process large data structures with bounded memory usage
+- **Determinism** — canonical serialization ensures reproducible computation
 
 The design supports the full spectrum from zero-copy identity operations to fully materialized tree traversal, allowing the runtime to automatically choose the most efficient representation for each use case.
 
 ### **6.9.1  Key design principles**
 
-* **Immutability** — all representations are immutable, enabling safe sharing
-* **Demand-driven** — materialization happens only when computation requires it
-* **Canonical** — serialized forms are deterministic and hashable
-* **Extensible** — external types extend the system without breaking canonical properties
-* **Unified** — single abstraction handles all value representations
+- **Immutability** — all representations are immutable, enabling safe sharing
+- **Demand-driven** — materialization happens only when computation requires it
+- **Canonical** — serialized forms are deterministic and hashable
+- **Extensible** — external types extend the system without breaking canonical properties
+- **Unified** — single abstraction handles all value representations
 
 ---
 
@@ -796,7 +816,7 @@ Your understanding captures the essence of efficient k program execution. Here's
 
 Every value during execution is represented by a **decorated pointer**:
 
-```
+```c
 struct DecoratedPtr {
     uint8_t*     bits;          // pointer into serialized input heap
     size_t       bit_offset;    // bit position within the stream
@@ -813,7 +833,7 @@ A compiled k program is a composition of operations: `projection ∘ product ∘
 
 Each operation transforms a decorated pointer:
 
-```
+```text
 DecoratedPtr → DecoratedPtr
 ```
 
@@ -821,7 +841,7 @@ DecoratedPtr → DecoratedPtr
 
 For field access `.field_name`:
 
-```
+```c
 DecoratedPtr project_field_optimized(DecoratedPtr input, int field_index) {
     // Hardware-optimized field navigation
     uint8_t* byte_ptr = input.bits + (input.bit_offset >> 3);
@@ -851,7 +871,7 @@ DecoratedPtr project_field_optimized(DecoratedPtr input, int field_index) {
 
 For pattern matching `case { tag1 → ..., tag2 → ... }`:
 
-```
+```c
 DecoratedPtr match_union_optimized(DecoratedPtr input, int expected_tag) {
     // Read single-byte discriminator (hardware-friendly)
     uint8_t* byte_ptr = input.bits + (input.bit_offset >> 3);
@@ -874,7 +894,7 @@ DecoratedPtr match_union_optimized(DecoratedPtr input, int expected_tag) {
 
 For product construction `{ field1, field2, ... }`:
 
-```
+```c
 DecoratedPtr construct_product(DecoratedPtr* field_ptrs, int arity) {
     // THIS is where memory allocation happens
     ProductNode* result = allocate_product_node(arity);
@@ -892,7 +912,7 @@ DecoratedPtr construct_product(DecoratedPtr* field_ptrs, int arity) {
 
 For external functions `string_length`, `add_int`, etc.:
 
-```
+```c
 DecoratedPtr builtin_call(DecoratedPtr input, BuiltinFunc func) {
     // Force materialization of the input
     ExternalValue* materialized = force_external(input);
@@ -916,7 +936,7 @@ DecoratedPtr builtin_call(DecoratedPtr input, BuiltinFunc func) {
 
 For program `\x.(x.data.head.value, x.name)` on input `{ name: "alice", data: [42, 17] }`:
 
-```
+```text
 Step 1: input_ptr = {bits: heap_start, offset: 0, state: C0_record}
 
 Step 2: data_ptr = project_field(input_ptr, 1)  // .data
@@ -937,11 +957,11 @@ Step 6: result_ptr = construct_product([value_ptr, name_ptr])
 
 ### **6.10.5  Optimization opportunities**
 
-* **Parallel field evaluation** — Independent fields can be computed concurrently
-* **Memoization** — Cache decorated pointers for repeated subexpressions  
-* **Streaming** — Process parts of large inputs without loading everything
-* **Zero-copy identity** — `()` just returns the input decorated pointer
-* **Prefix-free parsing** — No backtracking needed, linear-time navigation
+- **Parallel field evaluation** — Independent fields can be computed concurrently
+- **Memoization** — Cache decorated pointers for repeated subexpressions  
+- **Streaming** — Process parts of large inputs without loading everything
+- **Zero-copy identity** — `()` just returns the input decorated pointer
+- **Prefix-free parsing** — No backtracking needed, linear-time navigation
 
 This model provides **optimal performance** for sparse data access while maintaining the mathematical precision of k's type system.
 
@@ -953,9 +973,9 @@ This model provides **optimal performance** for sparse data access while maintai
 
 The execution model depends critically on **prefix-free codes** in the serialization:
 
-* **Union discriminators** — Fixed-length codes ensure constant-time tag reading
-* **External data** — Length-prefixed to enable skipping without parsing
-* **Product fields** — Implicit boundaries defined by type structure
+- **Union discriminators** — Fixed-length codes ensure constant-time tag reading
+- **External data** — Length-prefixed to enable skipping without parsing
+- **Product fields** — Implicit boundaries defined by type structure
 
 This enables the `skip_field()` function to advance pointers without full deserialization.
 
@@ -963,7 +983,7 @@ This enables the `skip_field()` function to advance pointers without full deseri
 
 Decorated pointers should be reference-counted for several reasons:
 
-```
+```c
 struct DecoratedPtr {
     uint8_t*     bits;          
     size_t       bit_offset;    
@@ -977,15 +997,16 @@ struct DecoratedPtr {
 ```
 
 Benefits:
-* **Sharing** — Multiple references to the same subexpression
-* **Caching** — Avoid recomputation of expensive operations
-* **Memory efficiency** — Single copy of large serialized inputs
+
+- **Sharing** — Multiple references to the same subexpression
+- **Caching** — Avoid recomputation of expensive operations
+- **Memory efficiency** — Single copy of large serialized inputs
 
 ### **6.11.3  Parallel evaluation**
 
 Product construction offers natural parallelization:
 
-```
+```c
 DecoratedPtr construct_product_parallel(DecoratedPtr* field_ptrs, int arity) {
     ProductNode* result = allocate_product_node(arity);
     
@@ -1004,7 +1025,7 @@ Each field evaluation is independent and can run on separate threads.
 
 The input heap should be designed for efficient navigation:
 
-```
+```c
 struct InputHeap {
     uint8_t*  serialized_data;     // the original bitstream
     size_t    total_bits;          // total size
@@ -1040,6 +1061,7 @@ The decorated pointer model provides a clean abstraction that bridges the gap be
 The final encoding strategy balances theoretical optimality with practical hardware constraints:
 
 **Trade-offs achieved**:
+
 - **Space efficiency**: 80-90% of theoretical optimum
 - **Decode performance**: 5-10× faster than bit-level encoding  
 - **Cache behavior**: Excellent (word-aligned, sequential access)
@@ -1047,7 +1069,8 @@ The final encoding strategy balances theoretical optimality with practical hardw
 - **Architecture agnostic**: Optimized for x86-64 and ARM64
 
 **Performance characteristics**:
-```
+
+```text
 Operation               Hardware-optimized    Bit-level optimal
 Field access           2-8 cycles           50-100 cycles
 Union matching         1-3 cycles           20-40 cycles  
@@ -1056,6 +1079,7 @@ Cache miss ratio       <5%                  >25%
 ```
 
 **Recommended for**:
+
 - **Production systems** requiring high performance
 - **Streaming applications** with large data volumes
 - **Mobile/embedded** systems with limited CPU resources

@@ -2,10 +2,10 @@
 
 ## **7.1  Purpose**
 
-The **application binary interface (ABI)** defines how partial functions in k are represented and invoked at runtime.
-Its goal is to make all functions—whether user-defined or compiled—compatible with the same calling convention and data layout.
+The **application binary interface (ABI)** defines how partial functions in `k` are represented and invoked at runtime.
+Its goal is to make all functions - whether user-defined or compiled - compatible with the same calling convention and data layout.
 
-Every compiled k function receives a single argument (a value tree) and may either produce a result or remain undefined.
+Every compiled `k` function receives a single argument (a value tree) and may either produce a result or remain undefined.
 The ABI provides a uniform way to express both outcomes.
 
 ---
@@ -14,7 +14,7 @@ The ABI provides a uniform way to express both outcomes.
 
 The result of every function call is a pair of fields:
 
-```
+```c
 struct KOpt {
     bool ok;     // 1 if function is defined for the given input
     struct KNode* val;  // valid only if ok == true
@@ -32,7 +32,7 @@ This structure carries both the success flag and the value pointer, allowing par
 
 Each function takes exactly one parameter:
 
-```
+```c
 struct KNode* input;
 ```
 
@@ -43,7 +43,7 @@ Since all values are immutable, the function must not modify this structure.
 
 ## **7.4  Calling convention**
 
-Every k function compiled to machine code follows this C-style signature:
+Every `k` function compiled to machine code follows this C-style signature:
 
 ```c
 struct KOpt k_function(struct KNode* input);
@@ -56,7 +56,7 @@ The convention is uniform for all functions, regardless of the specific types in
 
 ## **7.5  Core runtime operations**
 
-The runtime provides a small set of primitive functions implementing the fundamental operations of k:
+The runtime provides a small set of primitive functions implementing the fundamental operations of `k`:
 
 | Operation                              | Purpose                       | Result                                            |
 | -------------------------------------- | ----------------------------- | ------------------------------------------------- |

@@ -3,7 +3,7 @@
 ## **4.1  Partial functions**
 
 A **partial function** is a mapping that may be undefined for some inputs.
-In k, every expression denotes such a function.
+In `k`, every expression denotes such a function.
 If the function is undefined on a value, no result exists; evaluation stops.
 
 There is no notion of error or exception.
@@ -25,13 +25,13 @@ Otherwise, the composition is undefined.
 
 Composition is **associative**:
 
-```
-(f g h)  ≡  ((f g) h)
+```math
+(f (g h))  ≡  ((f g) h)
 ```
 
 Therefore, parentheses are unnecessary except for the special case of the **empty composition**, written `()`, which is the identity function:
 
-```
+```math
 () x  =  x () = x
 ```
 
@@ -43,20 +43,12 @@ Product composition creates a function that applies several subfunctions in para
 
 Syntax:
 
-```
+```math
 { f₁ l₁, f₂ l₂, …, fₙ lₙ }
 ```
 
 This expression is defined on an input value if all component functions are defined on that input.
 Its result is a product with fields labeled `l₁ … lₙ`, each containing the corresponding subresult.
-
-Example:
-
-```
-{ .x X, .y Y }
-```
-
-maps a record with fields `x` and `y` to another record `{ X, Y }` if both fields exist.
 
 ---
 
@@ -64,7 +56,7 @@ maps a record with fields `x` and `y` to another record `{ X, Y }` if both field
 
 Union composition represents concurrent evaluation with fallback:
 
-```
+```k-lang
 < f₁, f₂, …, fₙ >
 ```
 
@@ -74,7 +66,7 @@ If none are defined, the result is undefined.
 
 Example:
 
-```
+```k-lang
 < .x, .y >
 ```
 
@@ -85,9 +77,10 @@ extracts `.x` if present; otherwise `.y` if present.
 ## **4.5  Constants**
 
 A constant function always returns the same value, ignoring its argument.
-Since k has no literal syntax for values, constants are expressed through construction:
+Since `k` has no literal syntax for values, constants are expressed through construction:
 
-```
+```k-lang
+$ bool = < {} true, {} false >;
 true_bool  =  {{} true} $bool ;
 false_bool =  {{} false} $bool ;
 ```
@@ -101,7 +94,7 @@ Each is a partial function defined for all inputs (total functions) producing a 
 Projection selects a field or variant from a product or union.
 It is written with a leading dot:
 
-```
+```k-lang
 . x
 ```
 
@@ -118,13 +111,7 @@ Projections are themselves partial functions.
 Complex functions are built by nesting compositions.
 For example:
 
-```
-< .x, .y >
-```
-
-means “take field `x`, or if absent, take field `y`”.
-
-```
+```k-lang
 { .x x_copy, .y y_copy }
 ```
 
@@ -136,7 +123,7 @@ copies both fields if they exist.
 
 The empty composition `()` acts as the identity.
 The empty union `<>` is the always-undefined function.
-The empty product `{}` is the constant function returning the unit value `{}`.
+The empty product `{}` is the constant function returning the unit value.
 
 ---
 

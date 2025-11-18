@@ -1,22 +1,22 @@
 -- Examples for defining arithmetic functions natively
 $ yes_no = < {} yes, {} no >;
-swap_yes_no = < {.yes no}, {.no yes} > $yes_no;
-yes = {{} yes} $yes_no;
+swap_yes_no = < /yes |no, /no |yes > $yes_no;
+yes = {}|yes $yes_no;
 no = yes swap_yes_no;
 
 list? = ?< {} nil, {X car, Y cdr} cons > = Y;
-nil = {{} nil} list?;
-singleton = {{() car, nil cdr} cons} list?;
-cons = {{.car car, .cdr cdr} cons} list?;
-nil? = list? .nil nil;
-car = list? .cons .car;
-cdr = list? .cons .cdr;
+nil = {}|nil list?;
+singleton = {() car, nil cdr} |cons list?;
+cons = {.car car, .cdr cdr} |cons list?;
+nil? = list? / nil nil;
+car = list? /cons .car;
+cdr = list? /cons .cdr;
 
 $ bits = < {} _, bits 0, bits 1 >;
 
-0b = {{} _};
-1_ = {() 1};
-0_ = {() 0};
+0b = {} | _;
+1_ = | 1;
+0_ = | 0;
 
 0 = 0b 0_;
 succ = {inv x, 0b y} _inc;
@@ -33,45 +33,45 @@ succ = {inv x, 0b y} _inc;
 11 = 10 succ;
 12 = 11 succ;
 
-empty = $bits < ._ yes, no >;
-empty? = {empty .yes if, () then} .then;
+empty = $bits < /_ yes, no >;
+empty? = {empty /yes if, () then} .then;
 
 concat = ${bits x, bits y} {.x inv x, .y y} concat_; 
 concat_ = ${bits x, bits y} 
   < 
-    {.x .0 x, .y 0_ y} concat_, 
-    {.x .1 x, .y 1_ y} concat_, 
+    {.x /0 x, .y 0_ y} concat_, 
+    {.x /1 x, .y 1_ y} concat_, 
     .y 
   >;
 inv = {()x, 0b r} _inv; 
-_inv = < {.x .0 x, .r 0_ r} _inv, {.x .1 x, .r 1_ r} _inv, .r >;
+_inv = < {.x /0 x, .r 0_ r} _inv, {.x /1 x, .r 1_ r} _inv, .r >;
 
 inOrder = ${bits x, bits y} {.x inv x, .y inv y, yes inOrder} inOrder_;
 inOrder_ = ${bits x, bits y, yes_no inOrder} 
   < 
-    {.x .0 x, .y .0 y, .inOrder inOrder} inOrder_, 
-    {.x .1 x, .y .1 y, .inOrder inOrder} inOrder_,
-    {.x .0 x, .y .1 y, .inOrder inOrder} inOrder_, 
-    {.x .1 y, .y .0 x, .inOrder swap_yes_no inOrder} inOrder_, 
-    {.x <.0,.1> if, .inOrder swap_yes_no then} .then, 
+    {.x /0 x, .y /0 y, .inOrder inOrder} inOrder_, 
+    {.x /1 x, .y /1 y, .inOrder inOrder} inOrder_,
+    {.x /0 x, .y /1 y, .inOrder inOrder} inOrder_, 
+    {.x /1 y, .y /0 x, .inOrder swap_yes_no inOrder} inOrder_, 
+    {.x </0,/1> if, .inOrder swap_yes_no then} .then, 
     .inOrder
   >;
 
-GT = {inOrder .no if, () then} . then;
+GT = {inOrder /no if, () then} . then;
 
 EQ = GT {.x y, .y x} GT;
 
 toBitList = {inv x, nil r} _toBitList; 
 _toBitList = < 
   {.x empty? if, .r then }.then, 
-  {.x .0 x, {0 car, .r cdr} cons r} _toBitList, 
-  {.x .1 x, {1 car, .r cdr} cons r} _toBitList 
+  {.x /0 x, {0 car, .r cdr} cons r} _toBitList, 
+  {.x /1 x, {1 car, .r cdr} cons r} _toBitList 
 >;
 fromBitList =
 < 
   cdr <
-    {car .0 if, cdr fromBitList 0_ then} .then, 
-    {car .1 if, cdr fromBitList 1_ then} .then
+    {car /0 if, cdr fromBitList 0_ then} .then, 
+    {car /1 if, cdr fromBitList 1_ then} .then
   >, 
   0b
 >;
@@ -80,60 +80,60 @@ fromBitList =
 $ int = < bits '+', bits '-' >;
 
 remove_leading_zeros = <
-  .0 remove_leading_zeros, 
+  /0 remove_leading_zeros, 
   ()
 >;
 nat = remove_leading_zeros <empty? 0, ()>;
-int = $bits { nat '+'} $int;
-abs = $int <.'+',.'-'>;
+int = nat | '+' $int;
+abs = $int </'+',/'-'>;
 
-pos? = $int {dec .'+' if, () then} .then;
-neg? = $int {.'-' if, () then} .then; 
-zero_int? = $int {.'+' .0 empty? if, () then} .then;
-minus_one? = $int {.'-' .1 empty? if, () then} .then;
+pos? = $int {dec /'+' if, () then} .then;
+neg? = $int {/'-' if, () then} .then; 
+zero_int? = $int {/'+' /0 empty? if, () then} .then;
+minus_one? = $int {/'-' /1 empty? if, () then} .then;
 
 inc = $int <
-  .'+' {inv x, 0b y} _inc {nat '+'},
+  /'+' {inv x, 0b y} _inc |'+',
   minus_one? 0 int,
-  .'-' {inv x, 0b y} _dec {nat '-'}
+  /'-' {inv x, 0b y} _dec |'-'
 >;
 
 _inc = <
-    {.x .0 x, .y 1_ y} concat_, 
-    {.x .1 x, .y 0_ y} _inc,
+    {.x /0 x, .y 1_ y} concat_, 
+    {.x /1 x, .y 0_ y} _inc,
     .y 1_
 >; 
 
 dec = $int <
-  zero_int? {1 '-'},
-  .'+' {inv x, 0b y} _dec {nat '+'},
-  .'-' {inv x, 0b y} _inc {nat '-'}
+  zero_int? 1 |'-',
+  /'+' {inv x, 0b y} _dec |'+',
+  /'-' {inv x, 0b y} _inc |'-'
 >;
 
 _dec = <
-    {.x .1 x, .y 0_ y} concat_, 
-    {.x .0 x, .y 1_ y} _dec
+    {.x /1 x, .y 0_ y} concat_, 
+    {.x /0 x, .y 1_ y} _dec
 >;
 
 $carry = <{} 0, {} 1>;
-c0 = {{} 0} $carry;
-c1 = {{} 1} $carry;
+c0 = {}|0 $carry;
+c1 = {}|1 $carry;
 
 plus = ${int x, int y}
 < 
-  {.x.'+' inv x, .y.'+' inv y, c0 c } _plus inv {nat '+'},
-  {.x.'-' inv x, .y.'-' inv y, c0 c } _plus inv {nat '-'},
-  {.y.'-' x, .x.'+' y} GT {.x inv x, .y inv y, c0 c} _minus inv {nat '-'},
-  {.x.'+' inv x, .y.'-' inv y, c0 c} _minus inv {nat '+'},
-  {.x.'-' x, .y.'+' y} GT {.x inv x, .y inv y, c0 c} _minus inv {nat '-'},
-  {.y.'+' inv x, .x.'-' inv y, c0 c} _minus inv {nat '+'}
+  {.x/'+' inv x, .y/'+' inv y, c0 c } _plus inv nat | '+',
+  {.x/'-' inv x, .y/'-' inv y, c0 c } _plus inv nat | '-',
+  {.y/'-' x, .x/'+' y} GT {.x inv x, .y inv y, c0 c} _minus inv nat | '-',
+  {.x/'+' inv x, .y/'-' inv y, c0 c} _minus inv nat |'+',
+  {.x/'-' x, .y/'+' y} GT {.x inv x, .y inv y, c0 c} _minus inv nat | '-',
+  {.y/'+' inv x, .x/'-' inv y, c0 c} _minus inv nat | '+'
 > 
 $int;
 
 swap_sign = <
   zero_int?,
-  {.'+' '-'},
-  {.'-' '+'}  
+  /'+' | '-',
+  /'-' | '+'
 >;
 
 minus = ${int x, int y}
@@ -143,24 +143,23 @@ _plus =
   -- least significant bit first addition with carry
   ${bits x, bits y, carry c}
   <
-    {.x empty? if, .y empty? and, <.c.0 0, 1> then} .then,
-    {.x empty? if, .c.0 and, .y then} .then,
+    {.x empty? if, .y empty? and, <.c/0 0, 1> then} .then,
+    {.x empty? if, .c/0 and, .y then} .then,
 
     {.x y, .y empty? x, .c c} _plus,
-    {<.c.0 0, 1> x, 
+    {<.c/0 0, 1> x, 
               .y y, .x empty? c0 c} _plus,
 
-    {.x .0 x, .y .0 y, .c.0 c0 c} _plus 0_,
-    {.x .0 x, .y .0 y, .c.1 c0 c} _plus 1_,
+    {.x /0 x, .y /0 y, .c/0 c0 c} _plus 0_,
+    {.x /0 x, .y /0 y, .c/1 c0 c} _plus 1_,
 
-    {.x .0 x, .y .1 y, .c.0 c0 c} _plus 1_,
-    {.x .0 x, .y .1 y, .c.1 c1 c} _plus 0_,
+    {.x /0 x, .y /1 y, .c/0 c0 c} _plus 1_,
+    {.x /0 x, .y /1 y, .c/1 c1 c} _plus 0_,
+    {.x /1 x, .y /0 y, .c/0 c0 c} _plus 1_,
+    {.x /1 x, .y /0 y, .c/1 c1 c} _plus 0_,
 
-    {.x .1 x, .y .0 y, .c.0 c0 c} _plus 1_,
-    {.x .1 x, .y .0 y, .c.1 c1 c} _plus 0_,
-
-    {.x .1 x, .y .1 y, .c.0 c1 c} _plus 0_,
-    {.x .1 x, .y .1 y, .c.1 c1 c} _plus 1_
+    {.x /1 x, .y /1 y, .c/0 c1 c} _plus 0_,
+    {.x /1 x, .y /1 y, .c/1 c1 c} _plus 1_
   >
 ;
 
@@ -168,30 +167,30 @@ _minus =
   -- least significat bit first substraction with carry
   ${bits x, bits y, carry c}
   <
-    {.x then, .y empty? if, .c.0 and} .then,
-    {.x.1 then, .y empty? if, .c.1 and} .then 0_,
-    {.x.0 x, .y empty? y, .c.1 c1 c} _minus 1_,
-    {.x.0 x, .y.0   y, .c.0 c0 c} _minus 0_,
-    {.x.0 x, .y.0   y, .c.1 c1 c} _minus 1_,  
-    {.x.0 x, .y.1   y, .c.0 c1 c} _minus 1_,
-    {.x.0 x, .y.1   y, .c.1 c1 c} _minus 0_,
-    {.x.1 x, .y.0   y, .c.0 c0 c} _minus 1_,
-    {.x.1 x, .y.0   y, .c.1 c0 c} _minus 0_,
-    {.x.1 x, .y.1   y, .c.0 c0 c} _minus 0_,
-    {.x.1 x, .y.1   y, .c.1 c1 c} _minus 1_
+    {.x then, .y empty? if, .c/0 and} .then,
+    {.x/1 then, .y empty? if, .c/1 and} .then 0_,
+    {.x/0 x, .y empty? y, .c/1 c1 c} _minus 1_,
+    {.x/0 x, .y/0   y, .c/0 c0 c} _minus 0_,
+    {.x/0 x, .y/0   y, .c/1 c1 c} _minus 1_,  
+    {.x/0 x, .y/1   y, .c/0 c1 c} _minus 1_,
+    {.x/0 x, .y/1   y, .c/1 c1 c} _minus 0_,
+    {.x/1 x, .y/0   y, .c/0 c0 c} _minus 1_,
+    {.x/1 x, .y/0   y, .c/1 c0 c} _minus 0_,
+    {.x/1 x, .y/1   y, .c/0 c0 c} _minus 0_,
+    {.x/1 x, .y/1   y, .c/1 c1 c} _minus 1_
   >
 ;
 
 $ sign = < {} '+' , {} '-' >;
-sign_plus = {{} '+'} $sign;
-sign_minus = {{} '-'} $sign;
-get_sign = $int <.'+' sign_plus, .'-' sign_minus>;
+sign_plus = {}|'+' $sign;
+sign_minus = {}|'-' $sign;
+get_sign = $int </'+' sign_plus, /'-' sign_minus>;
 
 times = ${int x, int y}
   {
     <
-      {.x.'+' if, .y .'+' and} sign_plus, 
-      {.x.'-' if, .y .'-' and} sign_plus, 
+      {.x/'+' if, .y /'+' and} sign_plus, 
+      {.x/'-' if, .y /'-' and} sign_plus, 
       sign_minus
     > sign,
     {
@@ -201,8 +200,8 @@ times = ${int x, int y}
     } _times result
   }
   <
-    {.sign.'+' if, .result inv int then} .then,
-    {.sign.'-' if, .result inv int swap_sign then} .then 
+    {.sign/'+' if, .result inv int then} .then,
+    {.sign/'-' if, .result inv int swap_sign then} .then 
   >
 ;
 
@@ -213,12 +212,12 @@ _times =
     { 
       .result 0_ result, 
       ._x _x, 
-      .y .0 y
+      .y /0 y
     } _times,
     { 
       {._x x, .result 0_ y, c0 c } _plus result, 
       ._x _x, 
-      .y .1 y 
+      .y /1 y 
     } _times
   >
 ;
@@ -226,6 +225,7 @@ _times =
 
 mod =
   ${bits x, bits y}
+  _log!
   < 
     -- if y > x then (x mod y) = x 
     {.y x, .x y} GT .y,
@@ -233,7 +233,7 @@ mod =
     -- if x >= y then (x mod y) = ((x-y mod 2y) mod y)
     { 
       {  
-        {.x int x, .y int y} minus ."+" x, 
+        {.x int x, .y int y} minus /"+" x, 
         .y inv 0_ inv y
       } mod x, 
       .y y 
@@ -251,7 +251,7 @@ gcd = ${bits x, bits y}
 ;
 
 _gcd = <
-  { .y .0 if, .x then } .then,
+  { .y /0 if, .x then } .then,
   { .y x, mod y } _gcd
 >;
 
@@ -287,13 +287,13 @@ div =
   // remember sign
   {
     <
-      { .x.'+' if, .y get_sign then } .then,
-      { .x.'-' if, .y  swap_sign get_sign then } .then
+      { .x/'+' if, .y get_sign then } .then,
+      { .x/'-' if, .y  swap_sign get_sign then } .then
     > sign,
     {.x abs x, .y abs step, 0 int res} _div res_wo_sign
   }
   < 
-    {.sign."+" if, {.res_wo_sign.div div, .res_wo_sign.rem rem} then} .then,
+    {.sign/'+' if, {.res_wo_sign.div div, .res_wo_sign.rem rem} then} .then,
     { .res_wo_sign.div swap_sign div, .res_wo_sign.rem rem }
   > 
   ;
@@ -326,12 +326,12 @@ lcm =
 
  factorial = <
   zero_int? 1 int,
-  ."+" int {dec factorial x, () y} times
+  /"+" int {dec factorial x, () y} times
 >;
 
 fib_ =
   <
-    { .n int dec ."+" n,
+    { .n int dec /"+" n,
       ."fib(n),fib(n.1)" {plus x, .x y} "fib(n),fib(n.1)"
     } fib_,
     ."fib(n),fib(n.1)"
@@ -349,7 +349,7 @@ rat = ${bits n, bits d} {.n int n, .d int d } normalize_rat;
 normalize_rat =
   $rat 
   < 
-    { .d."-" if, 
+    { .d/"-" if, 
       {
         .n swap_sign n, 
         .d swap_sign d

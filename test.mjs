@@ -23,16 +23,16 @@ import k from "./index.mjs";
 
 let k_expression = `
   $ bool = < {} true, {} false >;
-  true = {{} true} $bool;
-  false = {{} false} $bool;
+  true = {} | true $bool;
+  false = {} | false $bool;
   
   list? = ?< {} nil, {X car, Y cdr} cons > = Y;
-  nil = {{} nil} list?;
-  nil? = list? .nil nil;
-  car = list? .cons .car;
+  nil = {}|nil list?;
+  nil? = list? /nil nil;
+  car = list? /cons .car;
   list? { 
     < nil? true, false > nil_test,
-    < car, {{} none} >  car 
+    < car, {}|none >  car 
   }
   `
   ;
