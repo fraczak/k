@@ -7,7 +7,7 @@ It is meant to show how data can be represented and transformed in a uniform, pr
 
 ---
 
-## **1.2  Data as trees**
+## **1.2 Data as trees**
 
 All information in `k` is treated as a **tree**.
 A tree has:
@@ -16,12 +16,12 @@ A tree has:
 * labeled edges (field names or tags),
 * and possibly subtrees.
 
-A JSON object or an XML document are both trees in this sense.
-Every k value is such a finite labeled tree.
+Both JSON objects and XML documents are trees in this sense.
+Every `k` value is such a finite labeled tree.
 
 ---
 
-## **1.3  Functions that may fail**
+## **1.3 Functions that may fail**
 
 In ordinary mathematics a function always returns a result.
 In `k`, a function may be **undefined** for some inputs.
@@ -31,7 +31,7 @@ We call such mappings **partial functions**.
 
 ---
 
-## **1.4  Simplicity over features**
+## **1.4 Simplicity over features**
 
 `k` avoids most language constructs: no *variables* and no *control statements*.
 It has only:
@@ -39,12 +39,13 @@ It has only:
 1. **types** (which describe tree shapes), and
 2. **partial functions** (which transform one tree into another).
 
-These two ingredients are sufficient and powerful enough to express structured computation in a consise and understandable way.
+These two ingredients are sufficient and powerful enough to express structured
+computation in a concise and understandable way.
 
-There is another concept in the lanaguage, called **filters**.
-The filters play a role in the process of resoning about types of partial functions.
-They made to the syntax of the language as they allow explicit annotations of "polymorphic" expressions,
-i.e., expressions which make sense in different contexts. 
-They are similar to type classes in other languages.
+There is another concept in the language, called **filters**.
+Filters play a role in the process of reasoning about types of partial functions.
+Filters have been added to the syntax of the language as they allow explicit annotations
+of "polymorphic" expressions, i.e., expressions which make sense in different contexts.
+Filters are similar to *type classes* in other languages.
 
 ---

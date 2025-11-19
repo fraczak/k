@@ -4,7 +4,7 @@
 
 A **partial function** is a mapping that may be undefined for some inputs.
 In `k`, every expression denotes such a function.
-If the function is undefined on a value, no result exists; evaluation stops.
+If a function is undefined for a given input, the evaluation process halts at that point, producing no result.
 
 There is no notion of error or exception.
 Undefined means simply “no output”.
@@ -29,7 +29,7 @@ Composition is **associative**:
 (f (g h))  ≡  ((f g) h)
 ```
 
-Therefore, parentheses are unnecessary except for the special case of the **empty composition**, written `()`, which is the identity function:
+Therefore, parentheses are unnecessary, except for the special case of the **empty composition**, written `()`, which is the identity function:
 
 ```math
 () x  =  x () = x
@@ -48,7 +48,7 @@ Syntax:
 ```
 
 This expression is defined on an input value if all component functions are defined on that input.
-Its result is a product with fields labeled `l₁ … lₙ`, each containing the corresponding subresult.
+Its result is a product with fields labeled `l₁ … lₙ`, each containing the result of the corresponding function.
 
 ---
 
@@ -67,42 +67,43 @@ If none are defined, the result is undefined.
 Example:
 
 ```k-lang
-< .x, .y >
+< /x, /y >
 ```
 
-extracts `.x` if present; otherwise `.y` if present.
+extracts variant `x` if present; otherwise `y` if present.
 
 ---
 
 ## **4.5  Constants**
 
-A constant function always returns the same value, ignoring its argument.
-Since `k` has no literal syntax for values, constants are expressed through construction:
+A constant function is one that always returns the same value, regardless of its input.
+Since `k` lacks a direct syntax for literal values, constants are created using functions that produce them.
+
+For example, we can define functions that return `true` and `false`:
 
 ```k-lang
 $ bool = < {} true, {} false >;
-true_bool  =  {{} true} $bool ;
-false_bool =  {{} false} $bool ;
+true_bool  =  {} | true $bool ;
+false_bool =  {} | false $bool ;
 ```
 
-Each is a partial function defined for all inputs (total functions) producing a fixed value.
+Here, `true_bool` and `false_bool` are constant functions. They are also **total functions**, meaning they are defined for all inputs. Each function ignores its input and produces a fixed boolean value.
 
 ---
 
 ## **4.6  Projection**
 
-Projection selects a field or variant from a product or union.
-It is written with a leading dot:
+Projection selects a field or a variant from a product or union.
+It is written with a leading dot `.` or a leading slash `/`, respectively:
 
 ```k-lang
-. x
+.x     // Selects field 'x' from a product: { x: T, ... }
+/x     // Extracts the value from a union variant 'x': < x: T, ... >
 ```
 
-If the input is a product containing field `x`, the result is the value of that field.
-If the input is a union currently in the variant `x`, the result is the contained value.
-Otherwise the projection is undefined.
+If the input is a product, `.x` returns the value of field `x`. If the input is a union, `/x` returns the value of variant `x`. In all other cases, the projection is undefined.
 
-Projections are themselves partial functions.
+Projections are the most basic partial functions.
 
 ---
 
@@ -121,7 +122,7 @@ copies both fields if they exist.
 
 ## **4.8  Identity and emptiness**
 
-The empty composition `()` acts as the identity.
+The empty composition `()` is the identity function.
 The empty union `<>` is the always-undefined function.
 The empty product `{}` is the constant function returning the unit value.
 
@@ -129,11 +130,12 @@ The empty product `{}` is the constant function returning the unit value.
 
 ## **4.9  Summary**
 
-* All expressions denote partial functions.
-* Composition `(f g)` is associative; parentheses can be omitted.
-* `()` is identity.
-* `{ … }` combines results in parallel; `< … >` tries alternatives.
-* Projections and constants are the simplest partial functions.
-* Undefined means “no output”, not “error”.
+*   In `k`, all expressions denote **partial functions**.
+*   An undefined result simply means “no output,” not an error.
+*   **Composition** `(f g)` applies functions sequentially and is associative, so parentheses are often optional.
+*   The empty composition `()` is the **identity function**.
+*   **Product composition** `{...}` runs functions in parallel and gathers their results.
+*   **Union composition** `<...>` tries functions in order, returning the first successful result.
+*   **Projections** (`.x`, `/x`) are fundamental building blocks for accessing data structures.
 
 ---
