@@ -64,7 +64,7 @@ function fromEscString(escString) {
 "?"                                            return 'QMARK';
 "@"                                            return 'AT';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
-[a-zA-Z0-9_][a-zA-Z0-9_?!]*                    return 'NAME';
+[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*                return 'NAME';
 
 "~"                                            return 'INCREMENTAL';
 <<EOF>>                                        return 'EOF';
