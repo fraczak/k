@@ -6,17 +6,17 @@ _ = {}|_;
 _1 = |1;
 _0 = |0;
 
-bnat_0  = _ $bnat;
-bnat_1  = _ _1 $bnat;
-bnat_2  = _ _0 _1 $bnat;
-bnat_3  = _ _1 _1 $bnat;
-bnat_4  = _ _0 _0 _1 $bnat;
-bnat_5  = _ _1 _0 _1 $bnat;
-bnat_6  = _ _0 _1 _1 $bnat;
-bnat_7  = _ _1 _1 _1 $bnat;
-bnat_8  = _ _0 _0 _0 _1 $bnat;
-bnat_9  = _ _1 _0 _0 _1 $bnat;
-bnat_10 = _ _0 _1 _0 _1 $bnat;
+bnat_0  = _ ;
+bnat_1  = _ _1 ;
+bnat_2  = _ _0 _1 ;
+bnat_3  = _ _1 _1 ;
+bnat_4  = _ _0 _0 _1 ;
+bnat_5  = _ _1 _0 _1 ;
+bnat_6  = _ _0 _1 _1 ;
+bnat_7  = _ _1 _1 _1 ;
+bnat_8  = _ _0 _0 _0 _1 ;
+bnat_9  = _ _1 _0 _0 _1 ;
+bnat_10 = _ _0 _1 _0 _1 ;
 
 remove_leading_zeros = < /0 remove_leading_zeros, () >;
 
@@ -34,13 +34,13 @@ _reverse =
 append_0 = reverse _0 reverse; -- i.e., shift_left, double, or times2 
 
 $carry = <{} 0, {} 1>;
-c0 = {} |0 $carry;
-c1 = {} |1 $carry;
+c0 = {} |0 ;
+c1 = {} |1 ;
 
 $ pair = {bnat x, bnat y};
 
 plus = 
-  ${bnat x, bnat y} 
+  -- ${bnat x, bnat y} 
   { 
     .x remove_leading_zeros reverse x, 
     .y remove_leading_zeros reverse y, 
@@ -52,14 +52,14 @@ plus =
 
 _plus =
   -- least significant bit first addition with carry
-  ${bnat x, bnat y, carry c}
+  -- ${bnat x, bnat y, carry c}
   <
     {.x/_ if1, .y/_ if2, <.c/0 bnat_0, bnat_1> then} .then,
     {.x/_ if1, .c/0 if2, .y                    then} .then,
 
     {.x     y, .y/_ _ x, .c      c} _plus, --swap x with y, if y = 0
-    {.x/_ <.c/0 bnat_0, bnat_1> 
-            x, .y     y, c0      c} _plus,
+    {<.c/0 bnat_0, bnat_1> 
+            x, .y     y, .x/_ c0 c} _plus,
 
     {.x/0   x, .y/0   y, .c/0 c0 c} _plus _0,
     {.x/0   x, .y/0   y, .c/1 c0 c} _plus _1,

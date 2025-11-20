@@ -74,7 +74,7 @@ Consider a simple k program:
 
 ```k-lang
 $bool = < {} true, {} false >;
-neg = $bool < .true {{ } false}, .false {{ } true} > $bool;
+neg = $bool < /true | false, /false | true > $bool;
 ```
 
 1. **Parsing:**
@@ -85,8 +85,8 @@ neg = $bool < .true {{ } false}, .false {{ } true} > $bool;
 
 3. **Internal representation:**
    The compiler constructs an internal tree describing that
-   `< .true f₁, .false f₂ >` means:
-   try the projection `.true`, then `.false`, each producing a constant value.
+   `< /true f₁, /false f₂ >` means:
+   try the projection `/true`, then `/false`, each producing a constant value.
 
 4. **Generated form:**
    In the target language, `neg` becomes a small function that:
@@ -107,13 +107,15 @@ For `k`, the IR mirrors the structure of partial functions:
 
 | Concept in k          | IR operation                     |
 | --------------------- | -------------------------------- |
-| Projection `.x`       | `PROJECT label_id`               |
+| Projection `.x` '/x'  | `PROJECT label_id`               |
 | Composition `(f g)`   | `CALL f; CALL g`                 |
 | Union `<f,g>`         | `TRY f; IF undefined THEN TRY g` |
-| Product `{f,g}`       | `CALL f; CALL g; COMBINE`        |
+| Product `{.x f, .y g}` | `PRODUCT_CALL (f, g); COMBINE`   |
 | Type restriction `$T` | `CHECK_TYPE state_id`            |
 
 The compiler converts each AST node into one or more IR instructions.
+The `PRODUCT_CALL(f, g)` instruction is a higher-level concept that implies applying both `f` and `g` to the same input value.
+The low-level implementation of this would use stack operations to duplicate the input, but the IR itself remains more abstract.
 Later, these instructions are translated into LLVM or C code using the runtime ABI.
 
 ---

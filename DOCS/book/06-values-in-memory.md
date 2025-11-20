@@ -2,11 +2,11 @@
 
 ## **6.1  Unified value representation**
 
-Every k value exists in one of three forms during execution:
+Every `k` value exists in one of three forms during execution:
 
-1. **Serialized form** — a canonical bit sequence that can be stored, transmitted, or passed between processes
-2. **Lazy form** — a hybrid structure that keeps parts serialized until access is needed
-3. **Materialized form** — a fully deserialized tree of nodes in memory
+1. **Serialized form** — a canonical bit sequence that can be stored, transmitted, or passed between processes.
+2. **Lazy (or hybrid) form** — a partially deserialized structure that keeps most data in its serialized form until access is needed.
+3. **Materialized form** — a fully deserialized tree of nodes in memory.
 
 This unified approach enables programs to operate on serialized inputs without unnecessary deserialization, optimizing performance for identity operations and partial data access patterns.
 
@@ -32,11 +32,7 @@ struct KValue {
         } serialized;
         
         struct {
-            struct KNode* root;     // materialized root (may have lazy children)
-        } lazy;
-        
-        struct {
-            struct KNode* root;     // fully materialized tree
+            struct KNode* root;     // root of materialized or partially materialized tree
         } materialized;
         
         struct {
@@ -50,7 +46,7 @@ struct KValue {
 
 ### **6.2.1  Self-delimiting streams**
 
-The canonical encoding is **self-delimiting** - each value can be parsed without knowing its length in advance:
+The canonical encoding is **self-delimiting**, meaning each value can be parsed without knowing its length in advance:
 
 - **Union nodes**: Fixed-length discriminators define clear boundaries
 - **Product nodes**: Type structure determines field count and termination  
@@ -118,10 +114,10 @@ For each union state with *m* variants, we use `k = ceil(log2(m))` bits to encod
 
 Each node in the value tree is encoded based on its automaton state:
 
-* **Product nodes** — emit no bits, encode children in canonical field order (alphabetical)
-* **Union nodes** — emit fixed-length variant code, then encode the selected child  
-* **Unit nodes** — emit nothing (arity = 0, no children)
-* **External nodes** — emit type marker + delegate to external serializer
+- **Product nodes** — emit no bits, encode children in canonical field order (alphabetical)
+- **Union nodes** — emit fixed-length variant code, then encode the selected child  
+- **Unit nodes** — emit nothing (arity = 0, no children)
+- **External nodes** — emit type marker + delegate to external serializer
 
 #### **Example: Natural numbers**
 
@@ -129,30 +125,30 @@ For type `bnat`, intuitively binary natural numbers defined by `$bnat = < bnat 0
 
 ```k-repl
 --C bnat
-$ @BsAqRMv = < @BsAqRMv 0, @BsAqRMv 1, @KL _ >; -- $C0=<C0"0",C0"1",C1"_">;$C1={};
+$ @BsAqRMv = < @BsAqRMv 0, @BsAqRMv 1, @KL _ >; -- $C0=<C0"0",C0"1",C1"_"> $C1={};
 ```
 
-The corresponding ContextFree grammar is:
+The corresponding Context-Free grammar is:
 
 ```text
-// 3 rules for C0, so we need two bit strings to encode all variants:
-   C0 -> '{' C0"0" '}'  //       encoded by '00'
-   C0 -> '{' C0"1" '}'  //       encoded by '01'
-   C0 -> '{' C1"_" '}'  //       encoded by '10'
+// 3 rules for C0, so we need 2 bits to encode the variant choice:
+   C0 ->  C0 "|0"     //       encoded by '00'
+   C0 ->  C0 "|1"     //       encoded by '01'
+   C0 ->  C1 "|_"     //       encoded by '10'
 // 1 rule for C1 so we need zero bits:
-   C1 -> '{' '}';       //       encoded by ''
+   C1 ->  '{}';       //       encoded by ''
 ```
 
 - 3 variants require `ceil(log2(3)) = 2` bits
 - Codes: `00` (0-bit), `01` (1-bit), `10` (end marker)
 
-The value `{{{{} _} 0} 1}` or in JSON-like notation `{1:{0:{_:{}}}}` (binary 10₂ = decimal 2) encodes as:
+The value `{}|_|0|1` or in JSON-like notation `{1:{0:{_:{}}}}` (binary 10₂ = decimal 2) encodes as:
 
 ```text
 01 00 10
 ```
 
-This represents the left-most derivation of  `{{{{} _} 0} 1}` from `C0`.
+This represents the left-most derivation of  `{}|_|0|1` from `C0`.
 
 #### **Prefix-free property**
 
@@ -160,11 +156,11 @@ The encoding is **prefix-free**: no valid encoding is a prefix of another. This 
 
 - Linear-time parsing without backtracking  
 - Efficient `skip_field()` operations for lazy evaluation
-- Deterministic decoding from any position in the stream
+- Deterministic decoding from any valid position in the stream
 
 ### **6.4.1  DAG compression for repeated subtrees**
 
-The canonical serialization can be significantly compressed using **DAG (Directed Acyclic Graph) representation** to eliminate duplicate subtrees:
+The canonical serialization can be compressed using **DAG (Directed Acyclic Graph) representation** to eliminate duplicate subtrees:
 
 #### **Subtree identification**
 
@@ -178,13 +174,13 @@ Identical subtrees (same structure and content) get the same hash and share the 
 
 #### **Two-pass encoding**
 
-**Pass 1: Collection**
+##### **Pass 1: Collection**
 
 - Traverse the value tree and compute hashes for all subtrees
 - Build a **node table** mapping `node_id → (first_occurrence_offset, reference_count)`
 - Subtrees with `reference_count > 1` are candidates for sharing
 
-**Pass 2: Emission**
+##### **Pass 2: Emission**
 
 - **First occurrence**: emit the full subtree encoding
 - **Subsequent occurrences**: emit a **back-reference** to the node ID
@@ -204,26 +200,33 @@ Identical subtrees (same structure and content) get the same hash and share the 
 Consider a binary tree with repeated leaf patterns:
 
 ```k-lang
-$tree = < { tree left, tree right } branch, { int value } leaf >;
+$tree = < { tree left, tree right } branch, int leaf >;
 ```
 
-Value: `{ {value: 42} left, { {value: 42} right, {value: 17} left } right }`
+Value: A tree corresponding to the structure:
+`branch(
+    leaf(42),
+    branch(
+        leaf(42),
+        leaf(17)
+    )
+)`:
 
-**Without DAG**: Each `{value: 42}` leaf is encoded separately
-**With DAG**: The `{value: 42}` subtree is encoded once, then referenced
+**Without DAG**: Each leaf `(42)` is encoded separately
+**With DAG**: The `(42)` subtree is encoded once, then referenced
 
 **Encoding sequence**:
 
 ```text
 Node Table:
-  N0: {value: 42}    (appears 2 times)
-  N1: {value: 17}    (appears 1 time)
+  N0: 42    (appears 2 times)
+  N1: 17    (appears 1 time)
 
 Bitstream:
   00           // branch variant
-  0 <N0>       // first occurrence of {value: 42}
+  0 <N0>       // first occurrence of value: 42
   00           // branch variant  
-  1 N0         // back-reference to {value: 42}
+  1 N0         // back-reference to value: 42
   0 <N1>       // {value: 17}
 ```
 
@@ -599,7 +602,7 @@ struct OptimalEncoding {
 | External Marker (2 bits) | Type ID | External Data Length | External Data |
 ```
 
-This allows built-in types (strings, floats, etc.) to be efficiently serialized within k values while maintaining the canonical property.
+This allows built-in types (strings, floats, etc.) to be efficiently serialized within `k` values while maintaining the canonical property.
 
 ---
 
@@ -726,7 +729,7 @@ $metadata = { timestamp created, string author };
 For the input program `\x.x.name` (extract name field):
 
 1. **Input** arrives as serialized bitstream (e.g., from network/disk)
-2. **Lazy parsing** deserializes only the discriminator of the root union
+2. **Lazy parsing** deserializes only the discriminator of the root product
 3. **Field access** deserializes path to `name` field, leaving `data` and `meta` serialized
 4. **Output** the extracted string value (possibly in external string format)
 
@@ -810,7 +813,7 @@ The design supports the full spectrum from zero-copy identity operations to full
 
 ## **6.10  Execution model with decorated pointers**
 
-Your understanding captures the essence of efficient k program execution. Here's the formal model:
+The formal execution model is based on decorated pointers, which represent values during execution:
 
 ### **6.10.1  Decorated pointers**
 
@@ -822,6 +825,10 @@ struct DecoratedPtr {
     size_t       bit_offset;    // bit position within the stream
     TypeState    type_state;    // canonical automaton state (C0, C1, ...)
     int          ref_count;     // for sharing and caching
+    struct {
+        bool     is_cached;     // memoization flag
+        uint64_t content_hash;  // for cache lookup
+    } cache;
 };
 ```
 
@@ -896,7 +903,7 @@ For product construction `{ field1, field2, ... }`:
 
 ```c
 DecoratedPtr construct_product(DecoratedPtr* field_ptrs, int arity) {
-    // THIS is where memory allocation happens
+    // This is the primary point where memory allocation is required.
     ProductNode* result = allocate_product_node(arity);
     
     // Evaluate each field (possibly in parallel)
@@ -952,7 +959,7 @@ Step 5: name_ptr = project_field(input_ptr, 0)  // .name
         = {bits: heap_start, offset: 8, state: C0_string}
 
 Step 6: result_ptr = construct_product([value_ptr, name_ptr])
-        // ALLOCATION happens here for the result tuple
+        // Note: memory allocation for the result tuple occurs here.
 ```
 
 ### **6.10.5  Optimization opportunities**
@@ -982,19 +989,6 @@ This enables the `skip_field()` function to advance pointers without full deseri
 ### **6.11.2  Reference counting and caching**
 
 Decorated pointers should be reference-counted for several reasons:
-
-```c
-struct DecoratedPtr {
-    uint8_t*     bits;          
-    size_t       bit_offset;    
-    TypeState    type_state;    
-    int          ref_count;     // ← enables sharing
-    struct {
-        bool     is_cached;     // memoization flag
-        uint64_t content_hash;  // for cache lookup
-    } cache;
-};
-```
 
 Benefits:
 

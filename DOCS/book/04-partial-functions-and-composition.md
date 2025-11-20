@@ -130,12 +130,12 @@ The empty product `{}` is the constant function returning the unit value.
 
 ## **4.9  Summary**
 
-*   In `k`, all expressions denote **partial functions**.
-*   An undefined result simply means “no output,” not an error.
-*   **Composition** `(f g)` applies functions sequentially and is associative, so parentheses are often optional.
-*   The empty composition `()` is the **identity function**.
-*   **Product composition** `{...}` runs functions in parallel and gathers their results.
-*   **Union composition** `<...>` tries functions in order, returning the first successful result.
-*   **Projections** (`.x`, `/x`) are fundamental building blocks for accessing data structures.
+* In `k`, all expressions denote **partial functions**.
+* An undefined result simply means “no output,” not an error.
+* **Composition** `(f g)` applies functions sequentially and is associative, so parentheses are often optional.
+* The empty composition `()` is the **identity function**.
+* **Product composition** `{...}` runs functions in parallel and gathers their results.
+* **Union composition** `<...>` tries functions in order, returning the first successful result.
+* **Projections** (`.x`, `/x`) are fundamental building blocks for accessing data structures.
 
 ---
