@@ -357,6 +357,7 @@ function patterns(representatives, rels) {
   for (const scc of sccInOrder) {
 
     const maxNumberOfIterations = 10;
+    let converged = false;
     
     for (let iteration = 1; iteration <= maxNumberOfIterations; iteration++) {
       
@@ -402,9 +403,27 @@ function patterns(representatives, rels) {
 
       if (before == after) {
         // console.log("SUCCESS!");
+        converged = true;
         break;
       }
     } // end of iteration loop
+
+    if (!converged) {
+      console.warn(`
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                            ⚠️  WARNING  ⚠️                                 ║
+║                                                                           ║
+║  Fixed-point iteration did NOT converge after ${maxNumberOfIterations} iterations!           ║
+║                                                                           ║
+║  SCC: [${DAGnodes[scc].scc.join(', ')}]${' '.repeat(Math.max(0, 60 - DAGnodes[scc].scc.join(', ').length))}║
+║                                                                           ║
+║  Consider adding explicit type annotations for your recursive functions. ║
+║  Recursive polymorphic functions may require explicit types to converge. ║
+║                                                                           ║
+║  Type inference results may be incomplete or incorrect!                   ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+`);
+    }
 
     DAGnodes[scc].scc.forEach( relName => {
       const relDef = rels[relName];

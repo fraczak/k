@@ -1,0 +1,185 @@
+import { PatternGraph } from './PatternGraph.mjs';
+import { LocalRules } from './LocalRules.mjs';
+import { computeSCCs, topologicalSort } from './GraphUtils.mjs';
+
+export class TypeDerivation {
+  constructor(codeRegistry) {
+    this.codeRegistry = codeRegistry;
+  }
+
+  derive(program) {
+    // Phase 1: Initialize
+    const relDefs = this.initialize(program);
+    
+    // Phase 2: Dependency analysis
+    const sccs = this.analyzeDependencies(relDefs);
+    
+    // Phase 3: Fixed-point iteration
+    this.iterateToFixedPoint(relDefs, sccs);
+    
+    return relDefs;
+  }
+
+  initialize(program) {
+    const relDefs = new Map();
+    
+    for (const [name, expr] of Object.entries(program.rels)) {
+      const graph = new PatternGraph();
+      const varRefs = [];
+      
+      this.annotateExpression(expr, graph, varRefs);
+      
+      relDefs.set(name, {
+        name,
+        def: expr,
+        graph,
+        varRefs
+      });
+    }
+    
+    return relDefs;
+  }
+
+  annotateExpression(expr, graph, varRefs) {
+    const rules = new LocalRules(graph);
+    rules.codeRegistry = this.codeRegistry;
+    
+    switch (expr.op) {
+      case 'identity':
+        rules.annotateIdentity(expr);
+        break;
+      
+      case 'comp':
+        for (const e of expr.comp) {
+          this.annotateExpression(e, graph, varRefs);
+        }
+        rules.annotateComp(expr);
+        break;
+      
+      case 'product':
+        for (const { exp } of expr.product) {
+          this.annotateExpression(exp, graph, varRefs);
+        }
+        rules.annotateProduct(expr);
+        break;
+      
+      case 'union':
+        for (const e of expr.union) {
+          this.annotateExpression(e, graph, varRefs);
+        }
+        rules.annotateUnion(expr);
+        break;
+      
+      case 'dot':
+        rules.annotateDot(expr);
+        break;
+      
+      case 'div':
+        rules.annotateDiv(expr);
+        break;
+      
+      case 'vid':
+        rules.annotateVid(expr);
+        break;
+      
+      case 'code':
+        rules.annotateCode(expr, this.codeRegistry);
+        break;
+      
+      case 'ref':
+        rules.annotateRef(expr, varRefs);
+        break;
+      
+      default:
+        throw new Error(`Unknown expression type: ${expr.op}`);
+    }
+  }
+
+  analyzeDependencies(relDefs) {
+    const edges = [];
+    
+    for (const [name, relDef] of relDefs) {
+      for (const varRef of relDef.varRefs) {
+        edges.push({ from: name, to: varRef.varName });
+      }
+    }
+    
+    const sccs = computeSCCs(edges, [...relDefs.keys()]);
+    return topologicalSort(sccs);
+  }
+
+  iterateToFixedPoint(relDefs, sccs) {
+    const MAX_ITERATIONS = 10;
+    
+    for (const scc of sccs) {
+      let prevState = null;
+      let converged = false;
+      
+      for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+        for (const relName of scc) {
+          const relDef = relDefs.get(relName);
+          
+          for (const varRef of relDef.varRefs) {
+            const targetDef = relDefs.get(varRef.varName);
+            if (!targetDef) {
+              throw new Error(`Undefined reference: ${varRef.varName}`);
+            }
+            
+            const mapping = targetDef.graph.clone(
+              [targetDef.def.patterns[0], targetDef.def.patterns[1]],
+              relDef.graph
+            );
+            
+            relDef.graph.unify(
+              `ref:input ${relName}(${varRef.varName})`,
+              varRef.inputPatternId,
+              mapping.get(targetDef.def.patterns[0])
+            );
+            
+            relDef.graph.unify(
+              `ref:output`,
+              varRef.outputPatternId,
+              mapping.get(targetDef.def.patterns[1])
+            );
+          }
+        }
+        
+        const currentState = this.serializeSCC(relDefs, scc);
+        if (currentState === prevState) {
+          converged = true;
+          break;
+        }
+        prevState = currentState;
+      }
+      
+      if (!converged) {
+        console.warn(`
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                            ⚠️  WARNING  ⚠️                                 ║
+║                                                                           ║
+║  Fixed-point iteration did NOT converge after ${MAX_ITERATIONS} iterations!           ║
+║                                                                           ║
+║  SCC: [${scc.join(', ')}]${' '.repeat(Math.max(0, 60 - scc.join(', ').length))}║
+║                                                                           ║
+║  Consider adding explicit type annotations for your recursive functions. ║
+║  Recursive polymorphic functions may require explicit types to converge. ║
+║                                                                           ║
+║  Type inference results may be incomplete or incorrect!                   ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+`);
+      }
+    }
+  }
+
+  serializeSCC(relDefs, scc) {
+    const parts = [];
+    for (const relName of scc) {
+      const relDef = relDefs.get(relName);
+      const [inId, outId] = relDef.def.patterns;
+      const inRep = relDef.graph.find(inId);
+      const outRep = relDef.graph.find(outId);
+      parts.push(`${relName}:[${inRep},${outRep}]`);
+    }
+    return parts.join(';');
+  }
+}
