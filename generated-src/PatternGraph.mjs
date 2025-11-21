@@ -146,23 +146,56 @@ export class PatternGraph {
   }
 
   compress(codes) {
-    // 1. Find singleton patterns (closed, no open ancestors)
+    // Find singleton patterns (closed, no open ancestors)
     const singletons = this.findSingletons();
     
-    // 2. Register singletons as new types
-    const newTypes = this.registerSingletons(singletons, codes);
+    // Build code definitions for all singletons
+    const newCodeDefs = {};
     
-    // 3. Unify singletons with their type nodes
-    for (const [singletonId, typeName] of Object.entries(newTypes)) {
-      const typeId = this.getTypeId(typeName, this.codeRegistry);
-      this.unify('singleton', parseInt(singletonId), typeId);
+    for (const id of singletons) {
+      const pattern = this.getPattern(id);
+      const edgeMap = this.edges[id];
+      
+      if (!edgeMap || edgeMap.size === 0) continue;
+      
+      const isUnion = pattern.type === 'closed-union';
+      const codeType = isUnion ? 'union' : 'product';
+      const fields = {};
+      
+      for (const [label, dests] of edgeMap) {
+        const dest = this.find([...dests][0]);
+        const destPattern = this.getPattern(dest);
+        
+        if (destPattern.isType && destPattern.isType()) {
+          fields[label] = destPattern.typeName;
+        } else {
+          fields[label] = `-${dest}-`;
+        }
+      }
+      
+      newCodeDefs[`-${id}-`] = {
+        code: codeType,
+        [codeType]: fields
+      };
     }
     
-    return newTypes;
+    // Register all singletons
+    if (Object.keys(newCodeDefs).length > 0) {
+      const representatives = codes.register(newCodeDefs);
+      
+      // Unify singletons with their type nodes
+      for (const id of singletons) {
+        const typeName = `-${id}-`;
+        const canonicalName = representatives[typeName];
+        if (canonicalName) {
+          const typeId = this.getTypeId(canonicalName, this.codeRegistry);
+          this.unify('singleton', id, typeId);
+        }
+      }
+    }
   }
 
   findSingletons() {
-    // Find root nodes (representatives)
     const roots = [];
     for (let i = 0; i < this.forest.size(); i++) {
       if (this.find(i) === i) {
@@ -170,7 +203,6 @@ export class PatternGraph {
       }
     }
     
-    // Build graph of pattern dependencies
     const edges = [];
     for (const src of roots) {
       const edgeMap = this.edges[src];
@@ -186,7 +218,6 @@ export class PatternGraph {
       }
     }
     
-    // Find nodes reachable from open patterns
     const openPatterns = roots.filter(id => {
       const pattern = this.getPattern(id);
       return pattern.type && (
@@ -209,68 +240,12 @@ export class PatternGraph {
       }
     }
     
-    // Singletons are closed patterns not reachable from open patterns
     return roots.filter(id => {
       if (excluded.has(id)) return false;
       const pattern = this.getPattern(id);
-      return pattern.type && (
-        pattern.type === 'closed-product' ||
-        pattern.type === 'closed-union'
-      );
+      if (!pattern.type) return false;
+      if (pattern.type === 'type') return false;
+      return pattern.type === 'closed-product' || pattern.type === 'closed-union';
     });
-  }
-
-  registerSingletons(singletons, codes) {
-    const newTypes = {};
-    
-    for (const id of singletons) {
-      const pattern = this.getPattern(id);
-      const edgeMap = this.edges[id];
-      
-      if (!edgeMap || edgeMap.size === 0) continue;
-      
-      // Build code definition - only if all fields are types
-      const isUnion = pattern.type === 'closed-union';
-      const codeType = isUnion ? 'union' : 'product';
-      const fields = {};
-      let allFieldsAreTypes = true;
-      
-      for (const [label, dests] of edgeMap) {
-        const dest = this.find([...dests][0]);
-        const destPattern = this.getPattern(dest);
-        
-        if (destPattern.isType && destPattern.isType()) {
-          fields[label] = destPattern.typeName;
-        } else {
-          allFieldsAreTypes = false;
-          break;
-        }
-      }
-      
-      // Only register if all fields are types
-      if (!allFieldsAreTypes) continue;
-      
-      // Register in codes module
-      const codeDef = {
-        code: codeType,
-        [codeType]: fields
-      };
-      
-      const typeName = `-${id}-`;
-      const registered = codes.register({ [typeName]: codeDef });
-      const canonicalName = registered[typeName];
-      
-      newTypes[id] = canonicalName;
-      
-      // Update code registry
-      if (this.codeRegistry) {
-        this.codeRegistry.set(canonicalName, {
-          type: codeType,
-          fields: fields
-        });
-      }
-    }
-    
-    return newTypes;
   }
 }
