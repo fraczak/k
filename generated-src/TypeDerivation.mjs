@@ -3,8 +3,9 @@ import { LocalRules } from './LocalRules.mjs';
 import { computeSCCs, topologicalSort } from './GraphUtils.mjs';
 
 export class TypeDerivation {
-  constructor(codeRegistry) {
+  constructor(codeRegistry, representatives = {}) {
     this.codeRegistry = codeRegistry;
+    this.representatives = representatives;
   }
 
   derive(program) {
@@ -46,6 +47,7 @@ export class TypeDerivation {
   annotateExpression(expr, graph, varRefs) {
     const rules = new LocalRules(graph);
     rules.codeRegistry = this.codeRegistry;
+    rules.representatives = this.representatives;
     
     switch (expr.op) {
       case 'identity':

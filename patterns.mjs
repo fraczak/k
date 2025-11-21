@@ -5,24 +5,20 @@ import hash from './hash.mjs';
 function patterns(representatives, rels) {
   const codeRegistry = new Map();
   
-  // Build code registry from all registered codes
-  // Use representative names to look up actual code definitions
-  for (const [codeName, repName] of Object.entries(representatives)) {
+  // Build code registry using only representative (canonical) names
+  // This ensures type identity is based on the codes module
+  const repNames = new Set(Object.values(representatives));
+  for (const repName of repNames) {
     const codeDef = codes.find(repName);
     if (codeDef.code === 'product' || codeDef.code === 'union') {
-      // Register under both the original name and representative name
-      const entry = {
+      codeRegistry.set(repName, {
         type: codeDef.code,
         fields: codeDef[codeDef.code]
-      };
-      codeRegistry.set(codeName, entry);
-      if (codeName !== repName) {
-        codeRegistry.set(repName, entry);
-      }
+      });
     }
   }
   
-  const derivation = new TypeDerivation(codeRegistry);
+  const derivation = new TypeDerivation(codeRegistry, representatives);
   const program = { rels };
   
   const relDefs = derivation.derive(program);

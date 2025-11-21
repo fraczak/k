@@ -98,7 +98,9 @@ export class LocalRules {
   }
 
   annotateCode(expr, codeRegistry) {
-    const typeId = this.graph.getTypeId(expr.code, codeRegistry);
+    // Always use the representative name for type identity
+    const repName = this.representatives[expr.code] || expr.code;
+    const typeId = this.graph.getTypeId(repName, codeRegistry);
     expr.patterns = [typeId, typeId];
   }
 
