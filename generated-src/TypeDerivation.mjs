@@ -184,11 +184,34 @@ export class TypeDerivation {
     const parts = [];
     for (const relName of scc) {
       const relDef = relDefs.get(relName);
-      const [inId, outId] = relDef.def.patterns;
-      const inRep = relDef.graph.find(inId);
-      const outRep = relDef.graph.find(outId);
-      parts.push(`${relName}:[${inRep},${outRep}]`);
+      const allPatterns = this.collectAllPatterns(relDef.def);
+      const reps = allPatterns.map(id => relDef.graph.find(id));
+      parts.push(`${relName}:[${reps.join(',')}]`);
     }
     return parts.join(';');
+  }
+
+  collectAllPatterns(expr) {
+    const patterns = [...expr.patterns];
+    
+    switch (expr.op) {
+      case 'comp':
+        for (const e of expr.comp) {
+          patterns.push(...this.collectAllPatterns(e));
+        }
+        break;
+      case 'product':
+        for (const { exp } of expr.product) {
+          patterns.push(...this.collectAllPatterns(exp));
+        }
+        break;
+      case 'union':
+        for (const e of expr.union) {
+          patterns.push(...this.collectAllPatterns(e));
+        }
+        break;
+    }
+    
+    return patterns;
   }
 }
