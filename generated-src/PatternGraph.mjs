@@ -3,10 +3,11 @@ import { UnionFind } from './UnionFind.mjs';
 import { unifyPatterns } from './Unification.mjs';
 
 export class PatternGraph {
-  constructor() {
+  constructor(codeRegistry = null) {
     this.forest = new UnionFind();
     this.edges = []; // edges[id] = Map<label, Set<id>>
     this.typeCache = new Map(); // typeName -> id
+    this.codeRegistry = codeRegistry;
   }
 
   addNode(pattern, edges = {}) {
@@ -70,7 +71,7 @@ export class PatternGraph {
     });
     
     // Compute unified pattern
-    const unified = unifyPatterns(patterns, reason);
+    const unified = unifyPatterns(patterns, reason, this.codeRegistry);
     
     // Create new representative
     const newId = this.addNode(unified);
@@ -102,7 +103,7 @@ export class PatternGraph {
   }
 
   clone(rootIds, targetGraph = null) {
-    const target = targetGraph || new PatternGraph();
+    const target = targetGraph || new PatternGraph(this.codeRegistry);
     const mapping = new Map();
     const queue = [...rootIds];
     

@@ -25,7 +25,7 @@ function setSubset(s1, s2) {
   return true;
 }
 
-export function unifyTwo(p1, p2, reason) {
+export function unifyTwo(p1, p2, reason, codeRegistry) {
   // Type patterns
   if (p1.isType() && p2.isType()) {
     if (p1.typeName !== p2.typeName) {
@@ -35,13 +35,23 @@ export function unifyTwo(p1, p2, reason) {
   }
   
   if (p1.isType()) {
-    // When unifying Type with pattern that has fields, just return the Type
-    // The fields will be checked when edges are unified
+    // Check if type has the required fields
+    if (p2.fields.size > 0 && codeRegistry) {
+      const code = codeRegistry.get(p1.typeName);
+      if (code) {
+        const typeFields = new Set(Object.keys(code.fields));
+        for (const field of p2.fields) {
+          if (!typeFields.has(field)) {
+            throw new Error(`${reason}: Type ${p1.typeName} doesn't have field '${field}'`);
+          }
+        }
+      }
+    }
     return p1.clone();
   }
   
   if (p2.isType()) {
-    return unifyTwo(p2, p1, reason);
+    return unifyTwo(p2, p1, reason, codeRegistry);
   }
   
   const c1 = p1.getConstructor();
@@ -101,14 +111,14 @@ export function unifyTwo(p1, p2, reason) {
   throw new Error(`${reason}: Unhandled unification case: ${p1.type} with ${p2.type}`);
 }
 
-export function unifyPatterns(patterns, reason) {
+export function unifyPatterns(patterns, reason, codeRegistry) {
   if (patterns.length === 0) {
     return Pattern.openUnknown();
   }
   
   let result = patterns[0];
   for (let i = 1; i < patterns.length; i++) {
-    result = unifyTwo(result, patterns[i], reason);
+    result = unifyTwo(result, patterns[i], reason, codeRegistry);
   }
   return result;
 }

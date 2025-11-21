@@ -5,12 +5,25 @@ import hash from './hash.mjs';
 function patterns(representatives, rels) {
   const codeRegistry = new Map();
   
-  // Build code registry from codes module
-  for (const [name, codeDef] of Object.entries(codes.codes || {})) {
+  // Build code registry from all registered codes
+  for (const codeName of Object.keys(representatives)) {
+    const codeDef = codes.find(codeName);
     if (codeDef.code === 'product' || codeDef.code === 'union') {
-      codeRegistry.set(name, {
+      codeRegistry.set(codeName, {
         type: codeDef.code,
         fields: codeDef[codeDef.code]
+      });
+    }
+  }
+  
+  // Ensure unit type is registered
+  const unitType = codes.unitCode;
+  if (!codeRegistry.has(unitType)) {
+    const unitDef = codes.find(unitType);
+    if (unitDef.code === 'product') {
+      codeRegistry.set(unitType, {
+        type: 'product',
+        fields: unitDef.product || {}
       });
     }
   }

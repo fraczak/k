@@ -27,7 +27,7 @@ export class TypeDerivation {
       // Handle both {def: expr} and expr directly
       const expr = relObj.def || relObj;
       
-      const graph = new PatternGraph();
+      const graph = new PatternGraph(this.codeRegistry);
       const varRefs = [];
       
       this.annotateExpression(expr, graph, varRefs);

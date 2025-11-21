@@ -1,4 +1,5 @@
 import { Pattern } from './Pattern.mjs';
+import codes from '../codes.mjs';
 
 export class LocalRules {
   constructor(graph) {
@@ -33,7 +34,7 @@ export class LocalRules {
     const inP = this.graph.addNode(Pattern.openUnknown());
     
     if (expr.product.length === 0) {
-      const unitId = this.graph.getTypeId('{}', this.codeRegistry);
+      const unitId = this.graph.getTypeId(codes.unitCode, this.codeRegistry);
       expr.patterns = [inP, unitId];
     } else if (expr.product.length === 1) {
       const { label, exp } = expr.product[0];
