@@ -144,4 +144,133 @@ export class PatternGraph {
     
     return mapping;
   }
+
+  compress(codes) {
+    // 1. Find singleton patterns (closed, no open ancestors)
+    const singletons = this.findSingletons();
+    
+    // 2. Register singletons as new types
+    const newTypes = this.registerSingletons(singletons, codes);
+    
+    // 3. Unify singletons with their type nodes
+    for (const [singletonId, typeName] of Object.entries(newTypes)) {
+      const typeId = this.getTypeId(typeName, this.codeRegistry);
+      this.unify('singleton', parseInt(singletonId), typeId);
+    }
+    
+    return newTypes;
+  }
+
+  findSingletons() {
+    // Find root nodes (representatives)
+    const roots = [];
+    for (let i = 0; i < this.forest.size(); i++) {
+      if (this.find(i) === i) {
+        roots.push(i);
+      }
+    }
+    
+    // Build graph of pattern dependencies
+    const edges = [];
+    for (const src of roots) {
+      const edgeMap = this.edges[src];
+      if (!edgeMap) continue;
+      
+      for (const dests of edgeMap.values()) {
+        for (const dest of dests) {
+          const destRep = this.find(dest);
+          if (src !== destRep) {
+            edges.push({ src, dst: destRep });
+          }
+        }
+      }
+    }
+    
+    // Find nodes reachable from open patterns
+    const openPatterns = roots.filter(id => {
+      const pattern = this.getPattern(id);
+      return pattern.type && (
+        pattern.type === 'open-unknown' ||
+        pattern.type === 'open-product' ||
+        pattern.type === 'open-union'
+      );
+    });
+    
+    const excluded = new Set(openPatterns);
+    const queue = [...openPatterns];
+    
+    while (queue.length > 0) {
+      const node = queue.pop();
+      for (const edge of edges) {
+        if (edge.dst === node && !excluded.has(edge.src)) {
+          excluded.add(edge.src);
+          queue.push(edge.src);
+        }
+      }
+    }
+    
+    // Singletons are closed patterns not reachable from open patterns
+    return roots.filter(id => {
+      if (excluded.has(id)) return false;
+      const pattern = this.getPattern(id);
+      return pattern.type && (
+        pattern.type === 'closed-product' ||
+        pattern.type === 'closed-union'
+      );
+    });
+  }
+
+  registerSingletons(singletons, codes) {
+    const newTypes = {};
+    
+    for (const id of singletons) {
+      const pattern = this.getPattern(id);
+      const edgeMap = this.edges[id];
+      
+      if (!edgeMap || edgeMap.size === 0) continue;
+      
+      // Build code definition - only if all fields are types
+      const isUnion = pattern.type === 'closed-union';
+      const codeType = isUnion ? 'union' : 'product';
+      const fields = {};
+      let allFieldsAreTypes = true;
+      
+      for (const [label, dests] of edgeMap) {
+        const dest = this.find([...dests][0]);
+        const destPattern = this.getPattern(dest);
+        
+        if (destPattern.isType && destPattern.isType()) {
+          fields[label] = destPattern.typeName;
+        } else {
+          allFieldsAreTypes = false;
+          break;
+        }
+      }
+      
+      // Only register if all fields are types
+      if (!allFieldsAreTypes) continue;
+      
+      // Register in codes module
+      const codeDef = {
+        code: codeType,
+        [codeType]: fields
+      };
+      
+      const typeName = `-${id}-`;
+      const registered = codes.register({ [typeName]: codeDef });
+      const canonicalName = registered[typeName];
+      
+      newTypes[id] = canonicalName;
+      
+      // Update code registry
+      if (this.codeRegistry) {
+        this.codeRegistry.set(canonicalName, {
+          type: codeType,
+          fields: fields
+        });
+      }
+    }
+    
+    return newTypes;
+  }
 }

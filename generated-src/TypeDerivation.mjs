@@ -3,9 +3,10 @@ import { LocalRules } from './LocalRules.mjs';
 import { computeSCCs, topologicalSort } from './GraphUtils.mjs';
 
 export class TypeDerivation {
-  constructor(codeRegistry, representatives = {}) {
+  constructor(codeRegistry, representatives = {}, codes = null) {
     this.codeRegistry = codeRegistry;
     this.representatives = representatives;
+    this.codes = codes;
   }
 
   derive(program) {
@@ -125,6 +126,12 @@ export class TypeDerivation {
       let converged = false;
       
       for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+        // Compress before processing
+        for (const relName of scc) {
+          const relDef = relDefs.get(relName);
+          relDef.graph.compress(this.codes);
+        }
+        
         for (const relName of scc) {
           const relDef = relDefs.get(relName);
           
@@ -151,6 +158,12 @@ export class TypeDerivation {
               mapping.get(targetDef.def.patterns[1])
             );
           }
+        }
+        
+        // Compress after processing
+        for (const relName of scc) {
+          const relDef = relDefs.get(relName);
+          relDef.graph.compress(this.codes);
         }
         
         const currentState = this.serializeSCC(relDefs, scc);
