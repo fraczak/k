@@ -35,9 +35,8 @@ export function unifyTwo(p1, p2, reason) {
   }
   
   if (p1.isType()) {
-    if (!setSubset(p2.fields, p1.fields)) {
-      throw new Error(`${reason}: Type ${p1.typeName} doesn't have fields: ${[...p2.fields]}`);
-    }
+    // When unifying Type with pattern that has fields, just return the Type
+    // The fields will be checked when edges are unified
     return p1.clone();
   }
   

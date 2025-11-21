@@ -113,4 +113,11 @@ export class LocalRules {
       expr
     });
   }
+
+  annotateFilter(expr) {
+    // Filter creates a pattern constraint
+    // For now, treat as identity with open unknown
+    const p = this.graph.addNode(Pattern.openUnknown());
+    expr.patterns = [p, p];
+  }
 }

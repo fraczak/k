@@ -23,7 +23,10 @@ export class TypeDerivation {
   initialize(program) {
     const relDefs = new Map();
     
-    for (const [name, expr] of Object.entries(program.rels)) {
+    for (const [name, relObj] of Object.entries(program.rels)) {
+      // Handle both {def: expr} and expr directly
+      const expr = relObj.def || relObj;
+      
       const graph = new PatternGraph();
       const varRefs = [];
       
@@ -90,8 +93,12 @@ export class TypeDerivation {
         rules.annotateRef(expr, varRefs);
         break;
       
+      case 'filter':
+        rules.annotateFilter(expr);
+        break;
+      
       default:
-        throw new Error(`Unknown expression type: ${expr.op}`);
+        throw new Error(`Unknown expression type: ${expr.op}\nExpression: ${JSON.stringify(expr, null, 2)}`);
     }
   }
 
