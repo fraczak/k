@@ -149,6 +149,8 @@ export class PatternGraph {
     // Find singleton patterns (closed, no open ancestors)
     const singletons = this.findSingletons();
     
+    if (singletons.length === 0) return;
+    
     // Build code definitions for all singletons
     const newCodeDefs = {};
     
@@ -196,6 +198,7 @@ export class PatternGraph {
   }
 
   findSingletons() {
+    // Find all root nodes
     const roots = [];
     for (let i = 0; i < this.forest.size(); i++) {
       if (this.find(i) === i) {
@@ -203,6 +206,7 @@ export class PatternGraph {
       }
     }
     
+    // Build undirected graph of pattern dependencies
     const edges = [];
     for (const src of roots) {
       const edgeMap = this.edges[src];
@@ -213,39 +217,52 @@ export class PatternGraph {
           const destRep = this.find(dest);
           if (src !== destRep) {
             edges.push({ src, dst: destRep });
+            edges.push({ dst: src, src: destRep }); // undirected
           }
         }
       }
     }
     
-    const openPatterns = roots.filter(id => {
-      const pattern = this.getPattern(id);
-      return pattern.type && (
-        pattern.type === 'open-unknown' ||
-        pattern.type === 'open-product' ||
-        pattern.type === 'open-union'
-      );
-    });
+    // Find connected components using DFS
+    const visited = new Set();
+    const components = [];
     
-    const excluded = new Set(openPatterns);
-    const queue = [...openPatterns];
-    
-    while (queue.length > 0) {
-      const node = queue.pop();
-      for (const edge of edges) {
-        if (edge.dst === node && !excluded.has(edge.src)) {
-          excluded.add(edge.src);
-          queue.push(edge.src);
+    for (const root of roots) {
+      if (visited.has(root)) continue;
+      
+      const component = [];
+      const stack = [root];
+      
+      while (stack.length > 0) {
+        const node = stack.pop();
+        if (visited.has(node)) continue;
+        
+        visited.add(node);
+        component.push(node);
+        
+        // Add neighbors
+        for (const edge of edges) {
+          if (edge.src === node && !visited.has(edge.dst)) {
+            stack.push(edge.dst);
+          }
         }
       }
+      
+      components.push(component);
     }
     
-    return roots.filter(id => {
-      if (excluded.has(id)) return false;
-      const pattern = this.getPattern(id);
-      if (!pattern.type) return false;
-      if (pattern.type === 'type') return false;
-      return pattern.type === 'closed-product' || pattern.type === 'closed-union';
+    // Find components where ALL nodes are closed patterns
+    const singletonComponents = components.filter(component => {
+      return component.every(id => {
+        const pattern = this.getPattern(id);
+        return pattern.type && (
+          pattern.type === 'closed-product' ||
+          pattern.type === 'closed-union'
+        );
+      });
     });
+    
+    // Return all nodes from singleton components
+    return singletonComponents.flat();
   }
 }
