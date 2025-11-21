@@ -6,25 +6,19 @@ function patterns(representatives, rels) {
   const codeRegistry = new Map();
   
   // Build code registry from all registered codes
-  for (const codeName of Object.keys(representatives)) {
-    const codeDef = codes.find(codeName);
+  // Use representative names to look up actual code definitions
+  for (const [codeName, repName] of Object.entries(representatives)) {
+    const codeDef = codes.find(repName);
     if (codeDef.code === 'product' || codeDef.code === 'union') {
-      codeRegistry.set(codeName, {
+      // Register under both the original name and representative name
+      const entry = {
         type: codeDef.code,
         fields: codeDef[codeDef.code]
-      });
-    }
-  }
-  
-  // Ensure unit type is registered
-  const unitType = codes.unitCode;
-  if (!codeRegistry.has(unitType)) {
-    const unitDef = codes.find(unitType);
-    if (unitDef.code === 'product') {
-      codeRegistry.set(unitType, {
-        type: 'product',
-        fields: unitDef.product || {}
-      });
+      };
+      codeRegistry.set(codeName, entry);
+      if (codeName !== repName) {
+        codeRegistry.set(repName, entry);
+      }
     }
   }
   

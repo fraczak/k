@@ -96,7 +96,7 @@ export class PatternGraph {
     
     // Recursively unify edge destinations
     for (const [label, dests] of newEdges) {
-      if (dests.size > 1) {
+      if (dests.size > 0) {
         this.unify(`${reason}.${label}`, ...dests);
       }
     }
