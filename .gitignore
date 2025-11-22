@@ -1,5 +1,7 @@
 node_modules/
+package-lock.json
 parser.mjs
+valueParser.mjs
 *~
 *.html
 .codegpt
