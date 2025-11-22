@@ -579,6 +579,12 @@ class TypePatternGraph {
           case 'product':
           case 'union':{
             const type_fields = Object.keys(code[code.code]);
+            // Validate that all existing edges match type fields
+            for (const lab in this.edges[new_id]) {
+              if (!type_fields.includes(lab)) {
+                throw new Error(`Type ${new_pattern.type} does not have field '${lab}'`);
+              }
+            }
             for (const lab of type_fields) {
               const target_type_id = this.getTypeId(code[code.code][lab]);
               this.edges[new_id][lab]= asSet([...(this.edges[new_id][lab] ||[]), target_type_id]);
