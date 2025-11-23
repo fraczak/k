@@ -554,39 +554,16 @@ class TypePatternGraph {
     })();
     // console.log("    * new ", JSON.stringify({new_id, new_pattern}));
     // console.log("          ", JSON.stringify(rep_patters));
-    this.edges[new_id] = {};
+    this.edges[new_id] = this.edges[new_id] || {};
 
     for (const i of reps) {
       const edges = this.edges[i];
       for (const lab in edges) {
-        // if the pattern is [] all labels are treated as 'vector-member'
-        const new_lab = new_pattern.pattern == '[]' ? 'vector-member' : lab;
         const dests = asSet(edges[lab].map(find));
-        this.edges[new_id][new_lab] = asSet([...(this.edges[new_id][new_lab] || []), ...dests]);
+        this.edges[new_id][lab] = asSet([...(this.edges[new_id][lab] || []), ...dests]);
       }
     }
-    // add stuff for types
-    if (new_pattern.pattern == 'type') {
-      const code = codes.find(new_pattern.type);
-        switch (code.code) {
-          case '@bits': {
-            // all edges are goin to unit type
-            const unit_id = this.getTypeId(unitCode);
-            for (const lab in this.edges[new_id]) {
-              this.edges[new_id][lab] = asSet([unit_id]);
-            }
-          }; break;
-          case 'product':
-          case 'union':{
-            const type_fields = Object.keys(code[code.code]);
-            for (const lab of type_fields) {
-              const target_type_id = this.getTypeId(code[code.code][lab]);
-              this.edges[new_id][lab]= asSet([...(this.edges[new_id][lab] ||[]), target_type_id]);
-            }
-          }; break;
-          
-        }
-    }
+    
     for ( const lab of Object.keys(this.edges[new_id]) ) {
       this.unify(rule+'.', ...this.edges[new_id][lab]);      
     }
@@ -606,9 +583,20 @@ class TypePatternGraph {
 
   getTypeId(type) {
     if (type == undefined) throw new Error("code name cannot be 'undefined'! "); //TODO: remove after testing
-    if ( this.codeId[type] == undefined )
-      this.codeId[type] = this.addNewNode({pattern: 'type', type: type});
+    if ( this.codeId[type] == undefined ) {
+      const code = codes.find(type);
+      if (code == undefined)
+        throw new Error(`Type '${type}' is not defined in codes.`);
+      const typeId = this.patterns.addNewNode({pattern: 'type', type: type});
+      this.codeId[type] = typeId
+      this.edges[typeId] = {};
+      for ( const [lab, destType] of Object.entries(code[code.code]) ) {
+        const destTypeId = this.getTypeId(destType);
+        this.edges[typeId][lab] = asSet([destTypeId]);
+      }
+    }
     return this.codeId[type];
+
   }
 
   size() {
