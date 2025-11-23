@@ -142,17 +142,18 @@ function patterns(representatives, rels) {
         case "dot":
           rel.patterns = [];
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '{...}'}, { [rel.dot]: [rel.patterns[1]] }); 
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '{...}', fields: [rel.dot]}, { [rel.dot]: [rel.patterns[1]] }); 
           break;
         case "div":
           rel.patterns = [];
           rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '<...>'}, { [rel.div]: [rel.patterns[1]] }); 
+          rel.patterns[0] = rootDef.typePatternGraph.addNewNode({pattern: '<...>', fields: [rel.div]}, { [rel.div]: [rel.patterns[1]] }); 
+          //console.log(`AUGMENTED DIV: patterns=${JSON.stringify(rel.patterns.map(x => rootDef.typePatternGraph.get_pattern(x)))}`);
           break;
         case "vid":
           rel.patterns = [];
           rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '<...>'}, { [rel.vid]: [rel.patterns[0]] }); 
+          rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '<...>', fields: [rel.vid]}, { [rel.vid]: [rel.patterns[0]] }); 
           break;
         case "filter":
           rel.patterns = [];
@@ -205,37 +206,29 @@ function patterns(representatives, rels) {
     if (filter.name) {
       rootDef.typePatternGraph.unify(`filter: ${filter.name}`, newPatternId, context[filter.name]);
     }
-    
     return newPatternId;
   }
 
   function augmentProduct(rel,rootDef) {
     rel.patterns = [];
-    switch (rel.product.length) {
-      case 0: 
+    if (rel.product.length == 0) {
         rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
         rel.patterns[1] = rootDef.typePatternGraph.getTypeId(unitCode);
-        break;
-      case 1:
-        // union/variant constructor:  %old_i { %exp_i exp %exp_o field } %old_o 
-        rel.patterns[0] = rel.product[0].exp.patterns[0];
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '<...>', fields: [rel.product[0].label]}, 
-          {[rel.product[0].label]: [rel.product[0].exp.patterns[1]]});
-        break;
-      default:
+    } else {
         // product constructor %old_i { %exp0_i exp0 %exp0_o field0, ... %expk_i expk %expk_o fieldk } %old_o
-        rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
-        rootDef.typePatternGraph.unify(
-          "product:input",
-          rel.patterns[0], 
-          ...rel.product.map(({exp}) => exp.patterns[0]));
-        
-        rel.patterns[1] = rootDef.typePatternGraph.addNewNode({pattern: '{}', fields: rel.product.map(({label}) => label)},
-          rel.product.reduce((edges, {label, exp}) => {
-            edges[label] = [exp.patterns[1]];
-            return edges;
-          }, {})
-        );
+      rel.patterns[0] = rootDef.typePatternGraph.addNewNode();
+      rootDef.typePatternGraph.unify(
+        "product:input",
+        rel.patterns[0], 
+        ...rel.product.map(({exp}) => exp.patterns[0]));
+      
+      rel.patterns[1] = rootDef.typePatternGraph.addNewNode(
+        {pattern: '{}', fields: rel.product.map(({label}) => label)},
+        rel.product.reduce((edges, {label, exp}) => {
+          edges[label] = [ rootDef.typePatternGraph.find(exp.patterns[1])];
+          return edges;
+        }, {})
+      );
     };
   }
   
@@ -260,11 +253,11 @@ function patterns(representatives, rels) {
   }
 
   function augmentComp(rel,rootDef) {
+    // console.log(`AUGMENTING COMP: ${JSON.stringify(rel.comp)}`);
     rel.patterns = [];
     if (rel.comp.length == 0) { 
       rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
     } else {
-
       for (let i = 0; i < rel.comp.length - 1; i++) {
         rootDef.typePatternGraph.unify(
           "comp:chain",
@@ -276,6 +269,10 @@ function patterns(representatives, rels) {
       rel.patterns[0] = rel.comp[0].patterns[0];  
       rel.patterns[1] = rel.comp[rel.comp.length - 1].patterns[1];
     }
+    // console.log(`AUGMENTED COMP: patterns=${JSON.stringify(rel.patterns.map(i => {
+    //   const x = rootDef.typePatternGraph.find(i);
+    //   return [x,rootDef.typePatternGraph.get_pattern(x)];
+    // }))}`);
   }
 
   function augmentRef(rel,rootDef) { 

@@ -25,28 +25,31 @@ A **pattern** represents a set of types:
 
 ## 3. Pattern Graph
 
-**Nodes:** Patterns organized in a union-find forest  
+**Nodes:** Patterns organized in a reps (representatives) forest, similar to union-find however a union of two (or more) trees always produces a new rep root node, joining the trees  
 **Edges:** Labeled by field names, pointing to other patterns  
-**Representatives:** Root nodes represent equivalence classes
+**Representatives:** Root nodes (called reps) represent equivalence classes
 
 **Operations:**
-- `find(p)` - get representative of pattern p
-- `unify(p₁, ..., pₙ)` - merge patterns into equivalence class
+
+- `find(p)` - get representative of pattern `p`
+- `unify(p₁, ..., pₙ)` - merge patterns into equivalence class, potentailly adding a new rep
 - `clone(patterns, target)` - copy subgraph to another graph
 
 ## 4. Unification
 
-`unify(p₁, ..., pₙ)` computes the least upper bound (most specific common pattern).
+`unify(p₁, ..., pₙ)` computes the least upper bound (most specific common pattern); it may add new nodes (reps) into the find-union tree w/o modifying any existing pattern node.
 
 **Rules:**
+
 - **Open + Open:** Merge field sets, stay open
 - **Open + Closed:** Check fields ⊆, become closed
 - **Closed + Closed:** Check fields =, stay closed
 - **Product ⊥ Union:** Error (incompatible)
-- **Type T:** Check structural compatibility
+- **Type T:** Unique (canonical name)
 
 **Algorithm:**
-```
+
+```text
 1. Find representatives of all patterns
 2. Compute merged pattern descriptor
 3. Create new representative node
@@ -54,67 +57,85 @@ A **pattern** represents a set of types:
 5. Recursively unify edge destinations
 ```
 
+Special care has to be done if the resuting pattern is a type, since type edges
+are not explicitely represented in the pattern Graph (maybe they should?).
+
 ## 5. Local Typing Rules
 
 For each expression type, define input/output pattern constraints:
 
 ### Composition `e₁ e₂ ... eₙ`
-```
+
+```text
 in(e₁ e₂ ... eₙ) = in(e₁)
 out(eᵢ) = in(eᵢ₊₁)  for i = 1..n-1
 out(e₁ e₂ ... eₙ) = out(eₙ)
 ```
 
-### Product `{e₁ l₁, ..., eₙ lₙ}` (n ≥ 2)
-```
-in(e₁) = ... = in(eₙ) = in({...})
-out({...}) = {} with edges lᵢ → out(eᵢ)
-```
+In case when `n=0`, identity, `()`
 
-### Variant `{e l}` (n = 1)
-```
-in({e l}) = in(e)
-out({e l}) = <...> with edge l → out(e)
-```
-
-### Union `<e₁, ..., eₙ>`
-```
-in(e₁) = ... = in(eₙ) = in(<...>)
-out(e₁) = ... = out(eₙ) = out(<...>)
-```
-
-### Projection `.l`
-```
-in(.l) = (...) with edge l → out(.l)
-out(.l) = fresh pattern
-```
-
-### Division `/t`
-```
-in(/t) = <...> with edge t → out(/t)
-out(/t) = fresh pattern
-```
-
-### Identity `()`
-```
+```text
 in(()) = out(())
 ```
 
-### Variable `x`
+### Product `{e₁ l₁, ..., eₙ lₙ}`
+
+```text
+in(e₁) = ... = in(eₙ) = in({e₁ l₁, ..., eₙ lₙ})
+out({e₁ l₁, ..., eₙ lₙ}) = {} with edges lᵢ → out(eᵢ)
 ```
+
+### Variant `|l`
+
+```text
+out(|l) = <...> with edge l → in(|l)
+```
+
+### Union `<e₁, ..., eₙ>`
+
+```text
+in(e₁) = ... = in(eₙ) = in(<e₁, ..., eₙ>)
+out(e₁) = ... = out(eₙ) = out(<e₁, ..., eₙ>)
+```
+
+### Projection
+
+#### Dot `.l`
+
+```text
+in(.l) = {...} with edge l → out(.l)
+```
+
+#### Div `/t`
+
+```text
+in(/t) = <...> with edge t → out(/t)
+```
+
+### Variable `x`
+
+```text
 Clone definition patterns of x
 Unify with local patterns
 ```
 
-### Type literal `T`
-```
+### Type `$ T`
+
+```text
 in(T) = out(T) = T
+```
+
+### Filter `? F`
+
+```text
+see patterns.filterToPattern(F)
 ```
 
 ## 6. Global Algorithm
 
 ### Phase 1: Initialization
-```
+
+```text
 For each function definition:
   1. Create empty pattern graph
   2. Traverse expression AST
@@ -124,14 +145,16 @@ For each function definition:
 ```
 
 ### Phase 2: Dependency Analysis
-```
+
+```text
 1. Build dependency graph (function → referenced functions)
 2. Compute strongly connected components (SCCs)
 3. Topologically sort SCCs (bottom-up)
 ```
 
 ### Phase 3: Fixed-Point Iteration
-```
+
+```text
 For each SCC (in topological order):
   Repeat until convergence (max 10 iterations):
     For each function f in SCC:
@@ -144,34 +167,17 @@ For each SCC (in topological order):
     If pattern graphs unchanged: break
 ```
 
-### Phase 4: Canonicalization
-```
-For each function:
-  1. Serialize pattern graph
-  2. Compute hash
-  3. Assign canonical name
-```
-
 ## 7. Compression
 
-**Purpose:** Normalize and deduplicate patterns
+**Purpose:** replace all pattern nodes by their reps and replace all singleton patterns by types.
 
 **Algorithm:**
-```
-1. Clone entire graph
-2. Identify singleton patterns (closed, no open ancestors)
-3. Register singletons as named types
-4. Group patterns by type:
-   - Open patterns ((...), {...}, <...>) each in separate groups
-   - Closed patterns ((), {}, <>) grouped together
-   - Type patterns kept separate
-5. Within each group, compute structural equivalence:
-   - Patterns equivalent if same pattern type AND same edges to equivalent destinations
-6. Merge structurally equivalent patterns within groups
-7. Remap all pattern IDs
-```
 
-**Important:** Open unknown patterns `(...)` are NEVER merged with each other, even if they have identical edge structure. Each represents a potentially different type constraint. For example, 10 functions with `(...)` input/output patterns will have 20 distinct pattern nodes.
+```text
+1. Build a new graph only on reps (keep the mappings from pattern node to its rep)
+2. Identify singleton patterns (closed, no open ancestors)
+3. Register singletons as named types and use them as type pattern nodes
+```
 
 ## 8. Convergence
 
@@ -184,15 +190,18 @@ For each function:
 ## 9. Error Handling
 
 **Unification errors:**
+
 - Product vs Union
 - Closed pattern field mismatch
-- Type structural incompatibility
+- Two distinct type patterns are always incompatible
 
 **Other errors:**
+
 - Undefined variable reference
 - Iteration limit exceeded
 
 **Error reporting should include:**
+
 - Source location
 - Expression type
 - Conflicting patterns
@@ -201,18 +210,17 @@ For each function:
 ## 10. Complexity
 
 **Time:** O(N × I × U)
+
 - N = AST size
 - I = iterations per SCC (≤ 10)
 - U = unification cost
 
 **Space:** O(N × P)
+
 - N = AST size
 - P = patterns per node (small after compression)
 
 ## 11. Implementation Notes
 
-- Use union-find for efficient equivalence classes
-- Cache cloned subgraphs for repeated references
-- Compress only when graph grows significantly
-- Track unification reasons for error messages
-- Serialize using canonical ordering for determinism
+- Use reps forest for organizing equivalence classes
+- Compress only at the end of an iteration to keep unification reasons for error messages
