@@ -1,6 +1,6 @@
 -- Standard binary encoding of natural numbers
 
-$ bnat = < {} _, bnat 0, bnat 1 >;
+-- $ bnat = < {} _, bnat 0, bnat 1 >;
 
 _ = {}|_;
 _1 = |1;
@@ -23,7 +23,7 @@ remove_leading_zeros = < /0 remove_leading_zeros, () >;
 reverse = {() x, _ result} _reverse;
 
 _reverse =
-  ${bnat x, bnat result}
+  -- ${bnat x, bnat result}
   <
     {.x/_ if, .result then} .then,
     {.x/0 x, .result _0 result} _reverse,
@@ -33,11 +33,11 @@ _reverse =
 
 append_0 = reverse _0 reverse; -- i.e., shift_left, double, or times2 
 
-$carry = <{} 0, {} 1>;
+-- $carry = <{} 0, {} 1>;
 c0 = {} |0 ;
 c1 = {} |1 ;
 
-$ pair = {bnat x, bnat y};
+-- $ pair = {bnat x, bnat y};
 
 plus = 
   -- ${bnat x, bnat y} 
@@ -75,7 +75,7 @@ _plus =
 ;
 
 minus =
-  ${bnat x, bnat y}
+  -- ${bnat x, bnat y}
   { 
     .x remove_leading_zeros reverse x,
     .y remove_leading_zeros reverse y,
@@ -88,7 +88,7 @@ minus =
 
 _minus =
   -- least significat bit first substraction with carry
-  ${bnat x, bnat y, carry c}
+  -- ${bnat x, bnat y, carry c}
   <
     {.x   x, .y/_   y, .c/0   if} .x,
     {.x/1 x, .y/_   y, .c/1   if} .x _0,
@@ -105,7 +105,7 @@ _minus =
 ;
 
 times = 
-  ${bnat x, bnat y} 
+  -- ${bnat x, bnat y} 
   { 
     bnat_0 result, 
     .x remove_leading_zeros reverse _x, 
@@ -116,7 +116,7 @@ times =
 ;
 
 _times =
-  ${bnat result, bnat _x, bnat y}
+  -- ${bnat result, bnat _x, bnat y}
   <
     { .y/_ if, .result then } .then,
     { .result _0                           result, ._x _x, .y/0 y } _times,
@@ -128,8 +128,8 @@ inc = {() x, bnat_1 y} plus;
 dec = {() x, bnat_1 y} minus;
 
 mod =
-  ${bnat x, bnat y}
-  < 
+  -- ${bnat x, bnat y}
+  <
     -- if x >= y then (x mod y) = ((x-y mod 2y) mod y)
     { { minus x, .y append_0 y } mod x, .y y } mod,
     -- else, i.e., if x < y then, (x mod y) = x 
@@ -138,7 +138,7 @@ mod =
 ; 
 
 align = 
-  ${bnat x, bnat y}
+  -- ${bnat x, bnat y}
   {
     .x remove_leading_zeros reverse _x, 
     .y remove_leading_zeros reverse _y, 
@@ -149,7 +149,7 @@ align =
 ;
 
 _align = 
-  ${bnat _x, bnat _y, bnat x, bnat y}
+  -- ${bnat _x, bnat _y, bnat x, bnat y}
   <
     {._x/_ if1, ._y/_ if2, {.x x, .y y} then} .then,
     {._x </0, /_ _> _x, ._y </0, /_ _> _y, .x _0 x, .y _0 y} _align,
@@ -159,14 +159,14 @@ _align =
   >
 ;
 
-$compare = <{} lt, {} eq, {} gt >;
+-- $compare = <{} lt, {} eq, {} gt >;
 lt = {} |lt;
 eq = {} |eq;
 gt = {} |gt;
 
 compare = align _compare;
 _compare = 
-  ${bnat x, bnat y}
+  -- ${bnat x, bnat y}
   <
     {.x/_ if1, .y/_ if2 } eq,
     {.x/0 x, .y/0 y} _compare,
@@ -174,7 +174,7 @@ _compare =
     .x/0 lt,
     gt
   >
-  $compare
+  -- $compare
 ;
 
 zero? = remove_leading_zeros /_ bnat_0;
@@ -193,7 +193,7 @@ _gcd = <
 >;
 
 log2_floor =
-  ${bnat x, bnat step} 
+  -- ${bnat x, bnat step} 
 -- finds the largest k, such that 'step * 2^k <= x',
 -- returns k+1, i.e., 0 if x < step, and k+1 otherwise.
   {.x x, .step step, bnat_0 log} _log2_floor;
@@ -206,7 +206,7 @@ _log2_floor =
 ;
 
 append_n_times_0 = 
-  ${bnat x, bnat n}
+  -- ${bnat x, bnat n}
   <
     {.n zero? if, .x then} .then,
     {.x append_0 x, .n dec n} append_n_times_0
@@ -214,7 +214,7 @@ append_n_times_0 =
 ;
 
 div = 
-  ${bnat x, bnat y}
+  -- ${bnat x, bnat y}
   {.x x, .y step, bnat_0 res} _div
 ;
 
@@ -241,7 +241,7 @@ _div =
 ;
 
 lcm =
-  ${bnat x, bnat y}
+  -- ${bnat x, bnat y}
   {times x, gcd y}
   div .div
 ;
@@ -256,7 +256,7 @@ half =
 ;
 
 pow =
-  ${ bnat base, bnat exponent }
+  -- ${ bnat base, bnat exponent }
   <
     .exponent zero? bnat_1,
     {.base base, .exponent half half}
