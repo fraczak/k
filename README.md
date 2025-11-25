@@ -3,8 +3,8 @@
 ## Overview
 
 **k** is a language and notation for defining and combining **first-order partial functions**
-over algebraic data types (called "codes"). 
-Codes are built solely from product (records) and tagged union (variants). 
+over algebraic data types (called "codes").
+Codes are built solely from product (records) and tagged union (variants).
 The data model is JSON/XML-like in that values are tree-shaped and serialize naturally,
 but there are no built-in primitive types; the only leaf used in non-recursive definitions
 is the empty product `{}`.
@@ -26,6 +26,7 @@ Prerequisites: Node.js 18+.
   - `npm run prepare`
 
 > Notes (from `package.json`):
+
 > - Scripts: `prepare` compiles the grammars; `test` runs all tests.
 > - Binaries: `k` and `k-repl` point to `k.mjs` and `repl.mjs`.
 
@@ -41,10 +42,10 @@ Prerequisites: Node.js 18+.
 - Values are trees whose internal nodes are products or tagged unions; field/tag names carry the structure.
 - Code equivalence is bisimilarity over definition graphs (recursion allowed): there exists a relation B such that (t1, t2) ∈ B iff
   - t1 and t2 have exactly the same set of labels/tags;
-  - if that set is not a singleton, then t1 and t2 are simultaneously products or simultaneously unions;
+  - t1 and t2 are simultaneously products or simultaneously unions;
   - for each label/tag ℓ in the set, the subcodes under ℓ are again related by B.
   
-  Equivalence is the largest such bisimulation. In particular, `{A x}` ≡ `<A x>`, but with 2+ labels the constructors must match.
+  Equivalence is the largest such bisimulation. 
 
 > Note: This documentation uses the native k-like notation by default. The JSON-like form is provided as syntactic sugar to ease onboarding.
 
@@ -54,9 +55,6 @@ Prerequisites: Node.js 18+.
   - `{ nat x, nat y }  ≡  { x: nat, y: nat }`
 - Union:
   - `< {} zero, nat succ >  ≡  < zero: {}, succ: nat >`
-- Bisimilarity examples:
-  - `{ A x }  ≡  < A x >` (singleton labels/tags)
-  - `{ A x, B y }  ≢  < A x, B y >` (2+ labels require matching constructors)
 
 **Examples from the repo:**
 
@@ -87,17 +85,30 @@ $ bytes = < nil: {}, cons: { car: bit, cdr: bytes } >;  -- JSON-like (equivalent
 
 ## Partial Functions
 
-A **partial function** is a function that may not return a value for every possible input. In k, a common example is a projection, such as `.toto`, which extracts the `toto` property from an object if it exists, or is undefined otherwise.
+A **partial function** is a function that may not return a value for every possible input.
+In k, common examples include:
 
-**Example:**
+- **Product projection (.field):** Extracts a field from a product type value.
+- **Union projection (/tag):** Asserts that the input is a variant with the specified tag and extracts its value.
+- **Variant introduction (|tag):** Wraps an input value in a tagged variant.
 
-```text
-.toto :
-    {"toto": {"5":{}}, "titi": {"10":{}}}  -->  {"5":{}}
-    {"titi": {"10":{}}}                         ... undefined
-```
+**Examples:**
+
+- Product projection: `.toto` extracts the `toto` field from a product.
+  ```text
+  .toto :
+      {"toto": {"5":{}}, "titi": {"10":{}}}  -->  {"5":{}}
+      {"titi": {"10":{}}}                         ... undefined
+  ```
+- Union projection: `/toto` asserts the input is a `toto` variant and extracts its value.
+- Variant introduction: `|toto` wraps the input value in a `toto` variant.
+  ```text
+  |toto :
+      {"5":{}}  -->  {"5":{}}|toto
+  ```
 
 > **How to read:**
+
 > - The first line is a k-expression (before `:`).
 > - The following lines show example inputs and outputs.
 > - If the function is defined for the input, the result is shown after `-->`.
@@ -133,7 +144,8 @@ Try each function in order, returning the first defined result. For example, `<.
 
 ### 3. Product
 
-Apply multiple functions and collect their results into a new object with given labels. For example, `{.toto TOTO, .titi TITI}` extracts two fields and builds a record.
+Apply multiple functions and collect their results into a new object with given labels.
+For example, `{.toto TOTO, .titi TITI}` extracts two fields and builds a record.
 
 ```text
 {.toto TOTO, .titi TITI} :
@@ -145,25 +157,24 @@ Apply multiple functions and collect their results into a new object with given 
 ## Syntactic Sugar
 
 - Parentheses can be omitted, except for the empty composition `()`.
-- Dots (`.`) act as property separators, so `.a.b.c` is the same as `(.a .b .c)`.
+- Projection symbols (`.`, `/`) act as property separators as well, so `.a.b/c` is the same as `(. a . b / c)`.
 - Comments: Use `//`, `--`, `%`, `#` for single-line, or `/* ... */` for multi-line.
 - Product/union lists support both forms. The native k-like form is canonical and preferred; the JSON-like form is provided as a convenience for readability.
-- Variant (union) value literals are written using single-field product notation, `{val tag}`, or `{tag:val}` in JSON-like.
 
-### Variant (union) value literal convention
+### Variant (union) value representation
 
-- Unit variants:
-  - `{}` as `zero`: `{{} zero}`
-  - `{}` as `nil`: `{{} nil}`
+In k, variant values are represented by tagging their content. The `|tag` function is used to apply a tag to a value.
+
+- Unit variants (variants without payload):
+  - Example: `zero` (when its payload is `{}`) is represented as `{} | zero`.
+  - Example: `nil` (when its payload is `{}`) is represented as `{} | nil`.
 - Variants with payload:
-  - If `cons` has payload `{X car, Y cdr}`, then a value is written as `{ { v_car car, v_cdr cdr } cons }`.
+  - If `cons` has payload `{X car, Y cdr}`, then a value is formed by tagging an object containing `v_car car` and `v_cdr cdr` with `cons`.
   - Example (list of bits): with `$bit = <{} 0, {} 1>` and `$bytes = <{} nil, {bit car, bytes cdr} cons>`, a singleton list `[1]` is:
-    - `{{ { {{} 1} car, {{} nil} cdr } cons }}`
-- Non-examples (do not use):
-  - `< tag v >` as a value literal — angle brackets are for type/merge syntax, not values.
+    - `{ {}|1 car, {}|nil cdr } | cons`
 
 **Example:**
-`.toto.titi.0.1` is equivalent to `(.toto .titi (.0 .1))`.
+`.toto.titi/1` is equivalent to `(.toto (.titi /1))`.
 
 ---
 
@@ -171,7 +182,7 @@ Apply multiple functions and collect their results into a new object with given 
 
 **Codes** define types or schemas using unions (`<...>`) and products (`{...}`), and can be named with `$`.
 
-> We write examples in the native k-like notation first; a JSON-like equivalent may follow for convenience.
+> We write examples in the native k-like notation first; a JSON-like equivalent follow for convenience.
 
 **Example:**
 
@@ -182,47 +193,48 @@ $ pair = { nat x, nat y };          -- native k-like
 $ pair = { x: nat, y: nat };        -- JSON-like (equivalent)
 ```
 
-- Codes are equivalent up to bisimulation (see Data model). Intuitively: same label/tag set; singleton product and union coincide; with 2+ labels, constructors must match; subcodes relate pointwise under each label/tag.
+- Codes are equivalent up to bisimulation (see Data model). Intuitively: same label/tag set;
+  constructors must match; subcodes relate pointwise under each label/tag.
 - There are no built-in types like `string`, `int`, or `bool`; use `{}` as the only leaf in non-recursive definitions.
 
 Try in `k-repl`:
 
 ```k-repl
-$ nat = < {} zero, nat succ >;
-$ pair = { nat x, nat y };
---C pair
-$ myCode = {<{} zero, nat succ> x, nat y};
---C myCode
+> $ nat = < {} zero, nat succ >; \
+  $ pair = { nat x, nat y }; \
+  $ myCode = {<{} zero, nat succ> x, nat y};
+--> {}
+> --C pair
+ $ @PvIWLAJKZD = {@BwONISX x, @BwONISX y}; -- $C0={C1"x",C1"y"};$C1=<C1"succ",C2"zero">;$C2={};
+> --C myCode
+ $ @PvIWLAJKZD = {@BwONISX x, @BwONISX y}; -- $C0={C1"x",C1"y"};$C1=<C1"succ",C2"zero">;$C2={};
 ```
 
 ---
 
 ## Code Derivation and Patterns
 
-A **pattern** represents constraints on codes (types). Patterns are used for type inference and static analysis, not during program execution.
+A **pattern** represents collections of codes (types). Patterns are used for type inference and static analysis,
+not during program execution.
 
 **Example:**
 
 ```k-repl
-toto = .toto;
+> toto = .toto;
 --R toto
   toto : ?(X0 toto, ...)  -->  ?X0
-```
 
-For more complex expressions, patterns are introduced for each sub-expression.
-
-**Example:**
-
-```k-repl
-rel = < .toto, () >;
+> rel = < .toto, () >;
 --R rel
   rel : ?(X0 toto, ...)=X0  -->  ?X0
 ```
 
-The language supports type patterns for code derivation, but these are not considered during evaluation.
+_Filter_ is the syntax for patterns available in the language.
+Intuitively, a _filter_ acts as a filter function, which, for a given value returns it or it is undefined.
+Filters are hints for code derivation; there are not considered during runtime (code execution).
 
 ```k-repl
-treePattern = ?<(...) leaf, {T left, T right} tree> = T;
+treeFilter = ?<(...) leaf, {T left, T right} tree> = T;
 ```
 
 ---
@@ -230,11 +242,12 @@ treePattern = ?<(...) leaf, {T left, T right} tree> = T;
 ## QUIZ
 
 - What is the result of:
-    - Empty composition: `()` ?
-    - Empty merge: `<>` ?
-    - Empty product: `{}` ?
-    - `{{{{} s} s} s}` ?
-    - `({{{() a} b} c} .c .b .a)` ?
+
+  - Empty composition: `()` ?
+  - Empty merge: `<>` ?
+  - Empty product: `{}` ?
+  - `|s|s|s/s/s/s` ?
+  - `({{{() a} b} c} .c .b .a)` ?
 
 ---
 
