@@ -14,7 +14,7 @@ import assert from 'assert';
 
 t(`
   B = {}|u A;
-  A = < /a, /b A, /c | z A, B  >;
+  A = ?X < /a, /b ?X A, /c |z ?X A, B  >;
   A
 `, (annotated) => {
     // console.log(JSON.stringify(annotated,null,2));

@@ -165,5 +165,5 @@ function patterns2filters(typePatternGraph, ...patternIds) {
 
 }
 
-export default { prettyCode, prettyRel, patterns2filters };
-export { prettyCode, prettyRel, patterns2filters };
+export default { prettyCode, prettyRel, prettyFilter, patterns2filters };
+export { prettyCode, prettyRel, prettyFilter, patterns2filters };

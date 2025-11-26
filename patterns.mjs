@@ -4,8 +4,17 @@ import { TypePatternGraph } from "./typing.mjs";
 import { Graph, sccs, topoOrder } from "./Graph.mjs";
 import codes from "./codes.mjs";
 import { assignCanonicalNames } from "./export.mjs";
+import { prettyFilter, patterns2filters } from "./pretty.mjs";  
 
 const unitCode = codes.unitCode;
+
+function signature(relDef) {
+  const typePatternGraph = relDef.typePatternGraph;
+  const filters = patterns2filters(typePatternGraph, ...relDef.def.patterns);
+  const result = filters.map( prettyFilter ).join("  -->  ");
+  // console.log(` ---- signature: ${result}`);
+  return result;
+}
 
 function relDefToString(relDef) {
   const start = new Date().getTime();
@@ -353,7 +362,7 @@ function patterns(representatives, rels) {
 
   for (const scc of sccInOrder) {
 
-    const maxNumberOfIterations = 10;
+    const maxNumberOfIterations = 2 + DAGnodes[scc].scc.length;
     let converged = false;
     
     for (let iteration = 1; iteration <= maxNumberOfIterations; iteration++) {
@@ -367,7 +376,7 @@ function patterns(representatives, rels) {
         // console.log(relDefToString(relDef));
         rels[relName] = compactRel(relDef,relName);
         // console.log(relDefToString(rels[relName]));
-        return relDefToString(rels[relName]);
+        return signature(rels[relName]);
       }));
 
       let after = JSON.stringify(DAGnodes[scc].scc.map( relName => {
@@ -395,7 +404,7 @@ function patterns(representatives, rels) {
           }
         }
         rels[relName] = compactRel(relDef,relName);
-        return relDefToString(rels[relName]); 
+        return signature(rels[relName]); 
       }));
 
       if (before == after) {
@@ -406,20 +415,12 @@ function patterns(representatives, rels) {
     } // end of iteration loop
 
     if (!converged) {
-      console.warn(`
-╔═══════════════════════════════════════════════════════════════════════════╗
-║                            ⚠️  WARNING  ⚠️                                 ║
-║                                                                           ║
-║  Fixed-point iteration did NOT converge after ${maxNumberOfIterations} iterations!           ║
-║                                                                           ║
-║  SCC: [${DAGnodes[scc].scc.join(', ')}]${' '.repeat(Math.max(0, 60 - DAGnodes[scc].scc.join(', ').length))}║
-║                                                                           ║
-║  Consider adding explicit type annotations for your recursive functions. ║
-║  Recursive polymorphic functions may require explicit types to converge. ║
-║                                                                           ║
-║  Type inference results may be incomplete or incorrect!                   ║
-╚═══════════════════════════════════════════════════════════════════════════╝
-`);
+      console.warn(`WARNING ⚠️  : Type derivation did NOT converge after ${maxNumberOfIterations} iterations:
+  ${DAGnodes[scc].scc.map( relName => {
+      const relDef = rels[relName];
+      return `\x1b[94m${relName}\x1b[0m: ${signature(relDef)}`;
+  }).join('\n  ')}
+  Consider adding filter expressions when defining recursive polymorphic functions.`);
     }
 
     DAGnodes[scc].scc.forEach( relName => {

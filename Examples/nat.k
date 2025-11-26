@@ -2,8 +2,8 @@ $ nat = < {} zero, nat succ >;
 zero = {} | zero ;
 zero? = {/zero if, () then} .then;
 succ = | succ;
-add = <
-    {.x/succ x, .y succ y} add,
+add = ?X <
+    {.x /succ x, .y succ y} ?X add,
     .y
 >;
 mult = <

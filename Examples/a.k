@@ -44,7 +44,7 @@ concat_ = ${bits x, bits y}
     .y 
   >;
 inv = {()x, 0b r} _inv; 
-_inv = < {.x /0 x, .r 0_ r} _inv, {.x /1 x, .r 1_ r} _inv, .r >;
+_inv = ${bits x, bits r} < {.x /0 x, .r 0_ r} _inv, {.x /1 x, .r 1_ r} _inv, .r >;
 
 inOrder = ${bits x, bits y} {.x inv x, .y inv y, yes inOrder} inOrder_;
 inOrder_ = ${bits x, bits y, yes_no inOrder} 
@@ -74,7 +74,7 @@ fromBitList =
     {car /1 if, cdr fromBitList 1_ then} .then
   >, 
   0b
->;
+> $bits;
 
 --------------------------------------
 $ int = < bits '+', bits '-' >;
@@ -98,7 +98,7 @@ inc = $int <
   /'-' {inv x, 0b y} _dec |'-'
 >;
 
-_inc = <
+_inc = ${bits x, bits y} <
     {.x /0 x, .y 1_ y} concat_, 
     {.x /1 x, .y 0_ y} _inc,
     .y 1_
@@ -108,12 +108,12 @@ dec = $int <
   zero_int? 1 |'-',
   /'+' {inv x, 0b y} _dec |'+',
   /'-' {inv x, 0b y} _inc |'-'
->;
+> $int;
 
-_dec = <
+_dec = ?{X x, X y, ...} <
     {.x /1 x, .y 0_ y} concat_, 
     {.x /0 x, .y 1_ y} _dec
->;
+> ?X;
 
 $carry = <{} 0, {} 1>;
 c0 = {}|0 $carry;
