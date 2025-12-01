@@ -7,6 +7,8 @@ const unitCode = function() {
   return hash(unitCodeDef);
 }();
 
+theRepository.codes[unitCode] = { code: "product", product: {} };
+
 function encodeCodeToString(code, codes = theRepository.codes) {
   let i = 0;
   const Q = [[code,i]];

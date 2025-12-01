@@ -1,5 +1,8 @@
 
-
+const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
+function pLabel(label) {
+  return nameRE.test(label) ? `${label}` : `${JSON.stringify(label)}`;
+}
 const getFields = obj => {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
     throw new Error("Not a map!");
@@ -73,7 +76,7 @@ class Variant extends Value {
 
   toString() {
     // return `{${JSON.stringify(this.tag)}:${this.value.toString()}}`;
-    return `${this.value.toString()}|${this.tag}`;
+    return `${this.value.toString()}|${pLabel(this.tag)}`;
   }
 
   toJSON() {
