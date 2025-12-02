@@ -28,7 +28,7 @@ struct KValue {
     union {
         struct {
             uint8_t* bits;          // canonical bitstream
-            int      type_hash;     // identifies canonical type
+            int      type_id;       // identifies canonical type
         } serialized;
         
         struct {

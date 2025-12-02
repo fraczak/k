@@ -48,8 +48,20 @@ Every type denotes a finite tree automaton whose accepted trees are the possible
 
 ## **2.4 Projections**
 
-**Dot** notation, e.g., `. field_name`, is used for extracting the value of a field from a record (product type value).
-**Div** notation, e.g., `/ variant_name`, is used for asserting a particular variant of a union and extracting its value.
+**Dot** notation, e.g., 
+
+```k
+ . field_name
+```
+
+is used for extracting the value of a field from a record (product type value).
+**Div** notation, e.g., 
+
+```k
+ / variant_name
+```
+
+is used for asserting a particular variant of a union and extracting its value.
 Product type `{ T₁ l₁, T₂ l₂, … , Tₙ lₙ }` naturally defines `n` partial functions: `.l₁, .l₂, … , .lₙ`,  
 and union type `< T₁ l₁, T₂ l₂, … , Tₙ lₙ >` naturally defines `n` partial functions `/l₁, /l₂, … , /lₙ`.
 Those partial functions are called **projections** and they constitute the basis for the definition
@@ -64,10 +76,16 @@ Expressions combine partial functions using the following operators:
 1. **Composition** `(f₁ f₂ …)` — sequential application.
 2. **Union** `< f₁, f₂, … >` — try each in order, first defined wins.
 3. **Product (parallel)** `{ f₁ l₁, f₂ l₂, … }` — apply all to the same input, succeed only if all succeed.
-4. **Variant construction** `| l` — lift the input as a variant `l` of a union type.
+4. **Variant construction** `| tag` — lift the input as a variant `tag` of a union type.
 
 Parentheses around a composition may be omitted except for the empty composition `()` — the identity function.
 Empty product, `{ }`, defines a constant function (ignoring its input) returning *unit*.
+
+It is important to notice that after the three markers: `dot (.)`, `div (/)`, or `pipe (|)`, there must be a constant label literal. For that reason, it is possible and advised not to leave any blanks after the marker, e.g.:
+
+```k-lang
+  .field /'a-tag' |"strange and long tag name ✅" 
+```
 
 ---
 
@@ -75,21 +93,19 @@ Empty product, `{ }`, defines a constant function (ignoring its input) returning
 
 ```k-lang
 $ bool = < {} true, {} false >;
-true_bool  = | true $ bool;
-false_bool = | false $ bool;
-neg = $ bool < / true false_bool, / false true_bool >;
+true  = {} |true $ bool;
+false = {} |false $ bool;
+neg = $ bool < /true false, /false true >;
 ```
 
-This defines a two-variant union type and three functions: two constants and one transformation exchanging the variants.
+This defines a "two-variant" union type and three functions: two constants and one transformation exchanging the variants.
 
 ---
 
 ## **2.7 Summary**
 
 * All types describe tree shapes.
-* `{}` is the empty product (with one value, called *unit*).
-* Values appear in expressions only as results of constant functions.
-* There are no primitive literals, only algebraic data types.
+* As type expression, `{}` is the empty product type (with one value, called *unit*).
 * Functions, not values, are the only expressions in `k`.
 
 ---

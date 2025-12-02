@@ -5,7 +5,7 @@
 A type expression in `k` can appear wherever a function is expected.
 When used this way, it is prefixed by `$`.
 It then behaves as a partial **identity** function that is defined only for values of that type.
-For example, `$bool` is a partial identity: it returns its argument unchanged when the argument is of type `bool`, and it is undefined otherwise.
+For example, `$ bool` is a partial identity: it returns its argument unchanged when the argument is of type `bool`, and it is undefined otherwise.
 
 This convention eliminates any special syntax for annotating sub-expressions with types.
 An expression may be *restricted* to a type simply by composing it with the corresponding type expression.
@@ -78,7 +78,7 @@ car = ?< {} nil, {X car, Y cdr} cons > = Y /cons .car ?X;
 Here:
 
 - `X` and `Y` are type variables.
-- The filter `?<...>=Y` constrains the function `car` to be defined only on types that match the recursive list structure `Y`.
+- The filter `?<{}nil,{X car,Y cdr}cons>=Y` constrains the function `car` to be defined only on types that match the recursive list structure.
 - The expression `/cons` selects the `cons` variant of the union.
 - The expression `.car` accesses the `car` field of a `cons` variant.
 - The final filter `?X` asserts that the result of the field access is of type `X`, the type of the list's elements.
@@ -87,9 +87,9 @@ Here:
 
 ## **5.6 Type inference and normalization**
 
-Every `k` program can be analyzed to assign an input and an output filter to every sub-expression. This process is called normalization.
+Every `k` program can be analyzed to assign an input and an output filter to every sub-expression. This process is called type inference abd normalization.
 
-Normalization proceeds as follows:
+Type inference and normalization proceeds as follows:
 
 1. Build a graph of all type references appearing explicitly and implicitly in the program.
 2. Annotate each expression node with a pair of (input filter, output filter).

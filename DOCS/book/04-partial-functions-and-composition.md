@@ -83,27 +83,33 @@ For example, we can define functions that return `true` and `false`:
 
 ```k-lang
 $ bool = < {} true, {} false >;
-true_bool  =  {} | true $bool ;
-false_bool =  {} | false $bool ;
+true_bool  =  {} |true $bool ;
+false_bool =  {} |false $bool ;
 ```
 
 Here, `true_bool` and `false_bool` are constant functions. They are also **total functions**, meaning they are defined for all inputs. Each function ignores its input and produces a fixed boolean value.
 
 ---
 
-## **4.6  Projection**
+## **4.6  Projection and Variant Value constructor**
 
 Projection selects a field or a variant from a product or union.
 It is written with a leading dot `.` or a leading slash `/`, respectively:
 
 ```k-lang
-.x     // Selects field 'x' from a product: { x: T, ... }
-/x     // Extracts the value from a union variant 'x': < x: T, ... >
+.x     // Selects field 'x' from a product: { T x, ... }
+/x     // Extracts the value from a union variant 'x': < T x, ... >
 ```
 
 If the input is a product, `.x` returns the value of field `x`. If the input is a union, `/x` returns the value of variant `x`. In all other cases, the projection is undefined.
 
-Projections are the most basic partial functions.
+Variant value constructors for a given union type `T = <T₁ tag₁, T₂ tag₂, … >` are written as `|tag₁`, `|tag₂`, ….
+
+```k-lang
+|tag₁    // lift a value of type T₁ into a value of type T
+```
+
+Projections and variant constructors are the most basic partial functions.
 
 ---
 
@@ -113,10 +119,8 @@ Complex functions are built by nesting compositions.
 For example:
 
 ```k-lang
-{ .x x_copy, .y y_copy }
+{ .x field1, .y |tag field2 }
 ```
-
-copies both fields if they exist.
 
 ---
 
@@ -137,5 +141,6 @@ The empty product `{}` is the constant function returning the unit value.
 * **Product composition** `{...}` runs functions in parallel and gathers their results.
 * **Union composition** `<...>` tries functions in order, returning the first successful result.
 * **Projections** (`.x`, `/x`) are fundamental building blocks for accessing data structures.
+* **Variant constructor** (`|tag`) allows lifting a value into a variant type value.
 
 ---
