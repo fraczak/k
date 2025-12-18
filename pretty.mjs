@@ -1,7 +1,8 @@
 import { find } from "./codes.mjs";
 import { TypePatternGraph } from "./typing.mjs";
 
-const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
+// const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
+const nameRE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 function pLabel_(label) {
   return nameRE.test(label) ? ` ${label}` : `${JSON.stringify(label)}`;
 }

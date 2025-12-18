@@ -16,31 +16,23 @@ This unified approach enables programs to operate on serialized inputs without u
 
 All values are represented by a single abstraction:
 
-```c
-struct KValue {
-    enum ValueForm {
-        SERIALIZED,     // pure bitstream + type info
-        LAZY,          // hybrid: some nodes materialized, others serialized
-        MATERIALIZED,  // traditional tree structure
-        EXTERNAL       // built-in/foreign type with custom handlers
-    } form;
-    
-    union {
-        struct {
-            uint8_t* bits;          // canonical bitstream
-            int      type_id;       // identifies canonical type
-        } serialized;
-        
-        struct {
-            struct KNode* root;     // root of materialized or partially materialized tree
-        } materialized;
-        
-        struct {
-            void*    data;          // opaque external data
-            int      type_id;       // external type identifier
-            ExternalOps* ops;       // function pointers for operations
-        } external;
-    };
+```zig
+const KValue = union(enum) {
+    serialized: struct {
+        bits: [*]u8,           // canonical bitstream
+        type_id: i32,          // identifies canonical type
+    },
+    lazy: struct {
+        root: *KNode,          // root of materialized or partially materialized tree
+    },
+    materialized: struct {
+        root: *KNode,          // traditional tree structure
+    },
+    external: struct {
+        data: *anyopaque,      // opaque external data
+        type_id: i32,          // external type identifier
+        ops: *ExternalOps,     // function pointers for operations
+    },
 };
 ```
 
@@ -61,31 +53,21 @@ This enables **streaming evaluation** where programs can process data incrementa
 
 Nodes in lazy values can be in different states of materialization:
 
-```c
-struct KNode {
-    int  state;        // canonical type state (C0, C1,…)
-    int  tag;          // variant index, −1 for product
-    int  arity;        // number of children
-    
-    enum NodeState {
-        SERIALIZED_CHILD,    // child exists as bitstream only
-        MATERIALIZED_CHILD,  // child is fully materialized
-        EXTERNAL_CHILD       // child is external/built-in type
-    };
-    
-    union KChild {
-        struct {
-            enum NodeState state;       // which kind of child this is
-            union {
-                struct KNode*     node;       // materialized child
-                struct {
-                    uint8_t*      bits;       // serialized child data
-                    int           bit_offset; // position within parent's bitstream
-                } serialized;
-                struct KValue*    external;   // external child
-            };
-        };
-    } child[];
+```zig
+const KChild = union(enum) {
+    serialized: struct {
+        bits: [*]u8,           // serialized child data
+        bit_offset: i32,       // position within parent's bitstream
+    },
+    materialized: *KNode,      // child is fully materialized
+    external: *KValue,         // child is external/built-in type
+};
+
+const KNode = struct {
+    state: i32,                // canonical type state (C0, C1,…)
+    tag: i32,                  // variant index, −1 for product
+    arity: i32,                // number of children
+    children: []KChild,        // flexible array of children
 };
 ```
 
@@ -277,18 +259,19 @@ This allows the decoder to:
 
 Back-references integrate seamlessly with lazy evaluation:
 
-```c
-DecoratedPtr resolve_reference(DecoratedPtr backref) {
-    node_id = read_variable_int(backref.bits, backref.bit_offset);
+```zig
+fn resolve_reference(backref: DecoratedPtr) DecoratedPtr {
+    const node_id = read_variable_int(backref.bits, backref.bit_offset);
     
     // Look up in node table
-    node_entry = node_table[node_id];
+    const node_entry = node_table[node_id];
     
-    return (DecoratedPtr) {
+    return .{
         .bits = backref.bits,
         .bit_offset = node_entry.offset,
         .type_state = node_entry.type_state,
-        .ref_count = 1
+        .ref_count = 1,
+        .cache = .{ .is_cached = false, .content_hash = 0 },
     };
 }
 ```
@@ -573,18 +556,18 @@ The **offset table approach** provides the best practical performance despite mo
 
 **Encoding format**:
 
-```c
-struct OptimalEncoding {
-    uint8_t  type_tag;              // 1 byte: product/union/external marker
-    uint8_t  arity;                 // 1 byte: number of children (0-255)
-    uint16_t flags;                 // 2 bytes: compression flags, alignment info
-    uint32_t total_size;            // 4 bytes: total size for skipping
+```zig
+const OptimalEncoding = struct {
+    type_tag: u8,                   // 1 byte: product/union/external marker
+    arity: u8,                      // 1 byte: number of children (0-255)
+    flags: u16,                     // 2 bytes: compression flags, alignment info
+    total_size: u32,                // 4 bytes: total size for skipping
     
     // For products with >8 fields:
-    uint32_t field_offsets[arity];  // 4×N bytes: random access table
+    // field_offsets: [arity]u32,   // 4×N bytes: random access table
     
     // Payload data follows
-    uint8_t  data[];
+    // data: []u8,
 };
 ```
 
@@ -619,27 +602,37 @@ Operations on values trigger selective deserialization:
 
 ### **6.5.2  Lazy evaluation strategy**
 
-```c
-function access_field(value: KValue, field_path: String[]): KValue {
-    if (value.form == SERIALIZED) {
-        // Partially deserialize to reach the field
-        root = deserialize_to_depth(value, field_path.length);
-        value = make_lazy(root, value.serialized.bits);
+```zig
+fn access_field(value: *KValue, field_path: []const []const u8) *KValue {
+    switch (value.*) {
+        .serialized => |s| {
+            // Partially deserialize to reach the field
+            const root = deserialize_to_depth(s, field_path.len);
+            value.* = .{ .lazy = .{ .root = make_lazy(root, s.bits) } };
+        },
+        else => {},
     }
     
-    if (value.form == LAZY) {
-        node = navigate_path(value.lazy.root, field_path);
-        if (node.child[field_idx].state == SERIALIZED_CHILD) {
-            // Deserialize this child on demand
-            child_value = deserialize_child(node, field_idx);
-            node.child[field_idx].state = MATERIALIZED_CHILD;
-            node.child[field_idx].node = child_value;
-        }
-        return &node.child[field_idx];
+    switch (value.*) {
+        .lazy => |l| {
+            const node = navigate_path(l.root, field_path);
+            const field_idx = get_field_index(field_path);
+            switch (node.children[field_idx]) {
+                .serialized => {
+                    // Deserialize this child on demand
+                    const child_value = deserialize_child(node, field_idx);
+                    node.children[field_idx] = .{ .materialized = child_value };
+                },
+                else => {},
+            }
+            return &node.children[field_idx];
+        },
+        .materialized => |m| {
+            // Traditional navigation for fully materialized values
+            return navigate_materialized(m.root, field_path);
+        },
+        else => unreachable,
     }
-    
-    // Traditional navigation for fully materialized values
-    return navigate_materialized(value, field_path);
 }
 ```
 
@@ -651,14 +644,14 @@ Built-in and foreign types integrate through a plugin interface:
 
 ### **6.6.1  External operations**
 
-```c
-struct ExternalOps {
-    KValue* (*serialize)(void* data);
-    void*   (*deserialize)(KValue* serialized);
-    KValue* (*apply_function)(void* data, const char* func_name, KValue* args);
-    bool    (*equals)(void* a, void* b);
-    uint64_t (*hash)(void* data);
-    void    (*destroy)(void* data);
+```zig
+const ExternalOps = struct {
+    serialize: *const fn (*anyopaque) *KValue,
+    deserialize: *const fn (*KValue) *anyopaque,
+    apply_function: *const fn (*anyopaque, []const u8, *KValue) *KValue,
+    equals: *const fn (*anyopaque, *anyopaque) bool,
+    hash: *const fn (*anyopaque) u64,
+    destroy: *const fn (*anyopaque) void,
 };
 ```
 
@@ -672,12 +665,12 @@ struct ExternalOps {
 
 ### **6.6.3  Type registration**
 
-```c
-void register_external_type(int type_id, const char* name, ExternalOps* ops) {
-    external_types[type_id] = {
+```zig
+fn register_external_type(type_id: i32, name: []const u8, ops: *ExternalOps) void {
+    external_types[@intCast(type_id)] = .{
         .name = name,
         .ops = ops,
-        .canonical_hash = compute_type_hash(name, ops->signature)
+        .canonical_hash = compute_type_hash(name, ops.signature),
     };
 }
 ```
@@ -690,12 +683,12 @@ void register_external_type(int type_id, const char* name, ExternalOps* ops) {
 
 All materialized nodes use arena allocation for fast allocation and bulk deallocation:
 
-```c
-struct Arena {
-    uint8_t* memory;
-    size_t   capacity;
-    size_t   used;
-    Arena*   next;      // linked list of arena blocks
+```zig
+const Arena = struct {
+    memory: []u8,
+    capacity: usize,
+    used: usize,
+    next: ?*Arena,      // linked list of arena blocks
 };
 ```
 
@@ -739,51 +732,52 @@ The entire `data` list and `metadata` remain as untouched bitstreams, providing 
 
 The same value can exist in different forms simultaneously:
 
-```c
+```zig
 // Original input: fully serialized
-KValue input = {
-    .form = SERIALIZED,
-    .serialized = {
+var input: KValue = .{
+    .serialized = .{
         .bits = bitstream_buffer,
-        .type_hash = hash("record")
-    }
+        .type_id = hash("record"),
+    },
 };
 
 // After partial access: hybrid lazy
-KValue hybrid = {
-    .form = LAZY,
-    .lazy.root = {
-        .state = 0, .tag = -1, .arity = 3,
-        .child = {
-            [0] = { .state = MATERIALIZED_CHILD, .node = materialized_string_node },      // name: materialized
-            [1] = { .state = SERIALIZED_CHILD, .serialized = {bits+offset, 64} },        // data: still serialized  
-            [2] = { .state = SERIALIZED_CHILD, .serialized = {bits+offset, 1088} }       // meta: still serialized
-        }
-    }
+var hybrid: KValue = .{
+    .lazy = .{
+        .root = &KNode{
+            .state = 0,
+            .tag = -1,
+            .arity = 3,
+            .children = &[_]KChild{
+                .{ .materialized = materialized_string_node },      // name: materialized
+                .{ .serialized = .{ .bits = bits + offset, .bit_offset = 64 } },    // data: still serialized
+                .{ .serialized = .{ .bits = bits + offset, .bit_offset = 1088 } },  // meta: still serialized
+            },
+        },
+    },
 };
 ```
 
 ### **6.8.2  External type integration example**
 
-```c
+```zig
 // Built-in string type
-KValue string_value = {
-    .form = EXTERNAL,
-    .external = {
+var string_value: KValue = .{
+    .external = .{
         .data = utf8_string_data,
         .type_id = BUILTIN_STRING,
-        .ops = &string_operations
-    }
+        .ops = &string_operations,
+    },
 };
 
 // The string_operations provide:
-ExternalOps string_operations = {
+const string_operations = ExternalOps{
     .serialize = string_to_canonical_bits,
     .deserialize = canonical_bits_to_string,
     .apply_function = string_builtin_functions,  // length, concat, etc.
     .equals = utf8_string_compare,
     .hash = utf8_string_hash,
-    .destroy = free_string_data
+    .destroy = free_string_data,
 };
 ```
 
@@ -819,16 +813,16 @@ The formal execution model is based on decorated pointers, which represent value
 
 Every value during execution is represented by a **decorated pointer**:
 
-```c
-struct DecoratedPtr {
-    uint8_t*     bits;          // pointer into serialized input heap
-    size_t       bit_offset;    // bit position within the stream
-    TypeState    type_state;    // canonical automaton state (C0, C1, ...)
-    int          ref_count;     // for sharing and caching
-    struct {
-        bool     is_cached;     // memoization flag
-        uint64_t content_hash;  // for cache lookup
-    } cache;
+```zig
+const DecoratedPtr = struct {
+    bits: [*]u8,               // pointer into serialized input heap
+    bit_offset: usize,         // bit position within the stream
+    type_state: TypeState,     // canonical automaton state (C0, C1, ...)
+    ref_count: i32,            // for sharing and caching
+    cache: struct {
+        is_cached: bool,       // memoization flag
+        content_hash: u64,     // for cache lookup
+    },
 };
 ```
 
@@ -848,25 +842,26 @@ DecoratedPtr → DecoratedPtr
 
 For field access `.field_name`:
 
-```c
-DecoratedPtr project_field_optimized(DecoratedPtr input, int field_index) {
+```zig
+fn project_field_optimized(input: DecoratedPtr, field_index: i32) DecoratedPtr {
     // Hardware-optimized field navigation
-    uint8_t* byte_ptr = input.bits + (input.bit_offset >> 3);
+    const byte_ptr = input.bits + (input.bit_offset >> 3);
     
     // Read encoding header
-    struct OptimalEncoding* header = (struct OptimalEncoding*)byte_ptr;
+    const header = @as(*OptimalEncoding, @ptrCast(@alignCast(byte_ptr)));
     
-    if (header->arity <= 8) {
+    if (header.arity <= 8) {
         // Small product: sequential scan (cache-friendly)
-        uint8_t* field_ptr = byte_ptr + sizeof(struct OptimalEncoding);
-        for (int i = 0; i < field_index; i++) {
-            uint32_t field_size = *(uint32_t*)field_ptr;  // First 4 bytes = size
+        var field_ptr = byte_ptr + @sizeOf(OptimalEncoding);
+        var i: i32 = 0;
+        while (i < field_index) : (i += 1) {
+            const field_size = @as(*u32, @ptrCast(@alignCast(field_ptr))).*;  // First 4 bytes = size
             field_ptr += field_size;
         }
         return make_ptr_from_bytes(field_ptr);
     } else {
         // Large product: offset table lookup (O(1) access)
-        uint32_t field_offset = header->field_offsets[field_index];
+        const field_offset = header.field_offsets[@intCast(field_index)];
         return make_ptr_from_bytes(byte_ptr + field_offset);
     }
 }
@@ -878,20 +873,20 @@ DecoratedPtr project_field_optimized(DecoratedPtr input, int field_index) {
 
 For pattern matching `case { tag1 → ..., tag2 → ... }`:
 
-```c
-DecoratedPtr match_union_optimized(DecoratedPtr input, int expected_tag) {
+```zig
+fn match_union_optimized(input: DecoratedPtr, expected_tag: i32) DecoratedPtr {
     // Read single-byte discriminator (hardware-friendly)
-    uint8_t* byte_ptr = input.bits + (input.bit_offset >> 3);
-    struct OptimalEncoding* header = (struct OptimalEncoding*)byte_ptr;
+    const byte_ptr = input.bits + (input.bit_offset >> 3);
+    const header = @as(*OptimalEncoding, @ptrCast(@alignCast(byte_ptr)));
     
-    uint8_t actual_tag = header->data[0];  // First byte of data = discriminator
+    const actual_tag = header.data[0];  // First byte of data = discriminator
     
     if (actual_tag != expected_tag) {
         return UNDEFINED_PTR;  // Pattern match failure
     }
     
     // Skip past header + discriminator
-    uint8_t* child_ptr = byte_ptr + sizeof(struct OptimalEncoding) + 1;
+    const child_ptr = byte_ptr + @sizeOf(OptimalEncoding) + 1;
     
     return make_ptr_from_bytes(child_ptr);
 }
@@ -901,14 +896,14 @@ DecoratedPtr match_union_optimized(DecoratedPtr input, int expected_tag) {
 
 For product construction `{ field1, field2, ... }`:
 
-```c
-DecoratedPtr construct_product(DecoratedPtr* field_ptrs, int arity) {
+```zig
+fn construct_product(field_ptrs: []DecoratedPtr, arity: i32) DecoratedPtr {
     // This is the primary point where memory allocation is required.
-    ProductNode* result = allocate_product_node(arity);
+    const result = allocate_product_node(arity);
     
     // Evaluate each field (possibly in parallel)
-    for (int i = 0; i < arity; i++) {
-        result->fields[i] = evaluate_expression(field_ptrs[i]);
+    for (field_ptrs, 0..) |field_ptr, i| {
+        result.fields[i] = evaluate_expression(field_ptr);
     }
     
     return make_materialized_ptr(result);
@@ -919,13 +914,13 @@ DecoratedPtr construct_product(DecoratedPtr* field_ptrs, int arity) {
 
 For external functions `string_length`, `add_int`, etc.:
 
-```c
-DecoratedPtr builtin_call(DecoratedPtr input, BuiltinFunc func) {
+```zig
+fn builtin_call(input: DecoratedPtr, func: BuiltinFunc) DecoratedPtr {
     // Force materialization of the input
-    ExternalValue* materialized = force_external(input);
+    const materialized = force_external(input);
     
     // Delegate to external implementation
-    ExternalValue* result = func->call(materialized);
+    const result = func.call(materialized);
     
     return make_external_ptr(result);
 }
@@ -943,23 +938,23 @@ DecoratedPtr builtin_call(DecoratedPtr input, BuiltinFunc func) {
 
 For program `\x.(x.data.head.value, x.name)` on input `{ name: "alice", data: [42, 17] }`:
 
-```text
-Step 1: input_ptr = {bits: heap_start, offset: 0, state: C0_record}
+```zig
+// Step 1: input_ptr = .{ .bits = heap_start, .bit_offset = 0, .type_state = .C0_record, ... }
 
-Step 2: data_ptr = project_field(input_ptr, 1)  // .data
-        = {bits: heap_start, offset: 120, state: C0_list}
+// Step 2: data_ptr = project_field(input_ptr, 1)  // .data
+//       = .{ .bits = heap_start, .bit_offset = 120, .type_state = .C0_list, ... }
 
-Step 3: head_ptr = match_union(data_ptr, CONS_TAG)  // pattern match
-        = {bits: heap_start, offset: 122, state: C0_cons}
+// Step 3: head_ptr = match_union(data_ptr, CONS_TAG)  // pattern match
+//       = .{ .bits = heap_start, .bit_offset = 122, .type_state = .C0_cons, ... }
 
-Step 4: value_ptr = project_field(head_ptr, 0)  // .value  
-        = {bits: heap_start, offset: 122, state: C0_int}
+// Step 4: value_ptr = project_field(head_ptr, 0)  // .value
+//       = .{ .bits = heap_start, .bit_offset = 122, .type_state = .C0_int, ... }
 
-Step 5: name_ptr = project_field(input_ptr, 0)  // .name
-        = {bits: heap_start, offset: 8, state: C0_string}
+// Step 5: name_ptr = project_field(input_ptr, 0)  // .name
+//       = .{ .bits = heap_start, .bit_offset = 8, .type_state = .C0_string, ... }
 
-Step 6: result_ptr = construct_product([value_ptr, name_ptr])
-        // Note: memory allocation for the result tuple occurs here.
+// Step 6: result_ptr = construct_product(&[_]DecoratedPtr{value_ptr, name_ptr})
+//       // Note: memory allocation for the result tuple occurs here.
 ```
 
 ### **6.10.5  Optimization opportunities**
@@ -1000,13 +995,21 @@ Benefits:
 
 Product construction offers natural parallelization:
 
-```c
-DecoratedPtr construct_product_parallel(DecoratedPtr* field_ptrs, int arity) {
-    ProductNode* result = allocate_product_node(arity);
+```zig
+fn construct_product_parallel(field_ptrs: []DecoratedPtr, arity: i32) DecoratedPtr {
+    const result = allocate_product_node(arity);
     
-    #pragma omp parallel for
-    for (int i = 0; i < arity; i++) {
-        result->fields[i] = evaluate_expression(field_ptrs[i]);
+    // Parallel evaluation using Zig's std.Thread
+    var threads = std.ArrayList(std.Thread).init(allocator);
+    defer threads.deinit();
+    
+    for (field_ptrs, 0..) |field_ptr, i| {
+        const thread = try std.Thread.spawn(.{}, evaluate_field, .{result, i, field_ptr});
+        try threads.append(thread);
+    }
+    
+    for (threads.items) |thread| {
+        thread.join();
     }
     
     return make_materialized_ptr(result);
@@ -1019,16 +1022,16 @@ Each field evaluation is independent and can run on separate threads.
 
 The input heap should be designed for efficient navigation:
 
-```c
-struct InputHeap {
-    uint8_t*  serialized_data;     // the original bitstream
-    size_t    total_bits;          // total size
+```zig
+const InputHeap = struct {
+    serialized_data: [*]u8,        // the original bitstream
+    total_bits: usize,             // total size
     
     // Optional: precomputed navigation table for large inputs
-    struct {
-        size_t*   field_offsets;   // byte offsets for major fields
-        int       table_size;      // number of cached offsets
-    } navigation_cache;
+    navigation_cache: struct {
+        field_offsets: []usize,    // byte offsets for major fields
+        table_size: i32,           // number of cached offsets
+    },
 };
 ```
 

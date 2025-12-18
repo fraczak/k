@@ -1,999 +1,530 @@
--- IEEE 754 Double Precision Floating-Point Format
+$bit  = < {} 0, {} 1 >;
+$sign = < {} +, {} - >;
 
-$ bit = <{} 0, {} 1>;
+$bit_pair  = {bit x, bit y};
+$sign_pair = {sign x, sign y};
 
-bit_eq = ${bit 0, bit 1} {
-  <{.0.0 0, .1.0 1}, {.0.1 0, .1.1 1}> bit_eq,
-  .0 then
-} .then;
+$cmp_state = <{} eq, {} gt, {} lt>;
+$cmp = <{} eq_exact, {} eq_zero, {} gt, {} lt, {} unordered_nan>;
 
-0 = {{} 0};
-1 = {{} 1};
+$exp11  = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9, bit 10};
+$frac52 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
+           bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
+           bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29,
+           bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39,
+           bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49,
+           bit 50, bit 51};
 
-$ sign = < {} "+", {} "-" >;
-sign_plus = {{} "+"};
-sign_minus = {{} "-"};
+$float64 = {sign sign, exp11 exponent, frac52 fraction};
+$float_pair = {float64 x, float64 y};
 
-sign_eq = ${sign 0, sign 1} {
-  < {.0."+" 0, .1."+" 1}, {.0."-" 0, .1."-" 1} > sign_eq,
-  .0 then
-} .then;
+$exp_pair  = {exp11 x, exp11 y};
+$frac_pair = {frac52 x, frac52 y};
 
-$ exponent = {
-  bit 0, bit 1, bit 2, bit 3, bit 4, bit 5,
-  bit 6, bit 7, bit 8, bit 9, bit 10
-};
+$cmp_step_in  = {bit_pair bits, cmp_state state};
+$cmp_exp_ctx  = {exp_pair pair, cmp_state state};
+$cmp_frac_ctx = {frac_pair pair, cmp_state state};
 
-exponent_0 = {
-  0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10
-} $exponent;
+0 = {} |0 $bit;
+1 = {} |1 $bit;
 
++ = {} |+ $sign;
+- = {} |- $sign;
 
-exponent_eq = ${exponent 0, exponent 1} {
-  {.0.0 0, .1.0 1} bit_eq 0,
-  {.0.1 0, .1.1 1} bit_eq 1,
-  {.0.2 0, .1.2 1} bit_eq 2,
-  {.0.3 0, .1.3 1} bit_eq 3,
-  {.0.4 0, .1.4 1} bit_eq 4,
-  {.0.5 0, .1.5 1} bit_eq 5,
-  {.0.6 0, .1.6 1} bit_eq 6,
-  {.0.7 0, .1.7 1} bit_eq 7,
-  {.0.8 0, .1.8 1} bit_eq 8,
-  {.0.9 0, .1.9 1} bit_eq 9,
-  {.0.10 0, .1.10 1} bit_eq 10,
-  .0 then
-} .then;
+eq = {} |eq $cmp_state;
+gt = {} |gt $cmp_state;
+lt = {} |lt $cmp_state;
 
-exponent_0? = {exponent_0 0, () 1} exponent_eq;
+eq_exact_cmp      = {} |eq_exact $cmp;
+eq_zero_cmp       = {} |eq_zero $cmp;
+gt_cmp            = {} |gt $cmp;
+lt_cmp            = {} |lt $cmp;
+unordered_nan_cmp = {} |unordered_nan $cmp;
 
-$ mantissa = {
-  bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
-  bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
-  bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29,
-  bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39,
-  bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49,
-  bit 50, bit 51
-};
+0? = $bit {/0 if, () then} .then $bit;
+1? = $bit {/1 if, () then} .then $bit;
 
-mantissa_0 = {
-  0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 
-  0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 
-  0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51
-} $mantissa;
++? = $sign {/+ if, () then} .then $sign;
+-? = $sign {/- if, () then} .then $sign;
 
-mantissa_max = {
-  1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10, 1 11, 1 12, 1 13, 1 14, 1 15, 1 16, 1 17, 1 18, 1 19, 1 20, 
-  1 21, 1 22, 1 23, 1 24, 1 25, 1 26, 1 27, 1 28, 1 29, 1 30, 1 31, 1 32, 1 33, 1 34, 1 35, 1 36, 1 37, 1 38, 1 39, 
-  1 40, 1 41, 1 42, 1 43, 1 44, 1 45, 1 46, 1 47, 1 48, 1 49, 1 50, 1 51
-} $mantissa;
-
-mantissa_eq = ${mantissa 0, mantissa 1} {
-  {.0.0 0, .1.0 1} bit_eq 0,
-  {.0.1 0, .1.1 1} bit_eq 1,
-  {.0.2 0, .1.2 1} bit_eq 2,
-  {.0.3 0, .1.3 1} bit_eq 3,
-  {.0.4 0, .1.4 1} bit_eq 4,
-  {.0.5 0, .1.5 1} bit_eq 5,
-  {.0.6 0, .1.6 1} bit_eq 6,
-  {.0.7 0, .1.7 1} bit_eq 7,
-  {.0.8 0, .1.8 1} bit_eq 8,
-  {.0.9 0, .1.9 1} bit_eq 9,
-  {.0.10 0, .1.10 1} bit_eq 10,
-  {.0.11 0, .1.11 1} bit_eq 11,
-  {.0.12 0, .1.12 1} bit_eq 12,
-  {.0.13 0, .1.13 1} bit_eq 13,
-  {.0.14 0, .1.14 1} bit_eq 14,
-  {.0.15 0, .1.15 1} bit_eq 15,
-  {.0.16 0, .1.16 1} bit_eq 16,
-  {.0.17 0, .1.17 1} bit_eq 17,
-  {.0.18 0, .1.18 1} bit_eq 18,
-  {.0.19 0, .1.19 1} bit_eq 19,
-  {.0.20 0, .1.20 1} bit_eq 20,
-  {.0.21 0, .1.21 1} bit_eq 21,
-  {.0.22 0, .1.22 1} bit_eq 22,
-  {.0.23 0, .1.23 1} bit_eq 23,
-  {.0.24 0, .1.24 1} bit_eq 24,
-  {.0.25 0, .1.25 1} bit_eq 25,
-  {.0.26 0, .1.26 1} bit_eq 26,
-  {.0.27 0, .1.27 1} bit_eq 27,
-  {.0.28 0, .1.28 1} bit_eq 28,
-  {.0.29 0, .1.29 1} bit_eq 29,
-  {.0.30 0, .1.30 1} bit_eq 30,
-  {.0.31 0, .1.31 1} bit_eq 31,
-  {.0.32 0, .1.32 1} bit_eq 32,
-  {.0.33 0, .1.33 1} bit_eq 33,
-  {.0.34 0, .1.34 1} bit_eq 34,
-  {.0.35 0, .1.35 1} bit_eq 35,
-  {.0.36 0, .1.36 1} bit_eq 36,
-  {.0.37 0, .1.37 1} bit_eq 37,
-  {.0.38 0, .1.38 1} bit_eq 38,
-  {.0.39 0, .1.39 1} bit_eq 39,
-  {.0.40 0, .1.40 1} bit_eq 40,
-  {.0.41 0, .1.41 1} bit_eq 41,
-  {.0.42 0, .1.42 1} bit_eq 42,
-  {.0.43 0, .1.43 1} bit_eq 43,
-  {.0.44 0, .1.44 1} bit_eq 44,
-  {.0.45 0, .1.45 1} bit_eq 45,
-  {.0.46 0, .1.46 1} bit_eq 46,
-  {.0.47 0, .1.47 1} bit_eq 47,
-  {.0.48 0, .1.48 1} bit_eq 48,
-  {.0.49 0, .1.49 1} bit_eq 49,
-  {.0.50 0, .1.50 1} bit_eq 50,
-  {.0.51 0, .1.51 1} bit_eq 51,
-  .0 that
-} .that;
-
-mantissa_0? = {mantissa_0 0, () 1} mantissa_eq; 
-
-$ IEEE_754 = {
-  sign sign,
-  exponent exponent,
-  mantissa mantissa
-};
-
-shift_left_mantissa = $mantissa {
-  .1 0, .2 1, .3 2, .4 3, .5 4, .6 5, .7 6, .8 7, .9 8,
-  .10 9, .11 10, .12 11, .13 12, .14 13, .15 14, .16 15, .17 16, .18 17, .19 18,
-  .20 19, .21 20, .22 21, .23 22, .24 23, .25 24, .26 25, .27 26, .28 27, .29 28,
-  .30 29, .31 30, .32 31, .33 32, .34 33, .35 34, .36 35, .37 36, .38 37, .39 38,
-  .40 39, .41 40, .42 41, .43 42, .44 43, .45 44, .46 45, .47 46, .48 47, .49 48,
-  .50 49, .51 50, 0 51
-} $mantissa;
-
--- Shift mantissa right by one position (used for alignment)
-shift_right_mantissa = $mantissa {
-  0 0, .0 1, .1 2, .2 3, .3 4, .4 5, .5 6, .6 7, .7 8, .8 9,
-  .9 10, .10 11, .11 12, .12 13, .13 14, .14 15, .15 16, .16 17, .17 18, .18 19,
-  .19 20, .20 21, .21 22, .22 23, .23 24, .24 25, .25 26, .26 27, .27 28, .28 29,
-  .29 30, .30 31, .31 32, .32 33, .33 34, .34 35, .35 36, .36 37, .37 38, .38 39,
-  .39 40, .40 41, .41 42, .42 43, .43 44, .44 45, .45 46, .46 47, .47 48, .48 49,
-  .49 50, .50 51
-} $mantissa;
-
--- Check if mantissa has leading 1 in implicit bit position (normalized)
-mantissa_normalized? = $mantissa 
-  -- For IEEE 754, we assume implicit leading 1, so any non-zero mantissa is normalized
-  -- This is a simplified check
-  mantissa_0?;
-
--- Find the difference between two exponents (for alignment)
-exponent_diff = ${exponent larger, exponent smaller}
-  {.larger a, .smaller b} exponent_sub;
-
-exponent_decr = <
-  {.0.1 0 0, .1     1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {1      0, .1.1 0 1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {1      0, 1      1, .2.1 0 2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {1      0, 1      1, 1      2, .3.1 0 3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {1      0, 1      1, 1      2, 1      3, .4.1 0 4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {1      0, 1      1, 1      2, 1      3, 1      4, .5.1 0 5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {1      0, 1      1, 1      2, 1      3, 1      4, 1      5, .6.1 0 6, .7     7, .8     8, .9     9, .10     10},
-  {1      0, 1      1, 1      2, 1      3, 1      4, 1      5, 1      6, .7.1 0 7, .8     8, .9     9, .10     10},
-  {1      0, 1      1, 1      2, 1      3, 1      4, 1      5, 1      6, 1      7, .8.1 0 8, .9     9, .10     10},
-  {1      0, 1      1, 1      2, 1      3, 1      4, 1      5, 1      6, 1      7, 1      8, .9.1 0 9, .10     10},
-  {1      0, 1      1, 1      2, 1      3, 1      4, 1      5, 1      6, 1      7, 1      8, 1      9, .10.1 0 10} 
->;
-exponent_incr = <
-  {.0.0 1 0, .1     1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {0      0, .1.0 1 1, .2     2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {0      0, 0      1, .2.0 1 2, .3     3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {0      0, 0      1, 0      2, .3.0 1 3, .4     4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {0      0, 0      1, 0      2, 0      3, .4.0 1 4, .5     5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {0      0, 0      1, 0      2, 0      3, 0      4, .5.0 1 5, .6     6, .7     7, .8     8, .9     9, .10     10},
-  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, .6.0 1 6, .7     7, .8     8, .9     9, .10     10},
-  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, .7.0 1 7, .8     8, .9     9, .10     10},
-  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, 0      7, .8.0 1 8, .9     9, .10     10},
-  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, 0      7, 0      8, .9.0 1 9, .10     10},
-  {0      0, 0      1, 0      2, 0      3, 0      4, 0      5, 0      6, 0      7, 0      8, 0      9, .10.0 1 10} 
->;
-
-
-
-exponent_bias = {0 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} $exponent; 
-exponent_1023 = exponent_bias;
-exponent_2047 = {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} $exponent;
-
-$ ieee_kind = < {} "+infty", {} "-infty", {} NaN, {} normal, {} subnormal >;
-plus_infty = {{}  "+infty"};
-minus_infty = {{} "-infty"};
-NaN = {{} NaN};
-normal = {{} normal};
-subnormal = {{} subnormal};
-
-ieee_kind = $IEEE_754 <
-  -- Check for infinity/NaN (exponent = 2047)
-  { 
-    {.exponent 0, exponent_2047 1} exponent_eq exp_is_2047,
-    < {.mantissa mantissa_0? mantissa_is_zero,
-        -- Infinity case: depends on sign
-        < 
-          .sign."+" plus_infty,
-          minus_infty
-        > then
-      } .then,
-      -- NaN case: exponent=2047 and mantissa≠0
-      NaN
-    > then
-  } .then,
-  
-  -- Check for subnormal (exponent = 0)
-  .exponent exponent_0? subnormal 
-    -- Normal case
-  normal
->;
-
-ieee_NaN ={
-  sign_plus sign,
-  exponent_2047 exponent,
-  mantissa_max mantissa
-};
-
--- IEEE 754 representations
-ieee_0 = {
-  sign: sign_plus,
-  exponent: exponent_0,
-  mantissa: mantissa_0
-};
-
-ieee_0? = $IEEE_754 
-  { 
-    .sign."+" sign_is_plus, 
-    .exponent exponent_0? exp_is_zero,
-    .mantissa mantissa_0? mantissa_is_zero,
-    () then
-  } .then;
-
----
--- IEEE 754 representations for 1, 2, 4
-
-ieee_1 = {
-  sign_plus sign,
-  exponent_bias exponent,
-  mantissa_0 mantissa
-};
-
-ieee_2 = {
-  sign_plus sign,
-  {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} exponent,
-  mantissa_0 mantissa
-};
-
-ieee_4 = {
-  sign_plus sign,
-  {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} exponent,
-  mantissa_0 mantissa
-};
-
--- Sign operations
-ieee_abs = $IEEE_754 {sign_plus sign, .exponent exponent, .mantissa mantissa};
-ieee_neg = $IEEE_754 <
-  < {.sign."-" sign_is_minus, 
-      {sign_plus sign, .exponent exponent, .mantissa mantissa} then
-    } .then,
-    {sign_minus sign, .exponent exponent, .mantissa mantissa}
-  >
->;
-
--- Exponent comparison - identity only if bigger > smaller
-exponent_gt? = ${exponent bigger, exponent smaller} <
-  -- Compare bit by bit from most significant to least significant
-  {.bigger.10.1 1, .smaller.10.0 0, () then } .then,
-  { {.bigger.10 0, .smaller.10 1} bit_eq bits_eq, () then } .then  <
-    {.bigger.9.1 1, .smaller.9.0 0, () then } .then,
-    { {.bigger.9 0, .smaller.9 1} bit_eq bits_eq, () then } .then  <
-      {.bigger.8.1 1, .smaller.8.0 0, () then } .then,
-      { {.bigger.8 0, .smaller.8 1} bit_eq bits_eq, () then } .then  <
-        {.bigger.7.1 1, .smaller.7.0 0, () then } .then,
-        { {.bigger.7 0, .smaller.7 1} bit_eq bits_eq, () then } .then  <
-          {.bigger.6.1 1, .smaller.6.0 0, () then } .then,
-          { {.bigger.6 0, .smaller.6 1} bit_eq bits_eq, () then } .then  <
-            {.bigger.5.1 1, .smaller.5.0 0, () then } .then,
-            { {.bigger.5 0, .smaller.5 1} bit_eq bits_eq, () then } .then  <
-              {.bigger.4.1 1, .smaller.4.0 0, () then } .then,
-              { {.bigger.4 0, .smaller.4 1} bit_eq bits_eq, () then } .then  <
-                {.bigger.3.1 1, .smaller.3.0 0, () then } .then,
-                { {.bigger.3 0, .smaller.3 1} bit_eq bits_eq, () then } .then  <
-                  {.bigger.2.1 1, .smaller.2.0 0, () then } .then,
-                  { {.bigger.2 0, .smaller.2 1} bit_eq bits_eq, () then } .then  <
-                    {.bigger.1.1 1, .smaller.1.0 0, () then } .then,
-                    { {.bigger.1 0, .smaller.1 1} bit_eq bits_eq,
-                      .bigger.0.1 1, 
-                      .smaller.0.0 0, 
-                      () then 
-                    } .then
-                  >
-                >
-              >
-            >
-          >
-        >
-      >
-    >
-  >
->;  
-
--- Mantissa comparison - identity only if bigger > smaller
-mantissa_gt? = ${mantissa bigger, mantissa smaller} <
-  {.bigger.0.1 1, .smaller.0.0 0, () then } .then,
-  { {.bigger.0 0, .smaller.0 1} bit_eq bits_eq, () then } .then <
-    {.bigger.1.1 1, .smaller.1.0 0, () then } .then,
-    { {.bigger.1 0, .smaller.1 1} bit_eq bits_eq, () then } .then <
-      {.bigger.2.1 1, .smaller.2.0 0, () then } .then,
-      { {.bigger.2 0, .smaller.2 1} bit_eq bits_eq, () then } .then <
-        {.bigger.3.1 1, .smaller.3.0 0, () then } .then,
-        { {.bigger.3 0, .smaller.3 1} bit_eq bits_eq, () then } .then <
-          {.bigger.4.1 1, .smaller.4.0 0, () then } .then,
-          { {.bigger.4 0, .smaller.4 1} bit_eq bits_eq, () then } .then <
-            {.bigger.5.1 1, .smaller.5.0 0, () then } .then,
-            { {.bigger.5 0, .smaller.5 1} bit_eq bits_eq, () then } .then <
-              {.bigger.6.1 1, .smaller.6.0 0, () then } .then,
-              { {.bigger.6 0, .smaller.6 1} bit_eq bits_eq, () then } .then <
-                {.bigger.7.1 1, .smaller.7.0 0, () then } .then,
-                { {.bigger.7 0, .smaller.7 1} bit_eq bits_eq, () then } .then <
-                  {.bigger.8.1 1, .smaller.8.0 0, () then } .then,
-                  { {.bigger.8 0, .smaller.8 1} bit_eq bits_eq, () then } .then <
-                    {.bigger.9.1 1, .smaller.9.0 0, () then } .then,
-                    { {.bigger.9 0, .smaller.9 1} bit_eq bits_eq, () then } .then <
-                      {.bigger.10.1 1, .smaller.10.0 0, () then } .then,
-                      { {.bigger.10 0, .smaller.10 1} bit_eq bits_eq, () then } .then <
-                        {.bigger.11.1 1, .smaller.11.0 0, () then } .then,
-                        { {.bigger.11 0, .smaller.11 1} bit_eq bits_eq, () then } .then <
-                          {.bigger.12.1 1, .smaller.12.0 0, () then } .then,
-                          { {.bigger.12 0, .smaller.12 1} bit_eq bits_eq, () then } .then <
-                            {.bigger.13.1 1, .smaller.13.0 0, () then } .then,
-                            { {.bigger.13 0, .smaller.13 1} bit_eq bits_eq, () then } .then <
-                              {.bigger.14.1 1, .smaller.14.0 0, () then } .then,
-                              { {.bigger.14 0, .smaller.14 1} bit_eq bits_eq, () then } .then <
-                                {.bigger.15.1 1, .smaller.15.0 0, () then } .then,
-                                { {.bigger.15 0, .smaller.15 1} bit_eq bits_eq, () then } .then <
-                                  {.bigger.16.1 1, .smaller.16.0 0, () then } .then,
-                                  { {.bigger.16 0, .smaller.16 1} bit_eq bits_eq, () then } .then <
-                                    {.bigger.17.1 1, .smaller.17.0 0, () then } .then,
-                                    { {.bigger.17 0, .smaller.17 1} bit_eq bits_eq, () then } .then <
-                                      {.bigger.18.1 1, .smaller.18.0 0, () then } .then,
-                                      { {.bigger.18 0, .smaller.18 1} bit_eq bits_eq, () then } .then <
-                                        {.bigger.19.1 1, .smaller.19.0 0, () then } .then,
-                                        { {.bigger.19 0, .smaller.19 1} bit_eq bits_eq, () then } .then <
-                                          {.bigger.20.1 1, .smaller.20.0 0, () then } .then,
-                                          { {.bigger.20 0, .smaller.20 1} bit_eq bits_eq, () then } .then <
-                                            {.bigger.21.1 1, .smaller.21.0 0, () then } .then,
-                                            { {.bigger.21 0, .smaller.21 1} bit_eq bits_eq, () then } .then <
-                                              {.bigger.22.1 1, .smaller.22.0 0, () then } .then,
-                                              { {.bigger.22 0, .smaller.22 1} bit_eq bits_eq, () then } .then <
-                                                {.bigger.23.1 1, .smaller.23.0 0, () then } .then,
-                                                { {.bigger.23 0, .smaller.23 1} bit_eq bits_eq, () then } .then <
-                                                  {.bigger.24.1 1, .smaller.24.0 0, () then } .then,
-                                                  { {.bigger.24 0, .smaller.24 1} bit_eq bits_eq, () then } .then <
-                                                    {.bigger.25.1 1, .smaller.25.0 0, () then } .then,
-                                                    { {.bigger.25 0, .smaller.25 1} bit_eq bits_eq, () then } .then <
-                                                      {.bigger.26.1 1, .smaller.26.0 0, () then } .then,
-                                                      { {.bigger.26 0, .smaller.26 1} bit_eq bits_eq, () then } .then <
-                                                        {.bigger.27.1 1, .smaller.27.0 0, () then } .then,
-                                                        { {.bigger.27 0, .smaller.27 1} bit_eq bits_eq, () then } .then <
-                                                          {.bigger.28.1 1, .smaller.28.0 0, () then } .then,
-                                                          { {.bigger.28 0, .smaller.28 1} bit_eq bits_eq, () then } .then <
-                                                            {.bigger.29.1 1, .smaller.29.0 0, () then } .then,
-                                                            { {.bigger.29 0, .smaller.29 1} bit_eq bits_eq, () then } .then <
-                                                              {.bigger.30.1 1, .smaller.30.0 0, () then } .then,
-                                                              { {.bigger.30 0, .smaller.30 1} bit_eq bits_eq, () then } .then <
-                                                                {.bigger.31.1 1, .smaller.31.0 0, () then } .then,
-                                                                { {.bigger.31 0, .smaller.31 1} bit_eq bits_eq, () then } .then <
-                                                                  {.bigger.32.1 1, .smaller.32.0 0, () then } .then,
-                                                                  { {.bigger.32 0, .smaller.32 1} bit_eq bits_eq, () then } .then <
-                                                                    {.bigger.33.1 1, .smaller.33.0 0, () then } .then,
-                                                                    { {.bigger.33 0, .smaller.33 1} bit_eq bits_eq, () then } .then <
-                                                                      {.bigger.34.1 1, .smaller.34.0 0, () then } .then,
-                                                                      { {.bigger.34 0, .smaller.34 1} bit_eq bits_eq, () then } .then <
-                                                                        {.bigger.35.1 1, .smaller.35.0 0, () then } .then,
-                                                                        { {.bigger.35 0, .smaller.35 1} bit_eq bits_eq, () then } .then <
-                                                                          {.bigger.36.1 1, .smaller.36.0 0, () then } .then,
-                                                                          { {.bigger.36 0, .smaller.36 1} bit_eq bits_eq, () then } .then <
-                                                                            {.bigger.37.1 1, .smaller.37.0 0, () then } .then,
-                                                                            { {.bigger.37 0, .smaller.37 1} bit_eq bits_eq, () then } .then <
-                                                                              {.bigger.38.1 1, .smaller.38.0 0, () then } .then,
-                                                                              { {.bigger.38 0, .smaller.38 1} bit_eq bits_eq, () then } .then <
-                                                                                {.bigger.39.1 1, .smaller.39.0 0, () then } .then,
-                                                                                { {.bigger.39 0, .smaller.39 1} bit_eq bits_eq, () then } .then <
-                                                                                  {.bigger.40.1 1, .smaller.40.0 0, () then } .then,
-                                                                                  { {.bigger.40 0, .smaller.40 1} bit_eq bits_eq, () then } .then <
-                                                                                    {.bigger.41.1 1, .smaller.41.0 0, () then } .then,
-                                                                                    { {.bigger.41 0, .smaller.41 1} bit_eq bits_eq, () then } .then <
-                                                                                      {.bigger.42.1 1, .smaller.42.0 0, () then } .then,
-                                                                                      { {.bigger.42 0, .smaller.42 1} bit_eq bits_eq, () then } .then <
-                                                                                        {.bigger.43.1 1, .smaller.43.0 0, () then } .then,
-                                                                                        { {.bigger.43 0, .smaller.43 1} bit_eq bits_eq, () then } .then <
-                                                                                          {.bigger.44.1 1, .smaller.44.0 0, () then } .then,
-                                                                                          { {.bigger.44 0, .smaller.44 1} bit_eq bits_eq, () then } .then <
-                                                                                            {.bigger.45.1 1, .smaller.45.0 0, () then } .then,
-                                                                                            { {.bigger.45 0, .smaller.45 1} bit_eq bits_eq, () then } .then <
-                                                                                              {.bigger.46.1 1, .smaller.46.0 0, () then } .then,
-                                                                                              { {.bigger.46 0, .smaller.46 1} bit_eq bits_eq, () then } .then <
-                                                                                                {.bigger.47.1 1, .smaller.47.0 0, () then } .then,
-                                                                                                { {.bigger.47 0, .smaller.47 1} bit_eq bits_eq, () then } .then <
-                                                                                                  {.bigger.48.1 1, .smaller.48.0 0, () then } .then,
-                                                                                                  { {.bigger.48 0, .smaller.48 1} bit_eq bits_eq, () then } .then <
-                                                                                                    {.bigger.49.1 1, .smaller.49.0 0, () then } .then,
-                                                                                                    { {.bigger.49 0, .smaller.49 1} bit_eq bits_eq, () then } .then <
-                                                                                                      {.bigger.50.1 1, .smaller.50.0 0, () then } .then,
-                                                                                                      { {.bigger.50 0, .smaller.50 1} bit_eq bits_eq,
-                                                                                                        .bigger.51.1 1, 
-                                                                                                        .smaller.51.0 0, 
-                                                                                                        () then 
-                                                                                                      } .then
-                                                                                                    >
-                                                                                                  >
-                                                                                                >
-                                                                                              >
-                                                                                            >
-                                                                                          >
-                                                                                        >
-                                                                                      >
-                                                                                    >
-                                                                                  >
-                                                                                >
-                                                                              >
-                                                                            >
-                                                                          >
-                                                                        >
-                                                                      >
-                                                                    >
-                                                                  >
-                                                                >
-                                                              >
-                                                            >
-                                                          >
-                                                        >
-                                                      >
-                                                    >
-                                                  >
-                                                >
-                                              >
-                                            >
-                                          >
-                                        >
-                                      >
-                                    >
-                                  >
-                                >
-                              >
-                            >
-                          >
-                        >
-                      >
-                    >
-                  >
-                >
-              >
-            >
-          >
-        >
-      >
-    >
-  >
->;
-
-
--- IEEE 754 Bias Explanation
-
--- For double precision (64-bit):
--- - Exponent field: 11 bits
--- - Bias: 2^(11-1) - 1 = 1023
--- - Stored exponent range: 0 to 2047
--- - Actual exponent range: -1023 to +1024
-
--- Examples:
--- Stored=0    → Actual=-1023 (special: subnormal/zero)
--- Stored=1    → Actual=-1022 (smallest normal)
--- Stored=1023 → Actual=0     (exponent for 1.0)
--- Stored=1024 → Actual=+1    (exponent for 2.0)
--- Stored=2047 → Actual=+1024 (special: infinity/NaN)
-
--- bias_1023 = 1023;
-
--- Convert stored exponent to actual exponent
--- actual_exponent = $int (.stored_exp - bias_1023);
-
--- Examples in our representations:
--- ieee_1: stored=1023 → actual=0  → value = 1.0 × 2^0 = 1
--- ieee_2: stored=1024 → actual=+1 → value = 1.0 × 2^1 = 2  
--- ieee_4: stored=1025 → actual=+2 → value = 1.0 × 2^2 = 4
-
--- Why use bias?
--- 1. Avoids negative number storage in exponent field
--- 2. Makes exponent comparison easier (larger stored = larger actual)
--- 3. Zero exponent has special meaning (subnormal numbers)
-
-
---- ADDITION
-
-// IEEE 754 Double Precision Addition Algorithm
-//
-// Input: Two IEEE 754 numbers A and B, each with:
-// - 1 sign bit (bit 63)
-// - 11 exponent bits (bits 62-52) 
-// - 52 mantissa bits (bits 51-0), with implicit leading 1
-//
-
--- Helper function for mantissa addition with carry
-mantissa_add_with_carry = ${mantissa a, mantissa b, bit carry_in}
-  {.a a, .b b, .carry_in carry} _mantissa_add ${mantissa result, bit carry_out};
-
--- Recursive mantissa addition with carry propagation
-_mantissa_add = ${mantissa a, mantissa b, bit carry}
+eq_bit? = $bit_pair
   <
-    -- Base case: both mantissas are zero, no carry
-    {.a mantissa_0? a_zero, .b mantissa_0? b_zero, .carry.0 carry_zero} 
-      {mantissa_0 result, 0 carry_out},
-    
-    -- Base case: both mantissas are zero, with carry  
-    {.a mantissa_0? a_zero, .b mantissa_0? b_zero, .carry.1 carry_one}
-      {{1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10,
-        0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20,
-        0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30,
-        0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40,
-        0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51} $mantissa result, 0 carry_out},
-    
-    -- Recursive case: add bit by bit with carry propagation
-    {.a a, .b b, .carry carry} _mantissa_add_recursive
-  > ${mantissa result, bit carry_out};
+    {.x 0? ifx, .y 0? ify, () then} .then,
+    {.x 1? ifx, .y 1? ify, () then} .then
+  > $bit_pair;
 
--- Helper to add specific bits and combine results
-_mantissa_add_bit = ${bit a_bit, bit b_bit, bit carry, mantissa a_rest, mantissa b_rest}
-  {.a_bit a, .b_bit b, .carry carry} bit_add {sum: sum_bit, carry_out: next_carry}
-  {.a_rest a_rest, .b_rest b_rest, .next_carry next_carry} _mantissa_add {result: rest_result, carry_out: final_carry}
-  {.sum_bit sum_bit, .rest_result rest_result} _combine_mantissa_bits
-  {result: result, carry_out: final_carry};
+gt_bit? = $bit_pair
+  {.x 1? ifx, .y 0? ify, () then} .then
+  $bit_pair;
 
--- Recursive mantissa addition - process bit 51 (most significant) first
-_mantissa_add_recursive = ${mantissa a, mantissa b, bit carry}
-  {
-    -- Extract bit 51 from both mantissas
-    .a.51 a_bit_51, .b.51 b_bit_51,
-    -- Create mantissas without bit 51 (shift right by 1)
-    .a shift_right_mantissa a_rest,
-    .b shift_right_mantissa b_rest,
-    .carry carry
-  }
-  -- Add the most significant bits first
-  {.a_bit_51 a_bit, .b_bit_51 b_bit, .carry carry, .a_rest a_rest, .b_rest b_rest} _mantissa_add_bit
-  -- Shift result left and continue with remaining bits
-  shift_left_mantissa;
+lt_bit? = $bit_pair
+  {.x 0? ifx, .y 1? ify, () then} .then
+  $bit_pair;
 
--- Helper to combine bit with rest of mantissa
-_combine_mantissa_bits = ${bit new_bit, mantissa rest_mantissa}
-  {
-    .new_bit 0, .rest_mantissa.0 1, .rest_mantissa.1 2, .rest_mantissa.2 3, .rest_mantissa.3 4, .rest_mantissa.4 5,
-    .rest_mantissa.5 6, .rest_mantissa.6 7, .rest_mantissa.7 8, .rest_mantissa.8 9, .rest_mantissa.9 10,
-    .rest_mantissa.10 11, .rest_mantissa.11 12, .rest_mantissa.12 13, .rest_mantissa.13 14, .rest_mantissa.14 15,
-    .rest_mantissa.15 16, .rest_mantissa.16 17, .rest_mantissa.17 18, .rest_mantissa.18 19, .rest_mantissa.19 20,
-    .rest_mantissa.20 21, .rest_mantissa.21 22, .rest_mantissa.22 23, .rest_mantissa.23 24, .rest_mantissa.24 25,
-    .rest_mantissa.25 26, .rest_mantissa.26 27, .rest_mantissa.27 28, .rest_mantissa.28 29, .rest_mantissa.29 30,
-    .rest_mantissa.30 31, .rest_mantissa.31 32, .rest_mantissa.32 33, .rest_mantissa.33 34, .rest_mantissa.34 35,
-    .rest_mantissa.35 36, .rest_mantissa.36 37, .rest_mantissa.37 38, .rest_mantissa.38 39, .rest_mantissa.39 40,
-    .rest_mantissa.40 41, .rest_mantissa.41 42, .rest_mantissa.42 43, .rest_mantissa.43 44, .rest_mantissa.44 45,
-    .rest_mantissa.45 46, .rest_mantissa.46 47, .rest_mantissa.47 48, .rest_mantissa.48 49, .rest_mantissa.49 50, .rest_mantissa.50 51
-  } $mantissa;
-
--- Mantissa subtraction (a - b) with borrow
-mantissa_sub_with_borrow = ${mantissa a, mantissa b, bit borrow_in}
-  {.a a, .b b, .borrow_in borrow} _mantissa_sub ${mantissa result, bit borrow_out};
-
--- Recursive mantissa subtraction with borrow propagation  
-_mantissa_sub = ${mantissa a, mantissa b, bit borrow}
+eq_sign? = $sign_pair
   <
-    -- Base case: both mantissas are zero, no borrow
-    {.a mantissa_0? a_zero, .b mantissa_0? b_zero, .borrow.0 borrow_zero} 
-      {mantissa_0 result, 0 borrow_out},
-    
-    -- Base case: both mantissas are zero, with borrow  
-    {.a mantissa_0? a_zero, .b mantissa_0? b_zero, .borrow.1 borrow_one}
-      {{1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10,
-        1 11, 1 12, 1 13, 1 14, 1 15, 1 16, 1 17, 1 18, 1 19, 1 20,
-        1 21, 1 22, 1 23, 1 24, 1 25, 1 26, 1 27, 1 28, 1 29, 1 30,
-        1 31, 1 32, 1 33, 1 34, 1 35, 1 36, 1 37, 1 38, 1 39, 1 40,
-        1 41, 1 42, 1 43, 1 44, 1 45, 1 46, 1 47, 1 48, 1 49, 1 50, 1 51} $mantissa result, 0 borrow_out},
-    
-    -- Recursive case: subtract bit by bit with borrow propagation
-    {.a a, .b b, .borrow borrow} _mantissa_sub_recursive
-  > ${mantissa result, bit borrow_out};
+    {.x +? ifx, .y +? ify, () then} .then,
+    {.x -? ifx, .y -? ify, () then} .then
+  > $sign_pair;
 
--- Helper to subtract specific bits and combine results
-_mantissa_sub_bit = ${bit a_bit, bit b_bit, bit borrow, mantissa a_rest, mantissa b_rest}
-  {.a_bit a, .b_bit b, .borrow borrow} _bit_sub_simple {diff: diff_bit, borrow_out: next_borrow}
-  {.a_rest a_rest, .b_rest b_rest, .next_borrow next_borrow} _mantissa_sub {result: rest_result, borrow_out: final_borrow}
-  {.diff_bit diff_bit, .rest_result rest_result} _combine_mantissa_bits
-  {result: result, borrow_out: final_borrow};
+zero_exponent? = $exp11
+  {.0 0? if0, .1 0? if1, .2 0? if2, .3 0? if3, .4 0? if4, .5 0? if5, .6 0? if6, .7 0? if7, .8 0? if8, .9 0? if9, .10 0? if10, () then} .then
+  $exp11;
 
--- Recursive mantissa subtraction - process bit 51 (most significant) first
-_mantissa_sub_recursive = ${mantissa a, mantissa b, bit borrow}
-  {
-    -- Extract bit 51 from both mantissas
-    .a.51 a_bit_51, .b.51 b_bit_51,
-    -- Create mantissas without bit 51 (shift right by 1)
-    .a shift_right_mantissa a_rest,
-    .b shift_right_mantissa b_rest,
-    .borrow borrow
-  }
-  -- Subtract the most significant bits first
-  {.a_bit_51 a_bit, .b_bit_51 b_bit, .borrow borrow, .a_rest a_rest, .b_rest b_rest} _mantissa_sub_bit
-  -- Shift result left and continue with remaining bits
-  shift_left_mantissa;
+all_ones_exponent? = $exp11
+  {.0 1? if0, .1 1? if1, .2 1? if2, .3 1? if3, .4 1? if4, .5 1? if5, .6 1? if6, .7 1? if7, .8 1? if8, .9 1? if9, .10 1? if10, () then} .then
+  $exp11;
 
--- Simplified mantissa addition for demonstration  
-mantissa_add_simple = ${mantissa a, mantissa b, bit carry} {.a result, 0 carry_out} ${mantissa result, bit carry_out};
+not_all_ones_exponent? = $exp11
+  {<.10 0?, .9 0?, .8 0?, .7 0?, .6 0?, .5 0?, .4 0?, .3 0?, .2 0?, .1 0?, .0 0?> if, () then} .then
+  $exp11;
 
--- Helper to determine which IEEE number is larger in magnitude
-ieee_magnitude_greater = ${IEEE_754 a, IEEE_754 b}
-  {.a a, .b b}
+zero_fraction? = $frac52
+  {.51 0? if51, .50 0? if50, .49 0? if49, .48 0? if48, .47 0? if47, .46 0? if46, .45 0? if45, .44 0? if44, .43 0? if43, .42 0? if42,
+   .41 0? if41, .40 0? if40, .39 0? if39, .38 0? if38, .37 0? if37, .36 0? if36, .35 0? if35, .34 0? if34, .33 0? if33, .32 0? if32,
+   .31 0? if31, .30 0? if30, .29 0? if29, .28 0? if28, .27 0? if27, .26 0? if26, .25 0? if25, .24 0? if24, .23 0? if23, .22 0? if22,
+   .21 0? if21, .20 0? if20, .19 0? if19, .18 0? if18, .17 0? if17, .16 0? if16, .15 0? if15, .14 0? if14, .13 0? if13, .12 0? if12,
+   .11 0? if11, .10 0? if10, .9 0? if9, .8 0? if8, .7 0? if7, .6 0? if6, .5 0? if5, .4 0? if4, .3 0? if3, .2 0? if2, .1 0? if1, .0 0? if0,
+   () then} .then
+  $frac52;
+
+nonzero_fraction? = $frac52
+  {<.51 1?, .50 1?, .49 1?, .48 1?, .47 1?, .46 1?, .45 1?, .44 1?, .43 1?, .42 1?,
+    .41 1?, .40 1?, .39 1?, .38 1?, .37 1?, .36 1?, .35 1?, .34 1?, .33 1?, .32 1?,
+    .31 1?, .30 1?, .29 1?, .28 1?, .27 1?, .26 1?, .25 1?, .24 1?, .23 1?, .22 1?,
+    .21 1?, .20 1?, .19 1?, .18 1?, .17 1?, .16 1?, .15 1?, .14 1?, .13 1?, .12 1?,
+    .11 1?, .10 1?, .9 1?, .8 1?, .7 1?, .6 1?, .5 1?, .4 1?, .3 1?, .2 1?, .1 1?, .0 1?> if, () then} .then
+  $frac52;
+
+nan_float64? = $float64
+  {.exponent all_ones_exponent? ife, .fraction nonzero_fraction? iff, () then} .then
+  $float64;
+
+inf_float64? = $float64
+  {.exponent all_ones_exponent? ife, .fraction zero_fraction? iff, () then} .then
+  $float64;
+
+finite_float64? = $float64
+  {.exponent not_all_ones_exponent? ife, () then} .then
+  $float64;
+
+ordered_float64? = $float64
+  <finite_float64?, inf_float64?>
+  $float64;
+
+zero_float64? = $float64
+  {.exponent zero_exponent? ife, .fraction zero_fraction? iff, () then} .then
+  $float64;
+
+cmp_step = $cmp_step_in
   <
-    -- Compare exponents first
-    {{.a.exponent bigger, .b.exponent smaller} exponent_gt? if,  .a then} .then,
-    {{.b.exponent bigger, .a.exponent smaller} exponent_gt? if,  .b then} .then,
-    -- If exponents equal, compare mantissas
-    {{.a.mantissa bigger, .b.mantissa smaller} mantissa_gt? if,  .a then} .then,
-    .b
-  >;
+    {.state /gt if, gt then} .then,
+    {.state /lt if, lt then} .then,
+    {.state /eq if,
+      <
+        {.bits gt_bit? if, gt then} .then,
+        {.bits lt_bit? if, lt then} .then,
+        {.bits eq_bit? if, eq then} .then
+      > then
+    } .then
+  > $cmp_state;
 
--- Main IEEE addition function
-ieee_add = ${IEEE_754 x, IEEE_754 y} 
-  {.x x, .y y, .x ieee_kind xkind, .y ieee_kind ykind} 
-<
-  -- Special cases: NaN propagation
-  .xkind.NaN ieee_NaN,
-  .ykind.NaN ieee_NaN,
-  
-  -- Infinity cases
-  {.xkind."+infty" pos_inf_x, .ykind."-infty" neg_inf_y} ieee_NaN,
-  {.xkind."-infty" neg_inf_x, .ykind."+infty" pos_inf_y} ieee_NaN,
+stepE10 = $cmp_exp_ctx {{.state state, {.pair .x .10 x, .pair .y .10 y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE9  = $cmp_exp_ctx {{.state state, {.pair .x .9  x, .pair .y .9  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE8  = $cmp_exp_ctx {{.state state, {.pair .x .8  x, .pair .y .8  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE7  = $cmp_exp_ctx {{.state state, {.pair .x .7  x, .pair .y .7  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE6  = $cmp_exp_ctx {{.state state, {.pair .x .6  x, .pair .y .6  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE5  = $cmp_exp_ctx {{.state state, {.pair .x .5  x, .pair .y .5  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE4  = $cmp_exp_ctx {{.state state, {.pair .x .4  x, .pair .y .4  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE3  = $cmp_exp_ctx {{.state state, {.pair .x .3  x, .pair .y .3  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE2  = $cmp_exp_ctx {{.state state, {.pair .x .2  x, .pair .y .2  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE1  = $cmp_exp_ctx {{.state state, {.pair .x .1  x, .pair .y .1  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE0  = $cmp_exp_ctx {{.state state, {.pair .x .0  x, .pair .y .0  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
 
-  {.xkind."+infty" pos_inf, .x then} .then,
-  {.xkind."-infty" neg_inf, .x then} .then,
-  
-  {.ykind."+infty" pos_inf, .y then} .then,
-  {.ykind."-infty" neg_inf, .y then} .then,
-  
-  -- Zero cases
-  {.x ieee_0? x_is_zero, .y then} .then,
-  {.y ieee_0? y_is_zero, .x then} .then,
-  
-  -- Normal addition case
-  {.x x, .y y} ieee_add_normal
->;
+cmp_exponent = $exp_pair
+  {eq state, () pair} $cmp_exp_ctx
+  stepE10 stepE9 stepE8 stepE7 stepE6 stepE5 stepE4 stepE3 stepE2 stepE1 stepE0
+  .state
+  $cmp_state;
 
--- Normal case addition (both operands are normal numbers)
-ieee_add_normal = ${IEEE_754 x, IEEE_754 y}
-  {
-    .x x, .y y,
-    -- Determine which operand has larger magnitude
-    {.x larger, .y smaller} ieee_magnitude_greater magnitude_order,
-    -- Extract sign, exponent, mantissa from both operands
-    .x.sign x_sign, .x.exponent x_exp, .x.mantissa x_mant,
-    .y.sign y_sign, .y.exponent y_exp, .y.mantissa y_mant
-  }
+gt_exponent? = $exp_pair {cmp_exponent /gt if, () then} .then $exp_pair;
+eq_exponent? = $exp_pair {cmp_exponent /eq if, () then} .then $exp_pair;
+
+stepF51 = $cmp_frac_ctx {{.state state, {.pair .x .51 x, .pair .y .51 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF50 = $cmp_frac_ctx {{.state state, {.pair .x .50 x, .pair .y .50 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF49 = $cmp_frac_ctx {{.state state, {.pair .x .49 x, .pair .y .49 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF48 = $cmp_frac_ctx {{.state state, {.pair .x .48 x, .pair .y .48 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF47 = $cmp_frac_ctx {{.state state, {.pair .x .47 x, .pair .y .47 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF46 = $cmp_frac_ctx {{.state state, {.pair .x .46 x, .pair .y .46 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF45 = $cmp_frac_ctx {{.state state, {.pair .x .45 x, .pair .y .45 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF44 = $cmp_frac_ctx {{.state state, {.pair .x .44 x, .pair .y .44 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF43 = $cmp_frac_ctx {{.state state, {.pair .x .43 x, .pair .y .43 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF42 = $cmp_frac_ctx {{.state state, {.pair .x .42 x, .pair .y .42 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF41 = $cmp_frac_ctx {{.state state, {.pair .x .41 x, .pair .y .41 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF40 = $cmp_frac_ctx {{.state state, {.pair .x .40 x, .pair .y .40 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF39 = $cmp_frac_ctx {{.state state, {.pair .x .39 x, .pair .y .39 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF38 = $cmp_frac_ctx {{.state state, {.pair .x .38 x, .pair .y .38 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF37 = $cmp_frac_ctx {{.state state, {.pair .x .37 x, .pair .y .37 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF36 = $cmp_frac_ctx {{.state state, {.pair .x .36 x, .pair .y .36 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF35 = $cmp_frac_ctx {{.state state, {.pair .x .35 x, .pair .y .35 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF34 = $cmp_frac_ctx {{.state state, {.pair .x .34 x, .pair .y .34 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF33 = $cmp_frac_ctx {{.state state, {.pair .x .33 x, .pair .y .33 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF32 = $cmp_frac_ctx {{.state state, {.pair .x .32 x, .pair .y .32 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF31 = $cmp_frac_ctx {{.state state, {.pair .x .31 x, .pair .y .31 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF30 = $cmp_frac_ctx {{.state state, {.pair .x .30 x, .pair .y .30 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF29 = $cmp_frac_ctx {{.state state, {.pair .x .29 x, .pair .y .29 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF28 = $cmp_frac_ctx {{.state state, {.pair .x .28 x, .pair .y .28 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF27 = $cmp_frac_ctx {{.state state, {.pair .x .27 x, .pair .y .27 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF26 = $cmp_frac_ctx {{.state state, {.pair .x .26 x, .pair .y .26 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF25 = $cmp_frac_ctx {{.state state, {.pair .x .25 x, .pair .y .25 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF24 = $cmp_frac_ctx {{.state state, {.pair .x .24 x, .pair .y .24 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF23 = $cmp_frac_ctx {{.state state, {.pair .x .23 x, .pair .y .23 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF22 = $cmp_frac_ctx {{.state state, {.pair .x .22 x, .pair .y .22 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF21 = $cmp_frac_ctx {{.state state, {.pair .x .21 x, .pair .y .21 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF20 = $cmp_frac_ctx {{.state state, {.pair .x .20 x, .pair .y .20 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF19 = $cmp_frac_ctx {{.state state, {.pair .x .19 x, .pair .y .19 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF18 = $cmp_frac_ctx {{.state state, {.pair .x .18 x, .pair .y .18 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF17 = $cmp_frac_ctx {{.state state, {.pair .x .17 x, .pair .y .17 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF16 = $cmp_frac_ctx {{.state state, {.pair .x .16 x, .pair .y .16 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF15 = $cmp_frac_ctx {{.state state, {.pair .x .15 x, .pair .y .15 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF14 = $cmp_frac_ctx {{.state state, {.pair .x .14 x, .pair .y .14 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF13 = $cmp_frac_ctx {{.state state, {.pair .x .13 x, .pair .y .13 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF12 = $cmp_frac_ctx {{.state state, {.pair .x .12 x, .pair .y .12 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF11 = $cmp_frac_ctx {{.state state, {.pair .x .11 x, .pair .y .11 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF10 = $cmp_frac_ctx {{.state state, {.pair .x .10 x, .pair .y .10 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF9  = $cmp_frac_ctx {{.state state, {.pair .x .9  x, .pair .y .9  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF8  = $cmp_frac_ctx {{.state state, {.pair .x .8  x, .pair .y .8  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF7  = $cmp_frac_ctx {{.state state, {.pair .x .7  x, .pair .y .7  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF6  = $cmp_frac_ctx {{.state state, {.pair .x .6  x, .pair .y .6  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF5  = $cmp_frac_ctx {{.state state, {.pair .x .5  x, .pair .y .5  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF4  = $cmp_frac_ctx {{.state state, {.pair .x .4  x, .pair .y .4  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF3  = $cmp_frac_ctx {{.state state, {.pair .x .3  x, .pair .y .3  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF2  = $cmp_frac_ctx {{.state state, {.pair .x .2  x, .pair .y .2  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF1  = $cmp_frac_ctx {{.state state, {.pair .x .1  x, .pair .y .1  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF0  = $cmp_frac_ctx {{.state state, {.pair .x .0  x, .pair .y .0  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+
+cmp_fraction = $frac_pair
+  {eq state, () pair} $cmp_frac_ctx
+  stepF51 stepF50 stepF49 stepF48 stepF47 stepF46 stepF45 stepF44 stepF43 stepF42 stepF41 stepF40 stepF39 stepF38 stepF37 stepF36 stepF35 stepF34 stepF33 stepF32 stepF31 stepF30
+  stepF29 stepF28 stepF27 stepF26 stepF25 stepF24 stepF23 stepF22 stepF21 stepF20 stepF19 stepF18 stepF17 stepF16 stepF15 stepF14 stepF13 stepF12 stepF11 stepF10 stepF9 stepF8 stepF7 stepF6 stepF5 stepF4 stepF3 stepF2 stepF1 stepF0
+  .state
+  $cmp_state;
+
+gt_fraction? = $frac_pair {cmp_fraction /gt if, () then} .then $frac_pair;
+eq_fraction? = $frac_pair {cmp_fraction /eq if, () then} .then $frac_pair;
+
+gt_magnitude_float64? = $float_pair
   <
-    -- Same sign: add mantissas
-    {.x_sign x_sign, .y_sign y_sign} sign_eq same_sign,
-    {.larger larger, .smaller smaller, .same_sign same_sign} ieee_add_same_sign,
-    -- Different signs: subtract mantissas  
-    {.larger larger, .smaller smaller} ieee_add_diff_sign
-  >;
+    {{.x .exponent x, .y .exponent y} gt_exponent? if, () then} .then,
+    {{.x .exponent x, .y .exponent y} eq_exponent? ife, {.x .fraction x, .y .fraction y} gt_fraction? iff, () then} .then
+  > $float_pair;
 
--- Add two IEEE numbers with same sign
-ieee_add_same_sign = ${IEEE_754 larger, IEEE_754 smaller, bit same_sign}
-  {
-    .larger larger, .smaller smaller,
-    .larger.exponent larger_exp, .smaller.exponent smaller_exp,
-    .larger.mantissa larger_mant, .smaller.mantissa smaller_mant
-  }
+cmp_float64 = $float_pair
   <
-    -- If exponents are equal, add mantissas directly
-    {.larger_exp larger_exp, .smaller_exp smaller_exp} exponent_eq exp_equal,
-    {.larger_exp larger_exp, .smaller_exp smaller_exp, .larger_mant larger_mant, .smaller_mant smaller_mant} ieee_add_aligned_same_exp,
-    -- If exponents differ, align first then add
-    {.larger larger, .smaller smaller} ieee_add_aligned_diff_exp
-  >;
+    {<.x nan_float64?, .y nan_float64?> if, unordered_nan_cmp then} .then,
+    {.x zero_float64? ifx, .y zero_float64? ify, eq_zero_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify,
+     {.x .sign x, .y .sign y} eq_sign? ifs,
+     {.x .exponent x, .y .exponent y} eq_exponent? ife,
+     {.x .fraction x, .y .fraction y} eq_fraction? iff,
+     eq_exact_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign +? ifsx, .y .sign -? ifsy, gt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign -? ifsx, .y .sign +? ifsy, lt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign +? ifsx, .y .sign +? ifsy, gt_magnitude_float64? ifm, gt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign +? ifsx, .y .sign +? ifsy, {.y x, .x y} gt_magnitude_float64? ifm, lt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign -? ifsx, .y .sign -? ifsy, {.y x, .x y} gt_magnitude_float64? ifm, gt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign -? ifsx, .y .sign -? ifsy, gt_magnitude_float64? ifm, lt_cmp then} .then
+  > $cmp;
 
--- Add mantissas when exponents are equal
-ieee_add_aligned_same_exp = ${exponent larger_exp, exponent smaller_exp, mantissa larger_mant, mantissa smaller_mant}
-  {.larger_mant larger, .smaller_mant smaller, 0 carry} mantissa_add_with_carry {result: sum_mant, carry_out: overflow}
+eq_float64? = $float_pair {<cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then $float_pair;
+gt_float64? = $float_pair {cmp_float64 /gt if, () then} .then $float_pair;
+lt_float64? = $float_pair {cmp_float64 /lt if, () then} .then $float_pair;
+le_float64? = $float_pair {<cmp_float64 /lt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then $float_pair;
+ge_float64? = $float_pair {<cmp_float64 /gt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then $float_pair;
+
+exp0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} $exp11;
+exp_all1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} $exp11;
+
+frac0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
+            0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
+            0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
+            0 48, 0 49, 0 50, 0 51} $frac52;
+
+frac_lsb1 = {} {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
+                0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
+                0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
+                0 48, 0 49, 0 50, 0 51} $frac52;
+
+pos_zero = {} {+ sign, exp0 exponent, frac0 fraction} $float64;
+neg_zero = {} {- sign, exp0 exponent, frac0 fraction} $float64;
+
+pos_inf  = {} {+ sign, exp_all1 exponent, frac0 fraction} $float64;
+neg_inf  = {} {- sign, exp_all1 exponent, frac0 fraction} $float64;
+
+qnan = {} {+ sign, exp_all1 exponent, frac_lsb1 fraction} $float64;
+
+flip_sign = $sign
   <
-    -- Check if mantissa overflowed (bit 52 is set)
-    {.overflow.1 overflow_set} ieee_normalize_with_overflow,
-    {.overflow.0 overflow_clear} ieee_normalize_no_overflow
-  >;
+    {+? if, {} |- $sign then} .then,
+    {-? if, {} |+ $sign then} .then
+  > $sign;
 
--- Add two IEEE numbers with different signs (subtract mantissas)
-ieee_add_diff_sign = ${IEEE_754 larger, IEEE_754 smaller}
-  {
-    .larger larger, .smaller smaller,
-    .larger.exponent larger_exp, .smaller.exponent smaller_exp,
-    .larger.mantissa larger_mant, .smaller.mantissa smaller_mant
-  }
+xor_sign = $sign_pair
   <
-    -- If exponents are equal, subtract mantissas directly
-    {.larger_exp larger_exp, .smaller_exp smaller_exp} exponent_eq exp_equal,
-    {.larger_exp larger_exp, .smaller_exp smaller_exp, .larger_mant larger_mant, .smaller_mant smaller_mant} ieee_sub_aligned_same_exp,
-    -- If exponents differ, align first then subtract
-    {.larger larger, .smaller smaller} ieee_sub_align_mantissas
-  >;
+    {.x +? ifx, .y +? ify, {} |+ $sign then} .then,
+    {.x +? ifx, .y -? ify, {} |- $sign then} .then,
+    {.x -? ifx, .y +? ify, {} |- $sign then} .then,
+    {.x -? ifx, .y -? ify, {} |+ $sign then} .then
+  > $sign;
 
--- Subtract mantissas when exponents are equal
-ieee_sub_aligned_same_exp = ${exponent larger_exp, exponent smaller_exp, mantissa larger_mant, mantissa smaller_mant}
-  {.larger_mant larger, .smaller_mant smaller, 0 borrow} mantissa_sub_with_borrow {result: diff_mant, borrow_out: underflow}
-  ieee_normalize_subtraction_result;
-
--- Align mantissas when exponents differ, then add
-ieee_add_align_mantissas = ${IEEE_754 larger, IEEE_754 smaller}
-  {
-    .larger larger, .smaller smaller,
-    .larger.exponent larger_exp, .smaller.exponent smaller_exp,
-    .larger.mantissa larger_mant, .smaller.mantissa smaller_mant
-  }
-  -- Calculate exponent difference (simplified - just use first exponent for now)
-  {.larger_exp exp_diff} 
-  -- Align smaller mantissa right by exp_diff positions
-  {.smaller_mant smaller_mant} _align_mantissa_right
-  -- Now add the aligned mantissas
-  {.larger_mant larger_mant, .aligned_smaller aligned_smaller, 0 carry} mantissa_add_with_carry
-  ieee_normalize_addition_result;
-
--- Align mantissas when exponents differ, then subtract  
-ieee_sub_align_mantissas = ${IEEE_754 larger, IEEE_754 smaller}
-  {
-    .larger larger, .smaller smaller,
-    .larger.exponent larger_exp, .smaller.exponent smaller_exp,
-    .larger.mantissa larger_mant, .smaller.mantissa smaller_mant
-  }
-  -- Calculate exponent difference (simplified - just use first exponent for now)
-  {.larger_exp exp_diff}
-  -- Align smaller mantissa right by exp_diff positions
-  {.smaller_mant smaller_mant} _align_mantissa_right
-  -- Now subtract the aligned mantissas
-  {.larger_mant larger_mant, .aligned_smaller aligned_smaller, 0 borrow} mantissa_sub_with_borrow
-  ieee_normalize_subtraction_result;
-
--- Align mantissa right by specified number of positions (simplified)
-_align_mantissa_right = ${mantissa mantissa, exponent shift_amount}
-  -- For now, just return original mantissa (proper implementation would shift right)
-  {.mantissa result, 0 borrow_out} ${mantissa result, bit borrow_out};
-
--- Add two IEEE numbers that are already aligned (larger has >= exponent)
-ieee_add_aligned = ${IEEE_754 larger, IEEE_754 smaller}
-  -- TODO
-  .larger;
-
-
--- Normalize IEEE result after arithmetic operations
-ieee_normalize_result = ${mantissa mantissa, exponent exp, sign sign}
-  -- Check if mantissa overflowed (bit 52 is set, meaning we need to shift right)
-  -- For now, simplified: just return as-is
-  {.sign sign, .exp exponent, .mantissa mantissa} $IEEE_754;
-
--- Normalize addition result when mantissa overflowed
-ieee_normalize_with_overflow = ${mantissa sum_mant, bit overflow}
-  -- Shift mantissa right by 1, increment exponent
-  {.sum_mant shift_right_mantissa normalized_mant, .overflow overflow} increment_exponent_for_overflow
-  {.normalized_mant normalized_mant, .overflow overflow};
-
--- Normalize addition result when no mantissa overflow  
-ieee_normalize_no_overflow = ${mantissa sum_mant, bit overflow}
-  -- No normalization needed
-  {.sum_mant result, .overflow overflow};
-
--- Normalize subtraction result
-ieee_normalize_subtraction_result = ${mantissa diff_mant, bit underflow}
-  -- For subtraction, we might need to normalize left if result is small
-  {.diff_mant result, .underflow underflow};
-
--- Normalize multiplication result
-ieee_normalize_mult_result = ${mantissa product_mant, exponent exp, bit overflow}
-  -- Shift mantissa right by 1, increment exponent if overflow
-  {.product_mant product_mant, .overflow overflow} <
-    {.overflow.1 overflow_set} <
-      {.product_mant shift_right_mantissa normalized_mant} increment_exponent_for_overflow,
-      {.product_mant result, .overflow overflow}
-    >,
-    {.overflow.0 overflow_clear} {.product_mant result, .overflow overflow}
-  >;
-
--- Increment exponent when mantissa overflowed
-increment_exponent_for_overflow = ${mantissa normalized_mant, bit overflow}
-  -- For now, just return the normalized mantissa (proper implementation would increment exponent)
-  {.normalized_mant result, .overflow overflow};
-
--- IEEE 754 Multiplication
-ieee_mult = ${IEEE_754 x, IEEE_754 y}
-  {.x x, .y y, .x ieee_kind xkind, .y ieee_kind ykind}
-<
-  -- Special cases: NaN propagation
-  {.xkind.NaN nan_x, ieee_NaN then} .then,
-  {.ykind.NaN nan_y, ieee_NaN then} .then,
-  
-  -- Zero cases: 0 * anything = 0
-  {.x ieee_0? x_is_zero, ieee_0 then} .then,
-  {.y ieee_0? y_is_zero, ieee_0 then} .then,
-  
-  -- Infinity cases
-  {.xkind."+infty" pos_inf_x, .y.sign."-" neg_y} minus_infty,
-  {.xkind."-infty" neg_inf_x, .y.sign."+" pos_y} minus_infty,
-  {.xkind."+infty" pos_inf_x, .y.sign."+" pos_y} plus_infty,
-  {.xkind."-infty" neg_inf_x, .y.sign."-" neg_y} plus_infty,
-  
-  -- Normal multiplication case
-  {.x x, .y y} ieee_mult_normal
->;
-
--- Normal multiplication (both operands are normal numbers)
-ieee_mult_normal = ${IEEE_754 x, IEEE_754 y}
-  {
-    .x x, .y y,
-    .x.sign x_sign, .x.exponent x_exp, .x.mantissa x_mant,
-    .y.sign y_sign, .y.exponent y_exp, .y.mantissa y_mant
-  }
-  -- Determine result sign (XOR of input signs)
-  {.x_sign x_sign, .y_sign y_sign} ieee_determine_result_sign
-  -- Add exponents (with bias adjustment)
-  {.x_exp x_exp, .y_exp y_exp} ieee_add_exponents
-  -- Multiply mantissas
-  {.x_mant x_mant, .y_mant y_mant} ieee_mult_mantissas
-  -- Normalize and round result
-  ieee_normalize_mult_result;
-
--- Determine result sign for multiplication (XOR of input signs)
-ieee_determine_result_sign = ${sign x_sign, sign y_sign}
+opp_sign? = $sign_pair
   <
-    {.x_sign."+" pos_x, .y_sign."+" pos_y} sign_plus,
-    {.x_sign."+" pos_x, .y_sign."-" neg_y} sign_minus,
-    {.x_sign."-" neg_x, .y_sign."+" pos_y} sign_minus,
-    {.x_sign."-" neg_x, .y_sign."-" neg_y} sign_plus
-  >;
+    {.x +? ifx, .y -? ify, () then} .then,
+    {.x -? ifx, .y +? ify, () then} .then
+  > $sign_pair;
 
--- Add exponents for multiplication (x_exp + y_exp - bias)
-ieee_add_exponents = ${exponent x_exp, exponent y_exp}
-  -- For now, just return first exponent (proper implementation would add and subtract bias)
-  {.x_exp result};
-
--- Multiply mantissas for IEEE multiplication
-ieee_mult_mantissas = ${mantissa x_mant, mantissa y_mant}
-  -- For now, just return AND of mantissas (proper implementation would do full multiplication)
-  {.x_mant x, .y_mant y} mantissa_and_simple;
-
--- Simple AND operation for mantissas (placeholder for full multiplication)
-mantissa_and_simple = ${mantissa a, mantissa b}
-  -- For now, just return the first mantissa (proper implementation would do full multiplication)
-  {.a result} ${mantissa result};
-
--- Bitwise AND operation
-bit_and = ${bit a, bit b}
+inf_of_sign = $sign
   <
-    {.a.0 a_0, .b.0 b_0} 0,
-    {.a.0 a_0, .b.1 b_1} 0, 
-    {.a.1 a_1, .b.0 b_0} 0,
-    {.a.1 a_1, .b.1 b_1} 1
-  >;
+    {+? if, pos_inf then} .then,
+    {-? if, neg_inf then} .then
+  > $float64;
 
--- Convert integer to IEEE 754 format
-int_to_ieee = ${bnat integer}
-  -- For now, create a simple IEEE representation
-  -- Proper implementation would convert the integer to floating point
-  {.integer integer} 
-  {sign_plus sign, exponent_bias exponent, mantissa_0 mantissa}
-  $IEEE_754;
-
--- IEEE values for common constants
-ieee_minus_1 = {
-  sign_minus sign,
-  exponent_bias exponent,
-  mantissa_0 mantissa  
-};
-
-ieee_minus_2 = {
-  sign_minus sign,
-  {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} exponent,
-  mantissa_0 mantissa
-};
-
--- Test cases for the completed implementation
-test_ieee_constants = {
-  ieee_0 _log! zero_test,
-  ieee_1 _log! one_test, 
-  ieee_2 _log! two_test,
-  ieee_4 _log! four_test
-};
-
-test_ieee_arithmetic = {
-  {ieee_1 x, ieee_1 y} ieee_add _log! add_1_1_test,
-  {ieee_2 x, ieee_1 y} ieee_add _log! add_2_1_test,
-  {ieee_1 x, ieee_2 y} ieee_mult _log! mult_1_2_test
-};
-
--- Exponent arithmetic helpers
--- Add two exponents with carry detection
-exponent_add = ${exponent a, exponent b} 
-  {.a a, .b b, 0 carry} _exponent_add ${exponent result, bit carry_out};
-
--- Recursive exponent addition with carry
-_exponent_add = ${exponent a, exponent b, bit carry}
+zero_of_sign = $sign
   <
-    -- Base case: both exponents are zero, no carry
-    {.a exponent_0? a_is_zero, .b exponent_0? b_is_zero, .carry.0 carry_is_zero}
-      {exponent_0 result, 0 carry_out},
-    
-    -- Base case: both exponents are zero, with carry
-    {.a exponent_0? a_is_zero, .b exponent_0? b_is_zero, .carry.1 carry_is_one}
-      {{1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} $exponent result, 0 carry_out},
-    
-    -- General case: simplified
-    {.a result, 0 carry_out}
-  > ${exponent result, bit carry_out};
+    {+? if, pos_zero then} .then,
+    {-? if, neg_zero then} .then
+  > $float64;
 
--- Simple bit addition helper
-_bit_add_simple = ${bit a, bit b, bit carry}
+negate_float64 = $float64
+  {.sign flip_sign sign, .exponent exponent, .fraction fraction}
+  $float64;
+
+pair_signs = $float_pair
+  {.x .sign x, .y .sign y}
+  $sign_pair;
+
+xor_sign_of_pair = $float_pair
+  pair_signs xor_sign
+  $sign;
+
+opp_signs_of_pair? = $float_pair
+  pair_signs opp_sign?
+  $sign_pair;
+
+inf_from_pair_sign = $float_pair
+  xor_sign_of_pair inf_of_sign
+  $float64;
+
+zero_from_pair_sign = $float_pair
+  xor_sign_of_pair zero_of_sign
+  $float64;
+
+add_float64 = $float_pair
   <
-    {.a.0 a_0, .b.0 b_0, .carry.0 carry_0} {0 sum, 0 carry_out},
-    {.a.0 a_0, .b.0 b_0, .carry.1 carry_1} {1 sum, 0 carry_out},
-    {.a.0 a_0, .b.1 b_1, .carry.0 carry_0} {1 sum, 0 carry_out},
-    {.a.0 a_0, .b.1 b_1, .carry.1 carry_1} {0 sum, 1 carry_out},
-    {.a.1 a_1, .b.0 b_0, .carry.0 carry_0} {1 sum, 0 carry_out},
-    {.a.1 a_1, .b.0 b_0, .carry.1 carry_1} {0 sum, 1 carry_out},
-    {.a.1 a_1, .b.1 b_1, .carry.0 carry_0} {0 sum, 1 carry_out},
-    {.a.1 a_1, .b.1 b_1, .carry.1 carry_1} {1 sum, 1 carry_out}
-  > ${bit sum, bit carry_out};
+    {.x nan_float64? ifx, qnan then} .then,
+    {.y nan_float64? ify, qnan then} .then,
+    {.x inf_float64? ifx, .y inf_float64? ify, opp_signs_of_pair? ifs, qnan then} .then,
+    {.x inf_float64? ifx, .x then} .then,
+    {.y inf_float64? ify, .y then} .then,
+    {.x zero_float64? ifx, .y zero_float64? ify, pos_zero then} .then,
+    {.x zero_float64? ifx, .y then} .then,
+    {.y zero_float64? ify, .x then} .then
+  > $float64;
 
--- Simple bit subtraction helper
-_bit_sub_simple = ${bit a, bit b, bit borrow}
+negate_y_pair = $float_pair
+  {.x x, (.y negate_float64) y}
+  $float_pair;
+
+sub_float64 = $float_pair
+  negate_y_pair
+  add_float64
+  $float64;
+
+mul_float64 = $float_pair
   <
-    {.a.0 a_0, .b.0 b_0, .borrow.0 borrow_0} {0 diff, 0 borrow_out},
-    {.a.0 a_0, .b.0 b_0, .borrow.1 borrow_1} {1 diff, 1 borrow_out},
-    {.a.0 a_0, .b.1 b_1, .borrow.0 borrow_0} {1 diff, 1 borrow_out},
-    {.a.0 a_0, .b.1 b_1, .borrow.1 borrow_1} {0 diff, 1 borrow_out},
-    {.a.1 a_1, .b.0 b_0, .borrow.0 borrow_0} {1 diff, 0 borrow_out},
-    {.a.1 a_1, .b.0 b_0, .borrow.1 borrow_1} {0 diff, 0 borrow_out},
-    {.a.1 a_1, .b.1 b_1, .borrow.0 borrow_0} {0 diff, 0 borrow_out},
-    {.a.1 a_1, .b.1 b_1, .borrow.1 borrow_1} {1 diff, 1 borrow_out}
-  > ${bit diff, bit borrow_out};
+    {.x nan_float64? ifx, qnan then} .then,
+    {.y nan_float64? ify, qnan then} .then,
+    {.x inf_float64? ifx, .y zero_float64? ify, qnan then} .then,
+    {.x zero_float64? ifx, .y inf_float64? ify, qnan then} .then,
+    {.x inf_float64? ifx, .y ordered_float64? ify, inf_from_pair_sign then} .then,
+    {.y inf_float64? ify, .x ordered_float64? ifx, inf_from_pair_sign then} .then,
+    {.x zero_float64? ifx, .y ordered_float64? ify, zero_from_pair_sign then} .then,
+    {.y zero_float64? ify, .x ordered_float64? ifx, zero_from_pair_sign then} .then
+  > $float64;
 
--- Helper to combine bit with rest of exponent
-_combine_exponent_bits = ${bit new_bit, exponent rest_exp}
-  {
-    .new_bit 0, .rest_exp.0 1, .rest_exp.1 2, .rest_exp.2 3, .rest_exp.3 4, .rest_exp.4 5,
-    .rest_exp.5 6, .rest_exp.6 7, .rest_exp.7 8, .rest_exp.8 9, .rest_exp.9 10
-  } $exponent;
-
--- Subtract two exponents (a - b) with borrow detection
-exponent_sub = ${exponent a, exponent b}
-  {.a a, .b b, 0 borrow} _exponent_sub;
-
--- Recursive exponent subtraction with borrow
-_exponent_sub = ${exponent a, exponent b, bit borrow}
-  {.a result, 0 borrow_out} ${exponent result, bit borrow_out};
-
--- Bit addition with carry
-bit_add = 
-  ${bit a, bit b, bit carry}
+div_float64 = $float_pair
   <
-    {.a."0" a_zero, .b."0" b_zero, .carry."0" carry_zero, {0 sum, 0 carry_out} then} .then,
-    {.a."0" a_zero, .b."0" b_zero, .carry."1" carry_one, {1 sum, 0 carry_out} then} .then,
-    {.a."0" a_zero, .b."1" b_one, .carry."0" carry_zero, {1 sum, 0 carry_out} then} .then,
-    {.a."0" a_zero, .b."1" b_one, .carry."1" carry_one, {0 sum, 1 carry_out} then} .then,
-    {.a."1" a_one, .b."0" b_zero, .carry."0" carry_zero, {1 sum, 0 carry_out} then} .then,
-    {.a."1" a_one, .b."0" b_zero, .carry."1" carry_one, {0 sum, 1 carry_out} then} .then,
-    {.a."1" a_one, .b."1" b_one, .carry."0" carry_zero, {0 sum, 1 carry_out} then} .then,
-    {.a."1" a_one, .b."1" b_one, .carry."1" carry_one, {1 sum, 1 carry_out} then} .then
-  >
-  ${sum: bit, carry_out: bit};
+    {.x nan_float64? ifx, qnan then} .then,
+    {.y nan_float64? ify, qnan then} .then,
+    {.x zero_float64? ifx, .y zero_float64? ify, qnan then} .then,
+    {.x inf_float64? ifx, .y inf_float64? ify, qnan then} .then,
+    {.x inf_float64? ifx, .y ordered_float64? ify, inf_from_pair_sign then} .then,
+    {.x ordered_float64? ifx, .y inf_float64? ify, zero_from_pair_sign then} .then,
+    {.x ordered_float64? ifx, .y zero_float64? ify, inf_from_pair_sign then} .then,
+    {.x zero_float64? ifx, .y ordered_float64? ify, zero_from_pair_sign then} .then
+  > $float64;
+
+# --- useful float64 constants (IEEE-754 binary64) ---
+
+# 1.0  exponent = 1023 = 0b01111111111
+exp_1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 0 10} $exp11;
+
+# 10.0 exponent = 1026 = 1023 + 3 = 0b10000000010
+exp_10 = {} {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 1 10} $exp11;
+
+# 10.0 significand = 1.01b => fraction bit 50 = 1 (2^-2), everything else 0
+frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
+              0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
+              0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
+              0 48, 0 49, 1 50, 0 51} $frac52;
+
+# signed zeros (aliases)
+0+f = pos_zero;
+0-f = neg_zero;
+
+# 1.0, -1.0, 10.0
+1f  = {} {+ sign,  exp_1  exponent, frac0   fraction} $float64;
+-1f = {} {- sign,  exp_1  exponent, frac0   fraction} $float64;
+10f = {} {+ sign,  exp_10 exponent, frac_10 fraction} $float64;
 
 
--- Test expressions and basic arithmetic
-test_add_1_1 = {ieee_1 x, ieee_1 y} ieee_add;
-test_add_1_2 = {ieee_1 x, ieee_2 y} ieee_add;
-test_mult_2_2 = {ieee_2 x, ieee_2 y} ieee_mult;
+-- TESTS --
+# -----------------------------------------------------------------------------
+# Extra constants (finite) for comparisons
+# -----------------------------------------------------------------------------
 
--- Main test expression - create a product of independent evaluations
+# exponent = 1023 (bias): 0b01111111111  (bit10 is MSB in your cmp loop)
+exp_1023 = {}
+  { 0 10,
+    1 9, 1 8, 1 7, 1 6, 1 5, 1 4, 1 3, 1 2, 1 1, 1 0
+  } $exp11;
+
+# exponent = 1024: 0b10000000000
+exp_1024 = {}
+  { 1 10,
+    0 9, 0 8, 0 7, 0 6, 0 5, 0 4, 0 3, 0 2, 0 1, 0 0
+  } $exp11;
+
+one     = {+ sign, exp_1023 exponent, frac0 fraction} $float64;
+two     = {+ sign, exp_1024 exponent, frac0 fraction} $float64;
+neg_one = {- sign, exp_1023 exponent, frac0 fraction} $float64;
+
+# smallest positive subnormal: exponent=0, fraction LSB=1
+pos_denorm_min = {+ sign, exp0 exponent, frac_lsb1 fraction} $float64;
+neg_denorm_min = {- sign, exp0 exponent, frac_lsb1 fraction} $float64;
+
+# -----------------------------------------------------------------------------
+# Expanded test product (make sure THIS is the last expression in the file)
+# -----------------------------------------------------------------------------
+
 {
-  ieee_1 _log! simple_ieee_1,
-  test_add_1_1 _log! add_test,
-  ieee_2 _log! simple_ieee_2,
-  test_add_1_2 _log! mixed_add_test,
-  test_mult_2_2 _log! mult_test
+  # --- cmp_float64 -----------------------------------------------------------
+  ({pos_zero x, neg_zero y} cmp_float64) cmp_pz_nz,
+  ({neg_zero x, pos_zero y} cmp_float64) cmp_nz_pz,
+  ({pos_zero x, pos_zero y} cmp_float64) cmp_pz_pz,
+  ({neg_zero x, neg_zero y} cmp_float64) cmp_nz_nz,
+
+  ({pos_zero x, pos_inf y}  cmp_float64) cmp_pz_pinf,
+  ({pos_zero x, neg_inf y}  cmp_float64) cmp_pz_ninf,
+  ({neg_zero x, pos_inf y}  cmp_float64) cmp_nz_pinf,
+  ({neg_zero x, neg_inf y}  cmp_float64) cmp_nz_ninf,
+
+  ({pos_inf x, pos_zero y}  cmp_float64) cmp_pinf_pz,
+  ({neg_inf x, pos_zero y}  cmp_float64) cmp_ninf_pz,
+
+  ({pos_inf x, neg_inf y}   cmp_float64) cmp_pinf_ninf,
+  ({neg_inf x, pos_inf y}   cmp_float64) cmp_ninf_pinf,
+  ({pos_inf x, pos_inf y}   cmp_float64) cmp_pinf_pinf,
+  ({neg_inf x, neg_inf y}   cmp_float64) cmp_ninf_ninf,
+
+  ({qnan x, pos_zero y}     cmp_float64) cmp_qnan_pz,
+  ({pos_zero x, qnan y}     cmp_float64) cmp_pz_qnan,
+  ({qnan x, qnan y}         cmp_float64) cmp_qnan_qnan,
+  ({qnan x, pos_inf y}      cmp_float64) cmp_qnan_pinf,
+  ({pos_inf x, qnan y}      cmp_float64) cmp_pinf_qnan,
+
+  # --- add_float64 -----------------------------------------------------------
+  ({qnan x, pos_zero y}     add_float64) add_qnan_pz,
+  ({pos_zero x, qnan y}     add_float64) add_pz_qnan,
+  ({qnan x, qnan y}         add_float64) add_qnan_qnan,
+
+  ({pos_inf x, neg_inf y}   add_float64) add_pinf_ninf,
+  ({neg_inf x, pos_inf y}   add_float64) add_ninf_pinf,
+
+  ({pos_inf x, pos_zero y}  add_float64) add_pinf_pz,
+  ({pos_inf x, neg_zero y}  add_float64) add_pinf_nz,
+  ({neg_inf x, pos_zero y}  add_float64) add_ninf_pz,
+  ({neg_inf x, neg_zero y}  add_float64) add_ninf_nz,
+
+  ({pos_zero x, pos_inf y}  add_float64) add_pz_pinf,
+  ({neg_zero x, pos_inf y}  add_float64) add_nz_pinf,
+  ({pos_zero x, neg_inf y}  add_float64) add_pz_ninf,
+  ({neg_zero x, neg_inf y}  add_float64) add_nz_ninf,
+
+  ({pos_zero x, neg_zero y} add_float64) add_pz_nz,
+  ({neg_zero x, pos_zero y} add_float64) add_nz_pz,
+  ({pos_zero x, pos_zero y} add_float64) add_pz_pz,
+  ({neg_zero x, neg_zero y} add_float64) add_nz_nz,
+
+  # --- sub_float64 -----------------------------------------------------------
+  ({qnan x, pos_zero y}     sub_float64) sub_qnan_pz,
+  ({pos_zero x, qnan y}     sub_float64) sub_pz_qnan,
+
+  ({pos_zero x, pos_zero y} sub_float64) sub_pz_pz,
+  ({pos_zero x, neg_zero y} sub_float64) sub_pz_nz,
+  ({neg_zero x, pos_zero y} sub_float64) sub_nz_pz,
+  ({neg_zero x, neg_zero y} sub_float64) sub_nz_nz,
+
+  ({pos_inf x, pos_inf y}   sub_float64) sub_pinf_pinf,
+  ({pos_inf x, neg_inf y}   sub_float64) sub_pinf_ninf,
+  ({neg_inf x, pos_inf y}   sub_float64) sub_ninf_pinf,
+  ({neg_inf x, neg_inf y}   sub_float64) sub_ninf_ninf,
+
+  # --- mul_float64 -----------------------------------------------------------
+  ({qnan x, pos_zero y}     mul_float64) mul_qnan_pz,
+  ({pos_zero x, qnan y}     mul_float64) mul_pz_qnan,
+
+  ({pos_inf x, pos_inf y}   mul_float64) mul_pinf_pinf,
+  ({pos_inf x, neg_inf y}   mul_float64) mul_pinf_ninf,
+  ({neg_inf x, pos_inf y}   mul_float64) mul_ninf_pinf,
+  ({neg_inf x, neg_inf y}   mul_float64) mul_ninf_ninf,
+
+  ({pos_inf x, pos_zero y}  mul_float64) mul_pinf_pz,
+  ({pos_inf x, neg_zero y}  mul_float64) mul_pinf_nz,
+  ({neg_inf x, pos_zero y}  mul_float64) mul_ninf_pz,
+  ({neg_inf x, neg_zero y}  mul_float64) mul_ninf_nz,
+
+  ({pos_zero x, pos_inf y}  mul_float64) mul_pz_pinf,
+  ({neg_zero x, pos_inf y}  mul_float64) mul_nz_pinf,
+  ({pos_zero x, neg_inf y}  mul_float64) mul_pz_ninf,
+  ({neg_zero x, neg_inf y}  mul_float64) mul_nz_ninf,
+
+  ({pos_zero x, pos_zero y} mul_float64) mul_pz_pz,
+  ({pos_zero x, neg_zero y} mul_float64) mul_pz_nz,
+  ({neg_zero x, pos_zero y} mul_float64) mul_nz_pz,
+  ({neg_zero x, neg_zero y} mul_float64) mul_nz_nz,
+
+  # --- div_float64 -----------------------------------------------------------
+  ({qnan x, pos_zero y}     div_float64) div_qnan_pz,
+  ({pos_zero x, qnan y}     div_float64) div_pz_qnan,
+
+  ({pos_zero x, pos_zero y} div_float64) div_pz_pz,
+  ({pos_zero x, neg_zero y} div_float64) div_pz_nz,
+  ({neg_zero x, pos_zero y} div_float64) div_nz_pz,
+  ({neg_zero x, neg_zero y} div_float64) div_nz_nz,
+
+  ({pos_inf x, pos_inf y}   div_float64) div_pinf_pinf,
+  ({pos_inf x, neg_inf y}   div_float64) div_pinf_ninf,
+  ({neg_inf x, pos_inf y}   div_float64) div_ninf_pinf,
+  ({neg_inf x, neg_inf y}   div_float64) div_ninf_ninf,
+
+  ({pos_inf x, pos_zero y}  div_float64) div_pinf_pz,
+  ({pos_inf x, neg_zero y}  div_float64) div_pinf_nz,
+  ({neg_inf x, pos_zero y}  div_float64) div_ninf_pz,
+  ({neg_inf x, neg_zero y}  div_float64) div_ninf_nz,
+
+  ({pos_zero x, pos_inf y}  div_float64) div_pz_pinf,
+  ({neg_zero x, pos_inf y}  div_float64) div_nz_pinf,
+  ({pos_zero x, neg_inf y}  div_float64) div_pz_ninf,
+  ({neg_zero x, neg_inf y}  div_float64) div_nz_ninf
 }

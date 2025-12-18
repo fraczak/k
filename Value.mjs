@@ -1,5 +1,7 @@
 
-const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
+// const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
+const nameRE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
+
 function pLabel(label) {
   return nameRE.test(label) ? `${label}` : `${JSON.stringify(label)}`;
 }

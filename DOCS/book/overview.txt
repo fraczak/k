@@ -1,0 +1,68 @@
+Numbers are an extremely smart encoding.
+Kernel/core can describe that encoding — and many others.
+
+Most programming languages take numbers as a starting point. Integers, booleans, characters, and strings appear as given, primitive entities, and computation is then defined in terms of control flow operating over those primitives.
+
+Kernel/core deliberately inverts this perspective.
+
+Kernel/core starts from the observation that numbers are not fundamental objects of computation. They are encodings: highly successful, extremely smart encodings, but encodings nonetheless. What is truly fundamental is the ability to describe structured values and to define relations between them.
+
+Kernel/core is a language built around this idea.
+
+Kernel/core is based on exactly two concepts: encoding and relation.
+
+Encoding describes how values are represented. Relation describes how values are transformed.
+
+Everything else found in conventional programming languages—control flow, loops, exceptions, built-in types, higher-order functions—is intentionally absent. Not because kernel/core is low-level, but because those constructs are derivable, incidental, or encoding-specific.
+
+Kernel/core is a high-level language precisely because it is minimal.
+
+An encoding describes the shape of values. Encodings are algebraic data types built from two constructors: products and unions.
+
+Encodings are explicit, first-class, and user-defined. Kernel/core has no built-in integers, booleans, strings, or characters. If such values are needed, they are described as encodings within the language itself.
+
+This has several consequences. Every value has a precise, inspectable structure. Serialization and deserialization are intrinsic, not an afterthought. Different encodings of the same concept, such as unary, binary, or decimal numbers, coexist naturally.
+
+Numbers, in particular, appear not as primitives but as one possible encoding among many.
+
+A kernel/core program defines a relation: a partial, first-order function from encoded values to encoded values.
+
+Relations are partial: they may be undefined for some inputs. They are first-order: relations do not take other relations as values. They are pure: there is no implicit state and no hidden effects.
+
+Kernel/core deliberately avoids if, while, throw, and similar constructs. Instead, relations are combined using three forms of composition.
+
+Sequential composition chains transformations. Parallel composition executes multiple relations independently on the same input and produces a product value. Concurrent composition defines ordered alternatives, where the first defined result is selected.
+
+Control flow emerges from partiality and composition, not from dedicated syntax.
+
+Kernel/core bootstraps computation without primitives by relying on projections induced by encodings.
+
+Every product or union encoding introduces canonical projection relations. These projections are the only predefined relations in the language. All other behavior is built by composition.
+
+There are no built-in constants in the traditional sense. Even constants are relations: partial functions that ignore their input and return a fixed encoded value.
+
+This makes the language uniform: everything is a relation.
+
+Kernel/core supports polymorphic relations through patterns.
+
+A pattern is a relaxed encoding specification: a filter that constrains only part of a value’s structure. Patterns allow relations to be defined over classes of encodings, not just single concrete ones.
+
+For example, a relation may require any product type with at least a given field of a given encoding, without fixing the rest of the structure.
+
+This form of polymorphism is structural, explicit, and decidable. It does not rely on subtyping hierarchies, inheritance, or ad-hoc overloading.
+
+Kernel/core is not a scripting language, not an object-oriented language, not a numeric language, and not a control-flow language.
+
+Kernel/core is a language for describing encodings, a language for defining relations over structured data, a foundation for serialization, transformation, and compilation, and a minimal core on top of which richer systems can be built.
+
+Kernel/core does not claim that numbers are wrong.
+
+On the contrary: numbers are one of the most successful encodings ever invented.
+
+Kernel/core simply makes that fact explicit.
+
+By separating what computation is from how values are encoded, kernel/core offers a different foundation for programming—one where arithmetic becomes a special case, not the starting point.
+
+Numbers are an extremely smart encoding.
+
+Kernel/core is the language that lets you describe that encoding — and any other one you can imagine.

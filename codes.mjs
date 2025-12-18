@@ -177,5 +177,13 @@ function find(codeName) {
   return JSON.parse(JSON.stringify(theRepository.codes[codeName] || {code: "undefined"}));
 };
 
-export default { minimize, normalize, normalizeAll, encodeCodeToString, finalize, unitCode, register, find };
-export { minimize, normalize, normalizeAll, encodeCodeToString, finalize, unitCode, register, find };
+function load(dump) {
+  theRepository.codes = dump;
+}
+
+function dump() {
+  return JSON.parse(JSON.stringify(theRepository.codes));
+}
+
+export default { minimize, normalize, normalizeAll, encodeCodeToString, finalize, unitCode, register, find, load, dump };
+export { minimize, normalize, normalizeAll, encodeCodeToString, finalize, unitCode, register, find, load, dump };
