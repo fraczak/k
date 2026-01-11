@@ -57,7 +57,7 @@ _plus =
     {.x/_ if1, .y/_ if2, <.c/0 bnat_0, bnat_1> then} .then,
     {.x/_ if1, .c/0 if2, .y                    then} .then,
 
-    {.x     y, .y/_ _ x, .c      c} _plus, --swap x with y, if y = 0
+    {.x     y, .y/_ _ x, .c      c} _plus, -- swap x with y, if y = 0
     {<.c/0 bnat_0, bnat_1> 
             x, .y     y, .x/_ c0 c} _plus,
 

@@ -1,0 +1,32 @@
+{
+  "Product field": {
+    "prefix": "field",
+    "body": ["${1:typeExpr} ${2:label}"],
+    "description": "Product field: type expression + label"
+  },
+  "Product field (quoted label)": {
+    "prefix": "fieldq",
+    "body": ["${1:typeExpr} \"${2:label}\""],
+    "description": "Product field with a quoted label"
+  },
+  "Union tag": {
+    "prefix": "tag",
+    "body": ["${1:typeExpr} ${2:tag}"],
+    "description": "Union tag: type expression + tag"
+  },
+  "Union tag (quoted label)": {
+    "prefix": "tagq",
+    "body": ["${1:typeExpr} \"${2:tag}\""],
+    "description": "Union tag with a quoted label"
+  },
+  "Type definition (product)": {
+    "prefix": "typedef",
+    "body": ["$ ${1:type} = { ${2:typeExpr} ${3:label} };"],
+    "description": "Type definition using a product"
+  },
+  "Type definition (union)": {
+    "prefix": "typeunion",
+    "body": ["$ ${1:type} = < ${2:typeExpr} ${3:tag} >;"],
+    "description": "Type definition using a union"
+  }
+}

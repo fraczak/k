@@ -1,0 +1,44 @@
+{
+  "name": "k",
+  "displayName": "k",
+  "description": "Syntax highlighting for k",
+  "publisher": "wojtek",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.81.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "k",
+        "aliases": [
+          "k",
+          "kernel/core"
+        ],
+        "extensions": [
+          ".k"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "k",
+        "scopeName": "source.k",
+        "path": "./syntaxes/k.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "k",
+        "path": "./snippets/k.json"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.7.1"
+  }
+}

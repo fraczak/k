@@ -1,0 +1,237 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "k",
+  "scopeName": "source.k",
+  "patterns": [
+    {"include": "#typeDefinitionContext"},
+    {"include": "#filterContext"},
+    {"include": "#expression"}
+  ],
+  "repository": {
+    "expression": {
+      "patterns": [
+        {"include": "#blockComment"},
+        {"include": "#lineComment"},
+        {"include": "#product"},
+        {"include": "#labelLiteral"},
+        {"include": "#doubleQuotedString"},
+        {"include": "#singleQuotedString"},
+        {"include": "#patternVar"},
+        {"include": "#patternMarker"},
+        {"include": "#dollarConstructor"},
+        {"include": "#typeDefinition"},
+        {"include": "#definition"},
+        {"include": "#typeRef"},
+        {"include": "#atRef"},
+        {"include": "#keywords"},
+        {"include": "#builtinConstants"},
+        {"include": "#numbers"},
+        {"include": "#punctuation"}
+      ]
+    },
+    "typeDefinitionContext": {
+      "begin": "\\$\\s*[a-zA-Z0-9_?!+\\-]+\\s*=",
+      "end": ";",
+      "patterns": [
+        {"include": "#blockComment"},
+        {"include": "#lineComment"},
+        {"include": "#unionType"},
+        {"include": "#product"},
+        {"include": "#labelLiteral"},
+        {"include": "#doubleQuotedString"},
+        {"include": "#singleQuotedString"},
+        {"include": "#typeRef"},
+        {"include": "#numbers"},
+        {"include": "#punctuation"}
+      ]
+    },
+    "filterContext": {
+      "patterns": [
+        {"include": "#filterUnion"},
+        {"include": "#filterProduct"},
+        {"include": "#filterComposition"}
+      ]
+    },
+    "blockComment": {
+      "name": "comment.block.k",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    "lineComment": {
+      "name": "comment.line.k",
+      "match": "(//|#|%|--|\\\\)[^\\n]*"
+    },
+    "labelLiteral": {
+      "name": "entity.name.tag.k",
+      "match": "(\\.|/|\\||\\\\)\\s*(?:[a-zA-Z0-9_?!+\\-]+|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')"
+    },
+    "filterUnion": {
+      "begin": "\\?\\s*<",
+      "end": ">\\s*(=\\s*([a-zA-Z0-9_?!+\\-]+))?",
+      "endCaptures": {
+        "2": {"name": "variable.other.pattern.k"}
+      },
+      "patterns": [
+        {"include": "#blockComment"},
+        {"include": "#lineComment"},
+        {"include": "#filterUnion"},
+        {"include": "#filterProduct"},
+        {"include": "#labelLiteral"},
+        {"include": "#doubleQuotedString"},
+        {"include": "#singleQuotedString"},
+        {"include": "#unionLabel"},
+        {"include": "#filterBinding"},
+        {"include": "#punctuation"}
+      ]
+    },
+    "filterProduct": {
+      "begin": "\\?\\s*\\{|\\{",
+      "end": "\\}",
+      "patterns": [
+        {"include": "#blockComment"},
+        {"include": "#lineComment"},
+        {"include": "#filterProduct"},
+        {"include": "#labelLiteral"},
+        {"include": "#doubleQuotedString"},
+        {"include": "#singleQuotedString"},
+        {"include": "#patternVar"},
+        {"include": "#filterBinding"},
+        {"include": "#productLabel"},
+        {"include": "#punctuation"}
+      ]
+    },
+    "filterComposition": {
+      "begin": "\\?\\s*\\(",
+      "end": "\\)",
+      "patterns": [
+        {"include": "#blockComment"},
+        {"include": "#lineComment"},
+        {"include": "#filterUnion"},
+        {"include": "#filterProduct"},
+        {"include": "#labelLiteral"},
+        {"include": "#doubleQuotedString"},
+        {"include": "#singleQuotedString"},
+        {"include": "#patternVar"},
+        {"include": "#filterBinding"},
+        {"include": "#punctuation"}
+      ]
+    },
+    "filterBinding": {
+      "name": "variable.other.pattern.k",
+      "match": "\\b([a-zA-Z0-9_?!+\\-]+)\\b(?=\\s+(?:[a-zA-Z0-9_?!+\\-]+|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'))"
+    },
+    "unionType": {
+      "begin": "<",
+      "end": ">",
+      "patterns": [
+        {"include": "#blockComment"},
+        {"include": "#lineComment"},
+        {"include": "#unionType"},
+        {"include": "#product"},
+        {"include": "#labelLiteral"},
+        {"include": "#doubleQuotedString"},
+        {"include": "#singleQuotedString"},
+        {"include": "#unionLabel"},
+        {"include": "#punctuation"}
+      ]
+    },
+    "product": {
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [
+        {"include": "#blockComment"},
+        {"include": "#lineComment"},
+        {"include": "#product"},
+        {"include": "#labelLiteral"},
+        {"include": "#doubleQuotedString"},
+        {"include": "#singleQuotedString"},
+        {"include": "#patternVar"},
+        {"include": "#patternMarker"},
+        {"include": "#dollarConstructor"},
+        {"include": "#typeDefinition"},
+        {"include": "#definition"},
+        {"include": "#typeRef"},
+        {"include": "#atRef"},
+        {"include": "#keywords"},
+        {"include": "#builtinConstants"},
+        {"include": "#numbers"},
+        {"include": "#productLabel"},
+        {"include": "#punctuation"}
+      ]
+    },
+    "productLabel": {
+      "name": "entity.name.tag.k",
+      "match": "(?:[a-zA-Z0-9_?!+\\-]+|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')(?=\\s*(?:,|\\}))"
+    },
+    "unionLabel": {
+      "name": "entity.name.tag.k",
+      "match": "(?:[a-zA-Z0-9_?!+\\-]+|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')(?=\\s*(?:,|>))"
+    },
+    "patternVar": {
+      "name": "variable.other.pattern.k",
+      "match": "\\?[A-Za-z_][A-Za-z0-9_]*"
+    },
+    "patternMarker": {
+      "name": "keyword.operator.k",
+      "match": "\\?\\s*[<{(]"
+    },
+    "dollarConstructor": {
+      "name": "keyword.operator.k",
+      "match": "\\$\\s*[<{]"
+    },
+    "doubleQuotedString": {
+      "name": "string.quoted.double.k",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.k",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "singleQuotedString": {
+      "name": "string.quoted.single.k",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.k",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "definition": {
+      "name": "variable.other.definition.k",
+      "match": "\\b([a-zA-Z0-9_+\\-][a-zA-Z0-9_?!+\\-]*)\\s*="
+    },
+    "typeDefinition": {
+      "name": "entity.name.type.k",
+      "match": "\\$\\s*([a-zA-Z0-9_?!+\\-]+)\\s*="
+    },
+    "typeRef": {
+      "name": "storage.type.k",
+      "match": "\\$\\s*[a-zA-Z0-9_?!+\\-]+"
+    },
+    "atRef": {
+      "name": "variable.other.k",
+      "match": "@\\s*[a-zA-Z0-9_?!+\\-]+"
+    },
+    "keywords": {
+      "name": "keyword.control.k",
+      "match": "\\b(if|then|else)\\b"
+    },
+    "builtinConstants": {
+      "name": "constant.language.k",
+      "match": "\\b(EQ|GT|CONCAT|SNOC|CONS|PLUS|MINUS|TIMES|DIV|FDIV|fromJSON|toJSON|toVEC|toDateMsec|toDateStr|int|bool|string|true|false|null|and|or|not)\\b"
+    },
+    "numbers": {
+      "name": "constant.numeric.k",
+      "match": "\\b-?\\d+\\b"
+    },
+    "punctuation": {
+      "name": "punctuation.separator.k",
+      "match": "(=|;|:|,|\\.\\.\\.|\\?|\\$|@|\\{|\\}|\\(|\\)|\\[|\\]|<|>)"
+    }
+  }
+}
