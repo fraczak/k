@@ -1,4 +1,5 @@
 import { t, in_out } from './index.mjs';
+import { hash } from '../hash.mjs';
 import assert from 'assert';
 
 t(`
@@ -37,6 +38,6 @@ t(`
   const {input,output} = in_out(annotated);
   console.log({input,output});
   assert.equal(input.pattern, '(...)');
-    assert.equal(output.type, "@KL");
+    assert.equal(output.type, hash("$C0={};"));
     console.log("OK");
 });

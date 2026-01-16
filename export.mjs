@@ -2,6 +2,16 @@
 import { prettyRel, patterns2filters } from "./pretty.mjs";
 import { hash } from "./hash.mjs";
 
+function logNormalized(label, value, hashValue) {
+  if (process.env.K_DUMP_NORMALIZED) {
+    if (hashValue) {
+      console.log(`[k-normalize] ${label}: ${hashValue} = ${value}`);
+    } else {
+      console.log(`[k-normalize] ${label}: ${value}`);
+    }
+  }
+}
+
 function simplifyRel(relDef,rels) {
   // remove filters and codes
   const prune = (rel) => {
@@ -96,8 +106,9 @@ function theID(alias, rel, scc, name) {
 
   const newRel = reNameX(rel);
   const resultRelStr = prettyRel(newRel);
-  // console.log(` ${name} = ${resultRelStr}`);
   const newName = hash(resultRelStr);
+  logNormalized(name, resultRelStr, newName);
+  // console.log(` ${name} = ${resultRelStr}`);
   return newName;
 };
 

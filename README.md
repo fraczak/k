@@ -205,9 +205,9 @@ Try in `k-repl`:
   $ myCode = {<{} zero, nat succ> x, nat y};
 --> {}
 > --C pair
- $ @PvIWLAJKZD = {@BwONISX x, @BwONISX y}; -- $C0={C1"x",C1"y"};$C1=<C1"succ",C2"zero">;$C2={};
+ $ @51459f1872e4ce2767b1a55fcb2928e28804238e4f462bf5108ade2d635941c3 = {@98c8681b0b6bacb6ddef5d095b7429955679db145748f3839c119f71bd693766 x, @98c8681b0b6bacb6ddef5d095b7429955679db145748f3839c119f71bd693766 y}; -- $C0={C1"x",C1"y"};$C1=<C1"succ",C2"zero">;$C2={};
 > --C myCode
- $ @PvIWLAJKZD = {@BwONISX x, @BwONISX y}; -- $C0={C1"x",C1"y"};$C1=<C1"succ",C2"zero">;$C2={};
+ $ @51459f1872e4ce2767b1a55fcb2928e28804238e4f462bf5108ade2d635941c3 = {@98c8681b0b6bacb6ddef5d095b7429955679db145748f3839c119f71bd693766 x, @98c8681b0b6bacb6ddef5d095b7429955679db145748f3839c119f71bd693766 y}; -- $C0={C1"x",C1"y"};$C1=<C1"succ",C2"zero">;$C2={};
 ```
 
 ---

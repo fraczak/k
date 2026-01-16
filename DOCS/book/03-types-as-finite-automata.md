@@ -127,7 +127,7 @@ Canonical Form: $C0=<C0"0",C0"1",C1"_">;$C1={}
       ↓
      Hash
       ↓
-Identifier: @BsAqRMv
+Identifier: @56b95dc611742a8e1cbb72d399660b5f18e4c3426dba0171f86dcdb2c41e9d91
 ```
 
 Program objects can then refer to types by their hash-based identifiers (prefixed with `@`) without ambiguity.

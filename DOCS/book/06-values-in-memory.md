@@ -107,7 +107,7 @@ For type `bnat`, intuitively binary natural numbers defined by `$bnat = < bnat 0
 
 ```k-repl
 --C bnat
-$ @BsAqRMv = < @BsAqRMv 0, @BsAqRMv 1, @KL _ >; -- $C0=<C0"0",C0"1",C1"_"> $C1={};
+$ @56b95dc611742a8e1cbb72d399660b5f18e4c3426dba0171f86dcdb2c41e9d91 = < @56b95dc611742a8e1cbb72d399660b5f18e4c3426dba0171f86dcdb2c41e9d91 0, @56b95dc611742a8e1cbb72d399660b5f18e4c3426dba0171f86dcdb2c41e9d91 1, @368d370568fa01bc70e837de57958e968bee510ba5e512e6a6b7b8c1c184a20e _ >; -- $C0=<C0"0",C0"1",C1"_"> $C1={};
 ```
 
 The corresponding Context-Free grammar is:

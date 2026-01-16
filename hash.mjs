@@ -1,39 +1,14 @@
-const baseToShifted = {
-    '0': 'A', '1': 'B', '2': 'C', '3': 'D',
-    '4': 'E', '5': 'F', '6': 'G', '7': 'H',
-    '8': 'I', '9': 'J', 'a': 'K', 'b': 'L',
-    'c': 'M', 'd': 'N', 'e': 'O', 'f': 'P',
-    'g': 'Q', 'h': 'R', 'i': 'S', 'j': 'T',
-    'k': 'U', 'l': 'V', 'm': 'W', 'n': 'X',
-    'o': 'Y', 'p': 'Z', 'q': 'q', 'r': 'r',
-    's': 's', 't': 't', 'u': 'u', 'v': 'v',
-    'w': 'w', 'x': 'x', 'y': 'y', 'z': 'z'
-};
+import { createHash } from "node:crypto";
 
-const base = Object.keys(baseToShifted).length;
+function hash(inputString, options = {}) {
+    const { short = false, minLength = 7 } = options;
+    let input = inputString;
+    if (input.match(/^\$C0=.*;$/))
+        input = input.slice(4, -1);
 
-function shifString(baseString) {
-    let shiftedString = '';
-    for (let i = 0; i < baseString.length; i++) {
-        shiftedString += baseToShifted[baseString[i]];
-    }
-    return shiftedString;
-}
-
-function hash(inputString) {
-    if (inputString.match(/^\$C0=.*;$/))
-        inputString = inputString.slice(4, -1);
-    
-    let hashValue = BigInt(0);
-    const prime = BigInt(2);
-    const mod = BigInt('8494462356974657160929849007317');
-
-    for (let i = 0; i < inputString.length; i++) {
-        let charCode = BigInt(inputString.charCodeAt(i));
-        hashValue = (hashValue * prime + charCode) % mod;
-    }
-
-    return "@"+shifString(hashValue.toString(base));
+    const full = createHash("sha256").update(input).digest("hex");
+    const body = short ? full.slice(0, Math.max(1, minLength)) : full;
+    return "@" + body;
 }
 
 export default hash;
