@@ -82,6 +82,7 @@ function fromEscString(escString) {
 
 str : STRING                            { $$ = getToken(yytext,yy,_$); $$.value = fromEscString($$.value);};
 name: NAME                              { $$ = getToken(yytext,yy,_$); };
+at: AT                                  { $$ = getToken(yytext,yy,_$); };
 la: LA                                  { $$ = getToken(yytext,yy,_$); };
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
 lp: LP                                  { $$ = getToken(yytext,yy,_$); };
@@ -119,7 +120,7 @@ defs:                                   {  }
 
 code
     : name                              { $$ = { code: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
-    | AT name                           { $$ = { code: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
+    | at name                           { $$ = { code: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     | codeDef                           { $$ = $1; }
     ;
 
@@ -199,7 +200,7 @@ comp
 exp
     : lc labelled rc                    { $$ = {...$2, start: $1.start, end: $3.end}; }
     | la list ra                        { $$ = {...union($2), start: $1.start, end: $3.end}; }
-    | AT name                           { $$ = {op: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
+    | at name                           { $$ = {op: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     | lp rp                             { $$ = {...identity, start: $1.start, end: $2.end};  }
     | lp comp rp                        { $$ = {...$2, start: $1.start, end: $3.end };  }
     | name                              { $$ = {op: "ref", ref: $1.value, start: $1.start, end: $1.end}; }

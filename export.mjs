@@ -108,9 +108,8 @@ function assignCanonicalNames(scc, rels, relAlias) {
       // inlining if direct alias to a non built-in relation
       // relDef.def = rels[relDef.def.ref]; // simplifyRel(rels[relDef.def.ref],rels);
       rels[relName] = rels[relDef.def.ref];
-    } else {
-      relDef.def = simplifyRel(relDef,rels);
     }
+    rels[relName].def = simplifyRel(rels[relName], rels);
     newAlias[relName] = theID(relAlias, rels[relName].def, scc, relName);
     return newAlias;
   }, {});
