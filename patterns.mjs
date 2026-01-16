@@ -297,6 +297,17 @@ function patterns(representatives, rels) {
         });
       return;
     }
+    // Check if it's a reference to a canonical type hash
+    if (rel.ref.startsWith("@")) {
+      const canonicalHash = rel.ref;
+      const codeInRepo = codes.find(canonicalHash);
+      if (codeInRepo.code !== "undefined") {
+        // It's a valid canonical hash, treat it as identity with that type
+        const patternId = rootDef.typePatternGraph.getTypeId(canonicalHash);
+        rel.patterns[0] = rel.patterns[1] = patternId;
+        return;
+      }
+    }
     // it is built-in
     switch (rel.ref) {
       case "_log!":

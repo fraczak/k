@@ -102,6 +102,34 @@ function minimize(codes) {
   return { classes, representatives };
 }
 
+function resolveRefs(codes) {
+  const resolved = {};
+  
+  for (const name in codes) {
+    const code = codes[name];
+    if (code.code === "ref" && code.ref.startsWith("@")) {
+      // This is an alias to a canonical type (by name or by hash)
+      const refName = code.ref.substring(1); // Remove the @ prefix
+      
+      // Check if it's a reference to a user-defined type in the current codes
+      if (codes[refName] !== undefined) {
+        resolved[name] = refName;
+      } 
+      // Check if it's a reference to an existing canonical hash in the repository
+      else if (theRepository.codes[code.ref] !== undefined) {
+        resolved[name] = code.ref;
+      } 
+      else {
+        throw new Error(`Type alias references undefined type: ${code.ref}`);
+      }
+    } else {
+      resolved[name] = name;
+    }
+  }
+  
+  return resolved;
+}
+
 function normalize(label_ref_map, representatives) {
   return Object.keys(label_ref_map).reduce((result, label) => {
     const name = label_ref_map[label];
@@ -123,6 +151,9 @@ function normalizeAll(codes, representatives) {
             representatives
           );
           break;
+        case "ref":
+          // Ref codes should have been resolved in finalize, this shouldn't happen
+          throw new Error(`Unresolved type alias: ${code.ref}`);
         default:
           throw new Error(`Unexpected code ${code.code}`);
       }
@@ -133,8 +164,41 @@ function normalizeAll(codes, representatives) {
 }
 
 function finalize(codes) {
-  const representatives = minimize(codes).representatives;
-  const normalizedCodes = normalizeAll(codes, representatives);
+  // First, resolve all @name references to their actual code definitions
+  const refResolution = resolveRefs(codes);
+  const resolvedCodes = {};
+  
+  for (const name in codes) {
+    const code = codes[name];
+    if (code.code === "ref" && code.ref.startsWith("@")) {
+      // This is an alias, use the resolved target's code
+      const target = refResolution[name];
+      
+      // Check if target is a canonical hash (starts with @)
+      if (target.startsWith("@")) {
+        // Reference to existing canonical hash in repository
+        resolvedCodes[name] = theRepository.codes[target];
+      } else {
+        // Reference to a user-defined type in current codes
+        resolvedCodes[name] = codes[target];
+      }
+    } else {
+      resolvedCodes[name] = code;
+    }
+  }
+  
+  const representatives = minimize(resolvedCodes).representatives;
+  
+  // Also update representatives to account for aliases
+  // If name was aliased to target, and target maps to rep, then name should map to rep
+  for (const name in refResolution) {
+    if (refResolution[name] !== name) {
+      const target = refResolution[name];
+      representatives[name] = representatives[target];
+    }
+  }
+  
+  const normalizedCodes = normalizeAll(resolvedCodes, representatives);
   const globalNames = Object.keys(normalizedCodes).reduce((globalNames, name) => {
     const globalDef = encodeCodeToString(name, normalizedCodes);
     normalizedCodes[name].def = globalDef;

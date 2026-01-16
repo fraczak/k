@@ -120,13 +120,13 @@ defs:                                   {  }
 
 code
     : name                              { $$ = { code: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
-    | at name                           { $$ = { code: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     | codeDef                           { $$ = $1; }
     ;
 
 codeDef
     : lc labelled_codes rc              { $$ = { code: "product", product: $2, start: $1.start, end: $3.end }; }
     | la labelled_codes ra              { $$ = { code: "union", union: $2, start: $1.start, end: $3.end }; }
+    | at name                           { $$ = { code: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
     ;
 
 labelled_codes 
