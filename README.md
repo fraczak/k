@@ -32,6 +32,46 @@ Prerequisites: Node.js 18+.
 
 ---
 
+## KVBF tooling (experimental)
+
+The KVBF encoder/decoder currently operates on **typed value literals** (no DAG surface syntax yet).
+Input accepts the full `valueParser` syntax (JSON-like forms included); output is a strict,
+native k-style representation emitted as a valid k program fragment (`<value> $@type`).
+It uses the type registry to resolve type ids and emits/consumes KVBF bytes.
+
+Example typed literal (JSON-like input accepted by the parser):
+
+```k
+@ERx5FFwYBEeKrLTVQn9NcNJJ8ymExRpnLV5jGQrw3nDx { c: 0, x: {"1": {"0": {"_": {}}}}, y: {"1": {"0": {"_": {}}}} }
+```
+
+Example strict native output (machine-generated):
+
+```k
+{{}|0 c, {}|_|0|1 x, {}|_|0|1 y} $ @ERx5FFwYBEeKrLTVQn9NcNJJ8ymExRpnLV5jGQrw3nDx
+```
+
+Example strict native output (canonical type definition):
+
+```k
+$C0=<C0"0",C0"1",C1"_">;$C1={};
+{}|_|0|1 $C0
+```
+
+Encode and decode:
+
+```bash
+node KVBF/kvbf-encode.mjs --in value.kvtxt --out value.kvbf
+node KVBF/kvbf-decode.mjs --in value.kvbf --out roundtrip.kvtxt
+```
+
+Options:
+- `--registry type_registry/registry.json`
+- `--id-encoding bnat|uleb128`
+- `--type-format hash|canonical`
+
+---
+
 ## Data model: Codes = ADTs
 
 - Codes are standard algebraic data types built from two constructors:
