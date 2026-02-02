@@ -1,6 +1,6 @@
 -- Standard binary encoding of natural numbers
 
--- $ bnat = < {} _, bnat 0, bnat 1 >;
+$ bnat = < {} _, bnat 0, bnat 1 >;
 
 _ = {}|_;
 _1 = |1;
@@ -23,7 +23,7 @@ remove_leading_zeros = < /0 remove_leading_zeros, () >;
 reverse = {() x, _ result} _reverse;
 
 _reverse =
-  -- ${bnat x, bnat result}
+  ${bnat x, bnat result}
   <
     {.x/_ if, .result then} .then,
     {.x/0 x, .result _0 result} _reverse,
@@ -33,7 +33,7 @@ _reverse =
 
 append_0 = reverse _0 reverse; -- i.e., shift_left, double, or times2 
 
--- $carry = <{} 0, {} 1>;
+$carry = <{} 0, {} 1>;
 c0 = {} |0 ;
 c1 = {} |1 ;
 
@@ -52,7 +52,7 @@ plus =
 
 _plus =
   -- least significant bit first addition with carry
-  -- ${bnat x, bnat y, carry c}
+  ${bnat x, bnat y, carry c}
   <
     {.x/_ if1, .y/_ if2, <.c/0 bnat_0, bnat_1> then} .then,
     {.x/_ if1, .c/0 if2, .y                    then} .then,
@@ -88,7 +88,7 @@ minus =
 
 _minus =
   -- least significat bit first substraction with carry
-  -- ${bnat x, bnat y, carry c}
+  ${bnat x, bnat y, carry c}
   <
     {.x   x, .y/_   y, .c/0   if} .x,
     {.x/1 x, .y/_   y, .c/1   if} .x _0,
@@ -116,7 +116,7 @@ times =
 ;
 
 _times =
-  -- ${bnat result, bnat _x, bnat y}
+  ${bnat result, bnat _x, bnat y}
   <
     { .y/_ if, .result then } .then,
     { .result _0                           result, ._x _x, .y/0 y } _times,
@@ -149,7 +149,7 @@ align =
 ;
 
 _align = 
-  -- ${bnat _x, bnat _y, bnat x, bnat y}
+  ${bnat _x, bnat _y, bnat x, bnat y}
   <
     {._x/_ if1, ._y/_ if2, {.x x, .y y} then} .then,
     {._x </0, /_ _> _x, ._y </0, /_ _> _y, .x _0 x, .y _0 y} _align,
@@ -166,7 +166,7 @@ gt = {} |gt;
 
 compare = align _compare;
 _compare = 
-  -- ${bnat x, bnat y}
+  ${bnat x, bnat y}
   <
     {.x/_ if1, .y/_ if2 } eq,
     {.x/0 x, .y/0 y} _compare,
@@ -214,7 +214,7 @@ append_n_times_0 =
 ;
 
 div = 
-  -- ${bnat x, bnat y}
+  ${bnat x, bnat y}
   {.x x, .y step, bnat_0 res} _div
 ;
 
@@ -241,7 +241,7 @@ _div =
 ;
 
 lcm =
-  -- ${bnat x, bnat y}
+  ${bnat x, bnat y}
   {times x, gcd y}
   div .div
 ;
