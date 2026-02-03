@@ -37,10 +37,10 @@ $carry = <{} 0, {} 1>;
 c0 = {} |0 ;
 c1 = {} |1 ;
 
--- $ pair = {bnat x, bnat y};
+$ pair = {bnat x, bnat y};
 
 plus = 
-  -- ${bnat x, bnat y} 
+  -- ${bnat x, bnat y} -- $ pair 
   { 
     .x remove_leading_zeros reverse x, 
     .y remove_leading_zeros reverse y, 
@@ -166,7 +166,7 @@ gt = {} |gt;
 
 compare = align _compare;
 _compare = 
-  ${bnat x, bnat y}
+  $pair -- ${bnat x, bnat y}
   <
     {.x/_ if1, .y/_ if2 } eq,
     {.x/0 x, .y/0 y} _compare,
@@ -214,7 +214,7 @@ append_n_times_0 =
 ;
 
 div = 
-  ${bnat x, bnat y}
+  -- $pair -- ${bnat x, bnat y}
   {.x x, .y step, bnat_0 res} _div
 ;
 
@@ -241,7 +241,7 @@ _div =
 ;
 
 lcm =
-  ${bnat x, bnat y}
+  -- $pair -- ${bnat x, bnat y}
   {times x, gcd y}
   div .div
 ;
