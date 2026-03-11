@@ -2,7 +2,7 @@
 
 Status: Draft  
 Audience: language/runtime/compiler/registry maintainers  
-Last updated: 2026-03-04
+Last updated: 2026-03-11
 
 ## 1. Purpose
 
@@ -12,14 +12,6 @@ Define an implementation-ready plan to evolve the current `k` POC into a product
 2. A deterministic value layer with canonical serialization and pluggable adapters.
 3. A compiler/runtime stack that can target multiple host languages while preserving k semantics.
 4. An educational surface that teaches the same semantics used in production.
-
-This RFC operationalizes ideas from:
-- `DOCS/REGISTRY.md`
-- `DOCS/REGISTRY_PLAN.md`
-- `DOCS/HASHING.md`
-- `DOCS/KVBF.md`
-- `DOCS/TYPE_DERIVATION.md`
-- `DOCS/book/16-toward-a-universal-schema-registry.md`
 
 ## 2. Principles
 
@@ -32,17 +24,18 @@ This RFC operationalizes ideas from:
 ## 3. Scope and Non-Goals
 
 In scope:
-- Registry APIs and ingestion/evaluation transaction model.
+- Registry APIs and ingestion/run transaction model.
 - Persistence schema and indexing.
-- Hash/version governance.
+- Hash stability governance (freeze current JS canonical `@...` behavior and lock it with tests).
 - Canonical serialization boundary and adapter contracts.
 - Compiler/runtime milestones for multi-language integration.
 - Educational product track.
+- Certified optimization proofs for explicitly restricted decidable fragments (for example, Presburger-constrained subsets where finite transducer compilation is guaranteed).
 
 Out of scope for v1:
 - Decentralized consensus protocol.
 - Fine-grained multi-tenant permission model (single submitter role remains acceptable).
-- Full optimizer completeness proofs.
+- General-case optimizer completeness/optimality proofs for all k programs (undecidable for a Turing-complete language).
 
 ## 4. Canonical Objects and Identity
 
@@ -55,162 +48,173 @@ Registry stores immutable entities keyed by canonical hash:
 
 ## 4.2 Hash identity format
 
-Use an explicit algorithm/version envelope:
+For v1, keep the current JS prototype canonical ID format unchanged:
 
 ```text
-id = @<algo>:<version>:<digest>
+id = @<hash-body>
 ```
 
 Example:
 
 ```text
-@sha256:v1:56b95dc611742a8e1cbb72d399660b5f18e4c3426dba0171f86dcdb2c41e9d91
+@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb
 ```
 
 Notes:
-- Existing short/base56 names may be retained as aliases for display.
-- Canonical identity must always use full digest.
+- Hash computation semantics are frozen exactly as implemented in `hash.mjs` (SHA-256 input digest + current base56/padding/trimming rules).
+- Canonical identity is the full current `@...` name (no short-ID canonicalization).
+- Any future ID-format change is deferred and requires a separate migration RFC.
 
 ## 4.3 Invariants (must hold in Continuous Integration)
 
 1. Alpha-renaming invariant for functions.
-2. SCC traversal/order invariant for mutual recursion normalization.
-3. Alias-vs-inline equivalence invariant.
-4. Canonical pretty-print determinism for hashed forms.
+2. Invariance under ordering of mutually recursive function groups:
+   normalization and hashing must not change when we visit strongly connected components of the function-reference graph in a different order.
+3. Alias-vs-inline equivalence invariant:
+   if `f = g` and `g` has body `E`, then replacing `f` by `E` (inline expansion) must produce the same canonical hash for `f`.
+4. Deterministic canonical text used for hashing:
+   converting a normalized function/type into canonical text must always produce exactly the same string, so hashing is stable.
 5. Filter normalization determinism.
 
 (`DOCS/HASHING.md` test vectors become mandatory Continuous Integration gates.)
 
-## 5. Registry API (v1)
+## 5. Registry API
 
-Base path: `/v1`
+## 5.1 Run transaction
 
-## 5.1 Evaluate transaction
-
-`POST /v1/evaluate`
+`POST /run`
 
 Request:
 
 ```json
 {
   "program": "k source code defining __main__",
-  "inEnc": { "kind": "json", "options": {} },
+  "inEnc": "kenc:json",
   "input": "...encoding-specific payload...",
-  "outEnc": { "kind": "json", "options": {} },
-  "dryRun": false,
-  "expect": {
-    "newEntitiesMax": 1000,
-    "timeMsMax": 2000
+  "outEnc": "kenc:json",
+  "gas": {
+    "limit": 1000000,
+    "policy": "abstract-gas; token-backing TBD"
   }
 }
 ```
+
+`inEnc` and `outEnc` are strings in the k-encoding-spec DSL (to be defined separately).
+Examples: `kenc:json`, `kenc:kvbf`, `kenc:protobuf:<schemaRef>`, `kenc:avro:<schemaRef>`.
+For Protobuf/Avro, `schemaRef` must point to an explicit adapter schema/mapping; there is no implicit field/tag inference.
 
 Response:
 
 ```json
 {
   "txId": "tx_01...",
-  "status": "applied",
   "result": "...encoded payload...",
-  "artifacts": {
-    "newTypes": ["@sha256:v1:..."],
-    "newFunctions": ["@sha256:v1:..."],
-    "referenced": ["@sha256:v1:..."]
+  "ids": {
+    "types": {
+      "bnat": "@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb",
+      "unit": "@NiDZqYggx3VZ6b8quBZKTfkgJztWctkesuX4CrhTxM5c"
+    },
+    "functions": {
+      "normalize": "@FfJRYapBGtCeyV56bs5ZbVtPHxGf5GNMzzyVFxtv7geg",
+      "__main__": "@Rk7h6m2Xq9vL5nP3tY8cJ4sD1wE0aBzNfUuQpM1kT2"
+    }
   },
   "metrics": {
     "parseMs": 6,
     "normalizeMs": 12,
-    "evalMs": 2
+    "evalMs": 2,
+    "gasUsed": 74210
   }
 }
 ```
 
-Status values:
-- `applied`
-- `rejected`
-- `dry-run`
+`ids.types` and `ids.functions` map all type/function definitions from `program` to canonical IDs.
 
-Common rejection reasons:
-- unknown `@hash` reference
-- normalization failure
-- type derivation/convergence failure
-- execution policy limit exceeded
+`txId` identifies the append-only transaction-log entry for provenance, audit, and later lookup (`/tx/{txId}`).
+If a deployment intentionally runs in stateless mode without a transaction log, `txId` may be omitted.
+
+Failure/error signaling is handled by a higher-level protocol layer (to be specified separately).
 
 ## 5.2 Entity lookup
 
-`GET /v1/entities/{id}`
+`GET /entities/{id}`
 
 Response:
 
 ```json
 {
-  "id": "@sha256:v1:...",
+  "id": "@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb",
   "kind": "type",
+  "headDefinition": "$ @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb = < @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb 0, @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb 1, @NiDZqYggx3VZ6b8quBZKTfkgJztWctkesuX4CrhTxM5c _ >;",
   "canonical": "$C0=<C0\"0\",C0\"1\",C1\"_\">;$C1={};",
-  "meta": {
-    "createdAt": "2026-03-04T12:00:00Z",
-    "firstSeenTx": "tx_01..."
-  }
+  "definedIn": [
+    {
+      "txId": "tx_01...",
+      "names": ["bnat", "binary_nat"]
+    },
+    {
+      "txId": "tx_09...",
+      "names": ["nat2"]
+    }
+  ]
 }
 ```
 
-Also provide kind-specific convenience endpoints:
-- `GET /v1/types/{id}`
-- `GET /v1/functions/{id}`
+Function response example:
+
+```json
+{
+  "id": "@FfJRYapBGtCeyV56bs5ZbVtPHxGf5GNMzzyVFxtv7geg",
+  "kind": "function",
+  "headDefinition": "normalize = ?(...) ... ;",
+  "inFilter": "?{ $@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb value, ... }",
+  "outFilter": "?{ $@NiDZqYggx3VZ6b8quBZKTfkgJztWctkesuX4CrhTxM5c value, ... }",
+  "canonical": "(normalized canonical function text)",
+  "definedIn": [
+    {
+      "txId": "tx_01...",
+      "names": ["normalize", "nf"]
+    },
+    {
+      "txId": "tx_0B...",
+      "names": ["normalize_v2_alias"]
+    }
+  ]
+}
+```
 
 ## 5.3 Function search
 
-`POST /v1/functions/search`
+`POST /functions/search`
 
 Request:
 
 ```json
 {
-  "inputType": "@sha256:v1:...",
-  "outputType": "@sha256:v1:...",
-  "mode": "exact"
+  "inFilter": "?{ $@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb value, ... }",
+  "outFilter": "?{ $@NiDZqYggx3VZ6b8quBZKTfkgJztWctkesuX4CrhTxM5c value, ... }"
 }
 ```
 
-Modes:
-- `exact`: exact input/output hash match.
-- `compatible`: includes registry-supported subtype/pattern compatibility when available.
+`inFilter` and `outFilter` are filter expressions (not only singleton type IDs).
 
-## 5.4 Value endpoints
+Value validation and re-encoding are expressed via `POST /run` (special cases), so there are no separate value endpoints.
 
-1. `POST /v1/values/validate`
-2. `POST /v1/values/reencode`
+## 5.4 Operational endpoints
 
-Request:
-
-```json
-{
-  "typeId": "@sha256:v1:...",
-  "inEnc": { "kind": "json", "options": {} },
-  "input": "...",
-  "outEnc": { "kind": "kvbf", "options": {} }
-}
-```
-
-Response:
-
-```json
-{
-  "ok": true,
-  "output": "...",
-  "canonicalDigest": "hex-32-byte-digest"
-}
-```
-
-## 5.5 Operational endpoints
-
-- `GET /v1/tx/{txId}`
-- `GET /v1/health`
-- `GET /v1/stats`
+- `GET /tx/{txId}`
+- `GET /health`
+- `GET /stats`
 
 ## 6. Persistence and Data Model
 
 Recommended implementation: append-only transaction log + indexed relational/KV projections.
+
+In simple terms:
+1. Keep a full history log of all requests/results (`tx_log`) as the source of truth.
+2. Keep indexed tables for fast lookup (`entity`, `function_sig`, `tx_entity`, `alias`).
+3. Rebuild indexed tables from `tx_log` when needed.
+4. Allow compaction of derived/indexed data, but not canonical entity identities.
 
 ## 6.1 Core tables
 
@@ -227,9 +231,7 @@ Recommended implementation: append-only transaction log + indexed relational/KV 
    - `id` (pk)
    - `kind` (`type` | `function`)
    - `canonical_text`
-   - `hash_algo`
-   - `hash_version`
-   - `digest_hex`
+   - `id_body` (hash body without `@`, optional denormalized field)
    - `first_seen_tx`
    - `created_at`
 
@@ -245,6 +247,7 @@ Recommended implementation: append-only transaction log + indexed relational/KV 
    - `tx_id` (fk)
    - `entity_id` (fk)
    - `action` (`introduced` | `referenced`)
+   - `names` (array/text list; all source-level names in that transaction that resolve to `entity_id`)
    - composite index `(entity_id, tx_id)`
 
 5. `alias`
@@ -255,7 +258,7 @@ Recommended implementation: append-only transaction log + indexed relational/KV 
 
 ## 6.2 Required indexes
 
-1. `entity(kind, digest_hex)`
+1. `entity(kind, id)`
 2. `function_sig(input_type_id, output_type_id)`
 3. `tx_entity(entity_id, tx_id desc)`
 4. `tx_log(received_at desc)`
@@ -272,11 +275,12 @@ Release `k-canonical-spec v1` only when all are complete:
 
 1. Type canonicalization is deterministic across platforms.
 2. Function normalization invariants in `DOCS/HASHING.md` are all automated.
-3. Hash id envelope (`algo`, `version`, `digest`) is implemented end-to-end.
+3. Current JS hash ID format (`@...` from `hash.mjs`) is frozen and covered by regression vectors.
 4. KVBF envelope and core bit semantics in `DOCS/KVBF.md` are frozen for v1.
 5. Adapter contract states:
    - canonical representation is independent of adapter choice;
    - adapter conversion failures are explicit and non-canonical.
+   - Protobuf/Avro mappings are explicit and deterministic (schema evolution rules are adapter-level, not canonical-level).
 6. Type-derivation fixed-point convergence check upgraded from string snapshots to graph-semantic convergence (`DOCS/CONVERGENCE.md` direction).
 7. Cross-implementation compatibility tests (interpreter vs compiler runtime) are green.
 
@@ -296,7 +300,7 @@ Exit criteria:
 ## Phase 1: Registry ingestion service (MVP)
 
 Deliverables:
-- `/v1/evaluate`, `/v1/entities/{id}`, `/v1/tx/{txId}`
+- `/run`, `/entities/{id}`, `/tx/{txId}`
 - persistence schema from Section 6
 - unknown-reference checks and provenance links
 
@@ -310,17 +314,18 @@ Deliverables:
 - JSON debug codec
 - KVBF canonical codec
 - Protobuf adapter (non-canonical transport)
+- Avro adapter (non-canonical transport)
 
 Exit criteria:
-- `validate`/`reencode` endpoints stable
-- adapter roundtrip tests and canonical digest checks pass
+- `run`-based validate/re-encode workflows stable
+- adapter roundtrip tests and canonical digest checks pass (including Protobuf and Avro reference vectors)
 
 ## Phase 3: Native compiler path
 
 Deliverables:
 - JS front-end (parse + type derivation + normalization export)
 - backend codegen pipeline (initial LLVM or equivalent)
-- runtime metadata loader keyed by type ids
+- runtime metadata loader keyed by type IDs
 
 Exit criteria:
 - compiled output matches interpreter for selected corpus
@@ -334,7 +339,7 @@ Deliverables:
 - client-side cache and lazy registry fetch
 
 Exit criteria:
-- same `@id` executable in multiple host environments
+- same `@...` ID executable in multiple host environments
 - no semantic drift in conformance suite
 
 ## 9. Educational Track (same semantics, no toy fork)
@@ -363,17 +368,18 @@ Teach programming, typing, and serialization through k while keeping 1:1 alignme
 4. Compilation
    - ABI mental model (`ok`, `value`)
    - IR and runtime mapping
+   - certified-fragment optimization proofs and explicit undecidability boundaries for global optimality
 
 ## 9.3 Required tools
 
 1. REPL with "explain derivation" mode for filters/pattern graph evolution.
 2. Visualizer for canonical type automata and serialized bit traces.
 3. Step evaluator showing where partial functions become undefined.
-4. Registry-backed exercise runner where solutions are shareable by hash id.
+4. Registry-backed exercise runner where solutions are shareable by hash ID.
 
 ## 10. Security and Execution Policy
 
-1. `evaluate` must run under deterministic resource limits (time, memory, recursion depth).
+1. `run` must execute under deterministic resource limits (time, memory, recursion depth).
 2. Payload must be pure k code; no embedded executable host-language snippets.
 3. Sign and store submission metadata (submitter, signature, timestamp).
 4. Enforce metering at API layer (quota/rate/fee policy), independent of content identity.
@@ -382,9 +388,9 @@ Teach programming, typing, and serialization through k while keeping 1:1 alignme
 
 1. Normalization drift between implementations.
    - Mitigation: shared conformance vectors + differential tests.
-2. Non-convergent or slow type derivation in recursive SCCs.
+2. Non-convergent or slow type derivation in mutually recursive function groups.
    - Mitigation: semantic convergence checks + divergence heuristics + bounded diagnostics.
-3. Adapter ambiguity (JSON/Proto mapping corner cases).
+3. Adapter ambiguity (JSON/Protobuf/Avro mapping corner cases).
    - Mitigation: explicit mapping specs and canonical digest comparison against KVBF.
 4. Polymorphic search explosion in function discovery.
    - Mitigation: start with exact hash index; add compatible search in staged manner.
@@ -392,15 +398,15 @@ Teach programming, typing, and serialization through k while keeping 1:1 alignme
 ## 12. First 6-Week Execution Plan
 
 Week 1-2:
-1. Freeze hash envelope and add Continuous Integration invariants from `DOCS/HASHING.md`.
+1. Freeze the current JS hash format and add Continuous Integration invariants from `DOCS/HASHING.md`.
 2. Implement semantic convergence detector skeleton in type derivation.
 
 Week 3-4:
-1. Build `/v1/evaluate` ingestion path with tx log and entity persistence.
+1. Build `/run` ingestion path with tx log and entity persistence.
 2. Add lookup APIs and provenance links.
 
 Week 5:
-1. Implement `validate` and `reencode` with JSON + KVBF.
+1. Implement validate/re-encode workflows via `run` with JSON + KVBF and Protobuf/Avro adapter mappings.
 2. Publish adapter conformance tests.
 
 Week 6:
@@ -411,16 +417,18 @@ Week 6:
 
 All conditions must hold:
 
-1. Canonical id format with versioned hash is enforced.
+1. Canonical ID format is the current JS `@...` format and is enforced by regression tests.
 2. Ingestion and lookup APIs are stable and documented.
 3. Transaction log can rebuild registry projections.
-4. JSON and KVBF validation/re-encoding works for reference type corpus.
+4. JSON, KVBF, Protobuf, and Avro validation/re-encoding mappings are specified; conformance vectors pass for the reference type corpus.
 5. Conformance suite passes across at least two execution paths.
 6. Educational tools consume the same canonical/type-derivation artifacts as runtime/compiler.
 
 ## 14. Open Decisions
 
-1. Final canonical hash algorithm selection (`sha256` vs alternatives), while preserving version envelope.
-2. KVBF back-reference id encoding choice (ULEB128 vs native bnat).
-3. Function search semantics for polymorphic compatibility ranking.
-4. Execution model for untrusted `evaluate` workloads (sandbox profile and limits).
+1. Whether to introduce a new ID envelope format in the future (explicitly deferred for v1).
+2. KVBF back-reference ID encoding choice (ULEB128 vs native bnat).
+3. Protobuf and Avro adapter mapping policy (required annotations, evolution constraints, unknown-field behavior).
+4. Function search semantics for polymorphic compatibility ranking.
+5. Execution model for untrusted `run` workloads (sandbox profile and limits).
+6. Precise definition of the certified decidable optimization fragment(s) and proof artifact format.
