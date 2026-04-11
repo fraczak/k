@@ -1,39 +1,11 @@
 import { Graph } from "./Graph.mjs";
-import codes from "./codes.mjs";
-
-const unitCode = codes.unitCode;
+import { unify_two_patterns } from "./unification.mjs";
+import { getCompressed } from "./compression.mjs";
+import { TypePatternForest } from "./TypeGraph.mjs";
 
 function asSet(vector) { 
   return Array.from(new Set(vector));
 };
-
-function setUnion(...vectors) {
-  const unionSet = new Set();
-  for (const v of vectors) {
-    for (const element of v) {
-      unionSet.add(element);
-    }
-  }
-  return Array.from(unionSet);
-}
-
-function subsetP(v1,v2) {
-  const v2Set = new Set(v2);
-  return v1.every(x => v2Set.has(x));
-}
-
-function eqsetP(v1,v2) {
-  const v1Set = new Set(v1);
-  const v2Set = new Set(v2);
-  if (v1Set.size != v2Set.size) return false;
-
-  for (const value of v1Set) {
-    if (!v2Set.has(value)) {
-      return false;
-    }
-  }
-  return true;
-}
 
 const matchAllPattern = {pattern: '(...)', fields: []};
 /*
@@ -53,56 +25,14 @@ e.g.:
 {pattern: 'type', type: code_name}
 */
 
-class TypePatternForest {
-  constructor() {
-    this.nodes = [];
-    this.parent = [];
-  }
-
-  // Find the root of the set containing `x`
-  find(x) {
-    if (this.nodes[x] == undefined) 
-      throw new Error(`Node of id='${x}' not found in the forest`);
-    let result = x;
-    let parent = this.parent[result];
-    while (parent != undefined) {
-      parent = this.parent[result = parent];
-      if (parent == result) {
-        console.log("Can happen a loop in the forest? It shouldn't!");
-        break;
-      }
-        
-    }
-    return result;
-  }
-
-  addChildren(parentId, childrenIds) {
-    const parent = this.find(parentId);
-    childrenIds.forEach(childId => {
-      const child = this.find(childId);
-      if (this.nodes[child].pattern != 'type')
-        this.parent[child] = parent;
-    });
-  }
-
-  addNewNode(flatTypePattern, children = []) {
-    const that = this;
-    const id = this.nodes.length;
-    // const node = {...flatTypePattern, _id: id};
-    const node = {...flatTypePattern}
-    that.nodes.push(node);
-    Array.from(new Set(children.map(that.find.bind(that))))
-    .forEach(rep => {that.parent[rep] = id});
-    return id;
-  }
-}
-
 class TypePatternGraph {
-  constructor() {
+  constructor(registerCodeDef, findCode) {
     this.patterns = new TypePatternForest();
     this.edges = []; // an edge at index i is a map {lab: asMapSet([i1,...]), ...}
                      // representing `patterns.node[i] --[lab]--> {i1:i1,...}, ...
     this.codeId = { }; // type-name -> index
+    this.registerCodeDef = registerCodeDef;
+    this.findCode = findCode;
   }
 
   turnSingletonPatternsIntoCodes() {
@@ -136,7 +66,7 @@ class TypePatternGraph {
       }
     } 
     //        - add them all to 'codes'
-    const representatives  = codes.register(newCodeDefs);
+    const representatives  = this.registerCodeDef(newCodeDefs);
 
     for( const id of singletonPatterns) {
       this.unify('singleton', id, this.getTypeId(representatives[`-${id}-`]));
@@ -186,137 +116,7 @@ class TypePatternGraph {
   }
 
   getCompressed() {
-    const newTypePatternGraph = new TypePatternGraph();
-    const renamed = this.cloneAll(newTypePatternGraph);
-
-    newTypePatternGraph.turnSingletonPatternsIntoCodes();
-
-    Object.keys(renamed).forEach( id => {
-      renamed[id] = newTypePatternGraph.find(renamed[id]);
-    });
-
-    // console.log("newTypePatternGraph", newTypePatternGraph);
-    // console.log("nodes", newTypePatternGraph.patterns.nodes);
-    // console.log("edges", newTypePatternGraph.edges);
-
-    const rootPatternIds = newTypePatternGraph.patterns.nodes.map((x,i) => i)
-    .filter(x => newTypePatternGraph.find(x) == x);
-
-    // console.log("rootPatternIds", rootPatternIds);
-
-    const equivalence = rootPatternIds.reduce( (equivalence,i) => {
-      const pattern = newTypePatternGraph.get_pattern(i);
-      switch (pattern.pattern) {
-        case 'type':
-        case '(...)':
-        case '{...}':
-        case '<...>':
-          equivalence.push([i]);
-          break; 
-        default:
-          equivalence[0].push(i);
-      };
-      return equivalence;
-    }, [[]]).filter(x => x.length > 0);
-
-    const reps = equivalence.reduce( (reps,eqClass) => {
-      eqClass.forEach( x => reps[x] = eqClass);
-      return reps;
-    }, {});
-    
-    // console.log("equivalence", equivalence);
-
-    let count = 0;
-    const areDifferent = (i1,i2) => {
-      count++;
-      const p1 = newTypePatternGraph.get_pattern(i1);
-      const p2 = newTypePatternGraph.get_pattern(i2);
-      if (p1.pattern != p2.pattern) return true;
-      const e1 = newTypePatternGraph.edges[i1];
-      const e2 = newTypePatternGraph.edges[i2];
-      if (Object.keys(e1).length != Object.keys(e2).length) return true;
-      for (const lab in e1) {
-        if (e2[lab] == undefined) return true;
-        const dests1 = Object.values(e1[lab])[0];
-        const dests2 = Object.values(e2[lab])[0];
-        if (reps[dests1] != reps[dests2]) return true;
-      }
-      return false;
-    }
-    let changed = true;
-    let count2 = 0;
-    while (changed) {
-      count2++;
-      changed = false;
-      const equivalenceSize = equivalence.length;
-      for (let eqClassPos = 0; eqClassPos < equivalenceSize; eqClassPos++) {
-        const eqClass = equivalence[eqClassPos];
-        const oldClass = [eqClass[0]];
-        const newClass = [];
-        for (let i = 1; i < eqClass.length; i++) {
-          if (areDifferent(oldClass[0],eqClass[i])) {
-            newClass.push(eqClass[i]);
-          } else {
-            oldClass.push(eqClass[i]);
-          }
-        }
-        if (newClass.length > 0) {
-          changed = true;
-          equivalence.push(newClass);
-          equivalence[eqClassPos] = oldClass;
-          for (const i of newClass) {
-            reps[i] = newClass;
-          }
-          for (const i of oldClass) {
-            reps[i] = oldClass;
-          }
-        }
-      }
-    }
-
-    // console.log("equivalence (final)", equivalence);
-    // console.log("reps", reps);
-
-    const compressedTypePatternGraph = new TypePatternGraph();
-    const newIds = {};
-    for (const eqClass of equivalence) {
-      // console.log("eqClass", eqClass);
-      const oldId = eqClass[0];
-      const pattern = newTypePatternGraph.get_pattern(oldId);
-      const newId = (() => {
-        if (pattern.pattern == 'type') return compressedTypePatternGraph.getTypeId(pattern.type);
-        return compressedTypePatternGraph.patterns.addNewNode(pattern);
-      })();
-      newIds[oldId] = newId;
-    }
-    for (const oldId in newIds) {
-      const newId = newIds[oldId];
-      const pattern = newTypePatternGraph.get_pattern(oldId);
-      // const newPattern = compressedTypePatternGraph.get_pattern(newId);
-      // console.log("patterns", pattern, newPattern);
-      if (pattern.pattern == 'type') 
-        continue;
-      const edges = newTypePatternGraph.edges[oldId];
-      // console.log("edges", edges);
-      compressedTypePatternGraph.edges[newId] = {};
-      for (const lab in edges) {
-        // console.log("edges[lab]", edges[lab]);
-        compressedTypePatternGraph.edges[newId][lab] = asSet(edges[lab].map(x => 
-          newIds[reps[newTypePatternGraph.find(x)][0]]));
-      }
-    }
-
-    const remapping = Object.keys(renamed).reduce( (remapping,id) => {
-      return {...remapping, [id]: newIds[ reps[renamed[id]][0] ]};
-    }, {});
-    
-    // console.log("remapping", remapping);
-    // console.log("compressedTypePatternGraph", compressedTypePatternGraph);
-    // console.log("nodes", compressedTypePatternGraph.patterns.nodes);
-    // console.log("edges", compressedTypePatternGraph.edges);
-    // console.log("--------------------")
-
-    return {typePatternGraph: compressedTypePatternGraph, remapping};
+    return getCompressed(this);
   }
 
   clone(roots,targetGraph = this) { 
@@ -361,171 +161,9 @@ class TypePatternGraph {
     return this.clone(this.patterns.nodes.map((x,i) => i), targetGraph);
   }
 
-  unify_two_patterns(p1, p2) {
-    // console.log(`unify_two_patterns(${JSON.stringify(p1)}, ${JSON.stringify(p2)})`);
-    switch (p1.pattern) {
-      case '(...)':
-        switch (p2.pattern) {
-          case '(...)':
-            return {...p2, fields: setUnion(p1.fields, p2.fields)};
-          case '{...}':
-            return {...p2, fields: setUnion(p1.fields, p2.fields)};
-          case '<...>':
-            return {...p2, fields: setUnion(p1.fields, p2.fields)};
-          case '()':
-            if (subsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify (${p1.fields},...) with (${p2.fields})`);
-          case '{}':
-            if (subsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify (${p1.fields},...) with {${p2.fields}}`);
-          case '<>':
-            if (subsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify (${p1.fields},...) with <${p2.fields}>`);
-          case 'type': {
-              const code = codes.find(p2.type);
-              // console.log(JSON.stringify({p1,p2,code}));
-              switch (code.code) {
-                case 'product':
-                case 'union': {
-                  let p2_fields = Object.keys(code[code.code]);
-                  if (subsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
-                }; break;
-              }
-              throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
-            }
-          } ;
-        break;
-      case '{...}':
-        switch (p2.pattern) {
-          case '{...}':
-            return {...p2, fields: setUnion(p1.fields, p2.fields)};
-          case '<...>':
-            throw new Error('Cannot unify {...} with <...>');
-          case '()':
-            if (subsetP(p1.fields, p2.fields))
-              return {pattern: '{}', fields: p2.fields};
-          case '{}':
-            if (subsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify {${p1.fields},...} with {${p2.fields}}`);
-          case '<>':
-            throw new Error('Cannot unify {...} with <>');
-          case 'type': {
-            const code = codes.find(p2.type);
-            switch (code.code) {
-              case 'product':{
-                let p2_fields = Object.keys(code[code.code]);
-                if (subsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
-              };
-            }
-            throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
-          }
-        };
-        break;
-      case '<...>':
-        switch (p2.pattern) {
-          case '<...>':
-            return {pattern: '<...>', fields: setUnion(p1.fields, p2.fields)};
-          case '()':
-            if (subsetP(p1.fields, p2.fields))
-              return {pattern: '<>', fields: p2.fields};
-            throw new Error(`Cannot unify <${p1.fields},...> with (${p2.fields})`);
-          case '{}':
-            throw new Error('Cannot unify <...> with {}');
-          case '<>':
-            if (subsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify <${p1.fields},...> with <${p2.fields}>`);
-          case 'type':{
-            const code = codes.find(p2.type);
-            switch (code.code) {
-              
-              case 'union': {
-                let p2_fields = Object.keys(code[code.code]);
-                if (subsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
-              }
-            }
-            throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
-          };
-        }; 
-        break;
-      case '()': // Pattern '()' can be introduced by filter e.g., ?(X x, Y x)
-        switch (p2.pattern) {
-          case '()':
-            if (eqsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify (${p1.fields}) with (${p2.fields})`);
-          case '{}':
-            if (eqsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify (${p1.fields}) with {${p2.fields}}`);
-
-          case '<>':
-            if (eqsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify (${p1.fields}) with <${p2.fields}>`);
-          case 'type':{
-            const code = codes.find(p2.type);
-            switch (code.code) {
-              
-              case 'product':
-              case 'union': {
-                let p2_fields = Object.keys(code[code.code]);
-                if (eqsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
-              }; break;
-              
-            }
-            throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
-          };
-        };
-        break;
-      
-      case '{}':
-        switch (p2.pattern) {
-          case '{}':
-            if (eqsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify {${p1.fields}} with {${p2.fields}}`);
-          case '<>':
-            throw new Error('Cannot unify {} with <>');
-          case 'type': {
-            const code = codes.find(p2.type);
-            switch (code.code) {
-              case 'product':{
-                let p2_fields = Object.keys(code[code.code]);
-                if (eqsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
-              };
-            }
-            throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
-          }
-        };
-        break;
-      case '<>':
-        switch (p2.pattern) {
-          case '<>':
-            if (eqsetP(p1.fields, p2.fields)) return p2;
-            throw new Error(`Cannot unify <${p1.fields}> with <${p2.fields}>`);
-          case 'type': {
-            const code = codes.find(p2.type);
-            switch (code.code) {
-              case 'union':{
-                let p2_fields = Object.keys(code[code.code]);
-                if (eqsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
-              };
-            }
-            throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
-          }
-        };
-        break;
-      case 'type':
-        switch (p2.pattern) {
-          case 'type': 
-            if (p1.type != p2.type)
-              throw new Error(`Cannot unify different types: ${p1.type}:${codes.find(p1.type).def} and ${p2.type}:${codes.find(p2.type).def}`);
-            return p2;
-        };
-        break;
-    }
-    return this.unify_two_patterns(p2, p1);
-  }  
-
   unify_patterns(...patterns) {  
-    const unify_two_patterns = this.unify_two_patterns.bind(this);
-    return patterns.reduce(unify_two_patterns, {pattern: '(...)', fields: []});
+    const unifyFn = unify_two_patterns.bind(null, this.findCode);
+    return patterns.reduce(unifyFn, {pattern: '(...)', fields: []});
   }
 
   unify(rule, ...ids) {
@@ -584,7 +222,7 @@ class TypePatternGraph {
   getTypeId(type) {
     if (type == undefined) throw new Error("code name cannot be 'undefined'! "); //TODO: remove after testing
     if ( this.codeId[type] == undefined ) {
-      const code = codes.find(type);
+      const code = this.findCode(type);
       if (code == undefined)
         throw new Error(`Type '${type}' is not defined in codes.`);
       const typeId = this.patterns.addNewNode({pattern: 'type', type: type});

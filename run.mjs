@@ -1,8 +1,5 @@
 import assert from "assert";
-import { find } from "./codes.mjs";
 import { Product, Variant } from "./Value.mjs"
-
-
 
 const builtin = {
   "_log!": (arg) => {
@@ -14,10 +11,10 @@ const builtin = {
 
 const codes = { };
 
-function verify(code, value) {
+function verify(findCode, code, value) {
   "use strict";
   if (code == null) return false;
-  code = find(code);
+  code = findCode(code);
   switch (code.code) {
     case "product":
       if (! (value instanceof Product)) return false;
@@ -25,7 +22,7 @@ function verify(code, value) {
         const fields = Object.keys(value.product);
         if (fields.length !== Object.keys(code.product).length) return false;
         return fields.every((label) =>
-          verify(code.product[label], value.product[label])
+          verify(findCode, code.product[label], value.product[label])
         );
       }
     case "union":
@@ -33,21 +30,21 @@ function verify(code, value) {
       else {
         const fields = Object.keys(value.product);
         if (fields.length !== 1) return false;
-        return verify(code.union[fields[0]], value.product[fields[0]]);
+        return verify(findCode, code.union[fields[0]], value.product[fields[0]]);
       }
     default: 
       return codes[code.code](value);
   }
 }
 
-function run(exp, value) {
+function run(findCode, exp, value) {
   // console.log("RUN", JSON.stringify({exp, value}, null, 2));
   "use strict";
   if (value === undefined) return;
   while (true) {    
     switch (exp.op) {
       case "code":
-        if (verify(exp.code, value)) {
+        if (verify(findCode, exp.code, value)) {
           return value;
         }
         return;
@@ -72,7 +69,7 @@ function run(exp, value) {
         return
       case "comp":
         for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
-          const result = run(exp.comp[i], value);
+          const result = run(findCode, exp.comp[i], value);
           if (result === undefined) return;
           value = result;
         }
@@ -81,7 +78,7 @@ function run(exp, value) {
       case "union":
         if (exp.union.length === 0) return;
         for (let i = 0, len = exp.union.length -1; i < len; i++) {
-          const result = run(exp.union[i], value);
+          const result = run(findCode, exp.union[i], value);
           if (result !== undefined) {
             return result;
           }
@@ -91,11 +88,10 @@ function run(exp, value) {
     
       case "product": {
         let result = {};
-        let open = false;
         let len = exp.product.length;
         for (let i = 0; i < len; i++) {
           const { label, exp: e } = exp.product[i];
-          const r = run(e, value);
+          const r = run(findCode, e, value);
           if (r === undefined) return;
           result[label] = r;
         }

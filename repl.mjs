@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import readline from "node:readline";
 import fs from "node:fs";
+import { stdin, stdout, exit } from "node:process";
 
 import k from "./index.mjs";
-import {run } from "./run.mjs";
+import { run } from "./run.mjs";
 import { prettyCode, prettyRel, patterns2filters } from "./pretty.mjs";
 import { find } from "./codes.mjs";
 import { exportRelation } from "./export.mjs";
@@ -36,8 +37,8 @@ const re__R = /^[ \n\t]*(?:--R[ ]+)(.+)[ ]*?$/;
 const re__C = /^[ \n\t]*(?:--C[ ]+)(.+)[ ]*?$/;
 
 const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
+  input: stdin,
+  output: stdout,
   prompt: '> '
 });
 
@@ -48,7 +49,7 @@ rl.on('line', (line) => {
   rl.prompt();
 }).on('close', () => {
   console.log('REPL closed');
-  process.exit(0);
+  exit(0);
 });
 
 let old_val = k.compile("{}")({});
@@ -93,7 +94,7 @@ function evaluate(line) {
       // --l 
       const file = line.match(re__l)[1];
       console.log(`  ... loading file: ${file} ...`);
-      const kScript = fs.readFileSync(file).toString();
+      const kScript = fs.readFileSync(file, "utf8");
       console.log(`  Done!`);
       // console.log(kScript);
       val = k.compile("~" + kScript + "\n()")(val);
@@ -129,6 +130,7 @@ function evaluate(line) {
             if (codeName == codeRep) {
               result[codeName] = prettyCode(
                 defs.representatives,
+                find,
                 find(codeRep)
               );
             } else if (! codeName.startsWith(":")) {
@@ -150,7 +152,7 @@ function evaluate(line) {
       if (codeExp.def == "builtin") {
         return console.log(` $ ${canonicalName} = :builtin;`);
       }
-      console.log(` $ ${canonicalName} = ${prettyCode(run.defs.representatives, codeExp)}; -- ${codeExp.def}`);
+      console.log(` $ ${canonicalName} = ${prettyCode(run.defs.representatives, find, codeExp)}; -- ${codeExp.def}`);
       // --pp
     } else if (line.match(/^[ \n\t]*(?:--pp)?$/)) {
       console.log(val);

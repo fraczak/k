@@ -1,6 +1,5 @@
-
+import hash from "./hash.mjs";
 import { prettyRel, patterns2filters } from "./pretty.mjs";
-import { hash } from "./hash.mjs";
 
 function logNormalized(label, value, hashValue) {
   if (process.env.K_DUMP_NORMALIZED) {
@@ -12,7 +11,7 @@ function logNormalized(label, value, hashValue) {
   }
 }
 
-function simplifyRel(relDef,rels) {
+export function simplifyRel(relDef,rels) {
   // remove filters and codes
   const prune = (rel) => {
     const newRel = {...rel};
@@ -70,7 +69,6 @@ function simplifyRel(relDef,rels) {
   };
 };
 
-
 function theID(alias, rel, scc, name) {
   const sccNames = new Set(scc);
   const auxNames = {[name]: "X0"};
@@ -112,7 +110,7 @@ function theID(alias, rel, scc, name) {
   return newName;
 };
 
-function assignCanonicalNames(scc, rels, relAlias) {
+export function assignCanonicalNames(scc, rels, relAlias) {
   const newAlias = scc.reduce( (newAlias,relName) => {
     const relDef = rels[relName];
     if (relDef.def.op == "ref" && rels[relDef.def.ref] != undefined) {
@@ -137,7 +135,7 @@ function assignCanonicalNames(scc, rels, relAlias) {
   };  
 }
 
-function exportRelation(rels, alias, name) {
+export function exportRelation(rels, alias, name) {
   const queue = [name];
   const inQueue = { [name]: true };
   const result = {};
@@ -175,6 +173,3 @@ function exportRelation(rels, alias, name) {
   }
   return result;
 }
-
-export default { assignCanonicalNames, exportRelation };
-export { assignCanonicalNames, exportRelation };

@@ -2,22 +2,22 @@
 // !/usr/bin/node --stack-size=8000
 
 import fs from "node:fs";
+import { argv, stdin, exit } from "node:process";
 import k from "./index.mjs";
 import { parse } from "./valueParser.mjs";
 
-const prog = process.argv[1];
+const prog = argv[1];
 
 let kScript, jsonStream, oneJson;
 
 ({ kScript, jsonStream, oneJson } = ((oneJson, args) => {
-  let e;
   try {
     let kScriptStr = (function (arg) {
       if (arg == null) {
-        throw new Error();
+        throw new Error("Missing script argument");
       }
       if (arg === "-k") {
-        return fs.readFileSync(args.shift()).toString("utf8");
+        return fs.readFileSync(args.shift(), "utf8");
       } else {
         return arg;
       }
@@ -29,19 +29,18 @@ let kScript, jsonStream, oneJson;
         arg = args.shift();
       }
       if (arg == null) {
-        return process.stdin;
+        return stdin;
       }
       return fs.createReadStream(arg);
     })(args.shift());
     return { kScript, jsonStream, oneJson };
   } catch (error) {
-    e = error;
-    console.error(e);
+    console.error(error);
     console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ -1 ] [ json-file ]`);
-    console.error(`       E.g.,  echo '{\"a\": {}}' | ${prog} '{() x,() y}'`);
-    return process.exit(-1);
+    console.error(`       E.g.,  echo '{"a": {}}' | ${prog} '{() x,() y}'`);
+    return exit(-1);
   }
-})(false, process.argv.slice(2)));
+})(false, argv.slice(2)));
 
 if (oneJson) {
   const buffer = [];
@@ -62,19 +61,19 @@ if (oneJson) {
 } else {
   let buffer = [];
   let line = 0;
+  jsonStream.setEncoding('utf8');
   jsonStream.on("data", (data) => {
-    const [first, ...rest] = data.toString("utf8").split("\n");
+    const [first, ...rest] = data.split("\n");
     buffer.push(first);
     if (rest.length > 0) {
       const todo = buffer.join("");
       const last = rest.pop();
-      buffer = [last];;
+      buffer = [last];
       for (const exp of [todo, ...rest]) {
         if (!exp.match(/^[ \n\t]*(?:#.*)?$/)) {
           try {
-            let b = exp;
-            // console.log(b);
-            let r = parse(b);
+            // console.log(exp);
+            let r = parse(exp);
             // console.log(r);
             let result = kScript(r);
             console.log(JSON.stringify(result));

@@ -1,4 +1,3 @@
-import { find } from "./codes.mjs";
 import { TypePatternGraph } from "./typing.mjs";
 
 // const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
@@ -10,11 +9,11 @@ function pLabel(label) {
   return nameRE.test(label) ? `${label}` : `${JSON.stringify(label)}`;
 }
 
-function prettyCode_labels (representatives, label_ref_map) {
+function prettyCode_labels (representatives, findCode, label_ref_map) {
   return Object.keys(label_ref_map)
     .sort()
     .map( (label) => {
-      return `${prettyCode(representatives, {
+      return `${prettyCode(representatives, findCode, {
         code: "ref",
         ref: label_ref_map[label],
       })}${pLabel_(label)}`;
@@ -22,19 +21,19 @@ function prettyCode_labels (representatives, label_ref_map) {
     .join(", ");
 };
 
-function prettyCode (representatives, codeExp) {
+function prettyCode (representatives, findCode, codeExp) {
   switch (codeExp.code) {
     case "ref":
       const name = representatives[codeExp.ref] || codeExp.ref;
       if (name.startsWith(":")) {
-        return prettyCode(representatives, find(name));
+        return prettyCode(representatives, findCode, findCode(name));
       } else {
         return name;
       }
     case "product":
-      return `{${prettyCode_labels(representatives, codeExp.product)}}`;
+      return `{${prettyCode_labels(representatives, findCode, codeExp.product)}}`;
     case "union":
-      return `< ${prettyCode_labels(representatives, codeExp.union)} >`;
+      return `< ${prettyCode_labels(representatives, findCode, codeExp.union)} >`;
     default:
       return ":error";
   }
@@ -104,7 +103,7 @@ function prettyRel (exp) {
 
 
 function patterns2filters(typePatternGraph, ...patternIds) {
-  const newTypePatternGraph = new TypePatternGraph();
+  const newTypePatternGraph = new TypePatternGraph(typePatternGraph.registerCodeDef, typePatternGraph.findCode);
   const renamed = typePatternGraph.clone(patternIds, newTypePatternGraph);
   const newPatternIds = patternIds.map((id) => newTypePatternGraph.find(renamed[id]));
 

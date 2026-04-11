@@ -1,13 +1,13 @@
 import { parse } from "./parser.mjs";
 import { Value, fromObject } from "./Value.mjs";
 import { parse as parseValue } from "./valueParser.mjs";
-import { patterns } from "./patterns.mjs";
+import { compileTypes } from "./compiler.mjs";
 import run from "./run.mjs";
-import t from "./codes.mjs";
+import codes from "./codes.mjs";
 
 function compile(script) {
   run.defs = annotate(script);
-  return run.bind(null, run.defs.rels.__main__.def);
+  return run.bind(null, codes.find, run.defs.rels.__main__.def);
 }
 
 compile.doc = "Transforms k-script (string) into a function";
@@ -28,12 +28,12 @@ runScriptOnData.doc = "Run 'script' (string) on 'data': (script,data) -> data";
 
 function annotate(script) {
   const { defs, exp } = parse(script);
-  //const { codes, representatives } = t.finalize(defs.codes);
+  //const { codes, representatives } = codes.finalize(defs.codes);
 
-  const representatives = t.register(defs.codes);
+  const representatives = codes.register(defs.codes);
   const rels = {...defs.rels, "__main__": {def: exp}};
 
-  const relAlias = patterns(representatives, rels);
+  const relAlias = compileTypes(representatives, rels);
  
   return {rels, representatives, relAlias};
 }
