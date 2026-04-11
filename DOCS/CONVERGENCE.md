@@ -1,120 +1,92 @@
-# Pattern Graph Convergence Detection
+# Convergence Strategies
 
-## Objective
+This note describes the current structure of the JavaScript type-derivation engine and the places intended for experimentation.
 
-Develop an algorithm to determine when pattern graphs have reached semantic equivalence during fixed-point iteration, replacing the current flawed serialization-based approach.
+## Current default
 
-## Problem Statement
+Type derivation operates on the SCC DAG of relation dependencies.
 
-Current approach uses `relDefToString()` serialization which:
-- Only captures partial graph state
-- Misses structural changes that don't affect serialization
-- Fails to detect true convergence (e.g., `bnat.k` examples)
-- Cannot detect divergence patterns
+- Singleton SCC with no self-reference:
+  - use `single_pass`
+  - clone already-derived callee boundary patterns once
+  - compact once
+- Recursive SCC:
+  - use `fixed_point`
+  - iterate until signatures stabilize or the iteration budget is exhausted
 
-## Semantic Equivalence Definition
+This split keeps acyclic modules fast while preserving the old behavior for recursive polymorphic definitions.
 
-Two pattern graphs G₁ and G₂ are semantically equivalent if:
-1. **Bisimilar structure**: Same reachable pattern relationships
-2. **Equivalent constraints**: Same type constraints at corresponding nodes
-3. **Identical edge semantics**: Same field/tag relationships
+## Public tuning hook
 
-## Approach 1: Graph Isomorphism with Canonical Forms
+`annotate`, `compile`, and `run` accept:
 
-**Idea**: Compute canonical representation of pattern graph structure
-
-**Algorithm**:
-```text
-canonical_form(graph):
-  1. Build quotient graph on representatives only
-  2. Compute canonical node ordering (e.g., by pattern signature)
-  3. Generate canonical adjacency representation
-  4. Include pattern descriptors in canonical order
+```js
+{
+  convergence: {
+    strategy: "auto" | "single_pass" | "fixed_point",
+    maxIterations?: number
+  }
+}
 ```
 
-**Pros**: Mathematically sound, detects true equivalence
-**Cons**: Potentially expensive for large graphs
+The returned `annotate(...)` object includes:
 
-## Approach 2: Incremental Change Detection
-
-**Idea**: Track what actually changes during unification
-
-**Algorithm**:
-```text
-track_changes(before_unify, after_unify):
-  1. Record new unifications performed
-  2. Track edge additions/modifications
-  3. Monitor pattern descriptor changes
-  4. Converged = no changes recorded
+```js
+{
+  compileStats: {
+    sccCount,
+    sccs: [
+      {
+        members: ["relA", "relB"],
+        strategy: "fixed_point",
+        iterations: 3,
+        converged: true
+      }
+    ]
+  }
+}
 ```
 
-**Pros**: Efficient, directly tracks meaningful changes
-**Cons**: Requires careful change tracking implementation
+This is the supported inspection surface for convergence experiments.
 
-## Approach 3: Fixpoint Witnesses
+## Why the current fast path works
 
-**Idea**: Maintain "witness" patterns that must stabilize for convergence
+For an acyclic singleton SCC, every callee has already been fully derived by the time the current relation is processed. There is no need for repeated fixed-point propagation because:
 
-**Algorithm**:
-```text
-witness_convergence(scc_functions):
-  1. Identify key patterns: function inputs/outputs, recursive call sites
-  2. Track witness pattern evolution across iterations
-  3. Converged = all witnesses unchanged
-```
+1. Callee boundary patterns are stable.
+2. The current relation only needs those stable input/output boundaries.
+3. One propagation pass plus one compaction is sufficient.
 
-**Pros**: Focuses on semantically important patterns
-**Cons**: May miss subtle but important changes
+`Examples/ieee.k` is exactly this shape: a large acyclic dependency graph. The major speedup comes from avoiding unnecessary fixed-point iteration there.
 
-## Divergence Detection
+## Current implementation choices
 
-**Objective**: Detect when iteration will not converge within reasonable bounds
+Two implementation changes matter for performance:
 
-**Indicators**:
-1. **Pattern growth**: Unbounded increase in pattern complexity
-2. **Cycle detection**: Repeating states with systematic changes
-3. **Constraint accumulation**: Ever-growing constraint sets
+1. Compaction now starts from the quotient graph of live representatives instead of cloning the full historical union-find forest.
+2. Singleton-pattern registration is incremental and no longer re-finalizes the entire global code repository on every compaction.
 
-**Algorithm**:
-```text
-detect_divergence():
-  1. Track pattern graph "size" metrics over iterations
-  2. Detect periodic behavior in graph evolution
-  3. Monitor constraint complexity growth
-  4. Trigger early termination with partial results
-```
+These two changes are what make `Examples/ieee.k` practical to type-check.
 
-## Recommended Hybrid Approach
+## Where to experiment next
 
-**Phase 1**: Incremental change detection (fast path)
-**Phase 2**: Canonical form comparison (when changes detected)
-**Phase 3**: Divergence detection (after N iterations)
+If you want to continue convergence work, these are the main seams:
 
-```text
-convergence_check(prev_graph, curr_graph, iteration):
-  if no_tracked_changes():
-    return CONVERGED
-  
-  if iteration > DIVERGENCE_THRESHOLD:
-    if detect_divergence_pattern():
-      return DIVERGED
-  
-  if canonical_form(prev_graph) == canonical_form(curr_graph):
-    return CONVERGED
-  
-  return CONTINUE
-```
+- `convergence.mjs`
+  - strategy selection
+  - recursive SCC processing
+  - future divergence detection
+- `compression.mjs`
+  - quotient-graph construction
+  - equivalence partitioning
+  - alternative canonicalization schemes
+- `typing.mjs`
+  - clone/unify behavior
+  - pattern-graph data structure
 
-## Implementation Priorities
+Promising next experiments:
 
-1. **Canonical form computation** for pattern graphs
-2. **Change tracking** during unification operations  
-3. **Divergence metrics** and pattern detection
-4. **Graceful degradation** when convergence fails
-
-## Success Criteria
-
-- Correctly detect convergence in `bnat.k` examples
-- Identify divergence cases early
-- Maintain performance for typical cases
-- Provide meaningful diagnostics for non-convergent cases
+- Replace signature-string stabilization in `fixed_point` with structural change tracking.
+- Add divergence heuristics for recursive polymorphic SCCs.
+- Cache cloned callee boundary graphs for repeated call sites within one relation.
+- Compare the current partition refinement in `compression.mjs` with a hash-consed canonical-form approach.

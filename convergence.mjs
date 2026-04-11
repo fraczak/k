@@ -47,17 +47,17 @@ export function compactRel(relDef, name = "") {
 
   const {typePatternGraph : newTypePatternGraph, remapping: renumbering}  = typePatternGraph.getCompressed();
 
-  const copyRel = (rel) => {
-    const newRel = {...rel, patterns:[renumbering[rel.patterns[0]], renumbering[rel.patterns[1]]]};
+  const remapRel = (rel) => {
+    rel.patterns = [renumbering[rel.patterns[0]], renumbering[rel.patterns[1]]];
     switch (rel.op) {
       case "product":
-        newRel.product = rel.product.map(({label, exp}) => ({label, exp: copyRel(exp)}));
+        rel.product.forEach(({ exp }) => remapRel(exp));
         break;
       case "union":
-        newRel.union = rel.union.map(exp => copyRel(exp));
+        rel.union.forEach(exp => remapRel(exp));
         break;
       case "comp":
-        newRel.comp = rel.comp.map(exp => copyRel(exp));
+        rel.comp.forEach(exp => remapRel(exp));
         break;
       case "ref":
       case "identity":
@@ -71,27 +71,81 @@ export function compactRel(relDef, name = "") {
         console.error("NOT EXPECTED OP:", JSON.stringify(rel, null, 2));
         break;
     };
-    return newRel;
   };
-  const newDef = copyRel(def);
-  const newVarRefs = varRefs.map(x => ({
-    ...x,
-    inputPatternId: renumbering[x.inputPatternId],
-    outputPatternId: renumbering[x.outputPatternId]
-  }));;
+  remapRel(def);
+  const newVarRefs = varRefs.map(x => {
+    x.inputPatternId = renumbering[x.inputPatternId];
+    x.outputPatternId = renumbering[x.outputPatternId];
+    return x;
+  });
     
   const time = new Date().getTime() - start;
   if (time > 500 ) {
     console.log(`[${new Date().getTime() - start} msecs] - COMPACTED ${name}.typePatternGraph [${typePatternGraph.size()}->${newTypePatternGraph.size()}]`);
   }
-  return {def: newDef, typePatternGraph: newTypePatternGraph, varRefs: newVarRefs};
+  return {def, typePatternGraph: newTypePatternGraph, varRefs: newVarRefs};
 }
 
-export function convergeScc(scc, rels) {
-  const maxNumberOfIterations = 2 + scc.length;
+function processReference(relName, relDef, rels, varRel, index) {
+  const start = new Date().getTime();
+  let { varName } = varRel;
+  try {
+    let varRootDef = rels[varName];
+    let varInputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[0]);
+    let varOutputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[1]);
+    let cloned = varRootDef.typePatternGraph.clone([varInputPatternId, varOutputPatternId], relDef.typePatternGraph);
+    relDef.typePatternGraph.unify(`ref:input ${relName}(${varName})`, varRel.inputPatternId, cloned[varInputPatternId]);
+    relDef.typePatternGraph.unify("ref:output", varRel.outputPatternId, cloned[varOutputPatternId]);
+  } catch (e) {
+    e.message = `Type Error in definition of '${relName}' at call to '${varName}': lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}):\n - ${e.message}`;
+    throw e;
+  }
+  const tookMs = new Date().getTime() - start;
+  if (tookMs > 200) {
+    console.log(` ---- Processing ${relName}(.., x${index}=${relDef.varRefs[index].varName}, ..) took: ${tookMs} ms`);
+  }
+}
+
+function propagateReferences(relName, relDef, rels) {
+  for (let i = 0; i < relDef.varRefs.length; i++) {
+    processReference(relName, relDef, rels, relDef.varRefs[i], i);
+  }
+}
+
+function hasSelfReference(relName, relDef) {
+  return relDef.varRefs.some(({ varName }) => varName === relName);
+}
+
+function resolveStrategy(scc, rels, options = {}) {
+  const strategy = options.strategy || "auto";
+  if (strategy !== "auto") {
+    return strategy;
+  }
+  if (scc.length === 1 && !hasSelfReference(scc[0], rels[scc[0]])) {
+    return "single_pass";
+  }
+  return "fixed_point";
+}
+
+function convergeSccSinglePass(scc, rels) {
+  const relName = scc[0];
+  const relDef = rels[relName];
+  propagateReferences(relName, relDef, rels);
+  rels[relName] = compactRel(relDef, relName);
+  return {
+    strategy: "single_pass",
+    iterations: 1,
+    converged: true
+  };
+}
+
+function convergeSccFixedPoint(scc, rels, options = {}) {
+  const maxNumberOfIterations = options.maxIterations || (2 + scc.length);
   let converged = false;
+  let iterations = 0;
   
   for (let iteration = 1; iteration <= maxNumberOfIterations; iteration++) {
+    iterations = iteration;
     let before = JSON.stringify(scc.map( relName => {
       const relDef = rels[relName];
       rels[relName] = compactRel(relDef,relName);
@@ -100,26 +154,7 @@ export function convergeScc(scc, rels) {
 
     let after = JSON.stringify(scc.map( relName => {
       const relDef = compactRel(rels[relName],relName);
-      for (let i = 0; i < relDef.varRefs.length; i++) {
-        const start = new Date().getTime();
-        let varRel = relDef.varRefs[i];
-        let { varName } = varRel;
-        try {
-          let varRootDef = rels[varName];
-          let varInputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[0]);
-          let varOutputPatternId = varRootDef.typePatternGraph.find(varRootDef.def.patterns[1]);
-          let cloned = varRootDef.typePatternGraph.clone([varInputPatternId, varOutputPatternId], relDef.typePatternGraph);
-          relDef.typePatternGraph.unify(`ref:input ${relName}(${varName})`, varRel.inputPatternId, cloned[varInputPatternId]);
-          relDef.typePatternGraph.unify("ref:output", varRel.outputPatternId, cloned[varOutputPatternId]);
-        } catch (e) {
-          e.message = `Type Error in definition of '${relName}' at call to '${varName}': lines ${varRel.start?.line}:${varRel.start?.column}...${varRel.end?.line}:${varRel.end?.column}):\n - ${e.message}`;       
-          throw e;
-        }
-        const tookMs = new Date().getTime() - start;
-        if (tookMs > 200) {
-          console.log(` ---- Processing ${relName}(.., x${i}=${relDef.varRefs[i].varName}, ..) took: ${tookMs} ms`); 
-        }
-      }
+      propagateReferences(relName, relDef, rels);
       rels[relName] = compactRel(relDef,relName);
       return signature(rels[relName]); 
     }));
@@ -137,4 +172,25 @@ export function convergeScc(scc, rels) {
      }).join('\n  ');
      console.warn(`WARNING ⚠️  : Type derivation did NOT converge after ${maxNumberOfIterations} iterations:\n  ${details}\n  Consider adding filter expressions when defining recursive polymorphic functions.`);
    }
+
+  return {
+    strategy: "fixed_point",
+    iterations,
+    converged
+  };
+}
+
+export function convergeScc(scc, rels, options = {}) {
+  const strategy = resolveStrategy(scc, rels, options);
+  switch (strategy) {
+    case "single_pass":
+      if (scc.length !== 1) {
+        throw new Error(`single_pass convergence requires a singleton SCC, got: ${JSON.stringify(scc)}`);
+      }
+      return convergeSccSinglePass(scc, rels);
+    case "fixed_point":
+      return convergeSccFixedPoint(scc, rels, options);
+    default:
+      throw new Error(`Unknown convergence strategy '${strategy}'`);
+  }
 }

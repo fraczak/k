@@ -66,10 +66,14 @@ function are_different(classes, representatives, name1, name2, codes) {
 
 function minimize(codes) {
   const names = Object.keys(codes);
+  if (names.length === 0) {
+    return { classes: {}, representatives: {} };
+  }
   const classes = {};
-  classes[unitCode] = names;
+  const seed = names.includes(unitCode) ? unitCode : names[0];
+  classes[seed] = names;
   const representatives = names.reduce((representatives, name) => {
-    representatives[name] = unitCode;
+    representatives[name] = seed;
     return representatives;
   }, {});
   let changed = true;
@@ -194,7 +198,7 @@ function finalize(codes) {
   for (const name in refResolution) {
     if (refResolution[name] !== name) {
       const target = refResolution[name];
-      representatives[name] = representatives[target];
+      representatives[name] = representatives[target] || target;
     }
   }
   
@@ -226,8 +230,65 @@ function finalize(codes) {
   };
 }
 
+function finalizeIncremental(newCodes) {
+  const refResolution = resolveRefs(newCodes);
+  const resolvedCodes = {};
+
+  for (const name in newCodes) {
+    const code = newCodes[name];
+    if (code.code === "ref" && code.ref.startsWith("@")) {
+      const target = refResolution[name];
+      if (target.startsWith("@")) {
+        resolvedCodes[name] = theRepository.codes[target];
+      } else {
+        resolvedCodes[name] = newCodes[target];
+      }
+    } else {
+      resolvedCodes[name] = code;
+    }
+  }
+
+  const representatives = minimize(resolvedCodes).representatives;
+  for (const name in refResolution) {
+    if (refResolution[name] !== name) {
+      const target = refResolution[name];
+      representatives[name] = representatives[target] || target;
+    }
+  }
+
+  const normalizedCodes = normalizeAll(resolvedCodes, representatives);
+  const allReadableCodes = { ...theRepository.codes, ...normalizedCodes };
+  const globalNames = {};
+
+  for (const name in normalizedCodes) {
+    const globalDef = encodeCodeToString(name, allReadableCodes);
+    normalizedCodes[name].def = globalDef;
+    globalNames[name] = hash(globalDef);
+  }
+
+  const globalCodes = Object.keys(normalizedCodes).reduce((result, name) => {
+    result[globalNames[name]] = normalizedCodes[name];
+    return result;
+  }, {});
+
+  const extendedRepresentatives = Object.keys(representatives).reduce((result, name) => {
+    result[name] = globalNames[representatives[name]] || representatives[name] || name;
+    return result;
+  }, {});
+
+  Object.values(globalNames).forEach((name) => {
+    extendedRepresentatives[name] = name;
+  });
+
+  const normalizedGlobalCodes = normalizeAll(globalCodes, extendedRepresentatives);
+  return {
+    codes: normalizedGlobalCodes,
+    representatives: extendedRepresentatives
+  };
+}
+
 function register(newCodes) {
-  const { codes, representatives } = finalize( {...theRepository.codes,...newCodes});
+  const { codes, representatives } = finalizeIncremental(newCodes);
   const reps = Object.values(representatives).reduce((reps,rep) => 
     ({...reps, [rep]:rep})
   , {});

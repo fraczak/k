@@ -25,6 +25,28 @@ Prerequisites: Node.js 18+.
 - Regenerate parsers manually (only needed if you edited `parser.jison` or `valueParser.jison`):
   - `npm run prepare`
 
+### Type-derivation tuning
+
+`annotate`, `compile`, and `run` accept an optional convergence configuration:
+
+```js
+import k from "./index.mjs";
+
+const annotated = k.annotate(source, {
+  convergence: { strategy: "auto" }
+});
+
+console.log(annotated.compileStats);
+```
+
+Available strategies:
+
+- `auto` (default): use a single-pass derivation for singleton non-recursive SCCs, and fall back to fixed-point iteration only for recursive SCCs.
+- `single_pass`: force the single-pass path. This is useful for benchmarking acyclic modules such as `Examples/ieee.k`.
+- `fixed_point`: force the legacy convergence loop for experiments and debugging.
+
+`annotate(...).compileStats` returns per-SCC strategy and iteration counts so convergence experiments can be inspected without instrumenting the compiler.
+
 > Notes (from `package.json`):
 
 > - Scripts: `prepare` compiles the grammars; `test` runs all tests.

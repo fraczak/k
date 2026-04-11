@@ -6,13 +6,16 @@ import { augment } from "./augmentation.mjs";
 import { assignCanonicalNames } from "./export.mjs";
 import { convergeScc, relDefToString } from "./convergence.mjs";
 
-function compileTypes(representatives, rels) {
+function compileTypes(representatives, rels, options = {}) {
   // INPUT: 
   //   codes: {"KL": {"code": "product", "product": {}}, ...}
   //   representatives:{"{}": "KL", ...}
   //   rels: {"rlz": [{op: comp,...}, ...], ...}
  
   const relAlias = {};
+  const compileStats = {
+    sccs: []
+  };
 
   // 1 INITIALIZATION
   // 1.1 initialize patternNodes and rels
@@ -73,7 +76,11 @@ function compileTypes(representatives, rels) {
   for (const scc of sccInOrder) {
     const currentScc = DAGnodes[scc].scc;
 
-    convergeScc(currentScc, rels);
+    const convergenceStats = convergeScc(currentScc, rels, options.convergence);
+    compileStats.sccs.push({
+      members: [...currentScc],
+      ...convergenceStats
+    });
 
     currentScc.forEach( relName => {
       const relDef = rels[relName];
@@ -85,7 +92,8 @@ function compileTypes(representatives, rels) {
     assignCanonicalNames(currentScc, rels, relAlias);
   }
   
-  return relAlias;
+  compileStats.sccCount = compileStats.sccs.length;
+  return { relAlias, compileStats };
 }
 
 export default { compileTypes, assignCanonicalNames };

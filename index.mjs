@@ -5,14 +5,14 @@ import { compileTypes } from "./compiler.mjs";
 import run from "./run.mjs";
 import codes from "./codes.mjs";
 
-function compile(script) {
-  run.defs = annotate(script);
+function compile(script, options = {}) {
+  run.defs = annotate(script, options);
   return run.bind(null, codes.find, run.defs.rels.__main__.def);
 }
 
 compile.doc = "Transforms k-script (string) into a function";
 
-function runScriptOnData(script, data) {
+function runScriptOnData(script, data, options = {}) {
   let parsedData;
   if (data instanceof Value) {
     parsedData = data;
@@ -21,21 +21,21 @@ function runScriptOnData(script, data) {
   } else  {
     parsedData = fromObject(data);
   }
-  return compile(script)(parsedData);
+  return compile(script, options)(parsedData);
 }
 runScriptOnData.doc = "Run 'script' (string) on 'data': (script,data) -> data";
 
 
-function annotate(script) {
+function annotate(script, options = {}) {
   const { defs, exp } = parse(script);
   //const { codes, representatives } = codes.finalize(defs.codes);
 
   const representatives = codes.register(defs.codes);
   const rels = {...defs.rels, "__main__": {def: exp}};
 
-  const relAlias = compileTypes(representatives, rels);
+  const { relAlias, compileStats } = compileTypes(representatives, rels, options);
  
-  return {rels, representatives, relAlias};
+  return {rels, representatives, relAlias, compileStats};
 }
 annotate.doc = "Annotate all the script expressions with patterns";
 

@@ -6,18 +6,56 @@ function asSet(vector) {
 
 export function getCompressed(typePatternGraph) {
   const newTypePatternGraph = new TypePatternGraph(typePatternGraph.registerCodeDef, typePatternGraph.findCode);
-  const renamed = typePatternGraph.cloneAll(newTypePatternGraph);
+
+  const rootPatternIds = typePatternGraph.patterns.nodes
+    .map((x, i) => i)
+    .filter((i) => typePatternGraph.find(i) == i);
+
+  const renamedRoots = {};
+  for (const oldId of rootPatternIds) {
+    const pattern = typePatternGraph.get_pattern(oldId);
+    renamedRoots[oldId] = (pattern.pattern == "type")
+      ? newTypePatternGraph.getTypeId(pattern.type)
+      : newTypePatternGraph.patterns.addNewNode(pattern);
+  }
+
+  for (const oldId of rootPatternIds) {
+    const newId = renamedRoots[oldId];
+    const pattern = typePatternGraph.get_pattern(oldId);
+    if (pattern.pattern == "type") {
+      continue;
+    }
+    const edges = typePatternGraph.edges[oldId];
+    newTypePatternGraph.edges[newId] = {};
+    for (const lab in edges) {
+      const mapped = [];
+      const seen = new Set();
+      for (const dst of edges[lab]) {
+        const mappedId = renamedRoots[typePatternGraph.find(dst)];
+        if (!seen.has(mappedId)) {
+          seen.add(mappedId);
+          mapped.push(mappedId);
+        }
+      }
+      newTypePatternGraph.edges[newId][lab] = mapped;
+    }
+  }
+
+  const renamed = {};
+  for (let id = 0; id < typePatternGraph.patterns.nodes.length; id++) {
+    renamed[id] = renamedRoots[typePatternGraph.find(id)];
+  }
 
   newTypePatternGraph.turnSingletonPatternsIntoCodes();
 
-  Object.keys(renamed).forEach( id => {
+  for (const id in renamed) {
     renamed[id] = newTypePatternGraph.find(renamed[id]);
-  });
+  }
 
-  const rootPatternIds = newTypePatternGraph.patterns.nodes.map((x,i) => i)
+  const compressedRootPatternIds = newTypePatternGraph.patterns.nodes.map((x,i) => i)
   .filter(x => newTypePatternGraph.find(x) == x);
 
-  const equivalence = rootPatternIds.reduce( (equivalence,i) => {
+  const equivalence = compressedRootPatternIds.reduce( (equivalence,i) => {
     const pattern = newTypePatternGraph.get_pattern(i);
     switch (pattern.pattern) {
       case 'type':
@@ -109,9 +147,10 @@ export function getCompressed(typePatternGraph) {
     }
   }
 
-  const remapping = Object.keys(renamed).reduce( (remapping,id) => {
-    return {...remapping, [id]: newIds[ reps[renamed[id]][0] ]};
-  }, {});
+  const remapping = {};
+  for (const id in renamed) {
+    remapping[id] = newIds[ reps[renamed[id]][0] ];
+  }
   
   return {typePatternGraph: compressedTypePatternGraph, remapping};
 }
