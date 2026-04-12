@@ -39,8 +39,8 @@ npm test  # Run comprehensive test suite (unit tests, derivation tests, shell te
 - `parser.mjs` / `parser.jison` - Language parser (generated from Jison grammar)
 - `run.mjs` - Runtime execution engine for partial functions
 - `codes.mjs` - Type/code management and canonicalization
-- `patterns.mjs` - Type pattern derivation system
-- `typing.mjs` - Advanced type system implementation
+- `TypePatternGraph.mjs` - Core pattern graph data structure for type derivation
+- `typing.mjs` - Type compression and advanced type system operations
 - `Value.mjs` - Value representation and operations
 - `index.mjs` - Main library entry point
 

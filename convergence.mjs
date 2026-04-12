@@ -1,4 +1,5 @@
 import { prettyFilter, patterns2filters } from "./pretty.mjs";
+import { getCompressed } from "./typing.mjs";
 
 export function signature(relDef) {
   const typePatternGraph = relDef.typePatternGraph;
@@ -45,7 +46,7 @@ export function compactRel(relDef, name = "") {
   const start = new Date().getTime();
   const {def, typePatternGraph, varRefs } = relDef;
 
-  const {typePatternGraph : newTypePatternGraph, remapping: renumbering}  = typePatternGraph.getCompressed();
+  const {typePatternGraph : newTypePatternGraph, remapping: renumbering}  = getCompressed(typePatternGraph);
 
   const remapRel = (rel) => {
     rel.patterns = [renumbering[rel.patterns[0]], renumbering[rel.patterns[1]]];

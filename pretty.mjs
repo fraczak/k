@@ -1,4 +1,4 @@
-import { TypePatternGraph } from "./typing.mjs";
+import { TypePatternGraph } from "./TypePatternGraph.mjs";
 
 // const nameRE = /^[a-zA-Z0-9_][a-zA-Z0-9_?!]*$/;
 const nameRE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;

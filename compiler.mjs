@@ -1,5 +1,5 @@
 import hash from "./hash.mjs";
-import { TypePatternGraph } from "./typing.mjs";
+import { TypePatternGraph } from "./TypePatternGraph.mjs";
 import { Graph, sccs, topoOrder } from "./Graph.mjs";
 import codes from "./codes.mjs";
 import { augment } from "./augmentation.mjs";
@@ -8,9 +8,14 @@ import { convergeScc, relDefToString } from "./convergence.mjs";
 
 function compileTypes(representatives, rels, options = {}) {
   // INPUT: 
-  //   codes: {"KL": {"code": "product", "product": {}}, ...}
-  //   representatives:{"{}": "KL", ...}
-  //   rels: {"rlz": [{op: comp,...}, ...], ...}
+  //   representatives: {"{}": "KL", ...} - mapping from types to their canonical names
+  //   rels: {"rlz": {def: {op: comp,...}, ...}, ...} - relation definitions
+  //   options: {
+  //     convergence: {
+  //       strategy: "auto" | "single_pass" | "fixed_point",  // type derivation strategy
+  //       maxIterations: number  // max iterations for fixed_point (default: 2 + scc.length)
+  //     }
+  //   }
  
   const relAlias = {};
   const compileStats = {
