@@ -2,6 +2,7 @@ node_modules/
 package-lock.json
 parser.mjs
 valueParser.mjs
+DOCS/dependency-graph.md
 *~
 *.html
 .codegpt

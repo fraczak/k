@@ -1,6 +1,6 @@
 import { parse } from "./parser.mjs";
 import { Value, fromObject } from "./Value.mjs";
-import { parse as parseValue } from "./valueParser.mjs";
+import { parseValue } from "./valueIO.mjs";
 import { compileTypes } from "./compiler.mjs";
 import run from "./run.mjs";
 import codes from "./codes.mjs";
@@ -17,7 +17,7 @@ function runScriptOnData(script, data, options = {}) {
   if (data instanceof Value) {
     parsedData = data;
   } else if (typeof data === "string") {
-    parsedData = parseValue(data);
+    parsedData = parseValue(data, null, null);
   } else  {
     parsedData = fromObject(data);
   }

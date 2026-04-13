@@ -5,7 +5,8 @@
     "main": "index.mjs",
     "scripts": {
         "prepare": "jiwson -m es6 parser.jison -o parser.mjs; jiwson -m es6 valueParser.jison -o valueParser.mjs; ",
-        "test": "node test.mjs; for f in Code-derivation-tests/*.mjs; do echo $f; node $f; done; node test-fingerprint.mjs; ./tests.sh"
+        "test": "node test.mjs; for f in Code-derivation-tests/*.mjs; do echo $f; node $f; done; node test-fingerprint.mjs; ./tests.sh",
+        "deps:graph": "node scripts/generate-dependency-graph.mjs"
     },
     "repository": {
         "type": "git",
