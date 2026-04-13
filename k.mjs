@@ -2,15 +2,20 @@
 // !/usr/bin/node --stack-size=8000
 
 import fs from "node:fs";
-import { argv, stdin, exit } from "node:process";
+import { argv, stdin, exit, stdout } from "node:process";
 import k from "./index.mjs";
-import { parse } from "./valueParser.mjs";
+import codes from "./codes.mjs";
+import { decode } from "./codecs/runtime/codec.mjs";
+import { encode } from "./codecs/runtime/codec.mjs";
+import { unpackEnvelope } from "./codecs/runtime/envelope.mjs";
+import { packEnvelope } from "./codecs/runtime/envelope.mjs";
+import { typeDefsFromValue } from "./codecs/runtime/typeFromValue.mjs";
 
 const prog = argv[1];
 
-let kScript, jsonStream, oneJson;
+let kScript, inputStream;
 
-({ kScript, jsonStream, oneJson } = ((oneJson, args) => {
+({ kScript, inputStream } = ((args) => {
   try {
     let kScriptStr = (function (arg) {
       if (arg == null) {
@@ -23,67 +28,82 @@ let kScript, jsonStream, oneJson;
       }
     })(args.shift());
     let kScript = k.compile(kScriptStr);
-    jsonStream = (function (arg) {
-      if (arg === "-1") {
-        oneJson = true;
-        arg = args.shift();
-      }
+    inputStream = (function (arg) {
       if (arg == null) {
         return stdin;
       }
       return fs.createReadStream(arg);
     })(args.shift());
-    return { kScript, jsonStream, oneJson };
+    return { kScript, inputStream };
   } catch (error) {
     console.error(error);
-    console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ -1 ] [ json-file ]`);
-    console.error(`       E.g.,  echo '{"a": {}}' | ${prog} '{() x,() y}'`);
+    console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ binary-file ]`);
+    console.error(`       E.g.,  echo '["zebara","ela"]' | k-encode --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
     return exit(-1);
   }
-})(false, argv.slice(2)));
+})(argv.slice(2)));
 
-if (oneJson) {
-  const buffer = [];
-  jsonStream.on("data", (data) => buffer.push(data));
-  jsonStream.on("end", () => {
-    try {
-      let b = buffer.join("");
-      // console.log(b);
-      let r = parse(b);
-      // console.log(r);
-      let result = kScript(r);
-      console.log(JSON.stringify(result, null, 2));
-      // console.log(kScript(r.value).toString());
-    } catch (error) {
-      console.error(error);
+const buffer = [];
+inputStream.on("data", (data) => buffer.push(Buffer.isBuffer(data) ? data : Buffer.from(data)));
+inputStream.on("end", () => {
+  try {
+    const envelopeBuffer = Buffer.concat(buffer);
+    const { types, payload } = unpackEnvelope(envelopeBuffer);
+    const resolveType = (typeName) => {
+      const code = types[typeName];
+      if (!code) {
+        throw new Error(`Unknown type in envelope: ${typeName}`);
+      }
+      return code;
+    };
+    const { value } = decode(payload, resolveType);
+    const result = kScript(value);
+    if (result === undefined) {
+      throw new Error("k expression evaluated to undefined; cannot encode undefined output value");
     }
-  });
-} else {
-  let buffer = [];
-  let line = 0;
-  jsonStream.setEncoding('utf8');
-  jsonStream.on("data", (data) => {
-    const [first, ...rest] = data.split("\n");
-    buffer.push(first);
-    if (rest.length > 0) {
-      const todo = buffer.join("");
-      const last = rest.pop();
-      buffer = [last];
-      for (const exp of [todo, ...rest]) {
-        if (!exp.match(/^[ \n\t]*(?:#.*)?$/)) {
-          try {
-            // console.log(exp);
-            let r = parse(exp);
-            // console.log(r);
-            let result = kScript(r);
-            console.log(JSON.stringify(result));
-          } catch (error) {
-            console.error(`Problem [line ${line}]: '${exp}'`);
-            console.error(error);
-          }
+
+    const { defs: outDefs, root: outRoot } = typeDefsFromValue(result);
+    const { codes: outCodes, representatives: outReps } = codes.finalize(outDefs);
+    const outTypeName = outReps[outRoot] || outRoot;
+    const outTypeInfo = outCodes[outTypeName];
+    if (!outTypeInfo) {
+      throw new Error("Failed to resolve output canonical type");
+    }
+
+    const resolveOutputType = (typeName) => {
+      const code = outCodes[typeName];
+      if (!code) {
+        throw new Error(`Unknown output type: ${typeName}`);
+      }
+      return code;
+    };
+    const encoded = encode(result, outTypeName, outTypeInfo, resolveOutputType);
+
+    const queue = [outTypeName];
+    const outReachable = {};
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (outReachable[current]) continue;
+      const code = outCodes[current];
+      if (!code) throw new Error(`Missing output type definition for ${current}`);
+      outReachable[current] = code;
+      const links = code[code.code] || {};
+      for (const label of Object.keys(links)) {
+        const ref = links[label];
+        if (typeof ref === "string" && ref.startsWith("@") && !outReachable[ref]) {
+          queue.push(ref);
         }
-        line++;
       }
     }
-  });
-}
+
+    const outEnvelope = packEnvelope({
+      typeName: outTypeName,
+      types: outReachable,
+      payload: encoded
+    });
+    stdout.write(outEnvelope);
+  } catch (error) {
+    console.error(error);
+    process.exitCode = 1;
+  }
+});

@@ -1,0 +1,192 @@
+# Binary Codec Status And TODO
+
+## Purpose
+
+This document captures:
+- where the project currently is after introducing `k-encode | k | k-decode`,
+- what is implemented and verified,
+- what remains unresolved,
+- a concrete TODO list for the next session.
+
+It is intended as the handoff/reference point before revisiting format decisions.
+
+## Current Direction (Implemented)
+
+We moved from mixed text I/O in `k.mjs` to a pipeline architecture:
+
+1. `k-encode`: text value + explicit input type -> binary envelope
+2. `k`: binary envelope -> evaluate k expression -> binary envelope
+3. `k-decode`: binary envelope -> formatted text (JSON)
+
+This enforces explicit typing for encoding and makes `k` a binary-processing stage.
+
+## What Is Implemented
+
+### CLI programs
+
+- `k-encode` (new)
+  - Input:
+    - value text on stdin (or file)
+    - `--input-type` as inline type script or path to type file
+  - Behavior:
+    - parses type script,
+    - resolves selected root type from final expression (must end in a type name expression, e.g. `$v`),
+    - parses text value,
+    - encodes value in canonical binary payload,
+    - wraps payload in envelope with reachable type table,
+    - writes envelope to stdout.
+
+- `k` (changed)
+  - Input: binary envelope only.
+  - Behavior:
+    - unpacks envelope,
+    - decodes typed payload into runtime value,
+    - executes compiled k expression,
+    - synthesizes concrete output type from runtime output value,
+    - re-encodes output as binary payload,
+    - packs output envelope,
+    - writes envelope to stdout.
+
+- `k-decode` (new)
+  - Input: binary envelope.
+  - Behavior:
+    - unpacks envelope,
+    - decodes payload using embedded type table,
+    - prints JSON.
+
+### Runtime codec pieces
+
+- Canonical payload encoder/decoder exists.
+- Envelope layer exists (`KBIN1` magic + metadata + payload).
+- Output type synthesis helper exists (derives a concrete type from runtime output value tree).
+
+## Current Envelope / Payload Shape
+
+Current wire stream between stages is:
+
+- envelope header:
+  - magic: `KBIN1`
+  - metadata length (big-endian u32)
+- metadata JSON:
+  - `typeName`: canonical root type name
+  - `types`: reachable type definitions map
+- payload bytes:
+  - canonical payload produced by codec (currently already includes root type hash per codec implementation)
+
+Note: there is currently potential redundancy between envelope metadata and payload header semantics. This is one of the topics to settle.
+
+## Verified Workflows
+
+Both forms below were tested end-to-end:
+
+- Inline type:
+
+  ```bash
+  echo '["zebara", "ela", "kupa", "ala", "owca"]' | \
+    node ./k-encode.mjs --input-type '$x = <{} zebara, {}ela, {}kupa, {}ala, {}owca >;$v = {x 0, x 1, x 2, x 3, x 4}; $v' | \
+    node ./k.mjs '{.1 0,.3 1}' | \
+    node ./k-decode.mjs
+  ```
+
+- Type file:
+
+  ```bash
+  echo '["zebara", "ela", "kupa", "ala", "owca"]' | \
+    node ./k-encode.mjs --input-type input-type.k | \
+    node ./k.mjs '{.1 0,.3 1}' | \
+    node ./k-decode.mjs
+  ```
+
+Expected output in both cases:
+
+```json
+[
+  "ela",
+  "ala"
+]
+```
+
+## What This Solves
+
+- Explicit type is provided at encode boundary (no hidden guessing for input encoding).
+- `k` can be used in Unix-style binary pipelines.
+- Input/output formatting is cleanly delegated to dedicated tools.
+
+## Known Limitations / Open Design Areas
+
+- Output type policy currently synthesizes a concrete type from produced value tree. This may or may not match the final desired contract model.
+- Envelope currently carries type table metadata; long-term portability vs compactness tradeoff is undecided.
+- Payload vs envelope responsibility boundary is not fully finalized.
+- Canonicalization and versioning guarantees for long-term compatibility need to be formalized.
+
+## TODO List For Next Session
+
+### A. Envelope scope and ownership
+
+1. Decide whether each value must carry full type metadata, or only canonical root hash.
+2. Decide if envelope is transport-only (outside canonical payload) or part of format contract.
+3. Decide whether `k` should preserve input type table, replace it, or always emit minimal reachable table.
+
+### B. Payload contract
+
+4. Decide if payload should contain root type hash when envelope already contains `typeName`.
+5. Define strict canonical field/tag ordering rules and make them normative.
+6. Decide exact variant tag encoding (fixed-width `ceil(log2 n)` vs alternatives).
+
+### C. Type resolution model
+
+7. Define authoritative source of type definitions at decode time:
+   - embedded in envelope,
+   - external registry,
+   - hybrid fallback.
+8. Define behavior on unknown type hash.
+9. Define allowed/forbidden type aliases in transport metadata.
+
+### D. Value model and structure sharing
+
+10. Decide whether format is tree-only or supports DAG sharing/references.
+11. If DAG support is required, define node table/reference encoding rules.
+12. Clarify recursion representation and validation constraints.
+
+### E. Output typing policy
+
+13. Decide whether output type must be:
+   - synthesized from runtime value (current behavior),
+   - computed from compiler-derived relation output type,
+   - provided externally.
+14. Decide how strict output conformance should be (validate against declared output type vs infer).
+
+### F. Compatibility and evolution
+
+15. Introduce explicit format versioning policy (envelope and payload separately if needed).
+16. Define forward/backward compatibility rules.
+17. Define decoder strictness for trailing/extra bits and malformed metadata.
+
+### G. CLI contract finalization
+
+18. Decide stable CLI flags and error messages for:
+   - `k-encode` (`--input-type`, source format options),
+   - `k` (binary-only contract statement),
+   - `k-decode` (output formatting options).
+19. Decide whether to support pretty/compact/developer debug modes.
+20. Update README and examples after final decisions.
+
+## Proposed Next-Session Agenda
+
+1. Finalize ownership boundary: envelope vs payload.
+2. Lock root type identity rules (where root type comes from and where it is stored).
+3. Lock output typing policy.
+4. Lock compatibility/versioning strategy.
+5. Convert decisions into implementation tasks and tests.
+
+## Test Plan To Add After Decisions
+
+- Golden round-trip fixtures for representative algebraic values.
+- Cross-tool contract tests (`k-encode | k | k-decode`).
+- Negative tests for unknown hashes/malformed metadata.
+- Canonical equivalence tests (same value+type => identical bytes).
+- Version compatibility tests when versioning is introduced.
+
+## Summary
+
+Current status is a working binary pipeline with explicit input typing at encode time and binary transport between stages. The remaining work is mostly design finalization of the binary contract and type-transport policy. Once those decisions are fixed, implementation can be hardened with compatibility tests and documentation updates.
