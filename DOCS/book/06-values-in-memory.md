@@ -146,13 +146,14 @@ The canonical serialization can be compressed using **DAG (Directed Acyclic Grap
 
 #### **Subtree identification**
 
-Each unique subtree is assigned a **node ID** based on its canonical hash:
+Each unique typed subtree is assigned a **node ID** based on its canonical typed hash:
 
 ```text
-hash(node) = hash(state, tag, arity, hash(child_0), hash(child_1), ...)
+hash(node) = hash(type_state, tag, arity, hash(child_0), hash(child_1), ...)
 ```
 
-Identical subtrees (same structure and content) get the same hash and share the same node ID.
+Identical typed subtrees (same canonical subtype/state and same content) get the same hash and share the same node ID.
+Subtrees that happen to produce the same local payload bits under different types are not merged.
 
 #### **Two-pass encoding**
 
@@ -238,22 +239,13 @@ This allows the decoder to:
 2. **Lazy loading**: Resolve back-references only when needed
 3. **Validation**: Verify subtree boundaries during parsing
 
-#### **Compression algorithms**
+#### **Canonical sharing rule**
 
-**Greedy sharing**: Share any subtree that appears more than once
+The interchange format should not expose ad-hoc sharing policies such as "share only large nodes" or "share only some duplicates".
 
-- Simple to implement
-- Good compression for naturally occurring patterns
-
-**Size-based sharing**: Only share subtrees above a minimum size threshold
-
-- Avoids overhead of referencing tiny subtrees
-- Better compression ratio in practice
-
-**Frequency-weighted sharing**: Prioritize subtrees by `size × frequency`
-
-- Optimal compression for space-constrained scenarios
-- Requires more sophisticated analysis
+- The canonical payload is determined by the **minimal DAG quotient** of the typed tree.
+- Encoder algorithms may differ in how they discover that quotient.
+- The resulting shared-node relation must not depend on heuristics, traversal accidents, or payload-byte coincidences.
 
 #### **Lazy back-reference resolution**
 
@@ -278,17 +270,15 @@ fn resolve_reference(backref: DecoratedPtr) DecoratedPtr {
 
 The decorated pointer model naturally handles back-references as lightweight pointer redirections.
 
-#### **Memory vs. compression trade-offs**
+#### **Memory vs. construction trade-offs**
 
 | Strategy | Memory usage | Compression ratio | Decode speed |
 |----------|--------------|-------------------|--------------|
-| No DAG | Low | 1.0× (baseline) | Fastest |
-| Greedy DAG | Medium | 2-10× | Fast |
-| Optimal DAG | High | 5-50× | Medium |
+| Tree-only construction | Low | 1.0× (baseline) | Fastest to build |
+| Hash-consed minimal DAG | Medium | Canonical | Fast |
+| Verified minimal DAG with extra checks | High | Canonical | Medium |
 
-For **streaming applications**: Prefer greedy DAG with small node tables
-For **archival storage**: Use optimal DAG compression
-For **real-time processing**: Skip DAG compression entirely
+These are encoder-side construction choices for reaching the same canonical result, not distinct wire formats.
 
 #### **Compression example: Repeated data structures**
 

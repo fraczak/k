@@ -18,6 +18,7 @@
         "k": "./k.mjs",
         "k-decode": "./k-decode.mjs",
         "k-encode": "./k-encode.mjs",
+        "kv-debug": "./kv-debug.mjs",
         "k-repl": "./repl.mjs"
     },
     "devDependencies": {

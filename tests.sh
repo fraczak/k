@@ -3,4 +3,4 @@
 
 echo "Running './tests.sh' ..."
 
-echo '["zebara", "ela", "kupa", ala, owca]' | ./k.mjs '{.1 0,.3 1}' -1
+echo '["zebara", "ela", "kupa", ala, owca]' | ./k-encode.mjs | ./k.mjs '{.1 0,.3 1}' | ./k-decode.mjs

@@ -7,8 +7,6 @@ import k from "./index.mjs";
 import codes from "./codes.mjs";
 import { decode } from "./codecs/runtime/codec.mjs";
 import { encode } from "./codecs/runtime/codec.mjs";
-import { unpackEnvelope } from "./codecs/runtime/envelope.mjs";
-import { packEnvelope } from "./codecs/runtime/envelope.mjs";
 import { typeDefsFromValue } from "./codecs/runtime/typeFromValue.mjs";
 
 const prog = argv[1];
@@ -47,16 +45,8 @@ const buffer = [];
 inputStream.on("data", (data) => buffer.push(Buffer.isBuffer(data) ? data : Buffer.from(data)));
 inputStream.on("end", () => {
   try {
-    const envelopeBuffer = Buffer.concat(buffer);
-    const { types, payload } = unpackEnvelope(envelopeBuffer);
-    const resolveType = (typeName) => {
-      const code = types[typeName];
-      if (!code) {
-        throw new Error(`Unknown type in envelope: ${typeName}`);
-      }
-      return code;
-    };
-    const { value } = decode(payload, resolveType);
+    const inputBuffer = Buffer.concat(buffer);
+    const value = decode(inputBuffer).value;
     const result = kScript(value);
     if (result === undefined) {
       throw new Error("k expression evaluated to undefined; cannot encode undefined output value");
@@ -78,30 +68,7 @@ inputStream.on("end", () => {
       return code;
     };
     const encoded = encode(result, outTypeName, outTypeInfo, resolveOutputType);
-
-    const queue = [outTypeName];
-    const outReachable = {};
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (outReachable[current]) continue;
-      const code = outCodes[current];
-      if (!code) throw new Error(`Missing output type definition for ${current}`);
-      outReachable[current] = code;
-      const links = code[code.code] || {};
-      for (const label of Object.keys(links)) {
-        const ref = links[label];
-        if (typeof ref === "string" && ref.startsWith("@") && !outReachable[ref]) {
-          queue.push(ref);
-        }
-      }
-    }
-
-    const outEnvelope = packEnvelope({
-      typeName: outTypeName,
-      types: outReachable,
-      payload: encoded
-    });
-    stdout.write(outEnvelope);
+    stdout.write(encoded);
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

@@ -2,8 +2,7 @@
 
 import fs from "node:fs";
 import { argv, stdin, stdout } from "node:process";
-import { decode } from "./codecs/runtime/codec.mjs";
-import { unpackEnvelope } from "./codecs/runtime/envelope.mjs";
+import { decode, decodeDebug, NODE_KIND } from "./codecs/runtime/codec.mjs";
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -15,20 +14,56 @@ function readAll(stream) {
 }
 
 async function main() {
-  const fileArg = argv[2];
+  const args = argv.slice(2);
+  let debug = false;
+  let fileArg = null;
+
+  for (const arg of args) {
+    if (arg === "--debug") {
+      debug = true;
+    } else if (fileArg == null) {
+      fileArg = arg;
+    } else {
+      throw new Error("Usage: k-decode [--debug] [file]");
+    }
+  }
+
   const input = fileArg ? fs.createReadStream(fileArg) : stdin;
   const buffer = await readAll(input);
 
-  const { types, payload } = unpackEnvelope(buffer);
-  const resolveType = (typeName) => {
-    const code = types[typeName];
-    if (!code) {
-      throw new Error(`Unknown type in envelope: ${typeName}`);
-    }
-    return code;
-  };
+  if (debug) {
+    const { pattern, valueDag } = decodeDebug(buffer);
+    const kindName = (kind) => {
+      switch (kind) {
+        case NODE_KIND.ANY: return "(...)";
+        case NODE_KIND.OPEN_PRODUCT: return "{...}";
+        case NODE_KIND.OPEN_UNION: return "<...>";
+        case NODE_KIND.CLOSED_PRODUCT: return "{}";
+        case NODE_KIND.CLOSED_UNION: return "<>";
+        default: return `unknown(${kind})`;
+      }
+    };
 
-  const { value } = decode(payload, resolveType);
+    const debugJson = {
+      pattern: {
+        root: 0,
+        dictionary: pattern.dictionary,
+        nodes: pattern.nodes.map((node, id) => ({
+          id,
+          kind: kindName(node.kind),
+          edges: node.edges.map((edge) => ({
+            symbol_id: edge.symbolId,
+            target: edge.target
+          }))
+        }))
+      },
+      value_dag: valueDag
+    };
+    stdout.write(`${JSON.stringify(debugJson)}\n`);
+    return;
+  }
+
+  const { value } = decode(buffer);
   stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 

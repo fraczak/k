@@ -49,8 +49,7 @@ const unitEncoded = encode(unitValue, unitTypeName, unitTypeDef, resolveType);
 console.log('Encoded bytes:', unitEncoded.length, 'bytes');
 console.log('Hex:', unitEncoded.toString('hex'));
 
-const unitDecoded = decode(unitEncoded, resolveType);
-console.log('Decoded type:', unitDecoded.typeName);
+const unitDecoded = decode(unitEncoded);
 console.log('Decoded value:', unitDecoded.value.toString());
 console.log('Match:', unitDecoded.value instanceof Product && 
             Object.keys(unitDecoded.value.product).length === 0);
@@ -63,10 +62,8 @@ console.log('Encoding false:', falseValue.toString());
 const falseEncoded = encode(falseValue, boolTypeName, boolTypeDef, resolveType);
 console.log('Encoded bytes:', falseEncoded.length, 'bytes');
 console.log('Hex:', falseEncoded.toString('hex'));
-console.log('Payload (after hash):', falseEncoded.slice(32).toString('hex'));
 
-const falseDecoded = decode(falseEncoded, resolveType);
-console.log('Decoded type:', falseDecoded.typeName);
+const falseDecoded = decode(falseEncoded);
 console.log('Decoded value:', falseDecoded.value.toString());
 console.log('Match:', falseDecoded.value instanceof Variant && 
             falseDecoded.value.tag === 'false');
@@ -79,10 +76,8 @@ console.log('Encoding true:', trueValue.toString());
 const trueEncoded = encode(trueValue, boolTypeName, boolTypeDef, resolveType);
 console.log('Encoded bytes:', trueEncoded.length, 'bytes');
 console.log('Hex:', trueEncoded.toString('hex'));
-console.log('Payload (after hash):', trueEncoded.slice(32).toString('hex'));
 
-const trueDecoded = decode(trueEncoded, resolveType);
-console.log('Decoded type:', trueDecoded.typeName);
+const trueDecoded = decode(trueEncoded);
 console.log('Decoded value:', trueDecoded.value.toString());
 console.log('Match:', trueDecoded.value instanceof Variant && 
             trueDecoded.value.tag === 'true');

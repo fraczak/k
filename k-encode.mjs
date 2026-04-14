@@ -5,13 +5,17 @@ import { argv, stdin, exit, stdout } from "node:process";
 import { parse as parseScript } from "./parser.mjs";
 import { parseValue } from "./valueIO.mjs";
 import codes from "./codes.mjs";
-import { encode } from "./codecs/runtime/codec.mjs";
-import { packEnvelope } from "./codecs/runtime/envelope.mjs";
+import k from "./index.mjs";
+import { encode, encodeWithPattern, exportPatternGraph } from "./codecs/runtime/codec.mjs";
 
 function usage(prog) {
-  console.error(`Usage: ${prog} --input-type <type-script|type-file> [value-file]`);
+  console.error(`Usage: ${prog} [--input-type <type-script|type-file> | --input-pattern <pattern-script|pattern-file>] [value-file]`);
   console.error(`  Example inline:`);
   console.error(`    echo '["zebara","ela"]' | ${prog} --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v'`);
+  console.error(`  Example pattern:`);
+  console.error(`    echo '["zebara","ela"]' | ${prog} --input-pattern '?{<{} zebara, {} ela> 0, <{} zebara, {} ela> 1}'`);
+  console.error(`  Default pattern:`);
+  console.error(`    echo 'true' | ${prog}`);
   console.error(`  Example file:`);
   console.error(`    cat input.json | ${prog} --input-type input-type.k`);
 }
@@ -33,59 +37,27 @@ function readAll(stream) {
   });
 }
 
-function collectReachableTypes(rootTypeName, typeMap) {
-  const reachable = {};
-  const queue = [rootTypeName];
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (reachable[current]) continue;
-    const code = typeMap[current];
-    if (!code) {
-      throw new Error(`Missing type definition for ${current}`);
-    }
-    reachable[current] = code;
-    const links = code[code.code] || {};
-    for (const label of Object.keys(links)) {
-      const ref = links[label];
-      if (typeof ref === "string" && ref.startsWith("@") && !reachable[ref]) {
-        queue.push(ref);
-      }
-    }
-  }
-  return reachable;
-}
-
 async function main() {
   const prog = argv[1];
   const args = argv.slice(2);
 
   let inputTypeArg = null;
+  let inputPatternArg = null;
   let valueFile = null;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--input-type") {
       inputTypeArg = args[++i];
+    } else if (args[i] === "--input-pattern") {
+      inputPatternArg = args[++i];
     } else {
       valueFile = args[i];
     }
   }
 
-  if (!inputTypeArg) {
+  if (inputTypeArg != null && inputPatternArg != null) {
     usage(prog);
     return exit(1);
-  }
-
-  const typeScript = maybeReadFile(inputTypeArg);
-  const { defs, exp } = parseScript(typeScript);
-  if (exp.op !== "code") {
-    throw new Error("Input type script must end with a type name expression (e.g., '$v')");
-  }
-
-  const { codes: finalizedCodes, representatives } = codes.finalize(defs.codes);
-  const typeName = representatives[exp.code] || exp.code;
-  const typeInfo = finalizedCodes[typeName];
-  if (!typeInfo) {
-    throw new Error(`Could not resolve concrete type for '${exp.code}'`);
   }
 
   const inputBuffer = valueFile
@@ -93,17 +65,47 @@ async function main() {
     : await readAll(stdin);
   const inputText = inputBuffer.toString("utf8");
 
-  const value = parseValue(inputText, typeName, typeInfo);
-  const resolveType = (name) => {
-    const t = finalizedCodes[name];
-    if (!t) throw new Error(`Unknown type during encoding: ${name}`);
-    return t;
-  };
+  if (inputTypeArg != null) {
+    const typeScript = maybeReadFile(inputTypeArg);
+    const { defs, exp } = parseScript(typeScript);
+    if (exp.op !== "code") {
+      throw new Error("Input type script must end with a type name expression (e.g., '$v')");
+    }
 
-  const payload = encode(value, typeName, typeInfo, resolveType);
-  const reachableTypes = collectReachableTypes(typeName, finalizedCodes);
-  const envelope = packEnvelope({ typeName, types: reachableTypes, payload });
-  stdout.write(envelope);
+    const { codes: finalizedCodes, representatives } = codes.finalize(defs.codes);
+    const typeName = representatives[exp.code] || exp.code;
+    const typeInfo = finalizedCodes[typeName];
+    if (!typeInfo) {
+      throw new Error(`Could not resolve concrete type for '${exp.code}'`);
+    }
+
+    const value = parseValue(inputText, typeName, typeInfo);
+    const resolveType = (name) => {
+      const t = finalizedCodes[name];
+      if (!t) throw new Error(`Unknown type during encoding: ${name}`);
+      return t;
+    };
+
+    stdout.write(encode(value, typeName, typeInfo, resolveType));
+    return;
+  }
+
+  const pattern = (() => {
+    if (inputPatternArg == null) {
+      return { dictionary: [], nodes: [{ kind: 0, edges: [] }] };
+    }
+    const patternScript = maybeReadFile(inputPatternArg);
+    const annotated = k.annotate(patternScript);
+    const mainRel = annotated.rels.__main__;
+    if (mainRel.def.op !== "filter") {
+      throw new Error("Input pattern script must end with a filter expression (e.g., '?< {} nil, {X car, Y cdr} cons > = Y')");
+    }
+    const rootPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
+    return exportPatternGraph(mainRel.typePatternGraph, rootPatternId);
+  })();
+
+  const value = parseValue(inputText, null, null);
+  stdout.write(encodeWithPattern(value, pattern));
 }
 
 main().catch((error) => {

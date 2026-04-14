@@ -83,10 +83,7 @@ console.log();
 console.log('--- PARSE (text → binary) ---');
 const binaryInput = encode(inputValue, maybeName, maybeDef, resolveType);
 console.log('Binary size:', binaryInput.length, 'bytes');
-console.log('  Type hash (32 bytes):', binaryInput.slice(0, 32).toString('hex'));
-console.log('  Payload:', binaryInput.slice(32).toString('hex'));
-console.log('  Payload bits:', [...binaryInput.slice(32)]
-  .map(b => b.toString(2).padStart(8, '0')).join(' '));
+console.log('  Bytes:', binaryInput.toString('hex'));
 console.log();
 
 // ============================================================================
@@ -96,12 +93,8 @@ console.log();
 console.log('--- COMPILED PROGRAM (binary → binary) ---');
 
 // Simulate a compiled k-program: decode → transform → encode
-const { typeName: inTypeName, value: programInput } = decode(
-  binaryInput,
-  resolveType
-);
+const { value: programInput } = decode(binaryInput);
 
-console.log('Program sees type:', inTypeName);
 console.log('Program sees value:', programInput.toString());
 
 // Example transformation: NOT operation (flip bool inside Maybe)
@@ -130,7 +123,7 @@ const binaryOutput = encode(
 );
 
 console.log('Binary output size:', binaryOutput.length, 'bytes');
-console.log('  Payload:', binaryOutput.slice(32).toString('hex'));
+console.log('  Bytes:', binaryOutput.toString('hex'));
 console.log();
 
 // ============================================================================
@@ -138,12 +131,8 @@ console.log();
 // ============================================================================
 
 console.log('--- PRINT (binary → text) ---');
-const { typeName: outTypeName, value: finalValue } = decode(
-  binaryOutput,
-  resolveType
-);
+const { value: finalValue } = decode(binaryOutput);
 
-console.log('Output type:', outTypeName);
 console.log('Output value:', finalValue.toString());
 console.log();
 
