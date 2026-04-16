@@ -64,7 +64,7 @@ async function main() {
   }
 
   const { value } = decode(buffer);
-  stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  stdout.write(`${JSON.stringify(value)}`);
 }
 
 main().catch((error) => {
