@@ -3,7 +3,7 @@
 ## Purpose
 
 This document captures:
-- where the project currently is after introducing `k-encode | k | k-decode`,
+- where the project currently is after introducing `k-parse | k | k-print`,
 - what is implemented and verified,
 - what remains unresolved,
 - a concrete TODO list for the next session.
@@ -14,9 +14,9 @@ It is intended as the handoff/reference point before revisiting format decisions
 
 We moved from mixed text I/O in `k.mjs` to a pipeline architecture:
 
-1. `k-encode`: text value + explicit input type -> binary envelope
+1. `k-parse`: text value + explicit input type -> binary envelope
 2. `k`: binary envelope -> evaluate k expression -> binary envelope
-3. `k-decode`: binary envelope -> formatted text (JSON)
+3. `k-print`: binary envelope -> formatted text (JSON)
 
 This enforces explicit typing for encoding and makes `k` a binary-processing stage.
 
@@ -24,7 +24,7 @@ This enforces explicit typing for encoding and makes `k` a binary-processing sta
 
 ### CLI programs
 
-- `k-encode` (new)
+- `k-parse` (new)
   - Input:
     - value text on stdin (or file)
     - `--input-type` as inline type script or path to type file
@@ -47,7 +47,7 @@ This enforces explicit typing for encoding and makes `k` a binary-processing sta
     - packs output envelope,
     - writes envelope to stdout.
 
-- `k-decode` (new)
+- `k-print` (new)
   - Input: binary envelope.
   - Behavior:
     - unpacks envelope,
@@ -83,18 +83,18 @@ Both forms below were tested end-to-end:
 
   ```bash
   echo '["zebara", "ela", "kupa", "ala", "owca"]' | \
-    node ./k-encode.mjs --input-type '$x = <{} zebara, {}ela, {}kupa, {}ala, {}owca >;$v = {x 0, x 1, x 2, x 3, x 4}; $v' | \
+    node ./codecs/k-parse.mjs --input-type '$x = <{} zebara, {}ela, {}kupa, {}ala, {}owca >;$v = {x 0, x 1, x 2, x 3, x 4}; $v' | \
     node ./k.mjs '{.1 0,.3 1}' | \
-    node ./k-decode.mjs
+    node ./codecs/k-print.mjs
   ```
 
 - Type file:
 
   ```bash
   echo '["zebara", "ela", "kupa", "ala", "owca"]' | \
-    node ./k-encode.mjs --input-type input-type.k | \
+    node ./codecs/k-parse.mjs --input-type input-type.k | \
     node ./k.mjs '{.1 0,.3 1}' | \
-    node ./k-decode.mjs
+    node ./codecs/k-print.mjs
   ```
 
 Expected output in both cases:
@@ -200,9 +200,9 @@ The detailed byte layout now lives in `codecs/BINARY_FORMAT.md`.
 ### G. CLI contract finalization
 
 19. Decide stable CLI flags and error messages for:
-   - `k-encode` (`--input-type`, source format options),
+  - `k-parse` (`--input-type`, source format options),
    - `k` (binary-only contract statement),
-   - `k-decode` (output formatting options).
+  - `k-print` (output formatting options).
 20. Decide whether to support pretty/compact/developer debug modes.
 21. Update README and examples after final decisions.
 
@@ -218,7 +218,7 @@ The detailed byte layout now lives in `codecs/BINARY_FORMAT.md`.
 ## Test Plan To Add After Decisions
 
 - Golden round-trip fixtures for representative algebraic values.
-- Cross-tool contract tests (`k-encode | k | k-decode`).
+- Cross-tool contract tests (`k-parse | k | k-print`).
 - Negative tests for unknown hashes/malformed metadata.
 - Canonical equivalence tests (same value+type => identical bytes).
 - Version compatibility tests when versioning is introduced.

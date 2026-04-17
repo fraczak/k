@@ -2,11 +2,11 @@
 
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
-import { parse as parseScript } from "./parser.mjs";
-import { parseValue } from "./valueIO.mjs";
-import codes from "./codes.mjs";
-import k from "./index.mjs";
-import { encode, encodeWithPattern, exportPatternGraph } from "./codecs/runtime/codec.mjs";
+import { parse as parseScript } from "../parser.mjs";
+import { parseValue } from "../valueIO.mjs";
+import codes from "../codes.mjs";
+import k from "../index.mjs";
+import { encode, encodeWithPattern, exportPatternGraph } from "./runtime/codec.mjs";
 
 function usage(prog) {
   console.error(`Usage: ${prog} [--input-type <type-script|type-file> | --input-pattern <pattern-script|pattern-file>] [value-file]`);

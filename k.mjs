@@ -36,7 +36,7 @@ let kScript, inputStream;
   } catch (error) {
     console.error(error);
     console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ binary-file ]`);
-    console.error(`       E.g.,  echo '["zebara","ela"]' | k-encode --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
+    console.error(`       E.g.,  echo '["zebara","ela"]' | k-parse --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
     return exit(-1);
   }
 })(argv.slice(2)));

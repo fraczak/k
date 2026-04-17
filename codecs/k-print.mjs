@@ -2,7 +2,7 @@
 
 import fs from "node:fs";
 import { argv, stdin, stdout } from "node:process";
-import { decode, decodeDebug, NODE_KIND } from "./codecs/runtime/codec.mjs";
+import { decode, decodeDebug, NODE_KIND } from "./runtime/codec.mjs";
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -24,7 +24,7 @@ async function main() {
     } else if (fileArg == null) {
       fileArg = arg;
     } else {
-      throw new Error("Usage: k-decode [--debug] [file]");
+      throw new Error("Usage: k-print [--debug] [file]");
     }
   }
 

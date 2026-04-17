@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * int-codec: parse/print integers in the k 'int' binary encoding.
+ * int: parse/print integers in the k 'int' binary encoding.
  *
  * $ bits = < {} _, bits 0, bits 1 >;
  * $ int  = < bits '+', bits '-' >;
@@ -9,13 +9,13 @@
  * Bits are stored MSB-outermost (remove_leading_zeros strips outermost 0s).
  *
  * Usage:
- *   echo "-21"  | int-codec --parse   # decimal → binary KPV2 encoding
- *   <binary>    | int-codec --print   # binary KPV2 encoding → decimal
+ *   echo "-21"  | int.mjs --parse   # decimal → binary KPV2 encoding
+ *   <binary>    | int.mjs --print   # binary KPV2 encoding → decimal
  */
 
 import { stdin, stdout, argv, exit } from "node:process";
-import { Product, Variant } from "./Value.mjs";
-import { encodeWithPattern, decode } from "./codecs/runtime/codec.mjs";
+import { Product, Variant } from "../Value.mjs";
+import { encodeWithPattern, decode } from "./runtime/codec.mjs";
 
 // Closed pattern for $ int = < bits '+', bits '-' >
 // with $ bits = < {} _, bits 0, bits 1 >
@@ -99,7 +99,7 @@ function printIntValue(value) {
 async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    console.error("Usage: int-codec --parse | --print");
+    console.error("Usage: int.mjs --parse | --print");
     console.error("  --parse  read a decimal integer from stdin, write binary encoding");
     console.error("  --print  read a binary encoding from stdin, write decimal integer");
     exit(1);
