@@ -1,202 +1,240 @@
-# K Binary Codecs
+# K Codecs
 
-This directory contains the binary codec system for k-language values, enabling efficient serialization/deserialization and interoperability through a canonical binary format.
+This directory contains the current binary codec work for `k` values.
 
-## Architecture Overview
+The active direction is the polymorphic binary package described in
+[`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md). Older notes and
+some helper files still refer to a closed typed-value format, but the main
+runtime and CLI tools now use `KPV2` packages.
 
-The k codec system follows a **pipes and filters** architecture:
+## What A Codec Does
 
+A codec is an adapter between an external representation and a `k` value encoded
+as a binary package:
+
+```text
+external bytes/text -> codec parser -> KPV2 package
+KPV2 package -> codec printer -> external bytes/text
 ```
-TEXT → parse.mjs → BINARY → compiled-k-program → BINARY → print.mjs → TEXT
+
+That makes codecs the boundary between ordinary files, streams, terminal text,
+and compiled `k` programs. A compiled program should be able to read a `KPV2`
+package, operate on the value, and write another `KPV2` package.
+
+## Current Binary Model
+
+The semantic object serialized by the active format is:
+
+```text
+(P, v)
 ```
 
-### Components
+where:
 
-1. **Binary Interchange Format** (`BINARY_FORMAT.md`): Specification for the canonical binary representation
-2. **Runtime Codec** (`runtime/codec.mjs`): Core encoder/decoder implementing Chapter 14 canonical serialization
-3. **Format-Specific Codecs** (future): UTF-8, IEEE 754, JSON, etc.
+- `P` is a normalized rooted pattern graph.
+- `v` is a value compatible with that pattern.
 
-## Binary Format
+The package layout is:
 
-Every binary value has the structure:
-
+```text
+| magic | format_version | flags | symbol_table | pattern_section | value_section |
 ```
+
+Current header values:
+
+- `magic = "KPV2"`
+- `format_version = 1`
+- `flags = 0`
+
+The pattern section is the structural authority. It carries field names, tag
+names, open/closed product and union shape, and graph sharing. The value section
+is interpreted relative to that pattern, so it does not repeat labels or tags as
+strings.
+
+Pattern node kinds are encoded as:
+
+```text
+0 = (...)
+1 = {...}
+2 = <...>
+3 = {}
+4 = <>
+```
+
+Version 1 does not serialize arbitrary value content below `(...)`. Encoders may
+refine an open or unconstrained input pattern into a concrete pattern that is
+sufficient for the value being written.
+
+See [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md) for the
+normative byte-level rules.
+
+## Why This Replaced The Old Format
+
+The older README described packages shaped like:
+
+```text
 [32-byte type hash][canonical payload]
 ```
 
-### Type Hash
+That model only handles closed typed values cleanly. It is still useful as a
+possible specialization, and [`BINARY_FORMAT.md`](./BINARY_FORMAT.md) now frames
+it that way, but it is not the main interchange package used by the codec
+runtime.
 
-- SHA-256 hash of the canonical type definition
-- Encoded in base56 (alphabet: `23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz`)
-- Prefixed with `@` in text form (e.g., `@NiDZqYggx3VZ6b8quBZKTfkgJztWctkesuX4CrhTxM5c`)
+The polymorphic format is more general because it can represent values relative
+to a pattern, including open product and union patterns. Closed typed values are
+just the singleton-pattern case.
 
-### Canonical Payload
+## Runtime API
 
-Bit-packed representation following these rules:
+The runtime implementation lives in [`runtime/codec.mjs`](./runtime/codec.mjs).
 
-- **Products**: Emit no tag bits, just fields in sorted label order
-- **Unions**: Emit ⌈log₂(n)⌉ bits for variant tag (where n = number of variants), then payload
-- **Bits**: Packed MSB-first into bytes, LSB first in tag value representation
+Main exports:
 
-### Examples
+- `encode(value, typeName, typeInfo, resolveType)`: derive a closed singleton
+  pattern from a concrete type and write a `KPV2` package.
+- `encodeWithPattern(value, pattern)`: write a `KPV2` package relative to an
+  explicit pattern object. The runtime refines open or `(...)` parts as needed
+  for the observed value.
+- `decode(buffer)`: read a `KPV2` package and return `{ pattern, value }`.
+- `decodeDebug(buffer)`: read a package and return decoded pattern and value-DAG
+  metadata for inspection.
+- `exportPatternGraph(typePatternGraph, rootPatternId)`: convert the compiler's
+  internal pattern graph into the codec pattern representation.
+- `NODE_KIND`: symbolic constants for the five pattern node kinds.
 
-**Unit type** `{}`
-```
-32 bytes: type hash only
-0 bytes: payload (empty product)
-```
-
-**Bool type** `<{} false, {} true>` with value `false`
-```
-32 bytes: type hash  
-1 byte:   0x00 (tag bit = 0, MSB of first byte)
-```
-
-**Bool type** with value `true`
-```
-32 bytes: type hash
-1 byte:   0x80 (tag bit = 1, MSB of first byte)
-```
-
-## Usage
-
-### Encoding
+Example:
 
 ```javascript
-import { encode } from './runtime/codec.mjs';
-import { Product, Variant } from '../Value.mjs';
+import { encodeWithPattern, decode, NODE_KIND } from "./runtime/codec.mjs";
+import { Product } from "../Value.mjs";
 
-// Define types
-const types = {
-  '@NiDZ...': { code: 'product', product: {} },  // unit
-  '@QeR4...': { code: 'union', union: { false: '@NiDZ...', true: '@NiDZ...' } }  // bool
+const unitPattern = {
+  dictionary: [],
+  nodes: [{ kind: NODE_KIND.ANY, edges: [] }]
 };
 
-function resolveType(name) {
-  return types[name];
-}
-
-// Create value
-const value = new Variant('true', new Product({}));
-
-// Encode
-const buffer = encode(
-  value,                    // k value
-  '@QeR4...',              // type name
-  types['@QeR4...'],       // type definition
-  resolveType              // type resolver
-);
+const bytes = encodeWithPattern(new Product({}), unitPattern);
+const { pattern, value } = decode(bytes);
 ```
 
-### Decoding
+## Command-Line Tools
 
-```javascript
-import { decode } from './runtime/codec.mjs';
+### Generic k value parser/printer
 
-// Decode
-const { typeName, value } = decode(buffer, resolveType);
+[`k-parse.mjs`](./k-parse.mjs) parses textual `k` values and writes `KPV2`
+packages.
 
-console.log(typeName);  // '@QeR4...'
-console.log(value);     // Variant { tag: 'true', value: Product { product: {} } }
+```bash
+echo 'true' | node ./codecs/k-parse.mjs > value.kpv2
+node ./codecs/k-print.mjs value.kpv2
 ```
 
-## Type Resolution
+By default, `k-parse` starts from `(...)` and lets the runtime refine the pattern
+from the parsed value.
 
-The codec system requires a type resolver function to handle type references:
+Use `--input-pattern` to encode relative to a `k` filter pattern:
 
-```javascript
-function resolveType(typeName) {
-  // Look up type definition by canonical name
-  // Can query registry, read from disk, etc.
-  return typeDefinition;
-}
+```bash
+echo '["zebara","ela"]' \
+  | node ./codecs/k-parse.mjs --input-pattern '?{<{} zebara, {} ela> 0, <{} zebara, {} ela> 1}' \
+  > value.kpv2
 ```
 
-Type definitions follow the structure:
+Use `--input-type` for the closed typed-value path:
 
-```javascript
-// Product type: {fieldType1 label1, fieldType2 label2, ...}
-{
-  code: 'product',
-  product: {
-    label1: '@typeHash1',
-    label2: '@typeHash2',
-    // ...
-  }
-}
-
-// Union type: <variantType1 tag1, variantType2 tag2, ...>
-{
-  code: 'union',
-  union: {
-    tag1: '@typeHash1',
-    tag2: '@typeHash2',
-    // ...
-  }
-}
-
-// Reference type (resolved during encoding/decoding)
-{
-  code: 'ref',
-  ref: '@typeHash'
-}
+```bash
+echo '["zebara","ela"]' \
+  | node ./codecs/k-parse.mjs --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' \
+  > value.kpv2
 ```
+
+`k-print` writes JSON for the decoded value by default. Use `--debug` to inspect
+the package's pattern graph and value DAG:
+
+```bash
+node ./codecs/k-print.mjs --debug value.kpv2
+```
+
+### Specialized codecs
+
+Current specialized adapters include:
+
+- [`unit.mjs`](./unit.mjs): parse/print the unit value.
+- [`int.mjs`](./int.mjs): parse/print decimal integers using the current `k`
+  integer shape.
+- [`utf8.mjs`](./utf8.mjs): UTF-8 text to/from the current `k` string shape.
+- [`utf16.mjs`](./utf16.mjs): BOM-aware UTF-16 input and UTF-16LE-with-BOM
+  output to/from the current `k` string shape.
+
+Examples:
+
+```bash
+echo '-21' | node ./codecs/int.mjs --parse | node ./codecs/int.mjs --print
+printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./codecs/utf8.mjs --print
+node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print
+```
+
+## Pipeline Example
+
+The intended boundary shape is:
+
+```text
+TEXT/BYTES -> codec parser -> KPV2 -> k program -> KPV2 -> codec printer -> TEXT/BYTES
+```
+
+For example, the test suite exercises:
+
+```bash
+echo '["zebara", "ela", "kupa", ala, owca]' \
+  | node ./codecs/k-parse.mjs \
+  | ./k.mjs '{.1 0,.3 1}' \
+  | node ./codecs/k-print.mjs
+```
+
+## Implementation Notes
+
+- Symbols are UTF-8 strings interned once in the package symbol table.
+- Pattern nodes are numbered by rooted depth-first discovery.
+- Value nodes are emitted in canonical postorder, with the root value node last.
+- Child references are encoded as back-distances, not absolute IDs.
+- Products store child references in pattern-edge order.
+- Unions store a tag ordinal plus one child reference.
+- Repeated value occurrences may be shared when their decorated value-node
+  identity is equal.
+
+## Legacy And Experimental Files
+
+- [`BINARY_FORMAT.md`](./BINARY_FORMAT.md) documents a closed-value
+  specialization and should be read as subordinate to the polymorphic format.
+- [`runtime/envelope.mjs`](./runtime/envelope.mjs) contains an older `KBIN1`
+  JSON-metadata envelope helper. It is not the active `KPV2` runtime path.
+- [`example-pipeline.mjs`](./example-pipeline.mjs) and
+  [`runtime/test-codec.mjs`](./runtime/test-codec.mjs) still demonstrate the
+  closed-type API, but the bytes they write come from the current `KPV2`
+  runtime.
 
 ## Testing
 
-Run the codec tests:
+Run the codec-related checks through the project test suite:
 
 ```bash
-node runtime/test-codec.mjs
+npm test
 ```
 
-Expected output shows encoding/decoding of unit and bool values with correct binary representations.
-
-## Future Work
-
-### Format-Specific Codecs
-
-Define codecs for common types:
-
-- **$unicode**: UTF-8 ↔ Unicode codepoint lists
-- **$ieee**: IEEE 754 double ↔ binary64
-- **$ieees**: List of doubles
-- **$utf8s**: UTF-8 string ↔ Unicode lists
-
-### Codec Metadata
-
-Each codec should include `codec.json`:
-
-```json
-{
-  "name": "utf8",
-  "version": "1.0.0",
-  "inputType": "@...",     // canonical type name for input
-  "outputType": "@...",    // canonical type name for output
-  "parser": "./parse.mjs",
-  "printer": "./print.mjs"
-}
-```
-
-### Registry Integration
-
-Codecs should query a type registry to resolve canonical names:
+For a smaller smoke test during codec work:
 
 ```bash
-# Parser reads text, writes binary
-echo "Hello" | ./utf8/parse.mjs > /tmp/value.bin
-
-# Program reads/writes binary
-cat /tmp/value.bin | ./my-program > /tmp/output.bin
-
-# Printer reads binary, writes text
-cat /tmp/output.bin | ./utf8/print.mjs
+node ./codecs/runtime/test-codec.mjs
+echo '-21' | node ./codecs/int.mjs --parse | node ./codecs/int.mjs --print
+node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print
 ```
 
 ## References
 
-- Binary format spec: `BINARY_FORMAT.md`
-- Chapter 14 (canonical serialization): `../DOCS/book/14-canonical-serialization.md`
-- Hash implementation: `../hash.mjs`
-- Type system: `../codes.mjs`
-- Value representation: `../Value.mjs`
+- [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md): active
+  package specification.
+- [`BINARY_FORMAT.md`](./BINARY_FORMAT.md): closed-value specialization notes.
+- [`runtime/codec.mjs`](./runtime/codec.mjs): current encoder/decoder.
+- [`../Value.mjs`](../Value.mjs): runtime value representation.
+- [`../valueIO.mjs`](../valueIO.mjs): textual value parsing and printing support.
