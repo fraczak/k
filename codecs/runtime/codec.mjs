@@ -936,5 +936,5 @@ function decodeDebug(buffer) {
   return { pattern, value, valueDag };
 }
 
-export { encode, encodeWithPattern, decode, decodeDebug, deriveClosedPattern, exportPatternGraph, NODE_KIND };
-export default { encode, encodeWithPattern, decode, decodeDebug, deriveClosedPattern, exportPatternGraph, NODE_KIND };
+export { encode, encodeWithPattern, decode, decodeDebug, deriveClosedPattern, exportPatternGraph, refinePatternForValue, NODE_KIND };
+export default { encode, encodeWithPattern, decode, decodeDebug, deriveClosedPattern, exportPatternGraph, refinePatternForValue, NODE_KIND };

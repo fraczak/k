@@ -1,29 +1,38 @@
 # K Codecs
 
-This directory contains the current binary codec work for `k` values.
-
-The active direction is the polymorphic binary package described in
-[`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md). Older notes and
-some helper files still refer to a closed typed-value format, but the main
-runtime and CLI tools now use `KPV2` packages.
-
-## What A Codec Does
-
-A codec is an adapter between an external representation and a `k` value encoded
-as a binary package:
+This directory is being rewritten around a new codec design:
 
 ```text
-external bytes/text -> codec parser -> KPV2 package
-KPV2 package -> codec printer -> external bytes/text
+abstract pattern graph + prefix-free tree encoding
 ```
 
-That makes codecs the boundary between ordinary files, streams, terminal text,
-and compiled `k` programs. A compiled program should be able to read a `KPV2`
-package, operate on the value, and write another `KPV2` package.
+The immediate bootstrap format is a JSON envelope carrying:
 
-## Current Binary Model
+```json
+{
+  "pattern": [...],
+  "value_bits": "..."
+}
+```
 
-The semantic object serialized by the active format is:
+The goal is to stabilize the semantics first. Compact self-hosted binary
+envelopes, binary pattern serialization, and higher-level sharing/compression
+can come later.
+
+## Objectives
+
+The rewrite is guided by two hard requirements:
+
+1. compactness close to the structural lower bound,
+2. efficient `k` projections, especially `.field` and `/tag`.
+
+The current target architecture is the property-list pattern graph plus
+prefix-free value-tree envelope described here and in
+[`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md).
+
+## Core Idea
+
+The semantic object serialized by the new codec is:
 
 ```text
 (P, v)
@@ -31,210 +40,138 @@ The semantic object serialized by the active format is:
 
 where:
 
-- `P` is a normalized rooted pattern graph.
-- `v` is a value compatible with that pattern.
+- `P` is an abstract rooted pattern graph,
+- `v` is a value tree compatible with `P`.
 
-The package layout is:
+The base value encoding is:
 
-```text
-| magic | format_version | flags | symbol_table | pattern_section | value_section |
+- tree-based, not DAG-based,
+- prefix-free,
+- interpreted relative to the pattern graph,
+- free of repeated field names and tag names in the value payload.
+
+The base codec does **not** perform DAG compression. If sharing is desired, it
+should happen as a higher-level transform, not inside the primitive value
+format.
+
+## Bootstrap Envelope
+
+The first concrete transport format is JSON:
+
+```json
+{
+  "pattern": [
+    ["closed-union", [["nil", 1], ["cons", 2]]],
+    ["closed-product", []],
+    ["closed-product", [["car", 3], ["cdr", 0]]],
+    ["closed-union", [["_", 1], ["0", 3], ["1", 3]]]
+  ],
+  "value_bits": "base64-or-bitstring"
+}
 ```
 
-Current header values:
+This is intentionally simple:
 
-- `magic = "KPV2"`
-- `format_version = 1`
-- `flags = 0`
+- `pattern` is explicit and easy to validate,
+- `value_bits` is a compact carrier for the prefix-free payload,
+- the pattern representation is abstract enough to later encode in `k` itself.
 
-The pattern section is the structural authority. It carries field names, tag
-names, open/closed product and union shape, and graph sharing. The value section
-is interpreted relative to that pattern, so it does not repeat labels or tags as
-strings.
+## Pattern Graph Representation
 
-Pattern node kinds are encoded as:
+The pattern graph is represented as a property-list style vector of nodes:
 
 ```text
-0 = (...)
-1 = {...}
-2 = <...>
-3 = {}
-4 = <>
+[kind, edges]
 ```
 
-Version 1 does not serialize arbitrary value content below `(...)`. Encoders may
-refine an open or unconstrained input pattern into a concrete pattern that is
-sufficient for the value being written.
+where:
 
-See [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md) for the
-normative byte-level rules.
-
-## Why This Replaced The Old Format
-
-The older README described packages shaped like:
-
-```text
-[32-byte type hash][canonical payload]
-```
-
-That model only handles closed typed values cleanly. It is still useful as a
-possible specialization, and [`BINARY_FORMAT.md`](./BINARY_FORMAT.md) now frames
-it that way, but it is not the main interchange package used by the codec
-runtime.
-
-The polymorphic format is more general because it can represent values relative
-to a pattern, including open product and union patterns. Closed typed values are
-just the singleton-pattern case.
-
-## Runtime API
-
-The runtime implementation lives in [`runtime/codec.mjs`](./runtime/codec.mjs).
-
-Main exports:
-
-- `encode(value, typeName, typeInfo, resolveType)`: derive a closed singleton
-  pattern from a concrete type and write a `KPV2` package.
-- `encodeWithPattern(value, pattern)`: write a `KPV2` package relative to an
-  explicit pattern object. The runtime refines open or `(...)` parts as needed
-  for the observed value.
-- `decode(buffer)`: read a `KPV2` package and return `{ pattern, value }`.
-- `decodeDebug(buffer)`: read a package and return decoded pattern and value-DAG
-  metadata for inspection.
-- `exportPatternGraph(typePatternGraph, rootPatternId)`: convert the compiler's
-  internal pattern graph into the codec pattern representation.
-- `NODE_KIND`: symbolic constants for the five pattern node kinds.
+- `kind` is one of:
+  - `"any"`
+  - `"open-product"`
+  - `"open-union"`
+  - `"closed-product"`
+  - `"closed-union"`
+- `edges` is a list of:
+  - `[label, target_node_id]`
 
 Example:
 
-```javascript
-import { encodeWithPattern, decode, NODE_KIND } from "./runtime/codec.mjs";
-import { Product } from "../Value.mjs";
-
-const unitPattern = {
-  dictionary: [],
-  nodes: [{ kind: NODE_KIND.ANY, edges: [] }]
-};
-
-const bytes = encodeWithPattern(new Product({}), unitPattern);
-const { pattern, value } = decode(bytes);
+```json
+[
+  ["closed-union", [["nil", 1], ["cons", 2]]],
+  ["closed-product", []],
+  ["closed-product", [["car", 3], ["cdr", 0]]],
+  ["closed-union", [["_", 1], ["0", 3], ["1", 3]]]
+]
 ```
 
-## Command-Line Tools
+Canonical rules:
 
-### Generic k value parser/printer
+- root node is node `0`,
+- node list order is canonical graph-discovery order,
+- edges are sorted by label,
+- edge labels are unique within a node,
+- `"any"` must have no outgoing edges.
 
-[`k-parse.mjs`](./k-parse.mjs) parses textual `k` values and writes `KPV2`
-packages.
+This JSON graph is only the bootstrap syntax. The long-term intent is to encode
+the same abstract graph as an ordinary `k` value.
 
-```bash
-echo 'true' | node ./codecs/k-parse.mjs > value.kpv2
-node ./codecs/k-print.mjs value.kpv2
-```
+## Prefix-Free Value Encoding
 
-By default, `k-parse` starts from `(...)` and lets the runtime refine the pattern
-from the parsed value.
+The value payload is a bitstream interpreted relative to the pattern graph.
 
-Use `--input-pattern` to encode relative to a `k` filter pattern:
+Base rules:
 
-```bash
-echo '["zebara","ela"]' \
-  | node ./codecs/k-parse.mjs --input-pattern '?{<{} zebara, {} ela> 0, <{} zebara, {} ela> 1}' \
-  > value.kpv2
-```
+- closed or open product:
+  - encode child values in canonical edge order,
+- closed or open union:
+  - encode the selected tag position,
+  - then encode the selected payload,
+- `any`:
+  - not directly value-carrying in the base format.
 
-Use `--input-type` for the closed typed-value path:
-
-```bash
-echo '["zebara","ela"]' \
-  | node ./codecs/k-parse.mjs --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' \
-  > value.kpv2
-```
-
-`k-print` writes JSON for the decoded value by default. Use `--debug` to inspect
-the package's pattern graph and value DAG:
-
-```bash
-node ./codecs/k-print.mjs --debug value.kpv2
-```
-
-### Specialized codecs
-
-Current specialized adapters include:
-
-- [`unit.mjs`](./unit.mjs): parse/print the unit value.
-- [`int.mjs`](./int.mjs): parse/print decimal integers using the current `k`
-  integer shape.
-- [`utf8.mjs`](./utf8.mjs): UTF-8 text to/from the current `k` string shape.
-- [`utf16.mjs`](./utf16.mjs): BOM-aware UTF-16 input and UTF-16LE-with-BOM
-  output to/from the current `k` string shape.
-
-Examples:
-
-```bash
-echo '-21' | node ./codecs/int.mjs --parse | node ./codecs/int.mjs --print
-printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./codecs/utf8.mjs --print
-node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print
-```
-
-## Pipeline Example
-
-The intended boundary shape is:
+The initial concrete union encoding rule is:
 
 ```text
-TEXT/BYTES -> codec parser -> KPV2 -> k program -> KPV2 -> codec printer -> TEXT/BYTES
+width = ceil(log2(cardinality))
+emit tag ordinal in width bits
 ```
 
-For example, the test suite exercises:
+This is the simplest canonical prefix-free choice encoding. It is not the final
+word on compression, but it gives a regular and compact base encoding that can
+later be refined without changing the abstract pattern/value model.
 
-```bash
-echo '["zebara", "ela", "kupa", ala, owca]' \
-  | node ./codecs/k-parse.mjs \
-  | ./k.mjs '{.1 0,.3 1}' \
-  | node ./codecs/k-print.mjs
-```
+## Projections
 
-## Implementation Notes
+The base tree encoding is chosen so that:
 
-- Symbols are UTF-8 strings interned once in the package symbol table.
-- Pattern nodes are numbered by rooted depth-first discovery.
-- Value nodes are emitted in canonical postorder, with the root value node last.
-- Child references are encoded as back-distances, not absolute IDs.
-- Products store child references in pattern-edge order.
-- Unions store a tag ordinal plus one child reference.
-- Repeated value occurrences may be shared when their decorated value-node
-  identity is equal.
+- `/tag` only needs to read the union choice at the current node,
+- `.field` follows canonical product order and may later be accelerated by
+  higher-level indexes if necessary.
 
-## Legacy And Experimental Files
+The primitive codec stays minimal. Projection indexes, framing, or sharing
+schemes are explicitly separate concerns.
 
-- [`BINARY_FORMAT.md`](./BINARY_FORMAT.md) documents a closed-value
-  specialization and should be read as subordinate to the polymorphic format.
-- [`runtime/envelope.mjs`](./runtime/envelope.mjs) contains an older `KBIN1`
-  JSON-metadata envelope helper. It is not the active `KPV2` runtime path.
-- [`example-pipeline.mjs`](./example-pipeline.mjs) and
-  [`runtime/test-codec.mjs`](./runtime/test-codec.mjs) still demonstrate the
-  closed-type API, but the bytes they write come from the current `KPV2`
-  runtime.
+## Design Boundary
 
-## Testing
+The new codec work is split into layers:
 
-Run the codec-related checks through the project test suite:
+1. abstract pattern graph semantics,
+2. prefix-free value-tree semantics relative to that graph,
+3. bootstrap JSON envelope,
+4. later self-hosted `k` representation of the pattern graph,
+5. later compact self-hosted encoding and optional higher-level optimizations.
 
-```bash
-npm test
-```
+## Files
 
-For a smaller smoke test during codec work:
+- [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md):
+  main design document for the new pattern-plus-prefix-tree codec.
+- [`BINARY_FORMAT.md`](./BINARY_FORMAT.md):
+  notes on future binary packaging of the same abstract semantics.
 
-```bash
-node ./codecs/runtime/test-codec.mjs
-echo '-21' | node ./codecs/int.mjs --parse | node ./codecs/int.mjs --print
-node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print
-```
+## Status
 
-## References
-
-- [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md): active
-  package specification.
-- [`BINARY_FORMAT.md`](./BINARY_FORMAT.md): closed-value specialization notes.
-- [`runtime/codec.mjs`](./runtime/codec.mjs): current encoder/decoder.
-- [`../Value.mjs`](../Value.mjs): runtime value representation.
-- [`../valueIO.mjs`](../valueIO.mjs): textual value parsing and printing support.
+The repository is currently being migrated onto this envelope model. Some helper
+modules still reflect transitional implementation work, but the active design
+contract is the one described in these codec documents.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * int: parse/print integers in the k 'int' binary encoding.
+ * int: parse/print integers in the k 'int' JSON prefix envelope.
  *
  * $ bits = < {} _, bits 0, bits 1 >;
  * $ int  = < bits '+', bits '-' >;
@@ -9,40 +9,21 @@
  * Bits are stored MSB-outermost (remove_leading_zeros strips outermost 0s).
  *
  * Usage:
- *   echo "-21"  | int.mjs --parse   # decimal → binary KPV2 encoding
- *   <binary>    | int.mjs --print   # binary KPV2 encoding → decimal
+ *   echo "-21"  | int.mjs --parse   # decimal → JSON prefix envelope
+ *   <envelope>  | int.mjs --print   # JSON prefix envelope → decimal
  */
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product, Variant } from "../Value.mjs";
-import { encodeWithPattern, decode } from "./runtime/codec.mjs";
+import { decodeEnvelope, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
 
 // Closed pattern for $ int = < bits '+', bits '-' >
 // with $ bits = < {} _, bits 0, bits 1 >
-const INT_PATTERN = {
-  dictionary: ["+", "-", "0", "1", "_"],
-  nodes: [
-    {
-      kind: 4, // CLOSED_UNION
-      edges: [
-        { symbolId: 0, label: "+", target: 1 },
-        { symbolId: 1, label: "-", target: 1 }
-      ]
-    },
-    {
-      kind: 4, // CLOSED_UNION
-      edges: [
-        { symbolId: 2, label: "0", target: 1 },
-        { symbolId: 3, label: "1", target: 1 },
-        { symbolId: 4, label: "_", target: 2 }
-      ]
-    },
-    {
-      kind: 3, // CLOSED_PRODUCT (empty — the {} in {} _)
-      edges: []
-    }
-  ]
-};
+const INT_PATTERN = [
+  ["closed-union", [["+", 1], ["-", 1]]],
+  ["closed-union", [["0", 1], ["1", 1], ["_", 2]]],
+  ["closed-product", []]
+];
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -100,8 +81,8 @@ async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
     console.error("Usage: int.mjs --parse | --print");
-    console.error("  --parse  read a decimal integer from stdin, write binary encoding");
-    console.error("  --print  read a binary encoding from stdin, write decimal integer");
+    console.error("  --parse  read a decimal integer from stdin, write JSON envelope");
+    console.error("  --print  read a JSON envelope from stdin, write decimal integer");
     exit(1);
   }
 
@@ -110,9 +91,9 @@ async function main() {
   if (args[0] === "--parse") {
     const text = buf.toString("utf8").trim();
     const value = parseIntStr(text);
-    stdout.write(encodeWithPattern(value, INT_PATTERN));
+    stdout.write(`${JSON.stringify(encodeToEnvelope(value, INT_PATTERN))}\n`);
   } else {
-    const { value } = decode(buf);
+    const { value } = decodeEnvelope(JSON.parse(buf.toString("utf8")));
     stdout.write(printIntValue(value) + "\n");
   }
 }

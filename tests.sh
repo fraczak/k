@@ -11,3 +11,5 @@ node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print | grep -qx '{}'
 echo 
 printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./k.mjs -k Examples/byte.k |./codecs/utf8.mjs --print
 echo
+echo "1031" | ./codecs/ieee.mjs --parse | ./k.mjs -k Examples/ieee.k | ./codecs/ieee.mjs --print
+echo

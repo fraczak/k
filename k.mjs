@@ -4,10 +4,7 @@
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import k from "./index.mjs";
-import codes from "./codes.mjs";
-import { decode } from "./codecs/runtime/codec.mjs";
-import { encode } from "./codecs/runtime/codec.mjs";
-import { typeDefsFromValue } from "./codecs/runtime/typeFromValue.mjs";
+import { decodeEnvelope, encodeToEnvelope } from "./codecs/runtime/prefix-codec.mjs";
 
 const prog = argv[1];
 
@@ -35,8 +32,8 @@ let kScript, inputStream;
     return { kScript, inputStream };
   } catch (error) {
     console.error(error);
-    console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ binary-file ]`);
-    console.error(`       E.g.,  echo '["zebara","ela"]' | k-parse --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
+    console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ envelope-file ]`);
+    console.error(`       E.g.,  echo '["zebara","ela"]' | ./codecs/k-parse.mjs --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
     return exit(-1);
   }
 })(argv.slice(2)));
@@ -46,29 +43,14 @@ inputStream.on("data", (data) => buffer.push(Buffer.isBuffer(data) ? data : Buff
 inputStream.on("end", () => {
   try {
     const inputBuffer = Buffer.concat(buffer);
-    const value = decode(inputBuffer).value;
+    const envelope = JSON.parse(inputBuffer.toString("utf8"));
+    const { value } = decodeEnvelope(envelope);
     const result = kScript(value);
     if (result === undefined) {
       throw new Error("k expression evaluated to undefined; cannot encode undefined output value");
     }
-
-    const { defs: outDefs, root: outRoot } = typeDefsFromValue(result);
-    const { codes: outCodes, representatives: outReps } = codes.finalize(outDefs);
-    const outTypeName = outReps[outRoot] || outRoot;
-    const outTypeInfo = outCodes[outTypeName];
-    if (!outTypeInfo) {
-      throw new Error("Failed to resolve output canonical type");
-    }
-
-    const resolveOutputType = (typeName) => {
-      const code = outCodes[typeName];
-      if (!code) {
-        throw new Error(`Unknown output type: ${typeName}`);
-      }
-      return code;
-    };
-    const encoded = encode(result, outTypeName, outTypeInfo, resolveOutputType);
-    stdout.write(encoded);
+    const encoded = encodeToEnvelope(result, null);
+    stdout.write(`${JSON.stringify(encoded)}\n`);
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

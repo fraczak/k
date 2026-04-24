@@ -15576,6 +15576,9 @@ frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12
 10f = {} {+ sign,  exp_10 exponent, frac_10 fraction} $float64;
 
 
+{() x,()y}  mul_float64
+
+/*
 -- TESTS --
 # -----------------------------------------------------------------------------
 # Extra constants (finite) for comparisons
@@ -15745,3 +15748,4 @@ neg_denorm_min = {- sign, exp0 exponent, frac_lsb1 fraction} $float64;
   ({one x, two y}           float64_div) div_one_two_flags,
   ({one x, pos_zero y}      float64_div) div_one_pz_flags
 }
+*/ 

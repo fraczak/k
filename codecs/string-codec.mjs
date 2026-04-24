@@ -1,5 +1,7 @@
 import { Product, Variant } from "../Value.mjs";
-import { encodeWithPattern, decode, NODE_KIND } from "./runtime/codec.mjs";
+import { NODE_KIND } from "./runtime/codec.mjs";
+import { decodeEnvelope, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { patternToPropertyList } from "./runtime/pattern-json.mjs";
 
 const UNIT = new Product({});
 const BIT0 = new Variant("0", UNIT);
@@ -276,13 +278,15 @@ const STRING_PATTERN = {
   ]
 };
 
+const STRING_PATTERN_PROPERTY_LIST = patternToPropertyList(STRING_PATTERN);
+
 function encodeText(text) {
-  return encodeWithPattern(textToStringValue(text), STRING_PATTERN);
+  return `${JSON.stringify(encodeToEnvelope(textToStringValue(text), STRING_PATTERN_PROPERTY_LIST))}\n`;
 }
 
 function decodeText(buffer) {
-  const { value } = decode(buffer);
+  const { value } = decodeEnvelope(JSON.parse(buffer.toString("utf8")));
   return stringValueToText(value);
 }
 
-export { STRING_PATTERN, textToStringValue, stringValueToText, encodeText, decodeText };
+export { STRING_PATTERN, STRING_PATTERN_PROPERTY_LIST, textToStringValue, stringValueToText, encodeText, decodeText };

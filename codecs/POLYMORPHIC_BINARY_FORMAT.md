@@ -1,10 +1,10 @@
-# K Polymorphic Binary Format
+# K Prefix-Free Pattern Codec
 
 ## Purpose
 
-This document defines a binary format for polymorphic values in `k`.
+This document defines the new target semantics for binary codecs in `k`.
 
-The semantic object to be serialized is:
+The object to be serialized is:
 
 ```text
 (P, v)
@@ -12,415 +12,255 @@ The semantic object to be serialized is:
 
 where:
 
-- `P` is a normalized pattern graph,
-- `v` is a typed value compatible with `P`.
+- `P` is a rooted pattern graph,
+- `v` is a value tree compatible with `P`.
 
-The binary format is designed so that:
+The codec is designed around:
 
-- the pattern carries all field and tag names,
-- the value payload carries no explicit labels or tags,
-- the value payload is friendly to `.label` and `/tag`,
-- closed typed values appear as the singleton-pattern special case.
+1. compactness,
+2. efficient structural navigation,
+3. a clean separation between semantic encoding and later transport/container
+   choices.
+
+This document defines the semantic codec. It does **not** require a final
+binary package format yet.
 
 ## Design Principles
 
 ### 1. Pattern is the structural authority
 
-The pattern section is the authoritative description of the structure expected by the value section.
+The pattern determines:
 
-It determines:
-
-- whether a node is product or union,
+- whether a node is a product or union,
 - whether it is open or closed,
-- which fields or tags are present explicitly,
-- which subpositions point to the same pattern node,
-- which leaves are exact types.
+- what field names or tag names exist,
+- how recursive positions are connected.
 
-### 2. Value is interpreted relative to the pattern
+The value payload is interpreted relative to the pattern.
 
-The value payload is not self-describing.
-It is decoded relative to the pattern graph.
+### 2. Values are trees in the base codec
 
-This is why the payload does not need to repeat field names or tag names.
+The base codec serializes value trees, not value DAGs.
 
-### 3. `(...)` is not value-carrying
+DAG compression is not part of the primitive codec. If wanted, it should happen
+as a separate transform above the base value encoding.
 
-The leaf pattern `(...)` is allowed in the pattern language, but it is **not** allowed to carry serialized value content in version 1 of this format.
+### 3. Prefix-free value encoding
 
-This restriction keeps explicit labels out of the value payload.
-Otherwise the missing structure would have to be reintroduced locally in the value itself.
+The value payload is a prefix-free bitstream.
 
-### 4. Value DAG is only an optimization
+Products rely on structural concatenation.
+Unions emit a choice code, then the payload of the selected branch.
 
-Semantically, the value is a tree.
-On the wire, it may be encoded as a DAG by collapsing equal occurrences relative to the pattern.
+### 4. Abstract first, packaging later
 
-## High-Level Structure
+The pattern graph and the value encoding must be specified abstractly first.
 
-The package layout is:
+Only after that should they be embedded in:
 
-```text
-| magic | format_version | flags | symbol_table | pattern_section | value_section |
-```
+- JSON,
+- `k` values,
+- or a compact binary envelope.
 
-There is no separate `type_section`.
+## Pattern Graph
 
-## Primitive Encodings
+### Semantic node kinds
 
-### Integers
+There are exactly five node kinds:
 
-- fixed-width integers are unsigned and big-endian,
-- variable-width integers use unsigned LEB128 and are written `uvarint`.
+- `any`
+- `open-product`
+- `open-union`
+- `closed-product`
+- `closed-union`
 
-### Symbols
+Their informal meanings are:
 
-A symbol is a UTF-8 string used as:
+- `any`
+  unconstrained position,
+- `open-product`
+  explicit fields plus possibly more fields in the matched value,
+- `open-union`
+  explicit tags plus possibly more tags in the matched value,
+- `closed-product`
+  exactly the listed fields,
+- `closed-union`
+  exactly the listed tags.
 
-- a field name,
-- a tag name,
-- an exact type identifier when such identifiers are serialized as strings.
+In the base codec, `any` is not directly value-carrying.
 
-Symbols are interned in a symbol table and referred to by symbol ID.
+### Graph structure
 
-## Header
-
-```text
-| magic:4 bytes | format_version:u8 | flags:u8 |
-```
-
-Current values:
-
-- `magic = "KPV2"`
-- `format_version = 1`
-
-All flag bits are reserved in version 1 and must be zero.
-
-## Symbol Table
+A pattern graph node is:
 
 ```text
-| symbol_count:uvarint | symbol_0 | ... | symbol_(N-1) |
+[kind, edges]
 ```
 
-Each symbol is:
+where `edges` is a list of:
 
 ```text
-| byte_length:uvarint | utf8_bytes... |
+[label, target_node_id]
 ```
 
-### Canonical ordering
+The root node is node `0`.
 
-Symbols are ordered canonically by:
+### Canonical constraints
 
-1. ascending UTF-8 byte sequence,
-2. duplicates removed.
+- node `0` is the root,
+- node order is canonical graph-discovery order,
+- edges are sorted by label,
+- no duplicate labels occur within one node,
+- `any` has no outgoing edges.
 
-The same symbol table is used by both the pattern and the value sections.
+### Bootstrap JSON syntax
 
-## Pattern Section
+The initial concrete representation is:
 
-The pattern section serializes a normalized rooted pattern graph.
+```json
+{
+  "pattern": [
+    ["closed-union", [["nil", 1], ["cons", 2]]],
+    ["closed-product", []],
+    ["closed-product", [["car", 3], ["cdr", 0]]],
+    ["closed-union", [["_", 1], ["0", 3], ["1", 3]]]
+  ]
+}
+```
 
-### Pattern node kinds
+This syntax is only a bootstrap envelope for the abstract graph.
 
-There are exactly five semantic node kinds:
+## Value Encoding
 
-- `(...)`
-- `{...}`
-- `<...>`
-- `{}`
-- `<>`
+### General shape
 
-These are constructor classes of pattern nodes, not leaf/internal tags.
-Only `(...)` is forced to have no outgoing edges.
-All other node kinds may have zero or more outgoing edges.
+The value encoding is defined recursively relative to the current pattern node.
 
-Their meanings are:
+#### Product node
 
-- `(...)` means unconstrained type,
-- `{...}` with edges `l1 -> X1, ..., ln -> Xn` means
-
-  ```text
-  { X1 l1, ..., Xn ln, ... }
-  ```
-
-- `<...>` with edges `t1 -> X1, ..., tn -> Xn` means
-
-  ```text
-  < X1 t1, ..., Xn tn, ... >
-  ```
-
-- `{}` with edges `l1 -> X1, ..., ln -> Xn` means
-
-  ```text
-  { X1 l1, ..., Xn ln }
-  ```
-
-- `<>` with edges `t1 -> X1, ..., tn -> Xn` means
-
-  ```text
-  < X1 t1, ..., Xn tn >
-  ```
-
-In particular:
-
-- `{}` with zero edges is the unit type,
-- `<>` with zero edges is the empty type,
-- `{...}` with zero edges matches any product type,
-- `<...>` with zero edges matches any union type.
-
-### Canonical node numbering
-
-Pattern nodes are numbered by first discovery in rooted depth-first traversal:
-
-1. start at the root,
-2. visit outgoing edges in ascending symbol ID order,
-3. assign a new node ID on first encounter,
-4. reuse the existing node ID on revisits.
-
-The root pattern node is always node `0`.
-
-### Structure
+For `open-product` or `closed-product`:
 
 ```text
-| pattern_node_count:uvarint | pattern_node_0 | ... | pattern_node_(P-1) |
+encode(v_0) encode(v_1) ... encode(v_(n-1))
 ```
 
-### Pattern node record
+in canonical edge order.
 
-Every pattern node record starts with:
+There are no separators between children. The pattern determines where each
+child begins and ends.
+
+#### Union node
+
+For `open-union` or `closed-union`:
 
 ```text
-| node_kind:u8 |
+encode-choice(tag_ordinal, tag_count)
+encode(selected_payload)
 ```
 
-The codes are:
+#### Any node
 
-- `0` = `(...)`
-- `1` = `{...}`
-- `2` = `<...>`
-- `3` = `{}`
-- `4` = `<>`
+`any` is not directly value-carrying in the base format.
 
-The remainder of every record is:
+If a value would need to descend into an `any` position, the pattern must first
+be refined.
+
+## Choice Encoding
+
+The initial concrete choice encoding is fixed-width by cardinality:
 
 ```text
-| edge_count:uvarint | edge_0 | ... | edge_(k-1) |
+width(cardinality) = ceil(log2(cardinality))
 ```
 
-Each edge is:
+A choice with:
 
-```text
-| symbol_id:uvarint | target_pattern_node:uvarint |
-```
+- `cardinality = n`
+- `ordinal in [0, n)`
 
-Edges must be sorted by ascending `symbol_id` and have no duplicates.
+is encoded as the binary representation of `ordinal` in `width(n)` bits.
 
-Validation rules for node kinds:
+Examples:
 
-- `(...)` must have `edge_count = 0`,
-- all other node kinds may have any `edge_count ≥ 0`.
+- `n = 1`: `0` bits,
+- `n = 2`: `1` bit,
+- `n = 3`: `2` bits,
+- `n = 4`: `2` bits,
+- `n = 5`: `3` bits.
 
-This document therefore starts without type hashes or exact-type leaves.
-Closed typed values are represented simply as values whose root pattern happens to be singleton.
-
-## Value Section
-
-The value section encodes the witness value tree relative to the pattern graph.
-On the wire, it is represented as a DAG of value occurrences decorated by pattern-node identity.
-
-### Canonical value-node identity
-
-The canonical key of a value node is:
-
-```text
-(pattern_node_id, node_shape)
-```
-
-where:
-
-- for product pattern nodes (`{...}` or `{}`), `node_shape` is the ordered list of child node IDs,
-- for union pattern nodes (`<...>` or `<>`), `node_shape` is `(tag_ordinal, child_node_id)`,
-- `(...)` carries no value and therefore cannot appear in the value section.
-
-This is the criterion for canonical DAG sharing in the value payload.
-
-### Encodability restriction
-
-Version 1 forbids serialized values from descending into an `any-leaf` pattern node.
-
-So if evaluation of a value against a pattern would require materializing a subtree at `(...)`, the value is **not encodable** in this format.
-
-### Canonical value-node numbering
-
-Value nodes are numbered in canonical postorder:
-
-1. children before parents,
-2. for product nodes, children in ascending pattern-edge symbol order,
-3. for union nodes, the selected child before the parent,
-4. a shared node is emitted only once, at the first completed postorder visit.
-
-The root value node is always the last node.
-
-### Structure
-
-```text
-| value_node_count:uvarint | value_node_0 | ... | value_node_(V-1) |
-```
-
-### Value node record
-
-Each value node starts with:
-
-```text
-| pattern_node_id:uvarint | body... |
-```
-
-The body depends on the referenced pattern node kind.
-
-#### Product value node
-
-If the pattern node is `{...}` or `{}` with `k` outgoing edges in ascending symbol order:
-
-```text
-| child_ref_0:uvarint | child_ref_1:uvarint | ... | child_ref_(k-1):uvarint |
-```
-
-The value carries exactly the children of the explicitly listed fields.
-Open product patterns do not permit the value section to introduce additional unlabeled fields.
-
-#### Union value node
-
-If the pattern node is `<...>` or `<>` with `m` outgoing edges in ascending symbol order:
-
-```text
-| tag_ordinal:uvarint | child_ref:uvarint |
-```
-
-`tag_ordinal` must be in `[0, m)`.
-Open union patterns do not permit the value section to introduce additional unnamed tags.
-
-#### `(...)` value node
-
-This case is forbidden in version 1.
-
-## Child References
-
-Child references are encoded as back-distances:
-
-```text
-child_ref = current_value_node_id - 1 - child_value_node_id
-```
-
-So:
-
-- `0` means the immediately preceding node,
-- `1` means two records back,
-- and so on.
-
-The decoder reconstructs:
-
-```text
-child_value_node_id = current_value_node_id - 1 - child_ref
-```
-
-## Validation
-
-After decoding, a package is valid iff all of the following hold.
-
-### Pattern section
-
-- all pattern node IDs referenced by edges are in range,
-- all edge symbol IDs are in range,
-- edge symbol IDs are strictly increasing within each node,
-- `(...)` has no outgoing edges,
-- the root node exists.
-
-### Value section
-
-- every `pattern_node_id` is in range,
-- every child reference points to an earlier value node,
-- a product value node references a `{...}` or `{}` pattern node,
-- a union value node references a `<...>` or `<>` pattern node,
-- no value node references `(...)`,
-- `tag_ordinal` is valid for the referenced union pattern node,
-- the root value node references pattern node `0`.
-- no value node references `<>` with zero outgoing edges, since the empty type has no values.
-
-## Example
-
-Consider:
-
-```k
-pattern: < X tag1, {} tag2, ... > = X
-value:   {}|tag2|tag1|tag1
-```
-
-### Symbols
-
-```text
-0 -> "tag1"
-1 -> "tag2"
-```
-
-### Pattern graph
-
-```text
-P0: <...>, edges(tag1 -> P0, tag2 -> P1)
-P1: {},    no edges
-root = P0
-```
-
-### Value DAG
-
-```text
-V0: {}            at P1
-V1: V0 | tag2     at P0
-V2: V1 | tag1     at P0
-V3: V2 | tag1     at P0
-root = V3
-```
-
-This example has no repeated decorated subtrees, so the value DAG is the same as the value tree.
-
-## Closed-Value Specialization
-
-If the root pattern is singleton, then the whole package represents an ordinary closed typed value.
-
-In that case:
-
-- the pattern section still exists and makes the package self-contained,
-- a more compact specialization may omit the pattern section and use the dedicated closed-value format.
-
-So the closed-value format is a derived optimization, not the semantic foundation.
+This is the initial canonical rule for the rewrite. More aggressive coding
+schemes may be considered later, but only after the abstract semantics are
+stable.
 
 ## Operational Properties
 
-The value payload is chosen to support efficient `k` navigation.
-
-### `.label`
-
-For a product value node:
-
-1. inspect the referenced pattern node,
-2. map `label` to field ordinal by the pattern edge order,
-3. jump to the corresponding child reference.
-
 ### `/tag`
 
-For a union value node:
+At a union node:
 
-1. inspect the referenced pattern node,
-2. compare the stored `tag_ordinal` with the requested tag ordinal,
-3. on success follow the child reference.
+1. read the choice code,
+2. compare it to the requested tag ordinal,
+3. if it matches, continue with the selected payload.
 
-So field and tag names stay in the pattern graph, not in the value payload.
+This makes `/tag` naturally efficient.
 
-## Future Extensions
+### `.field`
 
-Possible future extensions include:
+At a product node, child values appear in canonical field order.
 
-- introducing exact-type leaf nodes and a pattern registry,
-- allowing a controlled self-describing payload under `(...)`,
-- auxiliary indexes for faster random access,
-- optional textual debug envelopes,
-- section compression that preserves the decoded semantic object.
+So `.field` is resolved by:
+
+1. locating the field ordinal in the pattern,
+2. decoding or skipping earlier children,
+3. decoding the requested child subtree.
+
+The base codec does not include field-offset indexes. Such indexes may be added
+later as separate higher-level acceleration structures.
+
+## Recursive Types
+
+Recursive pattern graphs are first-class.
+
+For example, a bit-list-like recursive type:
+
+```text
+["closed-union", [["_", 1], ["0", 3], ["1", 3]]]
+```
+
+is encoded as repeated union choices in a value tree, not as a byte-aligned node
+table and not as a built-in primitive integer format.
+
+This keeps the codec uniform: recursion is handled by the pattern graph itself.
+
+## Bootstrap Envelope
+
+The initial transport envelope is JSON:
+
+```json
+{
+  "pattern": [...],
+  "value_bits": "..."
+}
+```
+
+`value_bits` may be carried as:
+
+- a literal bitstring for debugging, or
+- a base64 string for practical transport.
+
+The envelope is deliberately simple so that the semantics of `pattern` and
+`value_bits` can be stabilized before moving to a self-hosted representation.
+
+## Out Of Scope For The Base Codec
+
+The following are intentionally outside the primitive codec:
+
+- DAG compression,
+- subtree deduplication,
+- projection indexes,
+- transport-specific framing,
+- compact binary pattern serialization,
+- exact-type-only specializations.
+
+These may be added later, but they are not part of the base pattern-plus-tree
+prefix codec.

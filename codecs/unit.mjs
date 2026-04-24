@@ -2,17 +2,11 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product } from "../Value.mjs";
-import { encodeWithPattern, NODE_KIND } from "./runtime/codec.mjs";
+import { decodeEnvelope, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
 
-const UNIT_PATTERN = {
-  dictionary: [],
-  nodes: [
-    {
-      kind: NODE_KIND.ANY,
-      edges: []
-    }
-  ]
-};
+const UNIT_PATTERN = [
+  ["closed-product", []]
+];
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -24,15 +18,15 @@ function readAll(stream) {
 }
 
 function unitEncoding() {
-  return encodeWithPattern(new Product({}), UNIT_PATTERN);
+  return `${JSON.stringify(encodeToEnvelope(new Product({}), UNIT_PATTERN))}\n`;
 }
 
 async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
     console.error("Usage: unit.mjs --parse | --print");
-    console.error("  --parse  ignore stdin and write the unit binary encoding");
-    console.error("  --print  validate the unit binary encoding and write {}");
+    console.error("  --parse  ignore stdin and write the unit JSON envelope");
+    console.error("  --print  validate the unit JSON envelope and write {}");
     exit(1);
   }
 
@@ -44,8 +38,9 @@ async function main() {
   }
 
   const input = await readAll(stdin);
-  if (!input.equals(expected)) {
-    throw new Error("Input is not the canonical unit encoding");
+  const { value } = decodeEnvelope(JSON.parse(input.toString("utf8")));
+  if (!(value instanceof Product) || Object.keys(value.product).length !== 0) {
+    throw new Error("Input is not a unit value");
   }
   stdout.write("{}");
 }

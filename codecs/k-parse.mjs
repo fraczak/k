@@ -2,22 +2,16 @@
 
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
-import { parse as parseScript } from "../parser.mjs";
-import { parseValue } from "../valueIO.mjs";
-import codes from "../codes.mjs";
 import k from "../index.mjs";
-import { encode, encodeWithPattern, exportPatternGraph } from "./runtime/codec.mjs";
+import { parseValue } from "../valueIO.mjs";
+import { exportPatternGraph } from "./runtime/codec.mjs";
+import { patternToPropertyList } from "./runtime/pattern-json.mjs";
+import { encodeToEnvelope } from "./runtime/prefix-codec.mjs";
 
 function usage(prog) {
   console.error(`Usage: ${prog} [--input-type <type-script|type-file> | --input-pattern <pattern-script|pattern-file>] [value-file]`);
-  console.error(`  Example inline:`);
-  console.error(`    echo '["zebara","ela"]' | ${prog} --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v'`);
-  console.error(`  Example pattern:`);
-  console.error(`    echo '["zebara","ela"]' | ${prog} --input-pattern '?{<{} zebara, {} ela> 0, <{} zebara, {} ela> 1}'`);
-  console.error(`  Default pattern:`);
-  console.error(`    echo 'true' | ${prog}`);
-  console.error(`  Example file:`);
-  console.error(`    cat input.json | ${prog} --input-type input-type.k`);
+  console.error("  Parse a textual k value and emit the JSON prefix-codec envelope.");
+  console.error("  If no pattern or type is provided, derive a closed pattern from the value.");
 }
 
 function maybeReadFile(s) {
@@ -37,6 +31,20 @@ function readAll(stream) {
   });
 }
 
+function propertyListFromScript(script) {
+  const annotated = k.annotate(script);
+  const mainRel = annotated.rels.__main__;
+  if (!mainRel || !mainRel.typePatternGraph) {
+    throw new Error("Could not resolve __main__ relation");
+  }
+  if (mainRel.def.op !== "filter" && mainRel.def.op !== "code") {
+    throw new Error("Input script must end with a filter or a type name");
+  }
+  const rootPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
+  const pattern = exportPatternGraph(mainRel.typePatternGraph, rootPatternId);
+  return patternToPropertyList(pattern);
+}
+
 async function main() {
   const prog = argv[1];
   const args = argv.slice(2);
@@ -50,8 +58,11 @@ async function main() {
       inputTypeArg = args[++i];
     } else if (args[i] === "--input-pattern") {
       inputPatternArg = args[++i];
-    } else {
+    } else if (valueFile == null) {
       valueFile = args[i];
+    } else {
+      usage(prog);
+      return exit(1);
     }
   }
 
@@ -60,52 +71,18 @@ async function main() {
     return exit(1);
   }
 
-  const inputBuffer = valueFile
-    ? fs.readFileSync(valueFile)
-    : await readAll(stdin);
+  const inputBuffer = valueFile ? fs.readFileSync(valueFile) : await readAll(stdin);
   const inputText = inputBuffer.toString("utf8");
+  const value = parseValue(inputText, null, null);
 
-  if (inputTypeArg != null) {
-    const typeScript = maybeReadFile(inputTypeArg);
-    const { defs, exp } = parseScript(typeScript);
-    if (exp.op !== "code") {
-      throw new Error("Input type script must end with a type name expression (e.g., '$v')");
-    }
-
-    const { codes: finalizedCodes, representatives } = codes.finalize(defs.codes);
-    const typeName = representatives[exp.code] || exp.code;
-    const typeInfo = finalizedCodes[typeName];
-    if (!typeInfo) {
-      throw new Error(`Could not resolve concrete type for '${exp.code}'`);
-    }
-
-    const value = parseValue(inputText, typeName, typeInfo);
-    const resolveType = (name) => {
-      const t = finalizedCodes[name];
-      if (!t) throw new Error(`Unknown type during encoding: ${name}`);
-      return t;
-    };
-
-    stdout.write(encode(value, typeName, typeInfo, resolveType));
-    return;
-  }
-
-  const pattern = (() => {
-    if (inputPatternArg == null) {
-      return { dictionary: [], nodes: [{ kind: 0, edges: [] }] };
-    }
-    const patternScript = maybeReadFile(inputPatternArg);
-    const annotated = k.annotate(patternScript);
-    const mainRel = annotated.rels.__main__;
-    if (mainRel.def.op !== "filter") {
-      throw new Error("Input pattern script must end with a filter expression (e.g., '?< {} nil, {X car, Y cdr} cons > = Y')");
-    }
-    const rootPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
-    return exportPatternGraph(mainRel.typePatternGraph, rootPatternId);
+  const propertyList = (() => {
+    if (inputTypeArg != null) return propertyListFromScript(maybeReadFile(inputTypeArg));
+    if (inputPatternArg != null) return propertyListFromScript(maybeReadFile(inputPatternArg));
+    return null;
   })();
 
-  const value = parseValue(inputText, null, null);
-  stdout.write(encodeWithPattern(value, pattern));
+  const envelope = encodeToEnvelope(value, propertyList);
+  stdout.write(`${JSON.stringify(envelope)}\n`);
 }
 
 main().catch((error) => {

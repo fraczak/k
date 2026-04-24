@@ -17,6 +17,7 @@
     "bin": {
         "k": "./k.mjs",
         "k-parse": "./codecs/k-parse.mjs",
+        "k-pattern": "./codecs/k-pattern.mjs",
         "k-print": "./codecs/k-print.mjs",
         "k-repl": "./repl.mjs"
     },

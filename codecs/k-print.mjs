@@ -2,7 +2,7 @@
 
 import fs from "node:fs";
 import { argv, stdin, stdout } from "node:process";
-import { decode, decodeDebug, NODE_KIND } from "./runtime/codec.mjs";
+import { decodeEnvelope } from "./runtime/prefix-codec.mjs";
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -30,41 +30,15 @@ async function main() {
 
   const input = fileArg ? fs.createReadStream(fileArg) : stdin;
   const buffer = await readAll(input);
+  const envelope = JSON.parse(buffer.toString("utf8"));
+  const { pattern, value } = decodeEnvelope(envelope);
 
   if (debug) {
-    const { pattern, valueDag } = decodeDebug(buffer);
-    const kindName = (kind) => {
-      switch (kind) {
-        case NODE_KIND.ANY: return "(...)";
-        case NODE_KIND.OPEN_PRODUCT: return "{...}";
-        case NODE_KIND.OPEN_UNION: return "<...>";
-        case NODE_KIND.CLOSED_PRODUCT: return "{}";
-        case NODE_KIND.CLOSED_UNION: return "<>";
-        default: return `unknown(${kind})`;
-      }
-    };
-
-    const debugJson = {
-      pattern: {
-        root: 0,
-        dictionary: pattern.dictionary,
-        nodes: pattern.nodes.map((node, id) => ({
-          id,
-          kind: kindName(node.kind),
-          edges: node.edges.map((edge) => ({
-            symbol_id: edge.symbolId,
-            target: edge.target
-          }))
-        }))
-      },
-      value_dag: valueDag
-    };
-    stdout.write(`${JSON.stringify(debugJson)}\n`);
+    stdout.write(`${JSON.stringify({ pattern, value })}\n`);
     return;
   }
 
-  const { value } = decode(buffer);
-  stdout.write(`${JSON.stringify(value)}`);
+  stdout.write(`${JSON.stringify(value)}\n`);
 }
 
 main().catch((error) => {
