@@ -198,6 +198,24 @@ In k, variant values are represented by tagging their content. The `|tag` functi
 **Example:**
 `.toto.titi/1` is equivalent to `(.toto (.titi /1))`.
 
+### Codec value parsing
+
+`k-parse` builds an envelope pattern from the value tree when no input pattern or
+type is supplied. Empty nodes and multi-child nodes are products. A one-child
+node is treated as an open union by default; an explicit product input pattern
+can force it to be a singleton product.
+
+For example, `{a:{b:x,c:{}}}` derives the pattern:
+
+```json
+[
+  ["open-union", [["a", 1]]],
+  ["closed-product", [["b", 2], ["c", 3]]],
+  ["open-union", [["x", 3]]],
+  ["closed-product", []]
+]
+```
+
 ---
 
 ## Codes (Schemas / Types)
@@ -244,11 +262,11 @@ not during program execution.
 ```k-repl
 > toto = .toto;
 --R toto
-  toto : ?(X0 toto, ...)  -->  ?X0
+  toto : ?{X0 toto, ...}  -->  ?X0
 
 > rel = < .toto, () >;
 --R rel
-  rel : ?(X0 toto, ...)=X0  -->  ?X0
+  rel : ?{X0 toto, ...}=X0  -->  ?X0
 ```
 
 _Filter_ is the syntax for patterns available in the language.

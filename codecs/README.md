@@ -117,6 +117,43 @@ Canonical rules:
 This JSON graph is only the bootstrap syntax. The long-term intent is to encode
 the same abstract graph as an ordinary `k` value.
 
+## Witness-Derived Patterns
+
+When `k-parse` is used without an explicit input pattern or type, the envelope
+pattern is derived from the parsed value tree.
+
+- An empty textual node is a closed product: `{}`.
+- A textual node with multiple children is a closed product.
+- A textual node with one child is interpreted as an open union by default.
+- An explicit product input pattern may force such a node to be treated as a
+  singleton product instead.
+
+For example, parsing:
+
+```text
+{a:{b:x,c:{}}}
+```
+
+without an input pattern derives:
+
+```json
+[
+  ["open-union", [["a", 1]]],
+  ["closed-product", [["b", 2], ["c", 3]]],
+  ["open-union", [["x", 3]]],
+  ["closed-product", []]
+]
+```
+
+During this construction, finite closed pattern subtrees are hash-consed from
+the leaves upward. The starting closed leaf is `["closed-product", []]`. Two
+closed nodes collapse only when they have the same closed kind, the same labels,
+and the same already-collapsed child targets. Open nodes keep their identity,
+and recursive closed nodes are not collapsed by this witness-tree rule.
+
+This is canonicalization of the pattern graph carried in the envelope. It is
+not DAG compression of the value payload.
+
 ## Prefix-Free Value Encoding
 
 The value payload is a bitstream interpreted relative to the pattern graph.

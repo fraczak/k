@@ -28,6 +28,12 @@ function setUnion(...vectors) {
 
 export function unify_two_patterns(findCode, p1, p2) {
   // console.log(`unify_two_patterns(${JSON.stringify(p1)}, ${JSON.stringify(p2)})`);
+  if (p1.pattern === '()' || p2.pattern === '()') {
+    throw new Error("Closed unknown pattern '()' is not supported. Use '{}' or '<>' to choose product or union.");
+  }
+  if ((p1.pattern === '(...)' && (p1.fields || []).length !== 0) || (p2.pattern === '(...)' && (p2.fields || []).length !== 0)) {
+    throw new Error("Unknown-kind pattern '(...)' cannot have fields.");
+  }
   switch (p1.pattern) {
     case '(...)':
       switch (p2.pattern) {
@@ -37,9 +43,6 @@ export function unify_two_patterns(findCode, p1, p2) {
           return {...p2, fields: setUnion(p1.fields, p2.fields)};
         case '<...>':
           return {...p2, fields: setUnion(p1.fields, p2.fields)};
-        case '()':
-          if (subsetP(p1.fields, p2.fields)) return p2;
-          throw new Error(`Cannot unify (${p1.fields},...) with (${p2.fields})`);
         case '{}':
           if (subsetP(p1.fields, p2.fields)) return p2;
           throw new Error(`Cannot unify (${p1.fields},...) with {${p2.fields}}`);
@@ -66,9 +69,6 @@ export function unify_two_patterns(findCode, p1, p2) {
           return {...p2, fields: setUnion(p1.fields, p2.fields)};
         case '<...>':
           throw new Error('Cannot unify {...} with <...>');
-        case '()':
-          if (subsetP(p1.fields, p2.fields))
-            return {pattern: '{}', fields: p2.fields};
         case '{}':
           if (subsetP(p1.fields, p2.fields)) return p2;
           throw new Error(`Cannot unify {${p1.fields},...} with {${p2.fields}}`);
@@ -90,10 +90,6 @@ export function unify_two_patterns(findCode, p1, p2) {
       switch (p2.pattern) {
         case '<...>':
           return {pattern: '<...>', fields: setUnion(p1.fields, p2.fields)};
-        case '()':
-          if (subsetP(p1.fields, p2.fields))
-            return {pattern: '<>', fields: p2.fields};
-          throw new Error(`Cannot unify <${p1.fields},...> with (${p2.fields})`);
         case '{}':
           throw new Error('Cannot unify <...> with {}');
         case '<>':
@@ -112,34 +108,6 @@ export function unify_two_patterns(findCode, p1, p2) {
         };
       }; 
       break;
-    case '()': // Pattern '()' can be introduced by filter e.g., ?(X x, Y x)
-      switch (p2.pattern) {
-        case '()':
-          if (eqsetP(p1.fields, p2.fields)) return p2;
-          throw new Error(`Cannot unify (${p1.fields}) with (${p2.fields})`);
-        case '{}':
-          if (eqsetP(p1.fields, p2.fields)) return p2;
-          throw new Error(`Cannot unify (${p1.fields}) with {${p2.fields}}`);
-
-        case '<>':
-          if (eqsetP(p1.fields, p2.fields)) return p2;
-          throw new Error(`Cannot unify (${p1.fields}) with <${p2.fields}>`);
-        case 'type':{
-          const code = findCode(p2.type);
-          switch (code.code) {
-            
-            case 'product':
-            case 'union': {
-              let p2_fields = Object.keys(code[code.code]);
-              if (eqsetP(p1.fields, p2_fields)) return {...p2, fields: p2_fields};
-            }; break;
-            
-          }
-          throw new Error(`Cannot unify ${JSON.stringify(p1)} with code ${p2.type}:${code.def}`);
-        };
-      };
-      break;
-    
     case '{}':
       switch (p2.pattern) {
         case '{}':

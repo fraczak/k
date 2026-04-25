@@ -18,12 +18,12 @@ A **pattern** represents a set of types:
 | `(...)` | Open unknown | Any |
 | `{...}` | Open product | At least specified |
 | `<...>` | Open union | At least specified |
-| `()` | Closed unknown | Exactly specified |
 | `{}` | Closed product | Exactly specified |
 | `<>` | Closed union | Exactly specified |
 | `T` | Named type | From type definition |
 
 **Fields:** Each pattern has associated field labels. For open patterns, additional fields may exist. For closed patterns, the field set is exact. 
+Unknown-kind patterns have only the open form `(...)`; a closed filter must choose product `{...}`/`{}` or union `<...>`/`<>`.
 
 A type pattern is a singleton pattern, i.e., only one type is captured by such a pattern.
 

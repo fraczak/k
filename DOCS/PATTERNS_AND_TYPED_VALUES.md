@@ -99,6 +99,7 @@ Each node carries:
 
 For product and union nodes, outgoing edges are labeled by field names or tags.
 Edges are locally unique by label.
+Unknown-kind nodes use only the open form `(...)`; closed patterns must choose product or union kind explicitly.
 
 Unlike the case of types, **node identity in a pattern graph is semantic**.
 If two edges point to the same pattern node, this means that the corresponding positions must be inhabited by the very same type.
@@ -552,6 +553,31 @@ This operation can have several variants, for example:
 
 This is not the same as recovering a unique semantic value from the tree alone, because a raw tree does not determine its type.
 Still, such derivations are useful as heuristics, input assistance, and initialization of pattern inference.
+
+The current codec envelope uses one such derivation when no input pattern or
+type is supplied. Empty nodes derive the closed product `{}`. Multi-child nodes
+derive closed products. A one-child node derives an open union by default, unless
+an explicit product pattern is supplied to disambiguate it as a singleton
+product.
+
+For example:
+
+```k
+{a:{b:x,c:{}}}
+```
+
+derives the pattern:
+
+```k
+< { <{} x, ...> b, {} c } a, ... >
+```
+
+The derived envelope pattern may then be canonicalized by collapsing finite
+closed subtrees from the leaves upward. The base case is the closed empty product
+`{}`; two closed nodes collapse only when their kind, labels, and already
+collapsed children are identical. Open pattern nodes keep their identity. This
+closed-node collapse belongs to pattern graph construction and should not be
+confused with DAG compression of the witness value tree.
 
 ### 14.5. Additional likely tools
 

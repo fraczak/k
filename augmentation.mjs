@@ -97,9 +97,10 @@ function filterToPattern(filter, rootDef, representatives) {
         getFields());
       break;
     default:
-      newPatternId = rootDef.typePatternGraph.addNewNode(
-        {pattern: filter.open ? '(...)' : '()'},
-        getFields());
+      if (!filter.open || Object.keys(filter.fields || {}).length !== 0) {
+        throw new Error("Unknown-kind filters must be exactly '(...)'. Use '{}'/'<>' for closed product/union or '{...}'/'<...>' for open product/union.");
+      }
+      newPatternId = rootDef.typePatternGraph.addNewNode({pattern: '(...)'});
   }
   if (filter.name) {
     rootDef.typePatternGraph.unify(`filter: ${filter.name}`, newPatternId, context[filter.name]);

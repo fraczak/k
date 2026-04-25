@@ -9,7 +9,7 @@ const pu = {pattern: '(...)', fields: []};
 
 for (var i = 0; i < 16; i++) { g.addNewNode(pu); }
 
-g.addNewNode({pattern: '(...)'}, {x: [1]}); // 16
+g.addNewNode({pattern: '{...}'}, {x: [1]}); // 16
 g.unify("y:input", 0,16); // 17
 
 // 

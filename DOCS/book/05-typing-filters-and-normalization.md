@@ -21,7 +21,7 @@ Filter expressions are introduced by `?` and can be:
 - **Type expressions** — `? $bool`, `? $< {} x, bool y >`
 - **Product filters** — `? { Filter1 field1, Filter2 field2 }`  
 - **Union filters** — `? < Filter1 tag1, Filter2 tag2 >`
-- **Product-or-union filters** — `? ( Filter1 label1, Filter2 label2 )`
+- **Any-type filter** — `? ( ... )`
 - **Filter variables** — `? X` (metavariables representing unknown types)
 - **Filter bindings** — `? < X f, (...) = Y g, ... > = X`
 
@@ -31,13 +31,13 @@ Filters may contain `...` to indicate that additional fields or tags are allowed
 The filter `? (...)` matches any type.
 The filter `? {...}` matches any product type.
 The filter `? <...>` matches any union type.
+There is no closed unknown filter: use `?{}` for the empty product or `?<>` for the empty union.
 
 ---
 
 ## **5.3 Examples of filters**
 
 - `?(...)` — represents any type.
-- `?()` — represents an empty product or empty union.
 - `?< (...) f, (...) g >` — represents all union types having exactly two variants `f` and `g`.
 - `?{ X f, X g }` — represents all product types with two fields `f` and `g`, both of the same type.
 
@@ -103,7 +103,7 @@ Type inference and normalization proceeds as follows:
 
 - Type expressions act as identity functions defined on values of that type.
 - Filters describe sets of types and can constrain where a function is defined.
-- Filters may be products, unions, or product-or-union forms, and can be recursive.
+- Filters may be products, unions, or the unconstrained any-type form, and can be recursive.
 - Variables in filters have definition-level scope.
 - Normalization computes explicit input/output filters for every expression.
 - Filters are used in the normalization and type checking process. They are ignored at runtime.

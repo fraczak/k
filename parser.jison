@@ -154,7 +154,7 @@ code_label
 
 filter_
     : dollar code                 { $$ = { type: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
-    | lp labelled_filters      rp { $$ = { type: null, open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
+    | lp dots                 rp  { $$ = { type: null, open: true, fields: {}, start: $1.start, end: $3.end}; }
     | la labelled_filters      ra { $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | lc labelled_filters      rc { $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     ;

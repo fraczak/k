@@ -28,6 +28,17 @@ where:
 This keeps the evaluator stage free of formatting concerns while staying close
 to the new semantic codec model.
 
+When `k-parse` has no explicit input pattern or type, it builds the pattern from
+the parsed value tree. Empty nodes become closed products, multi-child nodes
+become closed products, and one-child nodes become open unions by default. An
+explicit product pattern can force a one-child node to be treated as a singleton
+product.
+
+The derived envelope pattern is canonicalized by collapsing finite closed
+subtrees from the leaves upward, starting at `["closed-product", []]`. Open
+pattern nodes remain distinct. This is pattern graph canonicalization, not
+value-payload DAG compression.
+
 ## Verified Workflow
 
 ```bash

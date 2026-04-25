@@ -1,5 +1,5 @@
 import { Product, Variant } from "../../Value.mjs";
-import { refinePatternForValue, NODE_KIND } from "./codec.mjs";
+import { refinePatternForValue, coerceValueForPattern, NODE_KIND } from "./codec.mjs";
 import { patternToPropertyList, propertyListToPattern } from "./pattern-json.mjs";
 
 class BitWriter {
@@ -187,7 +187,7 @@ function deriveClosedPatternFromValue(value) {
       return nodeId;
     }
     if (node instanceof Variant) {
-      const placeholder = { kind: NODE_KIND.CLOSED_UNION, edges: [] };
+      const placeholder = { kind: NODE_KIND.OPEN_UNION, edges: [] };
       nodes.push(placeholder);
       placeholder.edges = [{
         label: node.tag,
@@ -217,9 +217,10 @@ function deriveClosedPatternFromValue(value) {
 
 function encodeToEnvelope(value, propertyList) {
   const basePattern = propertyList ? propertyListToPattern(propertyList) : deriveClosedPatternFromValue(value);
-  const refinedPattern = refinePatternForValue(basePattern, value);
+  const coercedValue = propertyList ? coerceValueForPattern(basePattern, value) : value;
+  const refinedPattern = refinePatternForValue(basePattern, coercedValue);
   const writer = new BitWriter();
-  encodeNode(writer, value, refinedPattern, 0);
+  encodeNode(writer, coercedValue, refinedPattern, 0);
   return {
     pattern: patternToPropertyList(refinedPattern),
     value_bits: writer.toBuffer().toString("base64")

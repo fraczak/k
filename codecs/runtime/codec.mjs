@@ -163,7 +163,7 @@ function deriveClosedPattern(rootTypeName, rootTypeInfo, resolveType) {
   const dictionary = [...new Set(nodes.flatMap((node) => node.edges.map((edge) => edge.label)))].sort();
   const symbolIds = new Map(dictionary.map((label, index) => [label, index]));
 
-  return {
+  return collapseClosedNodes({
     dictionary,
     nodes: nodes.map((node) => ({
       kind: node.kind,
@@ -173,7 +173,7 @@ function deriveClosedPattern(rootTypeName, rootTypeInfo, resolveType) {
         target: edge.target
       }))
     }))
-  };
+  });
 }
 
 function exportPatternGraph(typePatternGraph, rootPatternId) {
@@ -273,7 +273,7 @@ function exportPatternGraph(typePatternGraph, rootPatternId) {
   );
   const symbolIds = new Map(dictionary.map((label, index) => [label, index]));
 
-  return {
+  return collapseClosedNodes({
     dictionary,
     nodes: discovered.map((node) => ({
       kind: node.kind,
@@ -285,7 +285,7 @@ function exportPatternGraph(typePatternGraph, rootPatternId) {
           target: assigned.get(edge.target)
         }))
     }))
-  };
+  });
 }
 
 function normalizePattern(pattern) {
@@ -318,6 +318,103 @@ function normalizePattern(pattern) {
   });
 
   return { dictionary, nodes };
+}
+
+function collapseClosedNodes(pattern) {
+  const base = normalizePattern(pattern);
+  const { nodes } = base;
+  const representative = nodes.map((_, index) => index);
+  const state = new Array(nodes.length).fill("unseen");
+  const cyclic = new Array(nodes.length).fill(false);
+  const stack = [];
+  const stackIndex = new Map();
+  const canonicalClosed = new Map();
+
+  // Collapse finite closed subtrees from the leaves up. Open nodes keep identity,
+  // and recursive closed nodes are preserved because they are not value-tree leaves.
+  function closedKey(node) {
+    return JSON.stringify([
+      node.kind,
+      node.edges.map((edge) => [edge.label, representative[edge.target]])
+    ]);
+  }
+
+  function visit(nodeId) {
+    if (state[nodeId] === "done") return representative[nodeId];
+    if (state[nodeId] === "visiting") {
+      const cycleStart = stackIndex.get(nodeId);
+      if (cycleStart != null) {
+        for (let i = cycleStart; i < stack.length; i++) {
+          cyclic[stack[i]] = true;
+        }
+      }
+      return nodeId;
+    }
+
+    state[nodeId] = "visiting";
+    stackIndex.set(nodeId, stack.length);
+    stack.push(nodeId);
+    const node = nodes[nodeId];
+    for (const edge of node.edges) {
+      visit(edge.target);
+    }
+    stack.pop();
+    stackIndex.delete(nodeId);
+
+    if ((node.kind === NODE_KIND.CLOSED_PRODUCT || node.kind === NODE_KIND.CLOSED_UNION) && !cyclic[nodeId]) {
+      const key = closedKey(node);
+      if (canonicalClosed.has(key)) {
+        representative[nodeId] = canonicalClosed.get(key);
+      } else {
+        canonicalClosed.set(key, nodeId);
+      }
+    }
+
+    state[nodeId] = "done";
+    return representative[nodeId];
+  }
+
+  visit(0);
+
+  const discovered = [];
+  const assigned = new Map();
+
+  function assign(oldNodeId) {
+    const repId = representative[oldNodeId];
+    if (assigned.has(repId)) return assigned.get(repId);
+
+    const newNodeId = discovered.length;
+    assigned.set(repId, newNodeId);
+    const node = nodes[repId];
+    const newNode = { kind: node.kind, edges: [] };
+    discovered.push(newNode);
+    newNode.edges = node.edges.map((edge) => ({
+      label: edge.label,
+      target: assign(edge.target)
+    }));
+    return newNodeId;
+  }
+
+  assign(0);
+
+  const dictionary = [...new Set(discovered.flatMap((node) => node.edges.map((edge) => edge.label)))].sort((a, b) =>
+    Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"))
+  );
+  const symbolIds = new Map(dictionary.map((label, index) => [label, index]));
+
+  return {
+    dictionary,
+    nodes: discovered.map((node) => ({
+      kind: node.kind,
+      edges: node.edges
+        .map((edge) => ({
+          label: edge.label,
+          symbolId: symbolIds.get(edge.label),
+          target: edge.target
+        }))
+        .sort((a, b) => a.symbolId - b.symbolId)
+    }))
+  };
 }
 
 function refinePatternForValue(pattern, value) {
@@ -440,7 +537,7 @@ function refinePatternForValue(pattern, value) {
     const tagSet = [...new Set(values.map((node) => node.tag))].sort((a, b) =>
       Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"))
     );
-    const node = { kind: NODE_KIND.CLOSED_UNION, edges: [] };
+    const node = { kind: NODE_KIND.OPEN_UNION, edges: [] };
     for (const tag of tagSet) {
       node.edges.push({
         label: tag,
@@ -554,7 +651,7 @@ function refinePatternForValue(pattern, value) {
   );
   const symbolIds = new Map(dictionary.map((label, index) => [label, index]));
 
-  return {
+  return collapseClosedNodes({
     dictionary,
     nodes: discovered.map((node) => ({
       kind: node.kind,
@@ -566,7 +663,60 @@ function refinePatternForValue(pattern, value) {
           target: assigned.get(edge.target)
         }))
     }))
-  };
+  });
+}
+
+function coerceValueForPattern(pattern, value) {
+  const base = normalizePattern(pattern);
+
+  function coerce(patternNodeId, currentValue) {
+    const patternNode = base.nodes[patternNodeId];
+    if (!patternNode) {
+      throw new Error(`Unknown pattern node ${patternNodeId}`);
+    }
+
+    switch (patternNode.kind) {
+      case NODE_KIND.ANY:
+        return currentValue;
+
+      case NODE_KIND.CLOSED_PRODUCT:
+      case NODE_KIND.OPEN_PRODUCT: {
+        let productValue = currentValue;
+        if (currentValue instanceof Variant) {
+          productValue = new Product({ [currentValue.tag]: currentValue.value });
+        }
+        if (!(productValue instanceof Product)) {
+          throw new Error(`Expected Product for pattern node ${patternNodeId}`);
+        }
+
+        const explicitTargets = new Map(patternNode.edges.map((edge) => [edge.label, edge.target]));
+        const product = {};
+        for (const [label, childValue] of Object.entries(productValue.product)) {
+          product[label] = explicitTargets.has(label)
+            ? coerce(explicitTargets.get(label), childValue)
+            : childValue;
+        }
+        return new Product(product);
+      }
+
+      case NODE_KIND.CLOSED_UNION:
+      case NODE_KIND.OPEN_UNION: {
+        if (!(currentValue instanceof Variant)) {
+          throw new Error(`Expected Variant for pattern node ${patternNodeId}`);
+        }
+        const target = patternNode.edges.find((edge) => edge.label === currentValue.tag)?.target;
+        return new Variant(
+          currentValue.tag,
+          target == null ? currentValue.value : coerce(target, currentValue.value)
+        );
+      }
+
+      default:
+        throw new Error(`Unknown pattern node kind: ${patternNode.kind}`);
+    }
+  }
+
+  return coerce(0, value);
 }
 
 function encodeStringTable(writer, dictionary) {
@@ -842,6 +992,7 @@ function encode(value, typeName, typeInfo, resolveType) {
 
   const rootTypeInfo = resolveConcreteType(typeInfo ?? typeName, resolveType);
   const pattern = deriveClosedPattern(typeName, rootTypeInfo, resolveType);
+  const coercedValue = coerceValueForPattern(pattern, value);
   const writer = new ByteWriter();
 
   writer.writeBytes(MAGIC);
@@ -850,13 +1001,14 @@ function encode(value, typeName, typeInfo, resolveType) {
 
   encodeStringTable(writer, pattern.dictionary);
   encodePatternSection(writer, pattern);
-  encodeValueSection(writer, value, pattern);
+  encodeValueSection(writer, coercedValue, pattern);
 
   return writer.toBuffer();
 }
 
 function encodeWithPattern(value, pattern) {
-  const normalizedPattern = refinePatternForValue(pattern, value);
+  const coercedValue = coerceValueForPattern(pattern, value);
+  const normalizedPattern = refinePatternForValue(pattern, coercedValue);
   const writer = new ByteWriter();
 
   writer.writeBytes(MAGIC);
@@ -865,7 +1017,7 @@ function encodeWithPattern(value, pattern) {
 
   encodeStringTable(writer, normalizedPattern.dictionary);
   encodePatternSection(writer, normalizedPattern);
-  encodeValueSection(writer, value, normalizedPattern);
+  encodeValueSection(writer, coercedValue, normalizedPattern);
 
   return writer.toBuffer();
 }
@@ -936,5 +1088,5 @@ function decodeDebug(buffer) {
   return { pattern, value, valueDag };
 }
 
-export { encode, encodeWithPattern, decode, decodeDebug, deriveClosedPattern, exportPatternGraph, refinePatternForValue, NODE_KIND };
-export default { encode, encodeWithPattern, decode, decodeDebug, deriveClosedPattern, exportPatternGraph, refinePatternForValue, NODE_KIND };
+export { encode, encodeWithPattern, decode, decodeDebug, deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, NODE_KIND };
+export default { encode, encodeWithPattern, decode, decodeDebug, deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, NODE_KIND };

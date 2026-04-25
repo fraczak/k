@@ -17,12 +17,20 @@ $Pattern = <
 $open? = < {} open, {} closed >;
 
 we use the string notation: 
-'(...)' | '{...}' | '<...>' |  '()'  |  '{}'  | '<>'  | 'type'
+'(...)' | '{...}' | '<...>' | '{}' | '<>' | 'type'
 e.g.:
-{pattern: '()'}, 
 {pattern: '<...>'}
 {pattern: 'type', type: code_name}
 */
+
+function assertValidPatternNode(pattern, fields = {}) {
+  if (pattern.pattern == '()') {
+    throw new Error("Closed unknown pattern '()' is not supported.");
+  }
+  if (pattern.pattern == '(...)' && Object.keys(fields).length !== 0) {
+    throw new Error("Unknown-kind pattern '(...)' cannot have fields.");
+  }
+}
 
 class TypePatternGraph {
   constructor(registerCodeDef, findCode) {
@@ -98,7 +106,7 @@ class TypePatternGraph {
     const gEdgesWithoutParrallelEdges  = Array.from(new Set(gEdges));
     const gGraph = new Graph(gEdgesWithoutParrallelEdges);
     const queue = gNodes.filter(x => 
-      this.patterns.nodes[x].pattern in {'()':1, '(...)':1,'{...}':1, '<...>':1});
+      this.patterns.nodes[x].pattern in {'(...)':1,'{...}':1, '<...>':1});
     const excludedSet = new Set(queue);
 
     while (queue.length > 0) {
@@ -205,6 +213,7 @@ class TypePatternGraph {
   }
 
   addNewNode(pattern = matchAllPattern, fields = {}) {
+    assertValidPatternNode(pattern, fields);
     const id = this.patterns.addNewNode(pattern);
     const find = (x) => this.patterns.find(x);
     this.edges[id] = {};

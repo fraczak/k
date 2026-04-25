@@ -130,6 +130,39 @@ The initial concrete representation is:
 
 This syntax is only a bootstrap envelope for the abstract graph.
 
+## Pattern Construction From A Witness Tree
+
+When no external pattern or type is supplied, the bootstrap tools derive a
+pattern from the value tree itself.
+
+- `{}` derives the closed product leaf `["closed-product", []]`.
+- A textual tree node with multiple children derives a closed product.
+- A textual tree node with exactly one child derives an open union.
+- If an explicit product pattern is supplied, that pattern can disambiguate the
+  same one-child textual node as a singleton product.
+
+Example:
+
+```text
+{a:{b:x,c:{}}}
+```
+
+derives:
+
+```json
+[
+  ["open-union", [["a", 1]]],
+  ["closed-product", [["b", 2], ["c", 3]]],
+  ["open-union", [["x", 3]]],
+  ["closed-product", []]
+]
+```
+
+The derived graph is canonicalized by a bottom-up closed-node collapse. Starting
+from the closed empty product, two closed nodes are collapsible only when their
+kind, labels, and already-collapsed children are identical. Open nodes are not
+collapsed, and this rule is not value-DAG compression.
+
 ## Value Encoding
 
 ### General shape

@@ -54,7 +54,10 @@ function prettyFilter ( filter ) {
     case "name":
       return filter.name;
     case null:
-      if (filter.name && Object.keys(filter.fields).length == 0) 
+      if (!filter.open || Object.keys(filter.fields).length !== 0) {
+        throw new Error(`Unknown-kind filters must be exactly (...): ${JSON.stringify(filter)}`);
+      }
+      if (filter.name)
         return filter.name;
       return `(${fieldsStr()})${filter.name ? "=" + filter.name : ""}`;
     case "union":
@@ -151,8 +154,6 @@ function patterns2filters(typePatternGraph, ...patternIds) {
         return { type: 'product', open: true, fields: fields(), ...named_filter };
       case '<...>': 
         return { type: 'union', open: true, fields: fields(), ...named_filter };
-      case '()':
-        return { type: null, fields: fields(), ...named_filter };
       case  '{}':
         return { type: 'product', fields: fields(), ...named_filter };
       case '<>':
