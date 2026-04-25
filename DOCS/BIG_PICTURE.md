@@ -6,7 +6,9 @@
 
 The language describes "partial first-order functions" on "printable" values.
 The printable values can be seen as rooted, edge-labeled trees, intuitively similar to an
-XML or a JSON document. The values are always typed.
+XML or a JSON document. The values are always typed; in the current codec-aware
+runtime, a value may carry a pattern describing the family of types compatible
+with that tree.
 
 ### Types (codes)
 

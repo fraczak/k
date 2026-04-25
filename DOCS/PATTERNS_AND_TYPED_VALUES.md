@@ -240,6 +240,12 @@ Equivalently:
 PolyVal(P) = { (P, (T, t)) : T ⊨ P and t ∈ Tree(T) }.
 ```
 
+In the current JavaScript implementation, this semantic pair is represented
+directly in memory: `Product` and `Variant` carry the witness tree, and every
+`Value` may also carry the root pattern as `value.pattern`. The JSON codec
+envelope is the serialized form of the same object, not a separate concern
+known only to the command-line wrapper.
+
 So a pattern does not denote a set of raw trees.
 It denotes a set of typed values:
 
@@ -481,6 +487,13 @@ This suggests the following operational point of view:
 - `k` programs should be allowed to consume **polymorphic values**,
 - `k` programs themselves may have **polymorphic input and output patterns**,
 - runtime and storage mechanisms should preserve enough typing information to make such transformations sound and efficient.
+
+The current evaluator follows this point of view for materialized values:
+projection operations select the corresponding subpattern, product construction
+builds a closed product pattern from its fields, and variant construction builds
+a closed union pattern for the introduced tag. Boundary input/output patterns
+from compilation are still used to constrain and merge with the pattern observed
+on the runtime value.
 
 From the semantic development above, the core toolbox should include at least the following components.
 

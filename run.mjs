@@ -1,5 +1,5 @@
 import assert from "assert";
-import { Product, Variant } from "./Value.mjs"
+import { Product, Variant, edgeSubpattern, composePattern, withPattern } from "./Value.mjs"
 
 const builtin = {
   "_log!": (arg) => {
@@ -63,9 +63,9 @@ function run(findCode, exp, value) {
         throw(`Unknown ref: '${exp.ref}'`);
       }
       case "dot":
-        return value.product[exp.dot];
+        return withPattern(value.product[exp.dot], edgeSubpattern(value.pattern, exp.dot));
       case "div":
-        if (value.tag === exp.div) return value.value;
+        if (value.tag === exp.div) return withPattern(value.value, edgeSubpattern(value.pattern, exp.div));
         return
       case "comp":
         for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
@@ -88,17 +88,19 @@ function run(findCode, exp, value) {
     
       case "product": {
         let result = {};
+        const patternEntries = [];
         let len = exp.product.length;
         for (let i = 0; i < len; i++) {
           const { label, exp: e } = exp.product[i];
           const r = run(findCode, e, value);
           if (r === undefined) return;
           result[label] = r;
+          patternEntries.push([label, r.pattern]);
         }
-        return new Product(result);
+        return new Product(result, composePattern("closed-product", patternEntries));
       }
       case "vid":
-        return new Variant(exp.vid, value);
+        return new Variant(exp.vid, value, composePattern("closed-union", [[exp.vid, value.pattern]]));
       case "filter": {
         return value;
       }

@@ -8,6 +8,7 @@ import { run } from "./run.mjs";
 import { prettyCode, prettyRel, patterns2filters } from "./pretty.mjs";
 import { find } from "./codes.mjs";
 import { exportRelation } from "./export.mjs";
+import { decodeEnvelope, encodeToEnvelope } from "./codecs/runtime/prefix-codec.mjs";
 
 
 let DEBUG_FLAG = false;
@@ -23,6 +24,8 @@ const help = function () {
   console.log("  --r            print relations");
   console.log("  --R rel        print 'rel' definition with type patterns");
   console.log("  --p (--pp)     pretty-print last value");
+  console.log("  --E            print current value as a JSON envelope");
+  console.log("  --e file       load current value from a JSON envelope");
   console.log("  --s (--g) reg  store (get) the current value in (from) register 'reg'");
   console.log("  --regs         print register names");
   console.log("  --l file.k     load 'file.k'");
@@ -33,6 +36,7 @@ help();
 const re__l = /^[ \n\t]*(?:--l[ ]+)(.+)[ ]*?$/;
 const re__s = /^[ \n\t]*(?:--s[ ]+)(.+)[ ]*?$/;
 const re__g = /^[ \n\t]*(?:--g[ ]+)(.+)[ ]*?$/;
+const re__e = /^[ \n\t]*(?:--e[ ]+)(.+)[ ]*?$/;
 const re__R = /^[ \n\t]*(?:--R[ ]+)(.+)[ ]*?$/;
 const re__C = /^[ \n\t]*(?:--C[ ]+)(.+)[ ]*?$/;
 
@@ -63,6 +67,9 @@ const printVal = function (v = val) {
     if (DEBUG_FLAG) {
       console.log(`  > ${v}`)
       console.log(`  > ${JSON.stringify(v)}`)
+      if (v.pattern) {
+        console.log(`  > pattern ${JSON.stringify(v.pattern)}`);
+      }
       try {
         console.log(JSON.stringify(JSON.parse(valString), null, 2));
       } catch (e) {
@@ -159,6 +166,15 @@ function evaluate(line) {
     // --p
     } else if (line.match(/^[ \n\t]*(?:--p)?$/)) {
       console.log(JSON.stringify(val, null, 2));
+      // --E
+    } else if (line.match(/^[ \n\t]*--E$/)) {
+      console.log(JSON.stringify(encodeToEnvelope(val, val.pattern), null, 2));
+      // --e
+    } else if (line.match(re__e)) {
+      const file = line.match(re__e)[1];
+      const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
+      val = decodeEnvelope(envelope).value;
+      printVal();
       // --regs
     } else if (line.match(/^[ \n\t]*(?:--regs)?$/)) {
       console.log(` -- registers: ${Object.keys(registers).join(", ")}`);

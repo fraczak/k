@@ -2,9 +2,14 @@
 
 ## **8.1  Purpose**
 
-The **operational semantics** of `k` describe how expressions are evaluated step by step on actual value trees.
+The **operational semantics** of `k` describe how expressions are evaluated step by step on runtime values.
 It defines when a function is *defined* for a particular input and what value it returns.
 All execution—interpretive or compiled—follows these rules.
+
+In the current runtime, a value is a materialized tree together with an optional
+root pattern. The tree determines the ordinary product/union computation; the
+pattern records the polymorphic type context used by the codec envelope and is
+propagated by structural operations.
 
 ---
 
@@ -19,7 +24,7 @@ Evaluation is written as:
 meaning that expression `e` applied to value `v` yields result `r`.
 If `e` is undefined for `v`, the relation does not hold.
 
-`r` is always a tree (or node) in memory, represented as described in Chapter 6.
+`r` is a runtime value in memory, represented as described in Chapter 6.
 Undefined results are expressed by the absence of any rule that produces `r`.
 
 ---
@@ -44,6 +49,10 @@ If `v` has a child under `label`,
 ```
 
 Otherwise the projection is undefined.
+
+If `v` carries a pattern, the result carries the subpattern reached by `label`.
+For a union projection `/label`, the same rule applies to the selected tag's
+payload.
 
 ### **Type expression**
 
@@ -91,6 +100,9 @@ If any subfunction is undefined, the whole product composition is undefined.
 
 A product composition constructs a new product node;
 each result `rᵢ` becomes one child in canonical field order.
+If the component results carry patterns, the constructed value carries the
+closed product pattern with field `lᵢ` pointing to the corresponding result
+pattern.
 
 ---
 
@@ -122,7 +134,9 @@ otherwise it is an identity
 ```
 
 Filters therefore act as compile time annotations for type checking only.
-They are ignored at run-time, unless they lead to fully typed expressions (i.e., can be replaced by a type).
+As operations they are identities at run time, unless they lead to fully typed
+expressions (i.e., can be replaced by a type). Their pattern information may
+still be present on the runtime value because values can carry codec patterns.
 
 ---
 
@@ -178,7 +192,8 @@ the node pointer represents the result value.
 ## **8.11  Summary**
 
 * Execution follows deterministic, left-to-right rules.
-* All expressions denote partial functions on value trees.
+* All expressions denote partial functions on runtime values.
+* Runtime values may carry patterns, and structural operations propagate them.
 * Type expressions act as restricted identities.
 * Composition is associative; undefined propagates automatically.
 * Runtime semantics match the formal evaluation relation exactly.

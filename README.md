@@ -61,7 +61,7 @@ Available strategies:
   - Tagged union (variants): native k-like `< A tag1, B tag2, ... >` (canonical). For convenience, JSON-like `< tag1: A, tag2: B, ... >` is also supported.
 - No built-in scalars (no string/int/bool, etc.).
 - The only leaf allowed in a non-recursive definition is the empty product `{}`.
-- Values are trees whose internal nodes are products or tagged unions; field/tag names carry the structure.
+- Values are trees whose internal nodes are products or tagged unions; field/tag names carry the structure. At runtime, a value may also carry the codec pattern that describes the tree's current polymorphic type context.
 - Code equivalence is bisimilarity over definition graphs (recursion allowed): there exists a relation B such that (t1, t2) ∈ B iff
   - t1 and t2 have exactly the same set of labels/tags;
   - t1 and t2 are simultaneously products or simultaneously unions;
@@ -216,6 +216,16 @@ For example, `{a:{b:x,c:{}}}` derives the pattern:
 ]
 ```
 
+The JSON envelope is not just a transport wrapper around `k.mjs`. Decoding an
+envelope now produces an in-memory `Value` whose `pattern` is the envelope
+pattern. The evaluator propagates that pattern through projections and
+constructors, and encoding uses the carried pattern by default. For example,
+projecting `.0` from a JSON array whose first element is a boolean preserves the
+boolean pattern `false | true` even when the observed value is currently `true`.
+
+In the REPL, `--e file` loads a JSON envelope as the current value and `--E`
+prints the current value as an envelope.
+
 ---
 
 ## Codes (Schemas / Types)
@@ -255,7 +265,8 @@ Try in `k-repl`:
 ## Code Derivation and Patterns
 
 A **pattern** represents collections of codes (types). Patterns are used for type inference and static analysis,
-not during program execution.
+and are also carried by runtime values when values enter through the polymorphic
+codec envelope.
 
 **Example:**
 
@@ -271,7 +282,9 @@ not during program execution.
 
 _Filter_ is the syntax for patterns available in the language.
 Intuitively, a _filter_ acts as a filter function, which, for a given value returns it or it is undefined.
-Filters are hints for code derivation; there are not considered during runtime (code execution).
+Filters are hints for code derivation. Operationally they are still identity
+steps in the interpreter, but the pattern information they describe can be
+attached to the runtime value and preserved across evaluation.
 
 ```k-repl
 treeFilter = ?<(...) leaf, {T left, T right} tree> = T;

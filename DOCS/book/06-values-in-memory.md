@@ -10,6 +10,12 @@ Every `k` value exists in one of three forms during execution:
 
 This unified approach enables programs to operate on serialized inputs without unnecessary deserialization, optimizing performance for identity operations and partial data access patterns.
 
+In the current envelope-aware model, every form also has a pattern context. For
+serialized values this is the envelope pattern; for materialized values it is
+carried on the runtime `Value`. The product/union tree is the payload, while the
+pattern records the polymorphic type information needed to interpret and
+re-encode that payload.
+
 ---
 
 ## **6.2  The KValue abstraction**
@@ -20,17 +26,19 @@ All values are represented by a single abstraction:
 const KValue = union(enum) {
     serialized: struct {
         bits: [*]u8,           // canonical bitstream
-        type_id: i32,          // identifies canonical type
+        pattern: *KPattern,    // pattern used to interpret the bitstream
     },
     lazy: struct {
         root: *KNode,          // root of materialized or partially materialized tree
+        pattern: *KPattern,    // root pattern for this value
     },
     materialized: struct {
         root: *KNode,          // traditional tree structure
+        pattern: *KPattern,    // root pattern for this value
     },
     external: struct {
         data: *anyopaque,      // opaque external data
-        type_id: i32,          // external type identifier
+        pattern: *KPattern,    // external value pattern
         ops: *ExternalOps,     // function pointers for operations
     },
 };

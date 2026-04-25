@@ -19,10 +19,14 @@ where:
 - `pattern` is the canonical property-list pattern graph,
 - `value_bits` is the prefix-free value payload carried as a compact string.
 
+Decoding an envelope now produces a materialized `Value` that carries this
+pattern as `value.pattern`. The evaluator propagates the carried pattern, and
+encoding uses it by default.
+
 ## Current Pipeline
 
 1. `k-parse`: text value plus optional pattern/type script -> JSON envelope
-2. `k`: JSON envelope -> evaluate `k` expression -> JSON envelope
+2. `k`: JSON envelope -> `Value(pattern, tree)` -> evaluate `k` expression -> JSON envelope
 3. `k-print`: JSON envelope -> JSON value text
 
 This keeps the evaluator stage free of formatting concerns while staying close

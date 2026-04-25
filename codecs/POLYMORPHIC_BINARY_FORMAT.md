@@ -15,6 +15,11 @@ where:
 - `P` is a rooted pattern graph,
 - `v` is a value tree compatible with `P`.
 
+This is both the transport semantics and the runtime value semantics. In the
+current JavaScript runtime, the materialized `Value` stores the pattern as
+`value.pattern`; the tree is still represented by `Product` and `Variant`
+nodes.
+
 The codec is designed around:
 
 1. compactness,
@@ -37,6 +42,9 @@ The pattern determines:
 - how recursive positions are connected.
 
 The value payload is interpreted relative to the pattern.
+During execution, the same pattern context is propagated with materialized
+values, so structural operations do not have to reconstruct envelope information
+after the fact.
 
 ### 2. Values are trees in the base codec
 
@@ -250,6 +258,10 @@ So `.field` is resolved by:
 The base codec does not include field-offset indexes. Such indexes may be added
 later as separate higher-level acceleration structures.
 
+In the materialized evaluator, `.field` applies the analogous pattern operation:
+the output `Value` carries the subpattern reached by the selected field.
+Likewise, `/tag` carries the subpattern reached by the selected variant tag.
+
 ## Recursive Types
 
 Recursive pattern graphs are first-class.
@@ -283,6 +295,10 @@ The initial transport envelope is JSON:
 
 The envelope is deliberately simple so that the semantics of `pattern` and
 `value_bits` can be stabilized before moving to a self-hosted representation.
+
+Decoding the JSON envelope yields `Value(pattern, tree)`. Encoding a runtime
+`Value` uses its carried pattern by default, or an explicit caller-supplied
+pattern when one is provided.
 
 ## Out Of Scope For The Base Codec
 

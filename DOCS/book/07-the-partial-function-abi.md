@@ -5,8 +5,12 @@
 The **application binary interface (ABI)** defines how partial functions in `k` are represented and invoked at runtime.
 Its goal is to make all functions - whether user-defined or compiled - compatible with the same calling convention and data layout.
 
-Every compiled `k` function receives a single argument (a value tree) and may either produce a result or remain undefined.
+Every compiled `k` function receives a single argument (a runtime value) and may either produce a result or remain undefined.
 The ABI provides a uniform way to express both outcomes.
+
+Conceptually, a runtime value is a materialized product/union tree plus its
+current pattern context. The older bare-node ABI below describes the tree part;
+an envelope-aware ABI must carry the pattern beside the node pointer.
 
 ---
 
@@ -18,6 +22,7 @@ The result of every function call is a pair of fields:
 struct KOpt {
     bool ok;     // 1 if function is defined for the given input
     struct KNode* val;  // valid only if ok == true
+    struct KPattern* pattern;  // optional root pattern for val
 };
 ```
 
@@ -33,10 +38,11 @@ This structure carries both the success flag and the value pointer, allowing par
 Each function takes exactly one parameter:
 
 ```c
-struct KNode* input;
+struct KValue* input;
 ```
 
-The parameter points to the root of the input value.
+The parameter points to the input runtime value, including both the root node
+and any carried pattern.
 Since all values are immutable, the function must not modify this structure.
 
 ---
@@ -46,7 +52,7 @@ Since all values are immutable, the function must not modify this structure.
 Every `k` function compiled to machine code follows this C-style signature:
 
 ```c
-struct KOpt k_function(struct KNode* input);
+struct KOpt k_function(struct KValue* input);
 ```
 
 The return value indicates success or failure.
@@ -60,9 +66,9 @@ The runtime provides a small set of primitive functions implementing the fundame
 
 | Operation                              | Purpose                       | Result                                            |
 | -------------------------------------- | ----------------------------- | ------------------------------------------------- |
-| `k_project(input, label_id)`           | projection `.label`           | defined if the field or variant `label_id` exists |
-| `k_make_product(state, children[], n)` | construct a product node      | always defined                                    |
-| `k_make_union(state, tag, child)`      | construct a union node        | always defined                                    |
+| `k_project(input, label_id)`           | projection `.label` or `/label` | defined if the field or variant `label_id` exists; result carries the selected subpattern when available |
+| `k_make_product(children[], labels[], n)` | construct a product value      | always defined; result carries a closed product pattern when child patterns are known |
+| `k_make_union(tag, child)`             | construct a union value        | always defined; result carries a closed union pattern for `tag` when the child pattern is known |
 | `k_fail()`                             | represent undefined result    | returns `{ ok = 0 }`                              |
 | `k_unit()`                             | return the constant unit node | returns `{ ok = 1, val = &unit_node }`            |
 
@@ -88,25 +94,26 @@ These tables are read-only and known at compile time for each canonical type.
 To implement the projection `.x`:
 
 ```c
-struct KOpt k_project_x(struct KNode* input) {
-    int state = input->state;
+struct KOpt k_project_x(struct KValue* input) {
+    struct KNode* node = input->root;
+    int state = node->state;
     int kind  = state_kind[state];
 
     if (kind == PRODUCT) {
         int idx = field_index[state]["x"];
-        if (idx < 0 || idx >= input->arity)
-            return (struct KOpt){0, NULL};
-        return (struct KOpt){1, input->child[idx]};
+        if (idx < 0 || idx >= node->arity)
+            return (struct KOpt){0, NULL, NULL};
+        return (struct KOpt){1, node->child[idx], project_pattern(input->pattern, "x")};
     }
 
     if (kind == UNION) {
         int tag  = variant_index[state]["x"];
-        if (tag < 0 || input->tag != tag)
-            return (struct KOpt){0, NULL};
-        return (struct KOpt){1, input->child[0]};
+        if (tag < 0 || node->tag != tag)
+            return (struct KOpt){0, NULL, NULL};
+        return (struct KOpt){1, node->child[0], project_pattern(input->pattern, "x")};
     }
 
-    return (struct KOpt){0, NULL};
+    return (struct KOpt){0, NULL, NULL};
 }
 ```
 
@@ -125,9 +132,10 @@ This makes undefinedness explicit and local—no exceptions, no global flags.
 
 ## **7.9  Summary**
 
-* Every function has the form `KOpt f(KNode*)`.
+* Every function has the form `KOpt f(KValue*)`.
 * Partiality is expressed by the `ok` flag.
 * Runtime operations handle projection and construction.
+* Runtime values carry pattern context when available.
 * Metadata tables describe field positions and variant indices.
 * By inspecting `arity`, `state`, and `tag`, the runtime can interpret any value correctly.
 * This ABI ensures all generated and runtime functions can interoperate safely.

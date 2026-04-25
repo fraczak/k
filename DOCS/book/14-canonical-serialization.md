@@ -12,7 +12,9 @@ Two values that are structurally identical will always produce the same bit sequ
 
 ## **14.2  Canonical type information**
 
-Serialization always depends on the **canonical form of the type**.
+Serialization always depends on structural information. In the monomorphic case
+this is the **canonical form of the type**. In the polymorphic codec this is a
+pattern graph carried with the value.
 A type in canonical form is a finite tree automaton (Chapter 3) that describes the structure of all its values.
 Because this form is unique, every possible value of the type can be encoded deterministically.
 
@@ -24,6 +26,8 @@ Before any value is serialized, the compiler or runtime must know:
 * for unions, the order of their variants.
 
 This information acts as the grammar from which all bit sequences are derived.
+For an envelope value, the same role is played by the envelope pattern; singleton
+patterns are exactly the monomorphic type case.
 
 ---
 

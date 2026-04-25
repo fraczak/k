@@ -43,6 +43,11 @@ where:
 - `P` is an abstract rooted pattern graph,
 - `v` is a value tree compatible with `P`.
 
+The same pair is now the in-memory runtime model as well. Decoding an envelope
+attaches `P` to the resulting `Value` as `value.pattern`; evaluation propagates
+that pattern through projections and constructors; encoding a `Value` uses its
+carried pattern unless an explicit pattern is supplied.
+
 The base value encoding is:
 
 - tree-based, not DAG-based,
@@ -75,6 +80,15 @@ This is intentionally simple:
 - `pattern` is explicit and easy to validate,
 - `value_bits` is a compact carrier for the prefix-free payload,
 - the pattern representation is abstract enough to later encode in `k` itself.
+
+The envelope boundary is therefore:
+
+```text
+JSON envelope <-> Value(pattern, tree)
+```
+
+`k.mjs` is only the command-line adapter for that boundary. The operational
+runtime sees and preserves the pattern on the `Value` itself.
 
 ## Pattern Graph Representation
 
@@ -186,6 +200,11 @@ The base tree encoding is chosen so that:
 - `/tag` only needs to read the union choice at the current node,
 - `.field` follows canonical product order and may later be accelerated by
   higher-level indexes if necessary.
+
+In the materialized runtime, projections also project the carried pattern:
+`.field` returns the subpattern at that product field, and `/tag` returns the
+subpattern at that union tag. If no carried subpattern is available, later
+encoding can still derive a witness pattern from the result tree.
 
 The primitive codec stays minimal. Projection indexes, framing, or sharing
 schemes are explicitly separate concerns.

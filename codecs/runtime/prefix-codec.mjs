@@ -1,4 +1,4 @@
-import { Product, Variant } from "../../Value.mjs";
+import { Product, Variant, withPattern } from "../../Value.mjs";
 import { refinePatternForValue, coerceValueForPattern, NODE_KIND } from "./codec.mjs";
 import { patternToPropertyList, propertyListToPattern } from "./pattern-json.mjs";
 
@@ -216,8 +216,9 @@ function deriveClosedPatternFromValue(value) {
 }
 
 function encodeToEnvelope(value, propertyList) {
-  const basePattern = propertyList ? propertyListToPattern(propertyList) : deriveClosedPatternFromValue(value);
-  const coercedValue = propertyList ? coerceValueForPattern(basePattern, value) : value;
+  const valuePattern = propertyList || value.pattern;
+  const basePattern = valuePattern ? propertyListToPattern(valuePattern) : deriveClosedPatternFromValue(value);
+  const coercedValue = valuePattern ? coerceValueForPattern(basePattern, value) : value;
   const refinedPattern = refinePatternForValue(basePattern, coercedValue);
   const writer = new BitWriter();
   encodeNode(writer, coercedValue, refinedPattern, 0);
@@ -238,7 +239,7 @@ function decodeEnvelope(envelope) {
   const reader = new BitReader(Buffer.from(envelope.value_bits, "base64"));
   const value = decodeNode(reader, pattern, 0);
   reader.assertZeroPadding();
-  return { pattern: envelope.pattern, value };
+  return { pattern: envelope.pattern, value: withPattern(value, envelope.pattern) };
 }
 
 export { encodeToEnvelope, decodeEnvelope, propertyListToPattern, patternToPropertyList, choiceWidth };

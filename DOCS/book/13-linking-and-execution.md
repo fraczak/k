@@ -76,11 +76,12 @@ After initialization, the main compiled function can be called directly.
 Every compiled function has the signature:
 
 ```c
-struct KOpt function(struct KNode* input);
+struct KOpt function(struct KValue* input);
 ```
 
-To run a program, a caller must supply an input value tree in the expected canonical form.
-The value is typically created by another function or loaded from serialized data.
+To run a program, a caller must supply an input runtime value: a materialized
+tree plus its current pattern context when one is known. The value is typically
+created by another function or loaded from a codec envelope.
 
 For example, to execute a function `neg` expecting a `$bool`:
 
@@ -98,9 +99,11 @@ If the input is `{ {} true }`, the output will be `{ {} false }`.
 
 ## **13.7  Input and output conventions**
 
-At the machine level, a “value” is always represented by a pointer to a `KNode`.
-Each compiled function expects exactly one such pointer.
-When a function returns, its output pointer may refer to an existing constant node, a new node allocated in the arena, or nothing at all if undefined.
+At the machine level, a “value” is represented by a `KValue`: a pointer to a
+`KNode` plus optional pattern metadata. Each compiled function expects exactly
+one such pointer. When a function returns, its output node may refer to an
+existing constant node, a new node allocated in the arena, or nothing at all if
+undefined; the output value may also carry the projected or constructed pattern.
 
 There is no special I/O system in k itself; printing or reading values is the responsibility of the host environment.
 In practice, programs are tested by calling compiled functions from C or Python and inspecting their returned structures.
@@ -164,8 +167,8 @@ If `input` is `{}` or any non-`$bool` value, the function is undefined and print
 * Linking combines generated LLVM code with the shared runtime library.
 * The runtime provides allocation, projection, and constant handling.
 * Metadata tables describe type structure to the runtime.
-* Every compiled function follows the uniform calling convention `KOpt f(KNode*)`.
-* Execution produces immutable tree values exactly matching the semantics of k.
+* Every compiled function follows the uniform calling convention `KOpt f(KValue*)`.
+* Execution produces immutable runtime values exactly matching the semantics of k.
 * Verification against the interpreter ensures correctness of the translation.
 
 ---
