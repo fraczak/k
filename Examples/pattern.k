@@ -12,14 +12,15 @@
 --
 -- There is no separate envelope type. The pattern *is* the framing protocol.
 
--- Bits: the universal finite sequence of binary choices.
--- Used for value payloads and for bit-path addresses into binary trees.
+-- Bits: the canonical binary number / bit-path type.
+-- Empty (_), extend with 0, extend with 1.
+-- Used both as node indices and as the building block for strings.
+
+$ bits = < {} _, bits 0, bits 1 >;
+
+-- Byte: 8 bits as a product, used as a building block for unicode.
 
 $ bit = < {} 0, {} 1 >;
-
-$ bits = < {} nil, { bit car, bits cdr } cons >;
-
--- Byte: an 8-tuple of bits. Used as a building block for unicode.
 
 $ byte = {
   bit 0, bit 1, bit 2, bit 3,
@@ -27,8 +28,6 @@ $ byte = {
 };
 
 -- Unicode scalar values.
--- Every code point range is encoded with exactly the bits needed,
--- no padding, no length prefixes, no arithmetic.
 
 $ ascii = { bit 6, bit 5, bit 4, bit 3, bit 2, bit 1, bit 0 };
 
@@ -68,53 +67,41 @@ $ unicode = <
 >;
 
 -- String: a cons-list of unicode scalar values.
--- Used for labels in pattern edge maps.
+-- Used for labels in pattern edges.
 
 $ string = < {} nil, { unicode car, string cdr } cons >;
 
--- Binary tree: the canonical finite map in k.
--- No arrays, no natural number arithmetic, just structural 0/1 routing.
--- Both label-target-tree and pattern use this shape.
+-- Edge: a labeled edge in a pattern graph.
+-- 'label' is the field name or tag name.
+-- 'target' is the index (as $bits) of the target node in the pattern list.
 
-binary-tree? = ?< X leaf, { Y 0, Y 1 } tree > = Y;
+$ edge = { string label, bits target };
 
--- Label-target-tree: the edge map for a pattern node.
--- Each leaf carries a label (string) and a target (bits = bit-path
--- into the enclosing pattern tree). Two edges sharing the same
--- bit-path land on the same pattern node — this is how semantic
--- node identity (the "same type" constraint) is expressed.
+-- Edge list: the edges of a pattern node, sorted by label.
 
-$ label-target-tree = <
-  {} empty,
-  { string label, bits target } leaf,
-  { label-target-tree 0, label-target-tree 1 } tree
->;
+$ edges = < {} nil, { edge car, edges cdr } cons >;
 
 -- Pattern node: one of five kinds.
 -- "any" is the unconstrained position (...), carrying no edges.
--- The four others carry their edge map directly as the payload.
+-- The four others carry their edge list directly.
 
 $ pattern-node = <
   {} any,
-  label-target-tree open-product,
-  label-target-tree open-union,
-  label-target-tree closed-product,
-  label-target-tree closed-union
+  edges open-product,
+  edges open-union,
+  edges closed-product,
+  edges closed-union
 >;
 
--- Pattern: a binary tree of pattern nodes.
--- This is the type of pattern graphs. A bit-path through this tree
--- addresses a specific node; edge targets in label-target-tree
--- reference nodes by their bit-path.
+-- Pattern: a cons-list of pattern nodes.
+-- Node 0 (first element) is the root.
+-- Edges reference nodes by their index in this list, encoded as $bits.
 --
 -- The singleton pattern of $pattern itself is a fixed constant.
 -- That constant is the implicit framing for all k wire formats:
 -- to decode any value, first decode a $pattern under that constant,
 -- then decode the value under the pattern just obtained.
 
-$ pattern = <
-  pattern-node leaf,
-  { pattern 0, pattern 1 } tree
->;
+$ pattern = < {} nil, { pattern-node car, pattern cdr } cons >;
 
 $pattern
