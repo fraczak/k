@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import k from "./index.mjs";
-import { decodeEnvelope, encodeToEnvelope } from "./codecs/runtime/prefix-codec.mjs";
+import { decodeInput, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { mergePatterns } from "./Value.mjs";
@@ -41,7 +41,7 @@ let kScript, outputPattern, inputStream;
     return { kScript, outputPattern, inputStream };
   } catch (error) {
     console.error(error);
-    console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ envelope-file ]`);
+    console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ input-file ]`);
     console.error(`       E.g.,  echo '["zebara","ela"]' | ./codecs/k-parse.mjs --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
     return exit(-1);
   }
@@ -52,15 +52,13 @@ inputStream.on("data", (data) => buffer.push(Buffer.isBuffer(data) ? data : Buff
 inputStream.on("end", () => {
   try {
     const inputBuffer = Buffer.concat(buffer);
-    const envelope = JSON.parse(inputBuffer.toString("utf8"));
-    const { pattern: inputPattern, value } = decodeEnvelope(envelope);
+    const { pattern: inputPattern, value } = decodeInput(inputBuffer);
     const result = kScript(value);
     if (result === undefined) {
       throw new Error("k expression evaluated to undefined; cannot encode undefined output value");
     }
     const finalPattern = mergePatterns(outputPattern, result.pattern);
-    const encoded = encodeToEnvelope(result, finalPattern);
-    stdout.write(`${JSON.stringify(encoded)}\n`);
+    stdout.write(encodeToWire(result, finalPattern));
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

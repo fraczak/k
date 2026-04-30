@@ -2,7 +2,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product, Variant } from "../Value.mjs";
-import { decodeEnvelope, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
 import { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";
 const UNIT = new Product({});
 
@@ -129,7 +129,7 @@ async function main() {
     const value = encodeNumberToValue(parseFloatText(buf.toString("utf8")));
     stdout.write(`${JSON.stringify(encodeToEnvelope(value, FLOAT64_PATTERN))}\n`);
   } else {
-    const { value } = decodeEnvelope(JSON.parse(buf.toString("utf8")));
+    const { value } = decodeInput(buf);
     stdout.write(`${printFloatText(decodeValueToNumber(value))}\n`);
   }
 }

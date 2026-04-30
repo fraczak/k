@@ -15,7 +15,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product, Variant } from "../Value.mjs";
-import { decodeEnvelope, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
 
 // Closed pattern for $ int = < bits '+', bits '-' >
 // with $ bits = < {} _, bits 0, bits 1 >
@@ -93,7 +93,7 @@ async function main() {
     const value = parseIntStr(text);
     stdout.write(`${JSON.stringify(encodeToEnvelope(value, INT_PATTERN))}\n`);
   } else {
-    const { value } = decodeEnvelope(JSON.parse(buf.toString("utf8")));
+    const { value } = decodeInput(buf);
     stdout.write(printIntValue(value) + "\n");
   }
 }

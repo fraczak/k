@@ -6,11 +6,12 @@ import k from "../index.mjs";
 import { parseValue } from "../valueIO.mjs";
 import { exportPatternGraph } from "./runtime/codec.mjs";
 import { patternToPropertyList } from "./runtime/pattern-json.mjs";
-import { encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { encodeToEnvelope, encodeToWire } from "./runtime/prefix-codec.mjs";
 
 function usage(prog) {
-  console.error(`Usage: ${prog} [--input-type <type-script|type-file> | --input-pattern <pattern-script|pattern-file>] [value-file]`);
-  console.error("  Parse a textual k value and emit the JSON prefix-codec envelope.");
+  console.error(`Usage: ${prog} [--json] [--input-type <type-script|type-file> | --input-pattern <pattern-script|pattern-file>] [value-file]`);
+  console.error("  Parse a textual k value and emit the self-hosted binary pattern+value stream.");
+  console.error("  Use --json to emit the legacy JSON prefix-codec envelope.");
   console.error("  If no pattern or type is provided, derive a closed pattern from the value.");
 }
 
@@ -52,9 +53,12 @@ async function main() {
   let inputTypeArg = null;
   let inputPatternArg = null;
   let valueFile = null;
+  let jsonOutput = false;
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--input-type") {
+    if (args[i] === "--json") {
+      jsonOutput = true;
+    } else if (args[i] === "--input-type") {
       inputTypeArg = args[++i];
     } else if (args[i] === "--input-pattern") {
       inputPatternArg = args[++i];
@@ -81,8 +85,13 @@ async function main() {
     return null;
   })();
 
-  const envelope = encodeToEnvelope(value, propertyList);
-  stdout.write(`${JSON.stringify(envelope)}\n`);
+  if (jsonOutput) {
+    const envelope = encodeToEnvelope(value, propertyList);
+    stdout.write(`${JSON.stringify(envelope)}\n`);
+    return;
+  }
+
+  stdout.write(encodeToWire(value, propertyList));
 }
 
 main().catch((error) => {

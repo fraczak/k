@@ -2,7 +2,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product } from "../Value.mjs";
-import { decodeEnvelope, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
 
 const UNIT_PATTERN = [
   ["closed-product", []]
@@ -38,7 +38,7 @@ async function main() {
   }
 
   const input = await readAll(stdin);
-  const { value } = decodeEnvelope(JSON.parse(input.toString("utf8")));
+  const { value } = decodeInput(input);
   if (!(value instanceof Product) || Object.keys(value.product).length !== 0) {
     throw new Error("Input is not a unit value");
   }

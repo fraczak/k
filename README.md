@@ -200,10 +200,10 @@ In k, variant values are represented by tagging their content. The `|tag` functi
 
 ### Codec value parsing
 
-`k-parse` builds an envelope pattern from the value tree when no input pattern or
-type is supplied. Empty nodes and multi-child nodes are products. A one-child
-node is treated as an open union by default; an explicit product input pattern
-can force it to be a singleton product.
+`k-parse` builds a wire pattern from the value tree when no input pattern or type
+is supplied. Empty nodes and multi-child nodes are products. A one-child node is
+treated as an open union by default; an explicit product input pattern can force
+it to be a singleton product.
 
 For example, `{a:{b:x,c:{}}}` derives the pattern:
 
@@ -216,12 +216,16 @@ For example, `{a:{b:x,c:{}}}` derives the pattern:
 ]
 ```
 
-The JSON envelope is not just a transport wrapper around `k.mjs`. Decoding an
-envelope now produces an in-memory `Value` whose `pattern` is the envelope
-pattern. The evaluator propagates that pattern through projections and
-constructors, and encoding uses the carried pattern by default. For example,
-projecting `.0` from a JSON array whose first element is a boolean preserves the
-boolean pattern `false | true` even when the observed value is currently `true`.
+The default codec stream is the binary encoding of a `$pattern` value followed
+by the binary encoding of the value under that decoded pattern. Decoding
+produces an in-memory `Value` whose `pattern` is the decoded pattern. The
+evaluator propagates that pattern through projections and constructors, and
+encoding uses the carried pattern by default. For example, projecting `.0` from
+a JSON array whose first element is a boolean preserves the boolean pattern
+`false | true` even when the observed value is currently `true`.
+
+The old JSON envelope remains available as a debug/compatibility form:
+`k-parse --json` emits it, and runtime decoders accept both formats.
 
 In the REPL, `--e file` loads a JSON envelope as the current value and `--E`
 prints the current value as an envelope.

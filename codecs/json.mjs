@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { stdin, stdout, argv, exit } from "node:process";
-import { decodeEnvelope, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
 import { fromJsonValue, toJsonValue, patternFromJsonValue } from "./json-codec.mjs";
 
 function readAll(stream) {
@@ -29,7 +29,7 @@ async function main() {
     const value = fromJsonValue(json);
     stdout.write(`${JSON.stringify(encodeToEnvelope(value, patternFromJsonValue(json)))}\n`);
   } else {
-    const { value } = decodeEnvelope(JSON.parse(buf.toString("utf8")));
+    const { value } = decodeInput(buf);
     stdout.write(`${JSON.stringify(toJsonValue(value))}\n`);
   }
 }

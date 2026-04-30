@@ -1,11 +1,29 @@
 # Codec Envelope Status
 
-This note tracks the current `k-parse | k | k-print` pipeline after the move to
-the new JSON bootstrap envelope.
+This note tracks the current `k-parse | k | k-print` pipeline after the move
+from the JSON bootstrap envelope to the self-hosted binary pattern framing.
 
 ## Current Shape
 
-All three stages communicate using:
+The default wire format is:
+
+```text
+encode($pattern_value : $pattern) encode(value : decoded_pattern)
+```
+
+where:
+
+- the first segment is a normal k value of type `$pattern`, encoded under the
+  fixed singleton pattern for `$pattern` from [`core.k`](../core.k),
+- that decoded pattern becomes the structural authority for the second segment,
+- the second segment is the prefix-free value payload interpreted by that
+  pattern.
+
+Decoding the stream produces a materialized `Value` that carries the decoded
+pattern as `value.pattern`. The evaluator propagates the carried pattern, and
+encoding uses it by default.
+
+The legacy JSON bootstrap envelope:
 
 ```json
 {
@@ -14,20 +32,14 @@ All three stages communicate using:
 }
 ```
 
-where:
-
-- `pattern` is the canonical property-list pattern graph,
-- `value_bits` is the prefix-free value payload carried as a compact string.
-
-Decoding an envelope now produces a materialized `Value` that carries this
-pattern as `value.pattern`. The evaluator propagates the carried pattern, and
-encoding uses it by default.
+is still accepted by runtime decoders and can be emitted by `k-parse --json` for
+debugging and transition compatibility.
 
 ## Current Pipeline
 
-1. `k-parse`: text value plus optional pattern/type script -> JSON envelope
-2. `k`: JSON envelope -> `Value(pattern, tree)` -> evaluate `k` expression -> JSON envelope
-3. `k-print`: JSON envelope -> JSON value text
+1. `k-parse`: text value plus optional pattern/type script -> binary pattern+value stream
+2. `k`: binary or legacy JSON input -> `Value(pattern, tree)` -> evaluate `k` expression -> binary pattern+value stream
+3. `k-print`: binary or legacy JSON input -> JSON value text
 
 This keeps the evaluator stage free of formatting concerns while staying close
 to the new semantic codec model.
@@ -38,7 +50,7 @@ become closed products, and one-child nodes become open unions by default. An
 explicit product pattern can force a one-child node to be treated as a singleton
 product.
 
-The derived envelope pattern is canonicalized by collapsing finite closed
+The derived wire pattern is canonicalized by collapsing finite closed
 subtrees from the leaves upward, starting at `["closed-product", []]`. Open
 pattern nodes remain distinct. This is pattern graph canonicalization, not
 value-payload DAG compression.
@@ -61,8 +73,7 @@ Expected output:
 ## Open Work
 
 - tighten the pattern/value validation rules,
-- decide the final compact self-hosted envelope that may replace the JSON
-  bootstrap transport,
+- add direct coverage for more non-ASCII pattern labels in CLI fixtures,
 - extend tests and examples for the prefix codec.
 
 For the semantic design, see:

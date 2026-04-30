@@ -6,18 +6,11 @@ This directory is being rewritten around a new codec design:
 abstract pattern graph + prefix-free tree encoding
 ```
 
-The immediate bootstrap format is a JSON envelope carrying:
+The default concrete format is now the binary encoding of a `$pattern` value,
+using the `$pattern` type from [`../core.k`](../core.k), immediately followed by
+the binary encoding of the value under that decoded pattern.
 
-```json
-{
-  "pattern": [...],
-  "value_bits": "..."
-}
-```
-
-The goal is to stabilize the semantics first. Compact self-hosted binary
-envelopes, binary pattern serialization, and higher-level sharing/compression
-can come later.
+The old JSON envelope remains as a debug/bootstrap compatibility form.
 
 ## Objectives
 
@@ -26,8 +19,8 @@ The rewrite is guided by two hard requirements:
 1. compactness close to the structural lower bound,
 2. efficient `k` projections, especially `.field` and `/tag`.
 
-The current target architecture is the property-list pattern graph plus
-prefix-free value-tree envelope described here and in
+The current target architecture is the pattern graph plus prefix-free value-tree
+stream described here and in
 [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md).
 
 ## Core Idea
@@ -43,7 +36,7 @@ where:
 - `P` is an abstract rooted pattern graph,
 - `v` is a value tree compatible with `P`.
 
-The same pair is now the in-memory runtime model as well. Decoding an envelope
+The same pair is now the in-memory runtime model as well. Decoding a stream
 attaches `P` to the resulting `Value` as `value.pattern`; evaluation propagates
 that pattern through projections and constructors; encoding a `Value` uses its
 carried pattern unless an explicit pattern is supplied.
@@ -59,9 +52,19 @@ The base codec does **not** perform DAG compression. If sharing is desired, it
 should happen as a higher-level transform, not inside the primitive value
 format.
 
-## Bootstrap Envelope
+## Wire Format
 
-The first concrete transport format is JSON:
+The default transport format is:
+
+```text
+encode($pattern_value : $pattern) encode(value : decoded_pattern)
+```
+
+`$pattern_value` is a normal k value whose shape is defined in `core.k`. After
+that value is decoded, it becomes the pattern used to decode the remaining
+value payload.
+
+The legacy JSON compatibility format is:
 
 ```json
 {
@@ -75,16 +78,16 @@ The first concrete transport format is JSON:
 }
 ```
 
-This is intentionally simple:
+This is intentionally simple and remains useful for debugging:
 
 - `pattern` is explicit and easy to validate,
 - `value_bits` is a compact carrier for the prefix-free payload,
-- the pattern representation is abstract enough to later encode in `k` itself.
+- the pattern representation maps directly to the self-hosted `$pattern` value.
 
-The envelope boundary is therefore:
+The runtime boundary is therefore:
 
 ```text
-JSON envelope <-> Value(pattern, tree)
+binary pattern+value stream or legacy JSON envelope <-> Value(pattern, tree)
 ```
 
 `k.mjs` is only the command-line adapter for that boundary. The operational
@@ -216,8 +219,8 @@ The new codec work is split into layers:
 1. abstract pattern graph semantics,
 2. prefix-free value-tree semantics relative to that graph,
 3. bootstrap JSON envelope,
-4. later self-hosted `k` representation of the pattern graph,
-5. later compact self-hosted encoding and optional higher-level optimizations.
+4. self-hosted `k` representation of the pattern graph,
+5. optional higher-level optimizations.
 
 ## Files
 
@@ -228,6 +231,7 @@ The new codec work is split into layers:
 
 ## Status
 
-The repository is currently being migrated onto this envelope model. Some helper
-modules still reflect transitional implementation work, but the active design
-contract is the one described in these codec documents.
+The repository is currently being migrated from the JSON envelope model to the
+self-hosted binary pattern+value stream. The active command-line pipeline emits
+the binary stream, while decoders accept both the binary stream and the legacy
+JSON envelope during the transition.
