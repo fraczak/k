@@ -3,6 +3,10 @@
  */
 
 import { Product, Variant } from "../../Value.mjs";
+import { TypePatternGraph } from "../../TypePatternGraph.mjs";
+import { getCompressed } from "../../typing.mjs";
+import { finalize as finalizeCodes } from "../../codes.mjs";
+import { patternToPropertyList, propertyListToPattern } from "./pattern-json.mjs";
 
 const NODE_KIND = Object.freeze({
   ANY: 0,
@@ -324,6 +328,56 @@ function collapseClosedNodes(pattern) {
   };
 }
 
+function createLocalCodeRepository() {
+  const repository = {};
+
+  function registerCodeDef(newCodes) {
+    const { codes, representatives } = finalizeCodes(newCodes);
+    Object.assign(repository, codes);
+    return representatives;
+  }
+
+  function findCode(codeName) {
+    return JSON.parse(JSON.stringify(repository[codeName] || { code: "undefined" }));
+  }
+
+  return { registerCodeDef, findCode };
+}
+
+function patternGraphFromPropertyList(propertyList) {
+  const { registerCodeDef, findCode } = createLocalCodeRepository();
+  const graph = new TypePatternGraph(registerCodeDef, findCode);
+  const kindToPattern = {
+    any: "(...)",
+    "open-product": "{...}",
+    "open-union": "<...>",
+    "closed-product": "{}",
+    "closed-union": "<>"
+  };
+  const nodes = propertyList.map(([kind]) =>
+    graph.addNewNode({ pattern: kindToPattern[kind] })
+  );
+
+  propertyList.forEach(([, edges], nodeIndex) => {
+    for (const [label, target] of edges) {
+      graph.edges[nodes[nodeIndex]][label] = [nodes[target]];
+    }
+  });
+
+  return graph;
+}
+
+function compressPatternGraph(pattern) {
+  const propertyList = patternToPropertyList(normalizePattern(pattern));
+  return getCompressed(patternGraphFromPropertyList(propertyList));
+}
+
+function canonicalizePattern(pattern) {
+  const collapsed = collapseClosedNodes(pattern);
+  const compressed = compressPatternGraph(collapsed);
+  return propertyListToPattern(patternToPropertyList(exportPatternGraph(compressed.typePatternGraph, compressed.remapping[0])));
+}
+
 function refinePatternForValue(pattern, value) {
   const base = normalizePattern(pattern);
   const occurrences = new Map();
@@ -558,7 +612,7 @@ function refinePatternForValue(pattern, value) {
   );
   const symbolIds = new Map(dictionary.map((label, index) => [label, index]));
 
-  return collapseClosedNodes({
+  return canonicalizePattern({
     dictionary,
     nodes: discovered.map((node) => ({
       kind: node.kind,
@@ -626,5 +680,5 @@ function coerceValueForPattern(pattern, value) {
   return coerce(0, value);
 }
 
-export { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, NODE_KIND };
-export default { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, NODE_KIND };
+export { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, canonicalizePattern, NODE_KIND };
+export default { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, canonicalizePattern, NODE_KIND };

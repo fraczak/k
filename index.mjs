@@ -6,7 +6,7 @@ import run from "./run.mjs";
 import codes from "./codes.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
-import { mergePatterns, withPattern } from "./Value.mjs";
+import { withPattern } from "./Value.mjs";
 
 function compile(script, options = {}) {
   run.defs = annotate(script, options);
@@ -16,9 +16,9 @@ function compile(script, options = {}) {
     exportPatternGraph(mainRel.typePatternGraph, outputPatternId)
   );
   return (value) => {
-    const result = run(codes.find, mainRel.def, value);
+    const result = run(codes.find, mainRel.def, value, mainRel.typePatternGraph);
     if (result === undefined) return;
-    return withPattern(result, mergePatterns(outputPattern, result.pattern));
+    return withPattern(result, outputPattern);
   };
 }
 

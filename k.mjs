@@ -7,7 +7,6 @@ import k from "./index.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
-import { mergePatterns } from "./Value.mjs";
 
 const prog = argv[1];
 
@@ -57,8 +56,7 @@ inputStream.on("end", () => {
     if (result === undefined) {
       throw new Error("k expression evaluated to undefined; cannot encode undefined output value");
     }
-    const finalPattern = mergePatterns(outputPattern, result.pattern);
-    stdout.write(encodeToWire(result, finalPattern));
+    stdout.write(encodeToWire(result, outputPattern));
   } catch (error) {
     console.error(error);
     process.exitCode = 1;
