@@ -11,7 +11,9 @@
  * 6. Print result
  */
 
-import { encode, decode } from './runtime/codec.mjs';
+import { deriveClosedPattern } from './runtime/codec.mjs';
+import { encodeToWire, decodeWire } from './runtime/prefix-codec.mjs';
+import { patternToPropertyList } from './runtime/pattern-json.mjs';
 import { Product, Variant } from '../Value.mjs';
 import hash from '../hash.mjs';
 
@@ -76,12 +78,16 @@ const inputValue = new Variant(
 console.log('Input value:', inputValue.toString());
 console.log();
 
+const maybePattern = patternToPropertyList(
+  deriveClosedPattern(maybeName, maybeDef, resolveType)
+);
+
 // ============================================================================
 // Step 4: Parse (TEXT → BINARY)
 // ============================================================================
 
 console.log('--- PARSE (text → binary) ---');
-const binaryInput = encode(inputValue, maybeName, maybeDef, resolveType);
+const binaryInput = encodeToWire(inputValue, maybePattern);
 console.log('Binary size:', binaryInput.length, 'bytes');
 console.log('  Bytes:', binaryInput.toString('hex'));
 console.log();
@@ -93,7 +99,7 @@ console.log();
 console.log('--- COMPILED PROGRAM (binary → binary) ---');
 
 // Simulate a compiled k-program: decode → transform → encode
-const { value: programInput } = decode(binaryInput);
+const { value: programInput } = decodeWire(binaryInput);
 
 console.log('Program sees value:', programInput.toString());
 
@@ -115,12 +121,7 @@ if (programInput instanceof Variant && programInput.tag === 'something') {
 console.log('Program output value:', programOutput.toString());
 
 // Encode output
-const binaryOutput = encode(
-  programOutput,
-  maybeName,
-  maybeDef,
-  resolveType
-);
+const binaryOutput = encodeToWire(programOutput, maybePattern);
 
 console.log('Binary output size:', binaryOutput.length, 'bytes');
 console.log('  Bytes:', binaryOutput.toString('hex'));
@@ -131,7 +132,7 @@ console.log();
 // ============================================================================
 
 console.log('--- PRINT (binary → text) ---');
-const { value: finalValue } = decode(binaryOutput);
+const { value: finalValue } = decodeWire(binaryOutput);
 
 console.log('Output value:', finalValue.toString());
 console.log();

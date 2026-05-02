@@ -2,7 +2,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product } from "../Value.mjs";
-import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 
 const UNIT_PATTERN = [
   ["closed-product", []]
@@ -18,15 +18,15 @@ function readAll(stream) {
 }
 
 function unitEncoding() {
-  return `${JSON.stringify(encodeToEnvelope(new Product({}), UNIT_PATTERN))}\n`;
+  return encodeToWire(new Product({}), UNIT_PATTERN);
 }
 
 async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
     console.error("Usage: unit.mjs --parse | --print");
-    console.error("  --parse  ignore stdin and write the unit JSON envelope");
-    console.error("  --print  validate the unit JSON envelope and write {}");
+    console.error("  --parse  ignore stdin and write the unit binary pattern+value stream");
+    console.error("  --print  validate the unit binary pattern+value stream and write {}");
     exit(1);
   }
 
@@ -38,7 +38,7 @@ async function main() {
   }
 
   const input = await readAll(stdin);
-  const { value } = decodeInput(input);
+  const { value } = decodeWire(input);
   if (!(value instanceof Product) || Object.keys(value.product).length !== 0) {
     throw new Error("Input is not a unit value");
   }

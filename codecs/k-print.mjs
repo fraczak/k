@@ -2,7 +2,7 @@
 
 import fs from "node:fs";
 import { argv, stdin, stdout } from "node:process";
-import { decodeInput } from "./runtime/prefix-codec.mjs";
+import { decodeWire } from "./runtime/prefix-codec.mjs";
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -30,7 +30,7 @@ async function main() {
 
   const input = fileArg ? fs.createReadStream(fileArg) : stdin;
   const buffer = await readAll(input);
-  const { pattern, value } = decodeInput(buffer);
+  const { pattern, value } = decodeWire(buffer);
 
   if (debug) {
     stdout.write(`${JSON.stringify({ pattern, value })}\n`);

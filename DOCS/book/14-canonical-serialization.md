@@ -26,8 +26,8 @@ Before any value is serialized, the compiler or runtime must know:
 * for unions, the order of their variants.
 
 This information acts as the grammar from which all bit sequences are derived.
-For an envelope value, the same role is played by the envelope pattern; singleton
-patterns are exactly the monomorphic type case.
+For a pattern-framed value, the same role is played by the decoded leading
+pattern; singleton patterns are exactly the monomorphic type case.
 
 ---
 

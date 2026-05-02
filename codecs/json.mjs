@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { stdin, stdout, argv, exit } from "node:process";
-import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 import { fromJsonValue, toJsonValue, patternFromJsonValue } from "./json-codec.mjs";
 
 function readAll(stream) {
@@ -17,8 +17,8 @@ async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
     console.error("Usage: json.mjs --parse | --print");
-    console.error("  --parse  read JSON from stdin, write JSON envelope");
-    console.error("  --print  read JSON envelope from stdin, write JSON");
+    console.error("  --parse  read JSON from stdin, write binary pattern+value stream");
+    console.error("  --print  read binary pattern+value stream from stdin, write JSON");
     exit(1);
   }
 
@@ -27,9 +27,9 @@ async function main() {
   if (args[0] === "--parse") {
     const json = JSON.parse(buf.toString("utf8"));
     const value = fromJsonValue(json);
-    stdout.write(`${JSON.stringify(encodeToEnvelope(value, patternFromJsonValue(json)))}\n`);
+    stdout.write(encodeToWire(value, patternFromJsonValue(json)));
   } else {
-    const { value } = decodeInput(buf);
+    const { value } = decodeWire(buf);
     stdout.write(`${JSON.stringify(toJsonValue(value))}\n`);
   }
 }

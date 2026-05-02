@@ -10,7 +10,7 @@ The ABI provides a uniform way to express both outcomes.
 
 Conceptually, a runtime value is a materialized product/union tree plus its
 current pattern context. The older bare-node ABI below describes the tree part;
-an envelope-aware ABI must carry the pattern beside the node pointer.
+a pattern-aware ABI must carry the pattern beside the node pointer.
 
 ---
 

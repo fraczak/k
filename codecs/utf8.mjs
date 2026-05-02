@@ -16,8 +16,8 @@ async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
     console.error("Usage: utf8.mjs --parse | --print");
-    console.error("  --parse  read UTF-8 text from stdin, write JSON prefix envelope of k string");
-    console.error("  --print  read JSON prefix envelope of k string, write UTF-8 text");
+    console.error("  --parse  read UTF-8 text from stdin, write binary pattern+value stream of k string");
+    console.error("  --print  read binary pattern+value stream of k string, write UTF-8 text");
     exit(1);
   }
 

@@ -81,7 +81,7 @@ struct KOpt function(struct KValue* input);
 
 To run a program, a caller must supply an input runtime value: a materialized
 tree plus its current pattern context when one is known. The value is typically
-created by another function or loaded from a codec envelope.
+created by another function or loaded from a codec stream.
 
 For example, to execute a function `neg` expecting a `$bool`:
 

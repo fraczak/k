@@ -2,7 +2,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product, Variant } from "../Value.mjs";
-import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 import { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";
 const UNIT = new Product({});
 
@@ -118,8 +118,8 @@ async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
     console.error("Usage: ieee.mjs --parse | --print");
-    console.error("  --parse  read a float literal from stdin, write JSON envelope");
-    console.error("  --print  read a JSON envelope from stdin, write a float literal");
+    console.error("  --parse  read a float literal from stdin, write binary pattern+value stream");
+    console.error("  --print  read binary pattern+value stream from stdin, write a float literal");
     exit(1);
   }
 
@@ -127,9 +127,9 @@ async function main() {
 
   if (args[0] === "--parse") {
     const value = encodeNumberToValue(parseFloatText(buf.toString("utf8")));
-    stdout.write(`${JSON.stringify(encodeToEnvelope(value, FLOAT64_PATTERN))}\n`);
+    stdout.write(encodeToWire(value, FLOAT64_PATTERN));
   } else {
-    const { value } = decodeInput(buf);
+    const { value } = decodeWire(buf);
     stdout.write(`${printFloatText(decodeValueToNumber(value))}\n`);
   }
 }

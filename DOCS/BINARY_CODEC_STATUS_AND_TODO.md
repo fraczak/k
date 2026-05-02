@@ -1,11 +1,11 @@
-# Codec Envelope Status
+# Codec Wire Format Status
 
 This note tracks the current `k-parse | k | k-print` pipeline after the move
-from the JSON bootstrap envelope to the self-hosted binary pattern framing.
+to self-hosted binary pattern framing.
 
 ## Current Shape
 
-The default wire format is:
+The only wire format is:
 
 ```text
 encode($pattern_value : $pattern) encode(value : decoded_pattern)
@@ -23,23 +23,15 @@ Decoding the stream produces a materialized `Value` that carries the decoded
 pattern as `value.pattern`. The evaluator propagates the carried pattern, and
 encoding uses it by default.
 
-The legacy JSON bootstrap envelope:
-
-```json
-{
-  "pattern": [...],
-  "value_bits": "..."
-}
-```
-
-is still accepted by runtime decoders and can be emitted by `k-parse --json` for
-debugging and transition compatibility.
+There is no second JSON transport format. Property-list JSON may still appear in
+tests or debug output as a readable notation for pattern graphs, but it is not a
+codec container and is not accepted at the command boundary.
 
 ## Current Pipeline
 
 1. `k-parse`: text value plus optional pattern/type script -> binary pattern+value stream
-2. `k`: binary or legacy JSON input -> `Value(pattern, tree)` -> evaluate `k` expression -> binary pattern+value stream
-3. `k-print`: binary or legacy JSON input -> JSON value text
+2. `k`: binary input -> `Value(pattern, tree)` -> evaluate `k` expression -> binary pattern+value stream
+3. `k-print`: binary input -> JSON value text
 
 This keeps the evaluator stage free of formatting concerns while staying close
 to the new semantic codec model.

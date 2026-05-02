@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * int: parse/print integers in the k 'int' JSON prefix envelope.
+ * int: parse/print integers in the k 'int' binary pattern+value stream.
  *
  * $ bits = < {} _, bits 0, bits 1 >;
  * $ int  = < bits '+', bits '-' >;
@@ -9,13 +9,13 @@
  * Bits are stored MSB-outermost (remove_leading_zeros strips outermost 0s).
  *
  * Usage:
- *   echo "-21"  | int.mjs --parse   # decimal → JSON prefix envelope
- *   <envelope>  | int.mjs --print   # JSON prefix envelope → decimal
+ *   echo "-21"  | int.mjs --parse   # decimal → binary pattern+value stream
+ *   <wire>      | int.mjs --print   # binary pattern+value stream → decimal
  */
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product, Variant } from "../Value.mjs";
-import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 
 // Closed pattern for $ int = < bits '+', bits '-' >
 // with $ bits = < {} _, bits 0, bits 1 >
@@ -81,8 +81,8 @@ async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
     console.error("Usage: int.mjs --parse | --print");
-    console.error("  --parse  read a decimal integer from stdin, write JSON envelope");
-    console.error("  --print  read a JSON envelope from stdin, write decimal integer");
+    console.error("  --parse  read a decimal integer from stdin, write binary pattern+value stream");
+    console.error("  --print  read binary pattern+value stream from stdin, write decimal integer");
     exit(1);
   }
 
@@ -91,9 +91,9 @@ async function main() {
   if (args[0] === "--parse") {
     const text = buf.toString("utf8").trim();
     const value = parseIntStr(text);
-    stdout.write(`${JSON.stringify(encodeToEnvelope(value, INT_PATTERN))}\n`);
+    stdout.write(encodeToWire(value, INT_PATTERN));
   } else {
-    const { value } = decodeInput(buf);
+    const { value } = decodeWire(buf);
     stdout.write(printIntValue(value) + "\n");
   }
 }

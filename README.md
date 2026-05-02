@@ -224,11 +224,9 @@ encoding uses the carried pattern by default. For example, projecting `.0` from
 a JSON array whose first element is a boolean preserves the boolean pattern
 `false | true` even when the observed value is currently `true`.
 
-The old JSON envelope remains available as a debug/compatibility form:
-`k-parse --json` emits it, and runtime decoders accept both formats.
-
-In the REPL, `--e file` loads a JSON envelope as the current value and `--E`
-prints the current value as an envelope.
+There is no separate JSON container at the codec boundary. Pattern graphs may be
+printed in JSON-like property-list form for inspection, but the command-line
+pipeline reads and writes the binary pattern+value stream.
 
 ---
 
@@ -270,7 +268,7 @@ Try in `k-repl`:
 
 A **pattern** represents collections of codes (types). Patterns are used for type inference and static analysis,
 and are also carried by runtime values when values enter through the polymorphic
-codec envelope.
+codec stream.
 
 **Example:**
 

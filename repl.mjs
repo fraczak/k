@@ -8,7 +8,7 @@ import { run } from "./run.mjs";
 import { prettyCode, prettyRel, patterns2filters } from "./pretty.mjs";
 import { find } from "./codes.mjs";
 import { exportRelation } from "./export.mjs";
-import { decodeEnvelope, encodeToEnvelope } from "./codecs/runtime/prefix-codec.mjs";
+import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 
 
 let DEBUG_FLAG = false;
@@ -24,8 +24,8 @@ const help = function () {
   console.log("  --r            print relations");
   console.log("  --R rel        print 'rel' definition with type patterns");
   console.log("  --p (--pp)     pretty-print last value");
-  console.log("  --E            print current value as a JSON envelope");
-  console.log("  --e file       load current value from a JSON envelope");
+  console.log("  --E            print current value as binary wire hex");
+  console.log("  --e file       load current value from a binary wire file");
   console.log("  --s (--g) reg  store (get) the current value in (from) register 'reg'");
   console.log("  --regs         print register names");
   console.log("  --l file.k     load 'file.k'");
@@ -168,12 +168,11 @@ function evaluate(line) {
       console.log(JSON.stringify(val, null, 2));
       // --E
     } else if (line.match(/^[ \n\t]*--E$/)) {
-      console.log(JSON.stringify(encodeToEnvelope(val, val.pattern), null, 2));
+      console.log(encodeToWire(val, val.pattern).toString("hex"));
       // --e
     } else if (line.match(re__e)) {
       const file = line.match(re__e)[1];
-      const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
-      val = decodeEnvelope(envelope).value;
+      val = decodeWire(fs.readFileSync(file)).value;
       printVal();
       // --regs
     } else if (line.match(/^[ \n\t]*(?:--regs)?$/)) {

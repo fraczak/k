@@ -8,7 +8,7 @@ All execution—interpretive or compiled—follows these rules.
 
 In the current runtime, a value is a materialized tree together with an optional
 root pattern. The tree determines the ordinary product/union computation; the
-pattern records the polymorphic type context used by the codec envelope and is
+pattern records the polymorphic type context used by the codec stream and is
 propagated by structural operations.
 
 ---

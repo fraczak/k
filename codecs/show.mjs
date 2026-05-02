@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import { argv, stdin, stdout, stderr } from "node:process";
 import { Product, Variant } from "../Value.mjs";
-import { decodeEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeWire } from "./runtime/prefix-codec.mjs";
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -83,22 +83,19 @@ async function main() {
   let fileArg = null;
   for (const arg of args) {
     if (fileArg == null) fileArg = arg;
-    else { console.error("Usage: show.mjs [envelope-file]"); process.exit(1); }
+    else { console.error("Usage: show.mjs [wire-file]"); process.exit(1); }
   }
 
   const buffer = fileArg ? fs.readFileSync(fileArg) : await readAll(stdin);
-  const raw = buffer.toString("utf8");
 
   // forward unchanged to stdout
-  stdout.write(raw);
-  if (!raw.endsWith("\n")) stdout.write("\n");
+  stdout.write(buffer);
 
   // decode and print: value filter
-  const envelope = JSON.parse(raw);
-  const { value } = decodeEnvelope(envelope);
+  const { pattern, value } = decodeWire(buffer);
 
   const valueStr = valueToK(value);
-  const filterStr = propertyListToFilter(envelope.pattern);
+  const filterStr = propertyListToFilter(pattern);
   stderr.write(`${valueStr} ?${filterStr}\n`);
 }
 

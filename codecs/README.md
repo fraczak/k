@@ -10,7 +10,7 @@ The default concrete format is now the binary encoding of a `$pattern` value,
 using the `$pattern` type from [`../core.k`](../core.k), immediately followed by
 the binary encoding of the value under that decoded pattern.
 
-The old JSON envelope remains as a debug/bootstrap compatibility form.
+There is no separate JSON container format.
 
 ## Objectives
 
@@ -64,30 +64,10 @@ encode($pattern_value : $pattern) encode(value : decoded_pattern)
 that value is decoded, it becomes the pattern used to decode the remaining
 value payload.
 
-The legacy JSON compatibility format is:
-
-```json
-{
-  "pattern": [
-    ["closed-union", [["nil", 1], ["cons", 2]]],
-    ["closed-product", []],
-    ["closed-product", [["car", 3], ["cdr", 0]]],
-    ["closed-union", [["_", 1], ["0", 3], ["1", 3]]]
-  ],
-  "value_bits": "base64-or-bitstring"
-}
-```
-
-This is intentionally simple and remains useful for debugging:
-
-- `pattern` is explicit and easy to validate,
-- `value_bits` is a compact carrier for the prefix-free payload,
-- the pattern representation maps directly to the self-hosted `$pattern` value.
-
 The runtime boundary is therefore:
 
 ```text
-binary pattern+value stream or legacy JSON envelope <-> Value(pattern, tree)
+binary pattern+value stream <-> Value(pattern, tree)
 ```
 
 `k.mjs` is only the command-line adapter for that boundary. The operational
@@ -95,7 +75,8 @@ runtime sees and preserves the pattern on the `Value` itself.
 
 ## Pattern Graph Representation
 
-The pattern graph is represented as a property-list style vector of nodes:
+For documentation and tests, a pattern graph may be shown as a property-list
+style vector of nodes:
 
 ```text
 [kind, edges]
@@ -131,12 +112,12 @@ Canonical rules:
 - edge labels are unique within a node,
 - `"any"` must have no outgoing edges.
 
-This JSON graph is only the bootstrap syntax. The long-term intent is to encode
-the same abstract graph as an ordinary `k` value.
+This JSON-like graph is only a readable notation. The wire representation is
+the ordinary k `$pattern` value from `core.k`.
 
 ## Witness-Derived Patterns
 
-When `k-parse` is used without an explicit input pattern or type, the envelope
+When `k-parse` is used without an explicit input pattern or type, the wire
 pattern is derived from the parsed value tree.
 
 - An empty textual node is a closed product: `{}`.
@@ -168,7 +149,7 @@ closed nodes collapse only when they have the same closed kind, the same labels,
 and the same already-collapsed child targets. Open nodes keep their identity,
 and recursive closed nodes are not collapsed by this witness-tree rule.
 
-This is canonicalization of the pattern graph carried in the envelope. It is
+This is canonicalization of the pattern graph carried in the wire stream. It is
 not DAG compression of the value payload.
 
 ## Prefix-Free Value Encoding
@@ -218,9 +199,8 @@ The new codec work is split into layers:
 
 1. abstract pattern graph semantics,
 2. prefix-free value-tree semantics relative to that graph,
-3. bootstrap JSON envelope,
-4. self-hosted `k` representation of the pattern graph,
-5. optional higher-level optimizations.
+3. self-hosted `k` representation of the pattern graph,
+4. optional higher-level optimizations.
 
 ## Files
 
@@ -231,7 +211,5 @@ The new codec work is split into layers:
 
 ## Status
 
-The repository is currently being migrated from the JSON envelope model to the
-self-hosted binary pattern+value stream. The active command-line pipeline emits
-the binary stream, while decoders accept both the binary stream and the legacy
-JSON envelope during the transition.
+The active command-line pipeline emits and consumes the self-hosted binary
+pattern+value stream.

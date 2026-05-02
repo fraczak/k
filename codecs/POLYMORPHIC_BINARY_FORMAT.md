@@ -24,11 +24,10 @@ The codec is designed around:
 
 1. compactness,
 2. efficient structural navigation,
-3. a clean separation between semantic encoding and later transport/container
-   choices.
+3. a clean separation between semantic encoding and optional acceleration
+   structures.
 
-This document defines the semantic codec. It does **not** require a final
-binary package format yet.
+This document defines the semantic codec and the canonical wire stream.
 
 ## Design Principles
 
@@ -43,7 +42,7 @@ The pattern determines:
 
 The value payload is interpreted relative to the pattern.
 During execution, the same pattern context is propagated with materialized
-values, so structural operations do not have to reconstruct envelope information
+values, so structural operations do not have to reconstruct framing information
 after the fact.
 
 ### 2. Values are trees in the base codec
@@ -60,15 +59,11 @@ The value payload is a prefix-free bitstream.
 Products rely on structural concatenation.
 Unions emit a choice code, then the payload of the selected branch.
 
-### 4. Abstract first, packaging later
+### 4. One canonical stream
 
-The pattern graph and the value encoding must be specified abstractly first.
-
-Only after that should they be embedded in:
-
-- JSON,
-- `k` values,
-- or a compact binary envelope.
+The pattern graph is embedded as an ordinary k `$pattern` value. The canonical
+stream is that encoded pattern followed by the value payload interpreted under
+the decoded pattern.
 
 ## Pattern Graph
 
@@ -121,9 +116,9 @@ The root node is node `0`.
 - no duplicate labels occur within one node,
 - `any` has no outgoing edges.
 
-### Bootstrap JSON syntax
+### Readable property-list notation
 
-The initial concrete representation is:
+For documentation and tests, the abstract graph may be rendered as:
 
 ```json
 {
@@ -136,11 +131,11 @@ The initial concrete representation is:
 }
 ```
 
-This syntax is only a bootstrap envelope for the abstract graph.
+This syntax is only a readable notation for the abstract graph.
 
 ## Pattern Construction From A Witness Tree
 
-When no external pattern or type is supplied, the bootstrap tools derive a
+When no external pattern or type is supplied, the codec tools derive a
 pattern from the value tree itself.
 
 - `{}` derives the closed product leaf `["closed-product", []]`.
@@ -277,28 +272,21 @@ table and not as a built-in primitive integer format.
 
 This keeps the codec uniform: recursion is handled by the pattern graph itself.
 
-## Bootstrap Envelope
+## Canonical Wire Format
 
-The initial transport envelope is JSON:
+The transport format is:
 
-```json
-{
-  "pattern": [...],
-  "value_bits": "..."
-}
+```text
+encode($pattern_value : $pattern) encode(value : decoded_pattern)
 ```
 
-`value_bits` may be carried as:
+The first segment is a normal k value of type `$pattern`, encoded under the
+fixed singleton pattern for `$pattern` defined by `core.k`. The decoded pattern
+is then used as the structural authority for the second segment.
 
-- a literal bitstring for debugging, or
-- a base64 string for practical transport.
-
-The envelope is deliberately simple so that the semantics of `pattern` and
-`value_bits` can be stabilized before moving to a self-hosted representation.
-
-Decoding the JSON envelope yields `Value(pattern, tree)`. Encoding a runtime
-`Value` uses its carried pattern by default, or an explicit caller-supplied
-pattern when one is provided.
+Decoding the stream yields `Value(pattern, tree)`. Encoding a runtime `Value`
+uses its carried pattern by default, or an explicit caller-supplied pattern when
+one is provided.
 
 ## Out Of Scope For The Base Codec
 
@@ -307,8 +295,8 @@ The following are intentionally outside the primitive codec:
 - DAG compression,
 - subtree deduplication,
 - projection indexes,
-- transport-specific framing,
-- compact binary pattern serialization,
+- alternate transport-specific framing,
+- alternate binary pattern serialization,
 - exact-type-only specializations.
 
 These may be added later, but they are not part of the base pattern-plus-tree

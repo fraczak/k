@@ -10,11 +10,11 @@ Every `k` value exists in one of three forms during execution:
 
 This unified approach enables programs to operate on serialized inputs without unnecessary deserialization, optimizing performance for identity operations and partial data access patterns.
 
-In the current envelope-aware model, every form also has a pattern context. For
-serialized values this is the envelope pattern; for materialized values it is
-carried on the runtime `Value`. The product/union tree is the payload, while the
-pattern records the polymorphic type information needed to interpret and
-re-encode that payload.
+In the current pattern-framed model, every form also has a pattern context. For
+serialized values this is the decoded leading `$pattern` value; for materialized
+values it is carried on the runtime `Value`. The product/union tree is the
+payload, while the pattern records the polymorphic type information needed to
+interpret and re-encode that payload.
 
 ---
 

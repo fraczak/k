@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import k from "./index.mjs";
-import { decodeInput, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
+import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { mergePatterns } from "./Value.mjs";
@@ -52,7 +52,7 @@ inputStream.on("data", (data) => buffer.push(Buffer.isBuffer(data) ? data : Buff
 inputStream.on("end", () => {
   try {
     const inputBuffer = Buffer.concat(buffer);
-    const { pattern: inputPattern, value } = decodeInput(inputBuffer);
+    const { pattern: inputPattern, value } = decodeWire(inputBuffer);
     const result = kScript(value);
     if (result === undefined) {
       throw new Error("k expression evaluated to undefined; cannot encode undefined output value");

@@ -1,5 +1,5 @@
 import { NODE_KIND } from "./runtime/codec.mjs";
-import { decodeInput, encodeToEnvelope } from "./runtime/prefix-codec.mjs";
+import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 import { patternToPropertyList } from "./runtime/pattern-json.mjs";
 import { textToStringValue, stringValueToText } from "./runtime/unicode-string.mjs";
 
@@ -69,11 +69,11 @@ const STRING_PATTERN = {
 const STRING_PATTERN_PROPERTY_LIST = patternToPropertyList(STRING_PATTERN);
 
 function encodeText(text) {
-  return `${JSON.stringify(encodeToEnvelope(textToStringValue(text), STRING_PATTERN_PROPERTY_LIST))}\n`;
+  return encodeToWire(textToStringValue(text), STRING_PATTERN_PROPERTY_LIST);
 }
 
 function decodeText(buffer) {
-  const { value } = decodeInput(buffer);
+  const { value } = decodeWire(buffer);
   return stringValueToText(value);
 }
 

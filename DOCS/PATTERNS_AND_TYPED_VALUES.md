@@ -242,9 +242,9 @@ PolyVal(P) = { (P, (T, t)) : T ⊨ P and t ∈ Tree(T) }.
 
 In the current JavaScript implementation, this semantic pair is represented
 directly in memory: `Product` and `Variant` carry the witness tree, and every
-`Value` may also carry the root pattern as `value.pattern`. The JSON codec
-envelope is the serialized form of the same object, not a separate concern
-known only to the command-line wrapper.
+`Value` may also carry the root pattern as `value.pattern`. The codec stream is
+the serialized form of the same object: an encoded `$pattern` value followed by
+the value payload interpreted under that pattern.
 
 So a pattern does not denote a set of raw trees.
 It denotes a set of typed values:
@@ -567,8 +567,8 @@ This operation can have several variants, for example:
 This is not the same as recovering a unique semantic value from the tree alone, because a raw tree does not determine its type.
 Still, such derivations are useful as heuristics, input assistance, and initialization of pattern inference.
 
-The current codec envelope uses one such derivation when no input pattern or
-type is supplied. Empty nodes derive the closed product `{}`. Multi-child nodes
+The current codec stream uses one such derivation when no input pattern or type
+is supplied. Empty nodes derive the closed product `{}`. Multi-child nodes
 derive closed products. A one-child node derives an open union by default, unless
 an explicit product pattern is supplied to disambiguate it as a singleton
 product.
@@ -585,12 +585,12 @@ derives the pattern:
 < { <{} x, ...> b, {} c } a, ... >
 ```
 
-The derived envelope pattern may then be canonicalized by collapsing finite
-closed subtrees from the leaves upward. The base case is the closed empty product
-`{}`; two closed nodes collapse only when their kind, labels, and already
-collapsed children are identical. Open pattern nodes keep their identity. This
-closed-node collapse belongs to pattern graph construction and should not be
-confused with DAG compression of the witness value tree.
+The derived wire pattern may then be canonicalized by collapsing finite closed
+subtrees from the leaves upward. The base case is the closed empty product `{}`;
+two closed nodes collapse only when their kind, labels, and already collapsed
+children are identical. Open pattern nodes keep their identity. This closed-node
+collapse belongs to pattern graph construction and should not be confused with
+DAG compression of the witness value tree.
 
 ### 14.5. Additional likely tools
 

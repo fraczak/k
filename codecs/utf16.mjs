@@ -45,8 +45,8 @@ async function main() {
   const args = argv.slice(2);
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
     console.error("Usage: utf16.mjs --parse | --print");
-    console.error("  --parse  read UTF-16 text from stdin (BOM-aware), write JSON prefix envelope of k string");
-    console.error("  --print  read JSON prefix envelope of k string, write UTF-16LE text with BOM");
+    console.error("  --parse  read UTF-16 text from stdin (BOM-aware), write binary pattern+value stream of k string");
+    console.error("  --print  read binary pattern+value stream of k string, write UTF-16LE text with BOM");
     exit(1);
   }
 

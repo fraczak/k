@@ -256,16 +256,6 @@ function deriveClosedPatternFromValue(value) {
   };
 }
 
-function encodeToEnvelope(value, propertyList) {
-  const { coercedValue, refinedPattern } = preparePatternAndValue(value, propertyList);
-  const writer = new BitWriter();
-  encodeNode(writer, coercedValue, refinedPattern, 0);
-  return {
-    pattern: patternToPropertyList(refinedPattern),
-    value_bits: writer.toBuffer().toString("base64")
-  };
-}
-
 function requireProduct(value, where) {
   if (!(value instanceof Product)) {
     throw new Error(`${where}: expected Product`);
@@ -405,20 +395,6 @@ function encodeToWire(value, propertyList) {
   return writer.toBuffer();
 }
 
-function decodeEnvelope(envelope) {
-  if (!envelope || typeof envelope !== "object") {
-    throw new Error("Envelope must be an object");
-  }
-  const pattern = propertyListToPattern(envelope.pattern);
-  if (typeof envelope.value_bits !== "string") {
-    throw new Error("Envelope value_bits must be a string");
-  }
-  const reader = new BitReader(Buffer.from(envelope.value_bits, "base64"));
-  const value = decodeNode(reader, pattern, 0);
-  reader.assertZeroPadding();
-  return { pattern: envelope.pattern, value: withPattern(value, envelope.pattern) };
-}
-
 function decodeWire(buffer) {
   if (!Buffer.isBuffer(buffer)) {
     throw new Error("Wire input must be a Buffer");
@@ -431,45 +407,17 @@ function decodeWire(buffer) {
   return { pattern: patternPropertyList, value: withPattern(value, patternPropertyList) };
 }
 
-function firstNonWhitespaceByte(buffer) {
-  for (const byte of buffer) {
-    if (byte !== 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d) {
-      return byte;
-    }
-  }
-  return null;
-}
-
-function decodeInput(buffer) {
-  const input = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
-  const first = firstNonWhitespaceByte(input);
-  if (first === 0x7b) {
-    try {
-      return decodeEnvelope(JSON.parse(input.toString("utf8")));
-    } catch (_error) {
-      return decodeWire(input);
-    }
-  }
-  return decodeWire(input);
-}
-
 export {
-  encodeToEnvelope,
-  decodeEnvelope,
   encodeToWire,
   decodeWire,
-  decodeInput,
   propertyListToPattern,
   patternToPropertyList,
   choiceWidth,
   CORE_PATTERN_PROPERTY_LIST
 };
 export default {
-  encodeToEnvelope,
-  decodeEnvelope,
   encodeToWire,
   decodeWire,
-  decodeInput,
   propertyListToPattern,
   patternToPropertyList,
   choiceWidth,

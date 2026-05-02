@@ -2,33 +2,36 @@
 
 This document no longer defines the active codec semantics.
 
-The active target is the abstract pattern-plus-prefix-tree design described in
-[`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md).
+The active format is the self-hosted pattern-plus-prefix-tree stream described
+in [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md):
+
+```text
+encode($pattern_value : $pattern) encode(value : decoded_pattern)
+```
 
 ## Purpose Of This File
 
-This file records the intended direction for a future compact binary container
-once the new semantics are stable.
+This file records constraints for any future optimized container layered above
+the canonical stream.
 
 The design sequence is:
 
 1. define the abstract pattern graph,
 2. define prefix-free value-tree encoding relative to that graph,
-3. bootstrap with a JSON envelope,
-4. later encode the same objects in a compact binary package.
+3. encode the pattern itself as a k `$pattern` value,
+4. optionally add higher-level indexes or compression as separate layers.
 
 ## Expected Container Shape
 
-A future binary package will likely contain:
+The canonical stream contains:
 
 ```text
-pattern-representation + value-bitstream
+encoded-$pattern + value-bitstream
 ```
 
 where:
 
-- the pattern representation encodes the same abstract graph as the JSON
-  `pattern` property,
+- `encoded-$pattern` is the k value representation defined in `core.k`,
 - the value bitstream is exactly the same prefix-free payload described by the
   semantic codec.
 
@@ -44,15 +47,7 @@ In particular, it should not introduce as part of the base semantics:
 
 Those are explicitly outside the target architecture of the rewrite.
 
-## Current Bootstrap
+## Current Format
 
-Until a compact binary package is designed, the working concrete format is:
-
-```json
-{
-  "pattern": [...],
-  "value_bits": "..."
-}
-```
-
-That JSON envelope is the canonical bootstrap container for the new rewrite.
+The working concrete format is the canonical stream above. JSON property-list
+patterns are debug notation only, not a transport container.
