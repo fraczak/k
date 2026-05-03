@@ -344,9 +344,7 @@ function createLocalCodeRepository() {
   return { registerCodeDef, findCode };
 }
 
-function patternGraphFromPropertyList(propertyList) {
-  const { registerCodeDef, findCode } = createLocalCodeRepository();
-  const graph = new TypePatternGraph(registerCodeDef, findCode);
+function addPropertyListToPatternGraph(graph, propertyList) {
   const kindToPattern = {
     any: "(...)",
     "open-product": "{...}",
@@ -364,6 +362,13 @@ function patternGraphFromPropertyList(propertyList) {
     }
   });
 
+  return nodes[0];
+}
+
+function patternGraphFromPropertyList(propertyList) {
+  const { registerCodeDef, findCode } = createLocalCodeRepository();
+  const graph = new TypePatternGraph(registerCodeDef, findCode);
+  addPropertyListToPatternGraph(graph, propertyList);
   return graph;
 }
 
@@ -376,6 +381,85 @@ function canonicalizePattern(pattern) {
   const collapsed = collapseClosedNodes(pattern);
   const compressed = compressPatternGraph(collapsed);
   return propertyListToPattern(patternToPropertyList(exportPatternGraph(compressed.typePatternGraph, compressed.remapping[0])));
+}
+
+function isSingletonPropertyList(propertyList) {
+  return propertyList.every(([kind]) => kind === "closed-product" || kind === "closed-union");
+}
+
+function singletonMatchesPattern(singleton, pattern) {
+  const mapped = new Map();
+  const visiting = new Set();
+
+  function visit(patternNodeId, singletonNodeId) {
+    const mappedSingletonId = mapped.get(patternNodeId);
+    if (mappedSingletonId != null) return mappedSingletonId === singletonNodeId;
+    mapped.set(patternNodeId, singletonNodeId);
+
+    const key = `${patternNodeId}|${singletonNodeId}`;
+    if (visiting.has(key)) return true;
+    visiting.add(key);
+
+    const [patternKind, patternEdges] = pattern[patternNodeId];
+    const [singletonKind, singletonEdges] = singleton[singletonNodeId];
+    const singletonIsProduct = singletonKind === "closed-product";
+    const singletonIsUnion = singletonKind === "closed-union";
+
+    if (patternKind === "any") {
+      visiting.delete(key);
+      return true;
+    }
+
+    const patternIsProduct = patternKind === "open-product" || patternKind === "closed-product";
+    const patternIsUnion = patternKind === "open-union" || patternKind === "closed-union";
+    if ((patternIsProduct && !singletonIsProduct) || (patternIsUnion && !singletonIsUnion)) {
+      visiting.delete(key);
+      return false;
+    }
+
+    const singletonTargets = new Map(singletonEdges.map(([label, target]) => [label, target]));
+    if (patternKind === "closed-product" || patternKind === "closed-union") {
+      if (patternEdges.length !== singletonEdges.length) {
+        visiting.delete(key);
+        return false;
+      }
+    }
+
+    for (const [label, patternTarget] of patternEdges) {
+      const singletonTarget = singletonTargets.get(label);
+      if (singletonTarget == null || !visit(patternTarget, singletonTarget)) {
+        visiting.delete(key);
+        return false;
+      }
+    }
+
+    visiting.delete(key);
+    return true;
+  }
+
+  return visit(0, 0);
+}
+
+function intersectPropertyListPatterns(left, right) {
+  if (!left || left.length === 0) return right;
+  if (!right || right.length === 0) return left;
+  if (left[0]?.[0] === "any") return right;
+  if (right[0]?.[0] === "any") return left;
+  if (left === right) return left;
+
+  if (isSingletonPropertyList(left) && singletonMatchesPattern(left, right)) return left;
+  if (isSingletonPropertyList(right) && singletonMatchesPattern(right, left)) return right;
+  if (JSON.stringify(left) === JSON.stringify(right)) return left;
+
+  const { registerCodeDef, findCode } = createLocalCodeRepository();
+  const graph = new TypePatternGraph(registerCodeDef, findCode);
+  const leftRoot = addPropertyListToPatternGraph(graph, patternToPropertyList(propertyListToPattern(left)));
+  const rightRoot = addPropertyListToPatternGraph(graph, patternToPropertyList(propertyListToPattern(right)));
+
+  graph.unify("pattern-intersection", leftRoot, rightRoot);
+  const root = graph.find(leftRoot);
+  const compressed = getCompressed(graph);
+  return patternToPropertyList(exportPatternGraph(compressed.typePatternGraph, compressed.remapping[root]));
 }
 
 function refinePatternForValue(pattern, value) {
@@ -680,5 +764,5 @@ function coerceValueForPattern(pattern, value) {
   return coerce(0, value);
 }
 
-export { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, canonicalizePattern, NODE_KIND };
-export default { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, canonicalizePattern, NODE_KIND };
+export { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, canonicalizePattern, intersectPropertyListPatterns, NODE_KIND };
+export default { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, canonicalizePattern, intersectPropertyListPatterns, NODE_KIND };

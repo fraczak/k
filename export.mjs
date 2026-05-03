@@ -49,8 +49,8 @@ export function simplifyRel(relDef,rels) {
   };
 
   const rel = relDef.def;
-  const filters = patterns2filters(relDef.typePatternGraph, ...rel.patterns).map( filter =>
-    ({op: "filter", filter: filter}));
+  const filters = patterns2filters(relDef.typePatternGraph, ...rel.patterns).map((filter, index) =>
+    ({op: "filter", filter: filter, patterns: [rel.patterns[index], rel.patterns[index]]}));
   const newRel = prune(rel);
   let resultRel = {...newRel};
   if (newRel.op == "identity")

@@ -5,14 +5,12 @@ import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import k from "./index.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
-import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
-import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 
 const prog = argv[1];
 
-let kScript, outputPattern, inputStream;
+let kScript, inputStream;
 
-({ kScript, outputPattern, inputStream } = ((args) => {
+({ kScript, inputStream } = ((args) => {
   try {
     let kScriptStr = (function (arg) {
       if (arg == null) {
@@ -24,12 +22,6 @@ let kScript, outputPattern, inputStream;
         return arg;
       }
     })(args.shift());
-    const annotated = k.annotate(kScriptStr);
-    const mainRel = annotated.rels.__main__;
-    const outputPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[1]);
-    const outputPattern = patternToPropertyList(
-      exportPatternGraph(mainRel.typePatternGraph, outputPatternId)
-    );
     let kScript = k.compile(kScriptStr);
     inputStream = (function (arg) {
       if (arg == null) {
@@ -37,7 +29,7 @@ let kScript, outputPattern, inputStream;
       }
       return fs.createReadStream(arg);
     })(args.shift());
-    return { kScript, outputPattern, inputStream };
+    return { kScript, inputStream };
   } catch (error) {
     console.error(error);
     console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ input-file ]`);
@@ -56,7 +48,7 @@ inputStream.on("end", () => {
     if (result === undefined) {
       throw new Error("k expression evaluated to undefined; cannot encode undefined output value");
     }
-    stdout.write(encodeToWire(result, outputPattern));
+    stdout.write(encodeToWire(result, result.pattern));
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

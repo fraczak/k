@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import k from "../index.mjs";
-import { Product, Variant, mergePatterns } from "../Value.mjs";
+import { Product, Variant, mergePatterns, withPattern } from "../Value.mjs";
 import { decodeWire, encodeToWire } from "../codecs/runtime/prefix-codec.mjs";
 import run from "../run.mjs";
 import codes from "../codes.mjs";
@@ -40,6 +40,14 @@ const witnessPattern = [
 const overExpandedSingleton = mergePatterns(INT_PATTERN, witnessPattern);
 const decodedMerged = decodeWire(encodeToWire(two, overExpandedSingleton));
 assert.deepEqual(decodedMerged.pattern, INT_PATTERN);
+
+const identityResult = k.compile("()")(withPattern(two, INT_PATTERN));
+assert.deepEqual(identityResult.pattern, INT_PATTERN);
+
+assert.throws(
+  () => k.compile(".x")(withPattern(two, INT_PATTERN)),
+  /Type Error in 'comp'.*Value envelope does not intersect expression input pattern/s
+);
 
 const projectionScript = `
   $ bits = < {} _, bits 0, bits 1 >;

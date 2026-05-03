@@ -1,6 +1,6 @@
 import assert from "assert";
 import { Product, Variant, edgeSubpattern, composePattern, withPattern } from "./Value.mjs"
-import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
+import { exportPatternGraph, intersectPropertyListPatterns } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 
 const builtin = {
@@ -12,22 +12,74 @@ const builtin = {
 };
 
 const codes = { };
-const singletonPatternCache = new WeakMap();
+const staticPatternCache = new WeakMap();
+const intersectionCache = new Map();
+const singletonCheckCache = new WeakMap();
+const patternPairCache = new WeakMap();
+const NULL_INTERSECTION = {};
 
-function singletonOutputPattern(typePatternGraph, exp) {
+function staticPattern(typePatternGraph, exp, index) {
   if (!typePatternGraph || !exp.patterns) return null;
+  return exportedPattern(typePatternGraph, exp.patterns[index]);
+}
 
-  const outputPatternId = typePatternGraph.find(exp.patterns[1]);
-  const outputPattern = typePatternGraph.get_pattern(outputPatternId);
-  if (outputPattern.pattern !== "type") return null;
-  return exportedPattern(typePatternGraph, outputPatternId);
+function isSingletonPattern(pattern) {
+  if (singletonCheckCache.has(pattern)) return singletonCheckCache.get(pattern);
+  const result = pattern.every(([kind]) => kind === "closed-product" || kind === "closed-union");
+  singletonCheckCache.set(pattern, result);
+  return result;
+}
+
+function intersectPatterns(left, right) {
+  if (!left || left.length === 0) return right;
+  if (!right || right.length === 0) return left;
+  if (left === right) return left;
+  if (left[0]?.[0] === "any") return right;
+  if (right[0]?.[0] === "any") return left;
+
+  const cached = patternPairCache.get(left)?.get(right);
+  if (cached !== undefined) return cached === NULL_INTERSECTION ? null : cached;
+
+  function cache(result) {
+    let rightMap = patternPairCache.get(left);
+    if (!rightMap) {
+      rightMap = new WeakMap();
+      patternPairCache.set(left, rightMap);
+    }
+    rightMap.set(right, result || NULL_INTERSECTION);
+    return result;
+  }
+
+  if (isSingletonPattern(left) || isSingletonPattern(right)) {
+    try {
+      return cache(intersectPropertyListPatterns(left, right));
+    } catch {
+      return cache(null);
+    }
+  }
+
+  const leftKey = JSON.stringify(left);
+  const rightKey = JSON.stringify(right);
+  if (leftKey === rightKey) return left;
+
+  const key = `${leftKey}\n${rightKey}`;
+  if (intersectionCache.has(key)) return cache(intersectionCache.get(key));
+
+  try {
+    const pattern = intersectPropertyListPatterns(left, right);
+    intersectionCache.set(key, pattern);
+    return cache(pattern);
+  } catch {
+    intersectionCache.set(key, null);
+    return cache(null);
+  }
 }
 
 function exportedPattern(typePatternGraph, patternId) {
-  let graphCache = singletonPatternCache.get(typePatternGraph);
+  let graphCache = staticPatternCache.get(typePatternGraph);
   if (!graphCache) {
     graphCache = new Map();
-    singletonPatternCache.set(typePatternGraph, graphCache);
+    staticPatternCache.set(typePatternGraph, graphCache);
   }
   patternId = typePatternGraph.find(patternId);
   if (!graphCache.has(patternId)) {
@@ -39,22 +91,27 @@ function exportedPattern(typePatternGraph, patternId) {
   return graphCache.get(patternId);
 }
 
-function singletonProjectionPattern(typePatternGraph, exp, label) {
-  if (!typePatternGraph || !exp.patterns) return null;
-
-  const inputPatternId = typePatternGraph.find(exp.patterns[0]);
-  const inputPattern = typePatternGraph.get_pattern(inputPatternId);
-  if (inputPattern.pattern !== "type") return null;
-
-  const targets = typePatternGraph.edges[inputPatternId]?.[label] || [];
-  if (targets.length !== 1) return null;
-  const targetPatternId = typePatternGraph.find(targets[0]);
-  if (typePatternGraph.get_pattern(targetPatternId).pattern !== "type") return null;
-  return exportedPattern(typePatternGraph, targetPatternId);
+function expLocation(exp) {
+  return exp.start ? ` (lines ${exp.start.line}:${exp.start.column}...${exp.end?.line}:${exp.end?.column})` : "";
 }
 
-function withStaticSingletonOutput(value, typePatternGraph, exp) {
-  return withPattern(value, singletonOutputPattern(typePatternGraph, exp));
+function patternPreview(pattern) {
+  return JSON.stringify(pattern);
+}
+
+function constrainInput(value, typePatternGraph, exp) {
+  const constraint = staticPattern(typePatternGraph, exp, 0);
+  if (!constraint && (!value.pattern || value.pattern.length === 0)) return value;
+  const pattern = intersectPatterns(constraint, value.pattern);
+  if (!pattern) {
+    throw new TypeError(
+      `Type Error in '${exp.op}'${expLocation(exp)}\n` +
+      ` - Value envelope does not intersect expression input pattern.\n` +
+      ` - input pattern: ${patternPreview(constraint)}\n` +
+      ` - value envelope: ${patternPreview(value.pattern)}`
+    );
+  }
+  return withPattern(value, pattern);
 }
 
 function verify(findCode, code, value) {
@@ -88,42 +145,32 @@ function run(findCode, exp, value, typePatternGraph) {
   "use strict";
   typePatternGraph = typePatternGraph || null;
   if (value === undefined) return;
+  value = constrainInput(value, typePatternGraph, exp);
+  if (value === undefined) return;
   while (true) {    
     switch (exp.op) {
       case "code":
         if (verify(findCode, exp.code, value)) {
-          return withStaticSingletonOutput(value, typePatternGraph, exp);
+          return value;
         }
         return;
       case "identity":
-        return withStaticSingletonOutput(value, typePatternGraph, exp);
+        return value;
       case "ref": {
         const defn = run.defs.rels[exp.ref];
         if (defn != undefined) {
-          exp = defn.def;
-          typePatternGraph = defn.typePatternGraph;
-          continue;
+          return run(findCode, defn.def, value, defn.typePatternGraph);
         }
         const builtin_func = builtin[exp.ref];
         if (builtin_func != null) {
-          return withStaticSingletonOutput(builtin_func(value), typePatternGraph, exp);
+          return builtin_func(value);
         }
         throw(`Unknown ref: '${exp.ref}'`);
       }
       case "dot":
-        return withPattern(
-          value.product[exp.dot],
-          singletonProjectionPattern(typePatternGraph, exp, exp.dot) ||
-            singletonOutputPattern(typePatternGraph, exp) ||
-            edgeSubpattern(value.pattern, exp.dot)
-        );
+        return withPattern(value.product[exp.dot], edgeSubpattern(value.pattern, exp.dot));
       case "div":
-        if (value.tag === exp.div) return withPattern(
-          value.value,
-          singletonProjectionPattern(typePatternGraph, exp, exp.div) ||
-            singletonOutputPattern(typePatternGraph, exp) ||
-            edgeSubpattern(value.pattern, exp.div)
-        );
+        if (value.tag === exp.div) return withPattern(value.value, edgeSubpattern(value.pattern, exp.div));
         return
       case "comp":
         for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
@@ -132,16 +179,20 @@ function run(findCode, exp, value, typePatternGraph) {
           value = result;
         }
         exp = exp.comp[exp.comp.length - 1];
+        value = constrainInput(value, typePatternGraph, exp);
+        if (value === undefined) return;
         continue;
       case "union":
         if (exp.union.length === 0) return;
         for (let i = 0, len = exp.union.length -1; i < len; i++) {
           const result = run(findCode, exp.union[i], value, typePatternGraph);
           if (result !== undefined) {
-            return withStaticSingletonOutput(result, typePatternGraph, exp);
+            return result;
           }
         }
         exp = exp.union[exp.union.length - 1];
+        value = constrainInput(value, typePatternGraph, exp);
+        if (value === undefined) return;
         continue;
     
       case "product": {
@@ -155,20 +206,12 @@ function run(findCode, exp, value, typePatternGraph) {
           result[label] = r;
           patternEntries.push([label, r.pattern]);
         }
-        return withStaticSingletonOutput(
-          new Product(result, composePattern("closed-product", patternEntries)),
-          typePatternGraph,
-          exp
-        );
+        return new Product(result, composePattern("closed-product", patternEntries));
       }
       case "vid":
-        return withStaticSingletonOutput(
-          new Variant(exp.vid, value, composePattern("closed-union", [[exp.vid, value.pattern]])),
-          typePatternGraph,
-          exp
-        );
+        return new Variant(exp.vid, value, composePattern("open-union", [[exp.vid, value.pattern]]));
       case "filter": {
-        return withStaticSingletonOutput(value, typePatternGraph, exp);
+        return value;
       }
       default:
         assert(false,`Unknown operation: '${exp.op}'`);

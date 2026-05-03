@@ -4,21 +4,14 @@ import { parseValue } from "./valueIO.mjs";
 import { compileTypes } from "./compiler.mjs";
 import run from "./run.mjs";
 import codes from "./codes.mjs";
-import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
-import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
-import { withPattern } from "./Value.mjs";
 
 function compile(script, options = {}) {
   run.defs = annotate(script, options);
   const mainRel = run.defs.rels.__main__;
-  const outputPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[1]);
-  const outputPattern = patternToPropertyList(
-    exportPatternGraph(mainRel.typePatternGraph, outputPatternId)
-  );
   return (value) => {
     const result = run(codes.find, mainRel.def, value, mainRel.typePatternGraph);
     if (result === undefined) return;
-    return withPattern(result, outputPattern);
+    return result;
   };
 }
 
