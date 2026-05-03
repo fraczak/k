@@ -16,6 +16,8 @@
     "license": "ISC",
     "bin": {
         "k": "./k.mjs",
+        "k-compile-object": "./objects/compile.mjs",
+        "k-decompile-object": "./objects/decompile.mjs",
         "k-parse": "./codecs/k-parse.mjs",
         "k-pattern": "./codecs/k-pattern.mjs",
         "k-print": "./codecs/k-print.mjs",

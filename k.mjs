@@ -5,10 +5,25 @@ import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import k from "./index.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
+import { decodeObject, objectToFunction } from "./object.mjs";
 
 const prog = argv[1];
 
 let kScript, inputStream;
+
+function usage() {
+  console.error(`Usage: ${prog} ( k-expr | -k file ) [ input-file ]`);
+  console.error(`       E.g.,  echo '["zebara","ela"]' | ./codecs/k-parse.mjs --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
+}
+
+function compileFile(path) {
+  const buffer = fs.readFileSync(path);
+  try {
+    return objectToFunction(decodeObject(buffer));
+  } catch {
+    return k.compile(buffer.toString("utf8"));
+  }
+}
 
 ({ kScript, inputStream } = ((args) => {
   try {
@@ -17,12 +32,12 @@ let kScript, inputStream;
         throw new Error("Missing script argument");
       }
       if (arg === "-k") {
-        return fs.readFileSync(args.shift(), "utf8");
+        return compileFile(args.shift());
       } else {
         return arg;
       }
     })(args.shift());
-    let kScript = k.compile(kScriptStr);
+    let kScript = typeof kScriptStr === "function" ? kScriptStr : k.compile(kScriptStr);
     inputStream = (function (arg) {
       if (arg == null) {
         return stdin;
@@ -32,8 +47,7 @@ let kScript, inputStream;
     return { kScript, inputStream };
   } catch (error) {
     console.error(error);
-    console.error(`Usage: ${prog} ( k-expr | -k k-file ) [ input-file ]`);
-    console.error(`       E.g.,  echo '["zebara","ela"]' | ./codecs/k-parse.mjs --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
+    usage();
     return exit(-1);
   }
 })(argv.slice(2)));
