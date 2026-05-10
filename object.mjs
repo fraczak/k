@@ -5,6 +5,7 @@ import { TypePatternGraph } from "./TypePatternGraph.mjs";
 import { patterns2filters, prettyRel } from "./pretty.mjs";
 
 const MAGIC = Buffer.from([0x4b, 0x4f, 0x42, 0x4a, 0x00, 0x01, 0x0a]);
+const LIB_MAGIC = Buffer.from([0x4b, 0x4c, 0x49, 0x42, 0x00, 0x01, 0x0a]);
 
 function serializeTypePatternGraph(typePatternGraph) {
   return {
@@ -60,41 +61,211 @@ function hydrateAnnotated(serialized) {
   };
 }
 
+function buildMeta(annotated, source) {
+  const meta = {};
+  const relAlias = annotated.relAlias || {};
+  const now = new Date().toISOString();
+  // Relation metadata: source name → canonical hash
+  for (const [name, hash] of Object.entries(relAlias)) {
+    if (name === "__main__") continue;
+    if (!meta[hash]) meta[hash] = { origins: [] };
+    meta[hash].origins.push({ source, name, compiledAt: now });
+  }
+  return meta;
+}
+
+function collectReachable(mainName, rels, allCodes) {
+  const reachableRels = new Set();
+  const reachableCodes = new Set();
+
+  function walkExp(exp) {
+    if (!exp) return;
+    switch (exp.op) {
+      case "ref":
+        if (exp.ref in rels && !reachableRels.has(exp.ref)) {
+          reachableRels.add(exp.ref);
+          walkExp(rels[exp.ref].def);
+        }
+        break;
+      case "code":
+        walkCode(exp.code);
+        break;
+      case "filter":
+        walkFilter(exp.filter);
+        break;
+      case "comp":
+        exp.comp.forEach(walkExp);
+        break;
+      case "union":
+        exp.union.forEach(walkExp);
+        break;
+      case "product":
+        exp.product.forEach(({ exp: e }) => walkExp(e));
+        break;
+    }
+  }
+
+  function walkFilter(filter) {
+    if (!filter) return;
+    if (filter.type === "code") walkCode(filter.code);
+    if (filter.fields) Object.values(filter.fields).forEach(walkFilter);
+  }
+
+  function walkCode(hash) {
+    if (!hash || reachableCodes.has(hash)) return;
+    if (!(hash in allCodes)) return;
+    reachableCodes.add(hash);
+    const code = allCodes[hash];
+    const fields = code[code.code];
+    if (fields) Object.values(fields).forEach(walkCode);
+  }
+
+  // Walk from main
+  reachableRels.add(mainName);
+  walkExp(rels[mainName].def);
+
+  // Also collect codes referenced in typePatternGraphs of reachable rels
+  for (const relName of reachableRels) {
+    const rel = rels[relName];
+    if (rel.typePatternGraph) {
+      const codeId = rel.typePatternGraph.codeId || (rel.typePatternGraph.codeId);
+      if (codeId) Object.values(codeId).forEach(walkCode);
+    }
+  }
+
+  return { reachableRels, reachableCodes };
+}
+
 function compileObject(script, options = {}) {
   const annotated = annotate(script, options);
+  const allCodes = codes.dump();
+  const serialized = serializeAnnotated(annotated);
+  const meta = buildMeta(annotated, options.source || null);
+
+  // Prune to reachable from main
+  const { reachableRels, reachableCodes } = collectReachable("__main__", serialized.rels, allCodes);
+  const prunedCodes = Object.fromEntries(
+    Object.entries(allCodes).filter(([h]) => reachableCodes.has(h))
+  );
+  const prunedRels = Object.fromEntries(
+    Object.entries(serialized.rels).filter(([name]) => reachableRels.has(name))
+  );
+  const prunedMeta = Object.fromEntries(
+    Object.entries(meta).filter(([h]) => reachableRels.has(h) || reachableCodes.has(h))
+  );
+
   return {
     format: "k-object",
-    version: 1,
+    version: 2,
+    codes: prunedCodes,
+    rels: prunedRels,
+    relAlias: serialized.relAlias,
+    compileStats: serialized.compileStats,
+    meta: prunedMeta,
+    main: "__main__"
+  };
+}
+
+function rewriteRefsToCanonical(exp, relAlias) {
+  if (!exp) return exp;
+  const rewritten = { ...exp };
+  switch (exp.op) {
+    case "ref":
+      if (relAlias[exp.ref]) rewritten.ref = relAlias[exp.ref];
+      break;
+    case "comp":
+      rewritten.comp = exp.comp.map(e => rewriteRefsToCanonical(e, relAlias));
+      break;
+    case "union":
+      rewritten.union = exp.union.map(e => rewriteRefsToCanonical(e, relAlias));
+      break;
+    case "product":
+      rewritten.product = exp.product.map(({ label, exp: e }) => ({
+        label, exp: rewriteRefsToCanonical(e, relAlias)
+      }));
+      break;
+  }
+  return rewritten;
+}
+
+function compileLibrary(script, options = {}) {
+  const annotated = annotate(script, options);
+  const serialized = serializeAnnotated(annotated);
+  const meta = buildMeta(annotated, options.source || null);
+  const relAlias = serialized.relAlias || {};
+
+  // Key rels by canonical hash, rewrite internal refs to canonical hashes
+  const libRels = {};
+  for (const [name, rel] of Object.entries(serialized.rels)) {
+    if (name === "__main__") continue;
+    const canonicalName = relAlias[name] || name;
+    const { varRefs, ...relWithoutVarRefs } = rel;
+    libRels[canonicalName] = {
+      ...relWithoutVarRefs,
+      def: rewriteRefsToCanonical(rel.def, relAlias)
+    };
+  }
+
+  return {
+    format: "k-object",
+    version: 2,
     codes: codes.dump(),
-    main: "__main__",
-    defs: serializeAnnotated(annotated)
+    rels: libRels,
+    relAlias: serialized.relAlias,
+    compileStats: serialized.compileStats,
+    meta,
+    main: null
   };
 }
 
 function hydrateObject(object) {
-  if (object?.format !== "k-object" || object.version !== 1) {
+  if (object?.format !== "k-object") {
     throw new Error("Unsupported k object file");
   }
+  // v1 compat: defs wrapper
+  if (object.version === 1) {
+    codes.load(object.codes);
+    return {
+      ...object,
+      defs: hydrateAnnotated(object.defs)
+    };
+  }
+  // v2: flat rels
   codes.load(object.codes);
-  return {
-    ...object,
-    defs: hydrateAnnotated(object.defs)
-  };
+  const hydratedRels = Object.fromEntries(
+    Object.entries(object.rels).map(([name, rel]) => [name, hydrateRelation(rel)])
+  );
+  return { ...object, rels: hydratedRels };
+}
+
+function loadLibrary(object) {
+  const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
+  if (hydrated.main != null) {
+    throw new Error("Expected a library (main: null), got an executable");
+  }
+  return hydrated;
 }
 
 function isHydratedObject(object) {
+  // v2 format
+  if (object?.rels) {
+    const firstRel = Object.values(object.rels)[0];
+    return firstRel?.typePatternGraph instanceof TypePatternGraph;
+  }
+  // v1 format
   return object?.defs?.rels?.[object.main]?.typePatternGraph instanceof TypePatternGraph;
 }
 
 function encodeObject(object) {
+  const magic = object.main == null ? LIB_MAGIC : MAGIC;
   const payload = Buffer.from(JSON.stringify(object), "utf8");
   if (payload.length > 0xffffffff) {
     throw new Error("k object payload is too large");
   }
 
-  const header = Buffer.alloc(MAGIC.length + 4);
-  MAGIC.copy(header, 0);
-  header.writeUInt32BE(payload.length, MAGIC.length);
+  const header = Buffer.alloc(magic.length + 4);
+  magic.copy(header, 0);
+  header.writeUInt32BE(payload.length, magic.length);
   return Buffer.concat([header, payload]);
 }
 
@@ -102,12 +273,15 @@ function decodeObject(buffer) {
   if (!Buffer.isBuffer(buffer)) {
     throw new Error("k object input must be a Buffer");
   }
-  if (buffer.length < MAGIC.length + 4 || !buffer.subarray(0, MAGIC.length).equals(MAGIC)) {
+  const isObj = buffer.length >= MAGIC.length && buffer.subarray(0, MAGIC.length).equals(MAGIC);
+  const isLib = buffer.length >= LIB_MAGIC.length && buffer.subarray(0, LIB_MAGIC.length).equals(LIB_MAGIC);
+  if (!isObj && !isLib) {
     throw new Error("Invalid k object file header");
   }
 
-  const length = buffer.readUInt32BE(MAGIC.length);
-  const payloadStart = MAGIC.length + 4;
+  const magic = isLib ? LIB_MAGIC : MAGIC;
+  const length = buffer.readUInt32BE(magic.length);
+  const payloadStart = magic.length + 4;
   const payloadEnd = payloadStart + length;
   if (payloadEnd !== buffer.length) {
     throw new Error("Invalid k object file length");
@@ -116,14 +290,36 @@ function decodeObject(buffer) {
   return hydrateObject(JSON.parse(buffer.subarray(payloadStart, payloadEnd).toString("utf8")));
 }
 
+function encodeLibrary(object) {
+  return encodeObject(object);
+}
+
+function decodeLibrary(buffer) {
+  const object = decodeObject(buffer);
+  if (object.main != null) {
+    throw new Error("Expected a library (main: null), got an executable");
+  }
+  return object;
+}
+
 function compileObjectBuffer(script, options = {}) {
   return encodeObject(compileObject(script, options));
 }
 
+function compileLibraryBuffer(script, options = {}) {
+  return encodeObject(compileLibrary(script, options));
+}
+
+function getRels(hydrated) {
+  // v2: flat rels; v1: defs.rels
+  return hydrated.rels || hydrated.defs?.rels;
+}
+
 function runObject(object, value) {
   const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
-  run.defs = hydrated.defs;
-  const mainRel = hydrated.defs.rels[hydrated.main];
+  const rels = getRels(hydrated);
+  run.defs = hydrated.defs || { rels };
+  const mainRel = rels[hydrated.main];
   return run(codes.find, mainRel.def, value, mainRel.typePatternGraph);
 }
 
@@ -219,7 +415,8 @@ function boundaryFilterSource(typePatternGraph, patternId, aliases) {
 
 function decompileObject(object) {
   const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
-  const relAliases = hydrated.defs.relAlias || {};
+  const rels = getRels(hydrated);
+  const relAliases = hydrated.defs?.relAlias || hydrated.relAlias || {};
   const aliases = shortestUniqueAliases([
     ...Object.keys(hydrated.codes),
     ...Object.values(relAliases)
@@ -230,18 +427,19 @@ function decompileObject(object) {
     .map((name) => `$ ${aliases[name]} = ${codeToSource(hydrated.codes[name], aliases)};`);
   const emittedRelAliases = new Set();
   const relDefForName = (name) => {
-    const rel = hydrated.defs.rels[name];
+    const rel = rels[name];
     if (!rel) return null;
     const relName = relAliases[name] || name;
     if (emittedRelAliases.has(relName)) return null;
     emittedRelAliases.add(relName);
     return `${aliases[relName] || relName} = ${prettyRel(rewriteRefsInExp(rel.def, aliases, relAliases))};`;
   };
-  const sccs = hydrated.defs.compileStats?.sccs || [];
+  const compileStats = hydrated.defs?.compileStats || hydrated.compileStats;
+  const sccs = compileStats?.sccs || [];
   const relGroups = sccs.map(({ members }) =>
     members.map(relDefForName).filter((line) => line != null)
   ).filter((group) => group.length > 0);
-  const missingRelGroup = Object.keys(hydrated.defs.rels)
+  const missingRelGroup = Object.keys(rels)
     .filter((name) => !sccs.some(({ members }) => members.includes(name)))
     .map(relDefForName)
     .filter((line) => line != null);
@@ -249,8 +447,20 @@ function decompileObject(object) {
   const relDefs = relGroups.flatMap((group, index) =>
     index === 0 ? group : ["", ...group]
   );
+
+  if (hydrated.main == null) {
+    // Library: no main section
+    return [
+      "----- codes -----",
+      ...codeDefs,
+      "----- rels -----",
+      ...relDefs,
+      ""
+    ].join("\n");
+  }
+
   const mainRel = relAliases[hydrated.main] || hydrated.main;
-  const mainRelDef = hydrated.defs.rels[hydrated.main];
+  const mainRelDef = rels[hydrated.main];
   const main = [
     boundaryFilterSource(mainRelDef.typePatternGraph, mainRelDef.def.patterns[0], aliases),
     aliases[mainRel] || mainRel,
@@ -275,9 +485,14 @@ function decompileObjectBuffer(buffer) {
 export {
   compileObject,
   compileObjectBuffer,
+  compileLibrary,
+  compileLibraryBuffer,
   encodeObject,
+  encodeLibrary,
   decodeObject,
+  decodeLibrary,
   hydrateObject,
+  loadLibrary,
   runObject,
   objectToFunction,
   decompileObject,
@@ -287,9 +502,14 @@ export {
 export default {
   compileObject,
   compileObjectBuffer,
+  compileLibrary,
+  compileLibraryBuffer,
   encodeObject,
+  encodeLibrary,
   decodeObject,
+  decodeLibrary,
   hydrateObject,
+  loadLibrary,
   runObject,
   objectToFunction,
   decompileObject,

@@ -2,10 +2,10 @@
 
 import fs from "node:fs";
 import { argv, exit, stdin, stdout } from "node:process";
-import { compileObjectBuffer, decodeObject, loadLibrary } from "../object.mjs";
+import { compileLibraryBuffer, decodeObject, loadLibrary } from "../object.mjs";
 
 function usage() {
-  console.error(`Usage: ${argv[1]} [ --lib lib-file ]... [ k-file [ object-file ] ]`);
+  console.error(`Usage: ${argv[1]} [ --lib lib-file ]... [ k-file [ lib-file ] ]`);
 }
 
 async function readStdinText() {
@@ -29,7 +29,7 @@ try {
   const sourcePath = args.shift();
   const outputPath = args.shift();
   const source = sourcePath == null ? await readStdinText() : fs.readFileSync(sourcePath, "utf8");
-  const objectBuffer = compileObjectBuffer(source, { source: sourcePath || "<stdin>", libraries });
+  const objectBuffer = compileLibraryBuffer(source, { source: sourcePath || "<stdin>", libraries });
   if (outputPath == null) {
     stdout.write(objectBuffer);
   } else {

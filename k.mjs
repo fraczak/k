@@ -5,39 +5,49 @@ import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import k from "./index.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
-import { decodeObject, objectToFunction } from "./object.mjs";
+import { decodeObject, objectToFunction, loadLibrary } from "./object.mjs";
 
 const prog = argv[1];
 
 let kScript, inputStream;
 
 function usage() {
-  console.error(`Usage: ${prog} ( k-expr | -k file ) [ input-file ]`);
+  console.error(`Usage: ${prog} [ --lib lib-file ]... ( k-expr | -k file ) [ input-file ]`);
   console.error(`       E.g.,  echo '["zebara","ela"]' | ./codecs/k-parse.mjs --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
 }
 
-function compileFile(path) {
+function compileFile(path, libraries) {
   const buffer = fs.readFileSync(path);
   try {
     return objectToFunction(decodeObject(buffer));
   } catch {
-    return k.compile(buffer.toString("utf8"));
+    return k.compile(buffer.toString("utf8"), { libraries });
   }
 }
 
 ({ kScript, inputStream } = ((args) => {
   try {
+    const libraries = [];
+    // Parse --lib flags
+    while (args.length > 0 && args[0] === "--lib") {
+      args.shift();
+      const libPath = args.shift();
+      if (!libPath) throw new Error("--lib requires a file argument");
+      const libBuffer = fs.readFileSync(libPath);
+      libraries.push(loadLibrary(decodeObject(libBuffer)));
+    }
+
     let kScriptStr = (function (arg) {
       if (arg == null) {
         throw new Error("Missing script argument");
       }
       if (arg === "-k") {
-        return compileFile(args.shift());
+        return compileFile(args.shift(), libraries);
       } else {
         return arg;
       }
     })(args.shift());
-    let kScript = typeof kScriptStr === "function" ? kScriptStr : k.compile(kScriptStr);
+    let kScript = typeof kScriptStr === "function" ? kScriptStr : k.compile(kScriptStr, { libraries });
     inputStream = (function (arg) {
       if (arg == null) {
         return stdin;

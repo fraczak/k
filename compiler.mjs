@@ -30,6 +30,8 @@ function compileTypes(representatives, rels, options = {}) {
 
   for (const relName in rels) {
     const rootDef = rels[relName];
+    // Skip already-compiled rels (e.g., from loaded libraries)
+    if (rootDef._library) continue;
     rootDef.typePatternGraph = new TypePatternGraph(codes.register, codes.find);
     rootDef.varRefs = []; // the list of references to non-builtin rels as pointers to AST nodes
     rootDef.patternVars = {};
@@ -48,7 +50,7 @@ function compileTypes(representatives, rels, options = {}) {
   const graph = new Graph(
     // 1st argument: edges
     [].concat(...Object.keys(rels).map( relName => 
-      rels[relName].varRefs.map( ({varName}) => 
+      (rels[relName].varRefs || []).map( ({varName}) => 
         ({src: relName, dst: varName})))),
     // 2nd argument: vertices
     rels
@@ -62,7 +64,7 @@ function compileTypes(representatives, rels, options = {}) {
     DAGnodes[node].scc.reduce((map, relName) => ({...map, [relName]: node}), map), {});
   const DAGedges = [].concat(
     ...Object.keys(rels).map( x =>
-      rels[x].varRefs.map(({ varName }) => 
+      (rels[x].varRefs || []).map(({ varName }) => 
         ({src: fromRelNameToDAGnode[x], dst: fromRelNameToDAGnode[varName]})
       ) // don't forget to remove loops
       .filter(({src, dst}) => src !== dst )
@@ -81,20 +83,24 @@ function compileTypes(representatives, rels, options = {}) {
   for (const scc of sccInOrder) {
     const currentScc = DAGnodes[scc].scc;
 
-    const convergenceStats = convergeScc(currentScc, rels, options.convergence);
+    // Skip SCCs that consist entirely of pre-compiled (library) rels
+    const newRels = currentScc.filter(name => !rels[name]._library);
+    if (newRels.length === 0) continue;
+
+    const convergenceStats = convergeScc(newRels, rels, options.convergence);
     compileStats.sccs.push({
-      members: [...currentScc],
+      members: [...newRels],
       ...convergenceStats
     });
 
-    currentScc.forEach( relName => {
+    newRels.forEach( relName => {
       const relDef = rels[relName];
       const canonical = relDefToString(relDef);
       const h = hash(canonical);
       relAlias[relName] = h;
     });
 
-    assignCanonicalNames(currentScc, rels, relAlias);
+    assignCanonicalNames(newRels, rels, relAlias);
   }
   
   compileStats.sccCount = compileStats.sccs.length;

@@ -15099,16 +15099,9 @@ zero_from_pair_sign = $float_pair
   $float64;
 
 add_float64 = $float_pair
-  <
-    {.x nan_float64? ifx, qnan then} .then,
-    {.y nan_float64? ify, qnan then} .then,
-    {.x inf_float64? ifx, .y inf_float64? ify, opp_signs_of_pair? ifs, qnan then} .then,
-    {.x inf_float64? ifx, .x then} .then,
-    {.y inf_float64? ify, .y then} .then,
-    {.x zero_float64? ifx, .y zero_float64? ify, pos_zero then} .then,
-    {.x zero_float64? ifx, .y then} .then,
-    {.y zero_float64? ify, .x then} .then
-  > $float64;
+  float64_add
+  .result
+  $float64;
 
 $add_same_in = {sig56 x, sig56 y, exp11 exp, sign sign};
 $add_same_out = {sig56 sig, exp11 exp, bit inexact, bit overflow, bit underflow, sign sign};

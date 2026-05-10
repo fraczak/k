@@ -33,10 +33,21 @@ runScriptOnData.doc = "Run 'script' (string) on 'data': (script,data) -> data";
 
 function annotate(script, options = {}) {
   const { defs, exp } = parse(script);
-  //const { codes, representatives } = codes.finalize(defs.codes);
 
   const representatives = codes.register(defs.codes);
   const rels = {...defs.rels, "__main__": {def: exp}};
+
+  // Inject library relations into the rels table so @hash refs resolve
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      const libRels = lib.rels || lib.defs?.rels || {};
+      for (const [name, rel] of Object.entries(libRels)) {
+        if (!(name in rels)) {
+          rels[name] = { ...rel, _library: true };
+        }
+      }
+    }
+  }
 
   const { relAlias, compileStats } = compileTypes(representatives, rels, options);
  
