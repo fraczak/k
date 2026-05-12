@@ -293,7 +293,9 @@ function register(newCodes) {
     ({...reps, [rep]:rep})
   , {});
   for (const rep in reps) {
-    theRepository.codes[rep] = codes[rep];
+    if (codes[rep] !== undefined) {
+      theRepository.codes[rep] = codes[rep];
+    }
   };
   return representatives;
 }

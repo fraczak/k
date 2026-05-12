@@ -1,11 +1,15 @@
-# REPL v2 — Specification and Plan
+# k Interpreter
 
 ## Overview
 
-A new interactive REPL (`repl2.mjs`) that uses the `.klib` format as its
-internal state. Definitions accumulate incrementally; expressions are compiled
-in the context of the current library state. Values are always printed with
-their type envelope.
+`repl2.mjs` is the interactive k interpreter. It uses the `.klib` format as
+its internal state: definitions accumulate incrementally, expressions compile
+in the context of the current library state, and the session can be exported as
+either a reusable `.klib` library or an executable `.ko` object.
+
+`k-repl` and `k-repl2` both start this interpreter. The primary interface is
+command-based: commands start with `:`, and raw k input remains available as a
+short form for quick interactive work.
 
 ## State Model
 
@@ -13,8 +17,9 @@ their type envelope.
 ┌─────────────────────────────────────────────────┐
 │  codes:   { hash → code definition }            │  ← registered types
 │  rels:    { @hash → typed relation }            │  ← compiled relations
-│  aliases: { name → @hash }                      │  ← human names (types + rels)
+│  aliases: { name → @hash }                      │  ← human names
 │  value:   current value (with .pattern)         │  ← last result
+│  lastMain: last relation/expression             │  ← default .ko main
 └─────────────────────────────────────────────────┘
 ```
 
@@ -23,17 +28,58 @@ their type envelope.
   the alias; the old definition remains in `rels` (content-addressed, no conflict).
 - `value` is the current pipeline value, initially `{}`.
 
+## Commands
+
+Each line is a command. Multiline commands can be continued with a trailing
+`\`.
+
+Tab completion is available for command names, file paths in file-taking
+commands such as `:load` and `:export`, and canonical names that start with
+`@`.
+
+| Command | Description |
+|---------|-------------|
+| `:type name = <...>` | Define a type |
+| `:rel name = expr` | Define a relation |
+| `:def name = expr` | Alias for `:rel` |
+| `:run expr` | Run an expression on the current value |
+| `:t name` | Show type signature of a relation |
+| `:d name` | Show definition of a relation |
+| `:type name` | Show definition of a type |
+| `:codes` | List type aliases |
+| `:rels` | List relation aliases |
+| `:save file` | Save current state as `.klib` |
+| `:klib file` | Export current state as `.klib` |
+| `:ko file [expr]` | Export executable `.ko`; uses `expr` or the last relation/expression as main |
+| `:export file [expr]` | Export by extension: `.klib` or `.ko` |
+| `:load file` | Load `.k` source or `.klib` into state |
+| `:val` | Print current value with full detail |
+| `:reset` | Clear all state |
+| `:help` | Show available commands |
+| `:quit` | Exit |
+
+The `/` character is never treated as a command prefix, because it is part of
+k expression syntax.
+
+## Shorthand Input
+
+Raw k input is still accepted:
+
+- `$ name = <...>;` is treated like `:type name = <...>`.
+- `name = expr;` is treated like `:rel name = expr`.
+- Any other non-command input is treated like `:run expr`.
+
+For command-based use, semicolons are optional in `:type` and `:rel`.
+
 ## Input Handling
 
-Each line (or multiline block ending with `\`) is classified:
-
-### 1. Type definition: `$ name = <...>;`
+### Type Definition: `:type name = <...>`
 
 - Parse and register the code via `codes.register`.
 - Store canonical hash in `aliases[name]`.
 - Print: `$ name = @hash`
 
-### 2. Relation definition: `name = expr;`
+### Relation Definition: `:rel name = expr`
 
 - Build source: alias preamble + definition + `name` as main expression.
 - Compile with current `{codes, rels}` as library context.
@@ -41,27 +87,13 @@ Each line (or multiline block ending with `\`) is classified:
 - Update `aliases[name] → @hash`.
 - Print: `name = @hash`
 
-### 3. Expression (no `=`, no `$`)
+### Expression Evaluation: `:run expr`
 
 - Build source: alias preamble + expression as main.
 - Compile with current library context.
 - Run on current `value`.
 - Update `value` with result.
 - Print result with envelope (see Output Format).
-
-### 4. Commands (`:` prefix)
-
-| Command | Description |
-|---------|-------------|
-| `:t name` | Show type signature of a relation |
-| `:d name` | Show definition of a relation |
-| `:codes` | List type aliases |
-| `:rels` | List relation aliases |
-| `:save file` | Save current state as .klib |
-| `:load file` | Load .k source or .klib into state |
-| `:val` | Print current value with full detail |
-| `:reset` | Clear all state |
-| `:help` | Show available commands |
 
 ## Alias Preamble
 
@@ -96,7 +128,8 @@ Examples:
 {{{}|1 car, {}|nil cdr}|cons} ?<{} nil, {<{} 0, {} 1> car, X cdr} cons>=X
 ```
 
-Uses `valueToK` and `propertyListToFilter` from `codecs/show.mjs`.
+Uses `valueToK` and `propertyListToFilter` from
+`codecs/runtime/show-value.mjs`.
 
 When the result is `undefined`, print:
 
@@ -118,37 +151,41 @@ When the result is `undefined`, print:
 - Merge codes and rels into state.
 - Update aliases from `meta` (recover source names from origins).
 
-## Saving State
+## Exporting
 
 ### `:save file.klib`
 
 - Serialize current `{codes, rels, meta, main: null}` as a .klib.
 - `meta` is built from the alias table (each alias → origin entry).
 
-## Implementation Plan
+### `:klib file.klib`
 
-1. **Extract `valueToK` and `propertyListToFilter` from `codecs/show.mjs`**
-   into a shared module (e.g., `codecs/runtime/show-value.mjs`) so both
-   `show.mjs` and the REPL can use them.
+- Alias for saving the current state as a `.klib`.
 
-2. **Create `repl2.mjs`** with:
-   - State: `codes` (via the global codes module), `rels` object,
-     `aliases` map, `value`.
-   - Input loop: readline with multiline (`\`) support.
-   - Classifier: detect `$` defs, `name = ...;` defs, commands, expressions.
-   - Alias preamble builder.
-   - Compile + run pipeline using `annotate`/`compile` with `libraries` option.
-   - Output: `valueToK(result) + " ?" + propertyListToFilter(result.pattern)`.
+### `:ko file.ko [expr]`
 
-3. **Wire up commands** (`:t`, `:d`, `:codes`, `:rels`, `:save`, `:load`, `:reset`).
+- Compile `expr` as the executable object's main expression.
+- If `expr` is omitted, reuse the last relation definition or expression that
+  was evaluated in the interpreter.
+- The current `.klib` state is passed as the compilation library context.
 
-4. **Add `repl2` binary** to `package.json`.
+### `:export file [expr]`
 
-5. **Test** with the nat.k workflow:
-   ```
-   > $ nat = <{} zero, nat succ>;
-   > succ = |succ;
-   > add = ...;
-   > {}|zero|succ|succ
-   > .x (.y add)
-   ```
+- If `file` ends in `.klib`, save the current library state.
+- If `file` ends in `.ko`, compile an executable object using `expr` or the
+  last main expression.
+
+## Example
+
+```
+> :type nat = <{} zero, nat succ>
+$ nat = @...
+> :rel succ = |succ
+succ = @...
+> :run succ
+{}|succ ?<{} succ, ...>
+> :klib nat.klib
+saved nat.klib
+> :ko succ.ko succ
+saved succ.ko (succ)
+```

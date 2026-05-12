@@ -26,8 +26,6 @@ function getTrackedMjsFiles() {
     if (relPath.includes("/")) return false;
     if (relPath.startsWith("test")) return false;
     if (relPath.includes("-test")) return false;
-    if (relPath === "inspect-input-type.mjs") return false;
-    if (relPath === "examples-migration.mjs") return false;
     return true;
   });
 }

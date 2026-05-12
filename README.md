@@ -50,7 +50,7 @@ Available strategies:
 > Notes (from `package.json`):
 
 > - Scripts: `prepare` compiles the grammars; `test` runs all tests.
-> - Binaries: `k` and `k-repl` point to `k.mjs` and `repl.mjs`.
+> - Binaries: `k` points to `k.mjs`; `k-repl` and `k-repl2` point to `repl2.mjs`; `k-repl-legacy` points to `repl.mjs`.
 
 ---
 
