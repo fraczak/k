@@ -23,6 +23,10 @@ function staticPattern(typePatternGraph, exp, index) {
   return exportedPattern(typePatternGraph, exp.patterns[index]);
 }
 
+function outputPattern(typePatternGraph, exp) {
+  return staticPattern(typePatternGraph, exp, 1);
+}
+
 function isSingletonPattern(pattern) {
   if (singletonCheckCache.has(pattern)) return singletonCheckCache.get(pattern);
   const result = pattern.every(([kind]) => kind === "closed-product" || kind === "closed-union");
@@ -101,7 +105,11 @@ function patternPreview(pattern) {
 
 function constrainInput(value, typePatternGraph, exp) {
   const constraint = staticPattern(typePatternGraph, exp, 0);
-  if (!constraint && (!value.pattern || value.pattern.length === 0)) return value;
+  return constrainWithPattern(value, constraint, exp);
+}
+
+function constrainWithPattern(value, constraint, exp) {
+  if (!constraint) return value;
   const pattern = intersectPatterns(constraint, value.pattern);
   if (!pattern) {
     throw new TypeError(
@@ -112,6 +120,150 @@ function constrainInput(value, typePatternGraph, exp) {
     );
   }
   return withPattern(value, pattern);
+}
+
+function compiledExp(findCode, exp, typePatternGraph) {
+  const cached = exp._compiledRun;
+  if (cached?.findCode === findCode && cached?.typePatternGraph === typePatternGraph && cached?.defs === run.defs) {
+    return cached.fn;
+  }
+
+  const compiled = {
+    findCode,
+    typePatternGraph,
+    defs: run.defs,
+    target: null,
+    fn(value) {
+      return compiled.target(value);
+    }
+  };
+  exp._compiledRun = compiled;
+
+  const inputPattern = staticPattern(typePatternGraph, exp, 0);
+  const staticOutputPattern = outputPattern(typePatternGraph, exp);
+  const constrain = (value) => {
+    if (value === undefined) return undefined;
+    return constrainWithPattern(value, inputPattern, exp);
+  };
+  const defined = (value) => value;
+
+  let fn;
+  switch (exp.op) {
+    case "code":
+      fn = (value) => {
+        value = constrain(value);
+        if (value === undefined) return undefined;
+        return verify(findCode, exp.code, value) ? value : undefined;
+      };
+      break;
+    case "identity":
+      fn = defined;
+      break;
+    case "filter":
+      fn = constrain;
+      break;
+    case "ref":
+      {
+        const defn = run.defs.rels[exp.ref];
+        if (defn != undefined) {
+          const refFn = compiledExp(findCode, defn.def, defn.typePatternGraph);
+          fn = (value) => {
+            return value === undefined ? undefined : refFn(value);
+          };
+        } else {
+          const builtin_func = builtin[exp.ref];
+          if (builtin_func != null) {
+            fn = (value) => {
+              value = constrain(value);
+              return value === undefined ? undefined : builtin_func(value);
+            };
+          } else {
+            fn = () => {
+              throw(`Unknown ref: '${exp.ref}'`);
+            };
+          }
+        }
+      }
+      break;
+    case "dot":
+      fn = (value) => {
+        if (value === undefined) return undefined;
+        return withPattern(value.product[exp.dot], staticOutputPattern || edgeSubpattern(value.pattern, exp.dot));
+      };
+      break;
+    case "div":
+      fn = (value) => {
+        if (value === undefined || value.tag !== exp.div) return undefined;
+        return withPattern(value.value, staticOutputPattern || edgeSubpattern(value.pattern, exp.div));
+      };
+      break;
+    case "comp": {
+      const parts = exp.comp.map((part) => compiledExp(findCode, part, typePatternGraph));
+      fn = (value) => {
+        value = constrain(value);
+        for (let i = 0, len = parts.length; i < len; i++) {
+          value = parts[i](value);
+          if (value === undefined) return undefined;
+        }
+        return value;
+      };
+      break;
+    }
+    case "union": {
+      const parts = exp.union.map((part) => compiledExp(findCode, part, typePatternGraph));
+      fn = (value) => {
+        if (value === undefined) return undefined;
+        for (let i = 0, len = parts.length; i < len; i++) {
+          const result = parts[i](value);
+          if (result !== undefined) return result;
+        }
+        return undefined;
+      };
+      break;
+    }
+    case "product": {
+      const labels = exp.product.map(({ label }) => label);
+      const fieldFns = exp.product.map(({ exp: e }) => compiledExp(findCode, e, typePatternGraph));
+      if (staticOutputPattern) {
+        fn = (value) => {
+          if (value === undefined) return undefined;
+          const result = {};
+          for (let i = 0, len = labels.length; i < len; i++) {
+            const r = fieldFns[i](value);
+            if (r === undefined) return undefined;
+            result[labels[i]] = r;
+          }
+          return new Product(result, staticOutputPattern);
+        };
+      } else {
+        fn = (value) => {
+          if (value === undefined) return undefined;
+          const result = {};
+          const patternEntries = [];
+          for (let i = 0, len = labels.length; i < len; i++) {
+            const r = fieldFns[i](value);
+            if (r === undefined) return undefined;
+            const label = labels[i];
+            result[label] = r;
+            patternEntries.push([label, r.pattern]);
+          }
+          return new Product(result, composePattern("closed-product", patternEntries));
+        };
+      }
+      break;
+    }
+    case "vid":
+      fn = (value) => {
+        if (value === undefined) return undefined;
+        return new Variant(exp.vid, value, composePattern("open-union", [[exp.vid, value.pattern]]));
+      };
+      break;
+    default:
+      assert(false,`Unknown operation: '${exp.op}'`);
+  }
+
+  compiled.target = fn;
+  return compiled.fn;
 }
 
 function verify(findCode, code, value) {
@@ -141,83 +293,7 @@ function verify(findCode, code, value) {
 }
 
 function run(findCode, exp, value, typePatternGraph) {
-  // console.log("RUN", JSON.stringify({exp, value}, null, 2));
-  "use strict";
-  typePatternGraph = typePatternGraph || null;
-  if (value === undefined) return;
-  value = constrainInput(value, typePatternGraph, exp);
-  if (value === undefined) return;
-  while (true) {    
-    switch (exp.op) {
-      case "code":
-        if (verify(findCode, exp.code, value)) {
-          return value;
-        }
-        return;
-      case "identity":
-        return value;
-      case "ref": {
-        const defn = run.defs.rels[exp.ref];
-        if (defn != undefined) {
-          return run(findCode, defn.def, value, defn.typePatternGraph);
-        }
-        const builtin_func = builtin[exp.ref];
-        if (builtin_func != null) {
-          return builtin_func(value);
-        }
-        throw(`Unknown ref: '${exp.ref}'`);
-      }
-      case "dot":
-        return withPattern(value.product[exp.dot], edgeSubpattern(value.pattern, exp.dot));
-      case "div":
-        if (value.tag === exp.div) return withPattern(value.value, edgeSubpattern(value.pattern, exp.div));
-        return
-      case "comp":
-        for (let i = 0, len = exp.comp.length - 1; i < len; i++) {
-          const result = run(findCode, exp.comp[i], value, typePatternGraph);
-          if (result === undefined) return;
-          value = result;
-        }
-        exp = exp.comp[exp.comp.length - 1];
-        value = constrainInput(value, typePatternGraph, exp);
-        if (value === undefined) return;
-        continue;
-      case "union":
-        if (exp.union.length === 0) return;
-        for (let i = 0, len = exp.union.length -1; i < len; i++) {
-          const result = run(findCode, exp.union[i], value, typePatternGraph);
-          if (result !== undefined) {
-            return result;
-          }
-        }
-        exp = exp.union[exp.union.length - 1];
-        value = constrainInput(value, typePatternGraph, exp);
-        if (value === undefined) return;
-        continue;
-    
-      case "product": {
-        let result = {};
-        const patternEntries = [];
-        let len = exp.product.length;
-        for (let i = 0; i < len; i++) {
-          const { label, exp: e } = exp.product[i];
-          const r = run(findCode, e, value, typePatternGraph);
-          if (r === undefined) return;
-          result[label] = r;
-          patternEntries.push([label, r.pattern]);
-        }
-        return new Product(result, composePattern("closed-product", patternEntries));
-      }
-      case "vid":
-        return new Variant(exp.vid, value, composePattern("open-union", [[exp.vid, value.pattern]]));
-      case "filter": {
-        return value;
-      }
-      default:
-        assert(false,`Unknown operation: '${exp.op}'`);
-    
-    }
-  };
+  return compiledExp(findCode, exp, typePatternGraph || null)(value);
 }
 
 run.builtin = builtin;

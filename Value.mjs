@@ -146,6 +146,7 @@ function mergePatterns(declared, observed) {
 
 function withPattern(value, pattern) {
   if (!pattern) return value;
+  if (value.pattern === pattern) return value;
   if (value instanceof Product) return new Product(value.product, pattern);
   if (value instanceof Variant) return new Variant(value.tag, value.value, pattern);
   return value;
@@ -154,8 +155,7 @@ function withPattern(value, pattern) {
 class Product extends Value {
   constructor(product, pattern = null) {
     super("{}", pattern);
-    this.product = Object.freeze({ ...product });
-    Object.freeze(this);
+    this.product = product;
   }
 
   toString() {
@@ -174,7 +174,6 @@ class Variant extends Value {
     super("<>", pattern);
     this.tag = tag;
     this.value = value;
-    Object.freeze(this);
   }
 
   toString() {
