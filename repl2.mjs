@@ -376,6 +376,15 @@ function createCompleter(state) {
   return (line) => completeInput(line, state);
 }
 
+function isMainEntrypoint(entryArg = argv[1]) {
+  if (!entryArg) return false;
+  try {
+    return fs.realpathSync(entryArg) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
 function ensureSemicolon(source) {
   return source.trim().endsWith(";") ? source : `${source};`;
 }
@@ -635,7 +644,7 @@ function startRepl() {
   });
 }
 
-if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) {
+if (isMainEntrypoint()) {
   startRepl();
 }
 
@@ -646,6 +655,7 @@ export {
   createState,
   evaluateInput,
   helpText,
+  isMainEntrypoint,
   printValue,
   propertyListToFilter,
   valueToK
