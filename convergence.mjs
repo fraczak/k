@@ -160,7 +160,7 @@ function convergeSccFixedPoint(scc, rels, options = {}) {
       return signature(rels[relName]); 
     }));
 
-    if (before == after) {
+    if (before === after) {
       converged = true;
       break;
     }

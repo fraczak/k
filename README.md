@@ -1,309 +1,277 @@
 # k-language
 
-## Overview
+> **k** is a language for composing first-order partial functions over algebraic data types.
 
-**k** is a language and notation for defining and combining **first-order partial functions**
-over algebraic data types (called "codes").
-Codes are built solely from product (records) and tagged union (variants).
-The data model is JSON/XML-like in that values are tree-shaped and serialize naturally,
-but there are no built-in primitive types; the only leaf used in non-recursive definitions
-is the empty product `{}`.
+Values are tree-shaped and built solely from **products** (records) and **tagged unions** (variants).
+There are no built-in primitive types — the only leaf in a non-recursive definition is the empty product `{}`.
+Types (called *codes*) are finite tree automata; equivalence is bisimilarity.
 
 ---
 
-## Getting started
+## Quick Start
 
-Prerequisites: Node.js 18+.
+**Prerequisites:** Node.js 18+
 
-- Install dependencies (this also generates parsers via the `prepare` script):
-  - `npm install`
-- Start the REPL locally:
-  - `node repl.mjs`
-  - Optional: `npm link` then run `k-repl`
-- Run the test suite:
-  - `npm test`
-- Regenerate parsers manually (only needed if you edited `parser.jison` or `valueParser.jison`):
-  - `npm run prepare`
-
-### Type-derivation tuning
-
-`annotate`, `compile`, and `run` accept an optional convergence configuration:
-
-```js
-import k from "./index.mjs";
-
-const annotated = k.annotate(source, {
-  convergence: { strategy: "auto" }
-});
-
-console.log(annotated.compileStats);
+```bash
+npm install          # install dev deps and generate parsers
+npm test             # run the full test suite
+k-repl               # start the interactive REPL  (or: node repl2.mjs)
+./k.mjs <file.k>     # execute a k script
 ```
 
-Available strategies:
-
-- `auto` (default): use a single-pass derivation for singleton non-recursive SCCs, and fall back to fixed-point iteration only for recursive SCCs.
-- `single_pass`: force the single-pass path. This is useful for benchmarking acyclic modules such as `Examples/ieee.k`.
-- `fixed_point`: force the legacy convergence loop for experiments and debugging.
-
-`annotate(...).compileStats` returns per-SCC strategy and iteration counts so convergence experiments can be inspected without instrumenting the compiler.
-
-> Notes (from `package.json`):
-
-> - Scripts: `prepare` compiles the grammars; `test` runs all tests.
-> - Binaries: `k` points to `k.mjs`; `k-repl` and `k-repl2` point to `repl2.mjs`; `k-repl-legacy` points to `repl.mjs`.
+> After `npm link` (or `npm install -g .`) the binaries `k`, `k-repl`, `k-parse`, `k-print`, etc. are available globally.
 
 ---
 
-## Data model: Codes = ADTs
+## CLI Binaries
 
-- Codes are standard algebraic data types built from two constructors:
-  - Product (records): native k-like `{ A label1, B label2, ... }` (canonical). For convenience, JSON-like `{ label1: A, label2: B, ... }` is also supported.
-  - Tagged union (variants): native k-like `< A tag1, B tag2, ... >` (canonical). For convenience, JSON-like `< tag1: A, tag2: B, ... >` is also supported.
-- No built-in scalars (no string/int/bool, etc.).
-- The only leaf allowed in a non-recursive definition is the empty product `{}`.
-- Values are trees whose internal nodes are products or tagged unions; field/tag names carry the structure. At runtime, a value may also carry the codec pattern that describes the tree's current polymorphic type context.
-- Code equivalence is bisimilarity over definition graphs (recursion allowed): there exists a relation B such that (t1, t2) ∈ B iff
-  - t1 and t2 have exactly the same set of labels/tags;
-  - t1 and t2 are simultaneously products or simultaneously unions;
-  - for each label/tag ℓ in the set, the subcodes under ℓ are again related by B.
-  
-  Equivalence is the largest such bisimulation. 
+| Binary | Source | Purpose |
+|--------|--------|---------|
+| `k` | `k.mjs` | Execute a `.k` script; reads binary pattern+value stream from stdin |
+| `k-repl` / `k-repl2` | `repl2.mjs` | Interactive REPL |
+| `k-repl-legacy` | `repl.mjs` | Older REPL (kept for compatibility) |
+| `k-parse` | `codecs/k-parse.mjs` | Encode a JSON value to the binary pattern+value wire format |
+| `k-print` | `codecs/k-print.mjs` | Decode binary pattern+value stream back to JSON |
+| `k-pattern` | `codecs/k-pattern.mjs` | Print the pattern of a binary-encoded value |
+| `k-compile-object` | `objects/compile.mjs` | Compile a `.k` source to a `.kobj` object file |
+| `k-decompile-object` | `objects/decompile.mjs` | Decompile a `.kobj` file back to k source |
 
-> Note: This documentation uses the native k-like notation by default. The JSON-like form is provided as syntactic sugar to ease onboarding.
+---
 
-### Notation equivalence examples
+## Data Model: Codes = ADTs
 
-- Product:
-  - `{ nat x, nat y }  ≡  { x: nat, y: nat }`
-- Union:
-  - `< {} zero, nat succ >  ≡  < zero: {}, succ: nat >`
+Codes are algebraic data types built from two constructors:
 
-**Examples from the repo:**
+| Constructor | Native k notation | JSON-like notation |
+|-------------|------------------|--------------------|
+| **Product** (record) | `{ A label1, B label2 }` | `{ label1: A, label2: B }` |
+| **Tagged union** (variant) | `< A tag1, B tag2 >` | `< tag1: A, tag2: B >` |
 
-- Naturals as Peano numbers (note `{}` as the leaf):
+Native k-like notation is canonical; JSON-like is supported as syntactic sugar.
 
-```k-repl
-$ nat = < {} zero, nat succ >;         -- native k-like
-$ nat = < zero: {}, succ: nat >;       -- JSON-like (equivalent)
+### Defining codes (`$`)
+
+```k
+$ nat   = < {} zero, nat succ >;          -- Peano naturals
+$ bit   = < {} 0, {} 1 >;
+$ byte  = { bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7 };
+$ list  = < {} nil, { bit car, list cdr } cons >;
 ```
 
-- Bits and bytes (8-tuple product of bits):
-
-```k-repl
-$ bit = < {} 0, {} 1 >;                -- native k-like
-$ bit = < 0: {}, 1: {} >;              -- JSON-like (equivalent)
-$ byte = { bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7 };
-$ byte = { 0: bit, 1: bit, 2: bit, 3: bit, 4: bit, 5: bit, 6: bit, 7: bit };
-```
-
-- A recursive list of bits (variant of `nil` or `cons`):
-
-```k-repl
-$ bytes = < {} nil, { bit car, bytes cdr } cons >;   -- native k-like
-$ bytes = < nil: {}, cons: { car: bit, cdr: bytes } >;  -- JSON-like (equivalent)
-```
+Two codes are equal iff they are bisimilar: same label/tag sets, same constructor kind (product vs. union), and subcodes relate pointwise under each label/tag.
 
 ---
 
 ## Partial Functions
 
-A **partial function** is a function that may not return a value for every possible input.
-In k, common examples include:
+A partial function may be undefined on some inputs. Core primitives:
 
-- **Product projection (.field):** Extracts a field from a product type value.
-- **Union projection (/tag):** Asserts that the input is a variant with the specified tag and extracts its value.
-- **Variant introduction (|tag):** Wraps an input value in a tagged variant.
+| Syntax | Name | Meaning |
+|--------|------|---------|
+| `.field` | product projection | extract `field` from a product value |
+| `/tag` | union projection | assert value has tag `tag`, extract payload |
+| `\|tag` | variant introduction | wrap value in tag `tag` |
+| `()` | identity | pass value through unchanged |
+| `<>` | always-undefined | undefined for all inputs |
+| `{}` | empty product | map any input to `{}` |
 
 **Examples:**
 
-- Product projection: `.toto` extracts the `toto` field from a product.
-  ```text
-  .toto :
-      {"toto": {"5":{}}, "titi": {"10":{}}}  -->  {"5":{}}
-      {"titi": {"10":{}}}                         ... undefined
-  ```
-- Union projection: `/toto` asserts the input is a `toto` variant and extracts its value.
-- Variant introduction: `|toto` wraps the input value in a `toto` variant.
-  ```text
-  |toto :
-      {"5":{}}  -->  {"5":{}}|toto
-  ```
+```text
+.toto :
+    { "toto": {"5":{}}, "titi": {"10":{}} }  -->  {"5":{}}
+    { "titi": {"10":{}} }                         ... undefined
 
-> **How to read:**
+/toto :
+    {"toto": {}}  -->  {}
+    {"other": {}} ... undefined
 
-> - The first line is a k-expression (before `:`).
-> - The following lines show example inputs and outputs.
-> - If the function is defined for the input, the result is shown after `-->`.
-> - If not, `... undefined` is shown.
+|toto :
+    {"5":{}}  -->  { "toto": {"5":{}} }
+```
 
 ---
 
-## Combining Partial Functions
+## Combining Functions
 
-There are three ways to combine functions in k:
+### 1. Composition — sequential application
 
-### 1. Composition
-
-Apply functions in sequence. For example, `(.toto .titi)` extracts the `titi` field from the `toto` field.
+`(f g h)` applies `f`, then `g`, then `h`. Parentheses can be omitted.
 
 ```text
 (.toto .titi) :
-    {"toto": {"titi": {}}}    --> {}
-    {"toto": {"other": {}}}   ... undefined
-    {"other": {}}             ... undefined
+    { "toto": { "titi": {} } }    -->  {}
+    { "toto": { "other": {} } }   ...  undefined
 ```
 
-### 2. Merge
+### 2. Merge — first-defined wins
 
-Try each function in order, returning the first defined result. For example, `<.x.y, .z.y>` tries to extract `y` from `x`, then from `z`.
+`<f, g>` tries `f` first; if undefined, tries `g`.
 
 ```text
-< .x.y, .z.y > :
-    {"x": {"y": {"5": {}}}, "z": {"y": {"10": {}}}}    --> {"5":{}}
-    {"x": {"o": {}}, "z": {"y": {"10": {}}}}           --> {"10":{}}
-    {"x": {"o": {}}, "z": {"o": {}}}                   ... undefined
+< .x .y, .z .y > :
+    { "x": {"y": {"5":{}}}, "z": {"y": {"10":{}}} }   -->  {"5":{}}
+    { "x": {"o": {}},        "z": {"y": {"10":{}}} }   -->  {"10":{}}
+    { "x": {"o": {}},        "z": {"o": {}} }          ...  undefined
 ```
 
-### 3. Product
+### 3. Product — parallel, labelled collection
 
-Apply multiple functions and collect their results into a new object with given labels.
-For example, `{.toto TOTO, .titi TITI}` extracts two fields and builds a record.
+`{f label1, g label2}` applies `f` and `g` in parallel and builds a record.
 
 ```text
-{.toto TOTO, .titi TITI} :
-    {"toto": {"5": {}}, "titi": {"10": {}}, "x": {}}    --> {"TOTO": {"5": {}}, "TITI": {"10": {}}}
+{ .toto TOTO, .titi TITI } :
+    { "toto": {"5":{}}, "titi": {"10":{}}, "x":{} }
+         -->  { "TOTO": {"5":{}}, "TITI": {"10":{}} }
 ```
 
 ---
 
 ## Syntactic Sugar
 
-- Parentheses can be omitted, except for the empty composition `()`.
-- Projection symbols (`.`, `/`) act as property separators as well, so `.a.b/c` is the same as `(. a . b / c)`.
-- Comments: Use `//`, `--`, `%`, `#` for single-line, or `/* ... */` for multi-line.
-- Product/union lists support both forms. The native k-like form is canonical and preferred; the JSON-like form is provided as a convenience for readability.
-
-### Variant (union) value representation
-
-In k, variant values are represented by tagging their content. The `|tag` function is used to apply a tag to a value.
-
-- Unit variants (variants without payload):
-  - Example: `zero` (when its payload is `{}`) is represented as `{} | zero`.
-  - Example: `nil` (when its payload is `{}`) is represented as `{} | nil`.
-- Variants with payload:
-  - If `cons` has payload `{X car, Y cdr}`, then a value is formed by tagging an object containing `v_car car` and `v_cdr cdr` with `cons`.
-  - Example (list of bits): with `$bit = <{} 0, {} 1>` and `$bytes = <{} nil, {bit car, bytes cdr} cons>`, a singleton list `[1]` is:
-    - `{ {}|1 car, {}|nil cdr } | cons`
-
-**Example:**
-`.toto.titi/1` is equivalent to `(.toto (.titi /1))`.
-
-### Codec value parsing
-
-`k-parse` builds a wire pattern from the value tree when no input pattern or type
-is supplied. Empty nodes and multi-child nodes are products. A one-child node is
-treated as an open union by default; an explicit product input pattern can force
-it to be a singleton product.
-
-For example, `{a:{b:x,c:{}}}` derives the pattern:
-
-```json
-[
-  ["open-union", [["a", 1]]],
-  ["closed-product", [["b", 2], ["c", 3]]],
-  ["open-union", [["x", 3]]],
-  ["closed-product", []]
-]
-```
-
-The default codec stream is the binary encoding of a `$pattern` value followed
-by the binary encoding of the value under that decoded pattern. Decoding
-produces an in-memory `Value` whose `pattern` is the decoded pattern. The
-evaluator propagates that pattern through projections and constructors, and
-encoding uses the carried pattern by default. For example, projecting `.0` from
-a JSON array whose first element is a boolean preserves the boolean pattern
-`false | true` even when the observed value is currently `true`.
-
-There is no separate JSON container at the codec boundary. Pattern graphs may be
-printed in JSON-like property-list form for inspection, but the command-line
-pipeline reads and writes the binary pattern+value stream.
+- Parentheses may be omitted (except for empty composition `()`).
+- `.a .b /c` is equivalent to `(.a (.b /c))`.
+- Comments: `//`, `--`, `%`, `#` (single-line) or `/* ... */` (multi-line).
+- Both notation forms work in the same file.
 
 ---
 
-## Codes (Schemas / Types)
+## REPL
 
-**Codes** define types or schemas using unions (`<...>`) and products (`{...}`), and can be named with `$`.
+Start with `k-repl` (or `node repl2.mjs`). The prompt is `> `.
 
-> We write examples in the native k-like notation first; a JSON-like equivalent follow for convenience.
+### Defining names and codes
 
-**Example:**
-
-```k-repl
-$ nat = < {} zero, nat succ >;      -- native k-like
-$ nat = < zero: {}, succ: nat >;    -- JSON-like (equivalent)
-$ pair = { nat x, nat y };          -- native k-like
-$ pair = { x: nat, y: nat };        -- JSON-like (equivalent)
+```
+> $ nat = < {} zero, nat succ >;
+> succ = |succ;
+> zero = {} |zero $nat;
 ```
 
-- Codes are equivalent up to bisimulation (see Data model). Intuitively: same label/tag set;
-  constructors must match; subcodes relate pointwise under each label/tag.
-- There are no built-in types like `string`, `int`, or `bool`; use `{}` as the only leaf in non-recursive definitions.
+### REPL commands
 
-Try in `k-repl`:
+| Command | Effect |
+|---------|--------|
+| `--C name` | Show canonical (hash-addressed) form of a code |
+| `--R name` | Show the type derivation (pattern graph) for a function |
+| `--help` | List available commands |
 
-```k-repl
-> $ nat = < {} zero, nat succ >; \
-  $ pair = { nat x, nat y }; \
-  $ myCode = {<{} zero, nat succ> x, nat y};
---> {}
+**Example session:**
+
+```
+> $ nat = < {} zero, nat succ >;
+> $ pair = { nat x, nat y };
 > --C pair
- $ @wq9VvJgYt8sASQfevD23whSHj8bFZZgpzV8Wvp8jzZ6h = {@w8iSHeQQE738vEmWNGja3FQWk3XuExQKZ2pbm8ApEdkF x, @w8iSHeQQE738vEmWNGja3FQWk3XuExQKZ2pbm8ApEdkF y}; -- $C0={C1"x",C1"y"};$C1=<C1"succ",C2"zero">;$C2={};
-> --C myCode
- $ @wq9VvJgYt8sASQfevD23whSHj8bFZZgpzV8Wvp8jzZ6h = {@w8iSHeQQE738vEmWNGja3FQWk3XuExQKZ2pbm8ApEdkF x, @w8iSHeQQE738vEmWNGja3FQWk3XuExQKZ2pbm8ApEdkF y}; -- $C0={C1"x",C1"y"};$C1=<C1"succ",C2"zero">;$C2={};
+ $ @wq9VvJgYt8sASQfevD23... = { @w8iSHe... x, @w8iSHe... y };
+> toto = .toto;
+> --R toto
+  toto : ?{ X0 toto, ... }  -->  ?X0
 ```
 
 ---
 
 ## Code Derivation and Patterns
 
-A **pattern** represents collections of codes (types). Patterns are used for type inference and static analysis,
-and are also carried by runtime values when values enter through the polymorphic
-codec stream.
+A **pattern** (or *filter*) is a constraint on the type of values flowing through a function.
+The type derivation engine infers patterns automatically and can optionally be guided with filter expressions:
 
-**Example:**
-
-```k-repl
-> toto = .toto;
---R toto
-  toto : ?{X0 toto, ...}  -->  ?X0
-
-> rel = < .toto, () >;
---R rel
-  rel : ?{X0 toto, ...}=X0  -->  ?X0
+```k
+treeFilter = ?< (...) leaf, { T left, T right } tree > = T;
 ```
 
-_Filter_ is the syntax for patterns available in the language.
-Intuitively, a _filter_ acts as a filter function, which, for a given value returns it or it is undefined.
-Filters are hints for code derivation. Operationally they are still identity
-steps in the interpreter, but the pattern information they describe can be
-attached to the runtime value and preserved across evaluation.
-
-```k-repl
-treeFilter = ?<(...) leaf, {T left, T right} tree> = T;
-```
+This tells the derivation engine that `treeFilter` operates on values that are either a `leaf` or a `tree` with matched left/right subtypes.
 
 ---
 
-## QUIZ
+## Using k as a Library (Node.js)
 
-- What is the result of:
+```js
+import k from "@fraczak/k";  // or "./index.mjs"
 
-  - Empty composition: `()` ?
-  - Empty merge: `<>` ?
-  - Empty product: `{}` ?
-  - `|s|s|s/s/s/s` ?
-  - `({{{() a} b} c} .c .b .a)` ?
+// compile + run
+const fn = k.compile(`
+  $ bool = < {} true, {} false >;
+  not = < /true {} |false $bool, /false {} |true $bool >
+`);
+
+console.log(fn({ "true": {} }));   // { false: {} }
+
+// annotate only (type-check without running)
+const annotated = k.annotate(source, {
+  convergence: { strategy: "auto" }  // "auto" | "single_pass" | "fixed_point"
+});
+console.log(annotated.compileStats);  // per-SCC strategy and iteration counts
+```
+
+### Convergence strategies
+
+| Strategy | Behaviour |
+|----------|-----------|
+| `auto` *(default)* | Single-pass for non-recursive SCCs; fixed-point for recursive ones |
+| `single_pass` | Force single-pass (fast, use for acyclic modules) |
+| `fixed_point` | Force the full convergence loop (useful for debugging) |
 
 ---
 
-For more details and examples, see the full documentation or try out expressions in `k-repl`.
+## Binary Codec Pipeline
+
+The `k` CLI reads and writes a binary stream: a serialised pattern followed by the value encoded under that pattern.
+
+```bash
+echo '{"cons":{"car":{"1":{}},"cdr":{"nil":{}}}}' \
+  | k-parse \
+  | k ./Examples/nat.k \
+  | k-print
+```
+
+See [`codecs/README.md`](codecs/README.md) for codec internals and format details.
+
+---
+
+## Examples
+
+The [`Examples/`](Examples/) directory contains ready-to-run `.k` scripts:
+
+| File | Contents |
+|------|----------|
+| `nat.k` | Peano natural numbers |
+| `list.k` | Polymorphic lists |
+| `byte.k` | Byte type (8 bits) |
+| `ieee.k` | IEEE 754 floating-point layout |
+| `bnat.k` | Binary natural numbers |
+
+---
+
+## Development
+
+```bash
+npm run prepare   # regenerate parsers from .jison grammars (after editing them)
+npm test          # run full test suite
+```
+
+The test suite covers:
+
+- `test.mjs` — core runtime and parser unit tests
+- `Code-derivation-tests/*.mjs` — type derivation suite
+- `test-fingerprint.mjs` — hash/fingerprint stability
+- `test-k-object.mjs` — object file round-trip
+- `test-repl2.mjs` — REPL scripted interaction
+- `tests.sh` — shell integration tests
+
+---
+
+## Quiz
+
+What does each of the following evaluate to?
+
+| Expression | Hint |
+|------------|------|
+| `()` | Empty composition |
+| `<>` | Empty merge |
+| `{}` | Empty product |
+| `\|s\|s\|s/s/s/s` | Tag and untag three times |
+| `({{{() a} b} c} .c .b .a)` | Nest and project |
+
+---
+
+For more details see the [`DOCS/`](DOCS/) folder, and especially [`DOCS/book.md`](DOCS/book.md) for the language reference.
