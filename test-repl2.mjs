@@ -2,8 +2,9 @@ import assert from "node:assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { completeInput, createState, evaluateInput } from "./repl2.mjs";
+import { completeInput, createState, evaluateInput, isMainEntrypoint } from "./repl2.mjs";
 import { decodeObject, objectToFunction } from "./object.mjs";
 import { Product } from "./Value.mjs";
 
@@ -44,6 +45,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-repl2-"));
 const libPath = path.join(tmpDir, "session.klib");
 const koPath = path.join(tmpDir, "succ.ko");
 const sourcePath = path.join(tmpDir, "session.k");
+const symlinkPath = path.resolve(".test-k-repl2-link");
 output = await evaluateInput(`:save ${libPath}`, state);
 assert.equal(output[0], `saved ${libPath}`);
 
@@ -64,6 +66,14 @@ output = await evaluateInput(":codes", loadedSource);
 assert.match(output[0], /^nat = @/m);
 output = await evaluateInput(":rels", loadedSource);
 assert.match(output[0], /^succ = @/m);
+
+const replPath = fileURLToPath(new URL("./repl2.mjs", import.meta.url));
+try {
+  fs.rmSync(symlinkPath, { force: true });
+} catch {}
+fs.symlinkSync(replPath, symlinkPath);
+fs.chmodSync(replPath, 0o755);
+assert.equal(isMainEntrypoint(symlinkPath), true);
 
 const reloaded = createState();
 output = await evaluateInput(`:load ${libPath}`, reloaded);
@@ -92,4 +102,5 @@ await assert.rejects(
 );
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
+fs.rmSync(symlinkPath, { force: true });
 console.log("OK");
