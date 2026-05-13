@@ -29,7 +29,6 @@ k-repl               # start the interactive REPL  (or: node repl2.mjs)
 |--------|--------|---------|
 | `k` | `k.mjs` | Execute a `.k` script; reads binary pattern+value stream from stdin |
 | `k-repl` / `k-repl2` | `repl2.mjs` | Interactive REPL |
-| `k-repl-legacy` | `repl.mjs` | Older REPL (kept for compatibility) |
 | `k-parse` | `codecs/k-parse.mjs` | Encode a JSON value to the binary pattern+value wire format |
 | `k-print` | `codecs/k-print.mjs` | Decode binary pattern+value stream back to JSON |
 | `k-pattern` | `codecs/k-pattern.mjs` | Print the pattern of a binary-encoded value |
@@ -213,6 +212,50 @@ console.log(annotated.compileStats);  // per-SCC strategy and iteration counts
 
 ---
 
+## Standard Library — `core.k`
+
+`core.k` is the k standard core library. It is loaded automatically by the codec pipeline and
+is available as a reference for any k program that needs canonical types.
+It defines four things, in order:
+
+### §1 & §2 — `$bits` and arithmetic
+
+`$bits` is the canonical binary number type (LSB-first trie: empty `_`, extend with `0` or `1`).
+It is also used as node-index encoding inside pattern graphs.
+
+```k
+$ bits = < {} _, bits 0, bits 1 >;
+```
+
+Built-in functions: `inv`, `concat`, `succ`, `plus`, `times`, and integer constants `0`–`10`.
+
+### §3 — `$unicode` and `$string`
+
+Full Unicode scalar-value type, partitioned by plane and BMP range, built up from `$bit` and `$byte`.
+`$string` is a linked-list of `$unicode` values — used for field/tag label names in pattern graphs.
+
+```k
+$ string = < {} nil, { unicode car, string cdr } cons >;
+```
+
+### §4 — `$pattern`
+
+The self-describing type of k pattern graphs. A pattern is a cons-list of `$pattern-node` values;
+node 0 is the root; edges carry `$string` labels and `$bits` target indices.
+
+```k
+$ pattern-node = < {} any, edges open-product, edges open-union,
+                         edges closed-product, edges closed-union >;
+$ pattern       = < {} nil, { pattern-node car, pattern cdr } cons >;
+```
+
+The singleton pattern of `$pattern` itself is the fixed framing constant for the wire format:
+every k binary stream starts with a `$pattern` encoded under that constant,
+followed by the value encoded under the pattern just decoded.
+This is why `core.k` ends with a bare `$pattern` expression — it pins that canonical hash.
+
+---
+
 ## Binary Codec Pipeline
 
 The `k` CLI reads and writes a binary stream: a serialised pattern followed by the value encoded under that pattern.
@@ -239,6 +282,7 @@ The [`Examples/`](Examples/) directory contains ready-to-run `.k` scripts:
 | `byte.k` | Byte type (8 bits) |
 | `ieee.k` | IEEE 754 floating-point layout |
 | `bnat.k` | Binary natural numbers |
+| `arithmetics.k` | Integer and rational arithmetic (binary encoding) |
 
 ---
 

@@ -6,3 +6,7 @@ DOCS/dependency-graph.md
 *~
 *.html
 .codegpt
+.DS_Store
+.idea/
+k_compiler/
+

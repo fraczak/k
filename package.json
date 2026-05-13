@@ -5,7 +5,7 @@
     "main": "index.mjs",
     "scripts": {
         "prepare": "jiwson -m es6 parser.jison -o parser.mjs; jiwson -m es6 valueParser.jison -o valueParser.mjs; ",
-        "test": "node test.mjs; for f in Code-derivation-tests/*.mjs; do echo $f; node $f; done; node test-fingerprint.mjs; node test-k-object.mjs; node test-repl2.mjs; ./tests.sh",
+        "test": "node test.mjs; for f in Code-derivation-tests/*.mjs; do echo $f; node $f; done; node test-fingerprint.mjs; node test-hash-fuzz.mjs; node test-hash-normalization.mjs; node test-k-object.mjs; node test-repl2.mjs; ./tests.sh",
         "deps:graph": "node scripts/generate-dependency-graph.mjs"
     },
     "repository": {
@@ -22,8 +22,7 @@
         "k-pattern": "./codecs/k-pattern.mjs",
         "k-print": "./codecs/k-print.mjs",
         "k-repl": "./repl2.mjs",
-        "k-repl2": "./repl2.mjs",
-        "k-repl-legacy": "./repl.mjs"
+        "k-repl2": "./repl2.mjs"
     },
     "devDependencies": {
         "jiwson": "^0.1.2"

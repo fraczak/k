@@ -28,7 +28,6 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `k` — CLI executor: reads binary pattern+value stream, applies a k script, writes result.
 - `k-repl` / `k-repl2` — interactive REPL with tab-completion and `--C` / `--R` commands.
-- `k-parse` / `k-print` — JSON ↔ binary pattern+value wire format codec boundaries.
 - `k-pattern` — introspect the pattern of a binary-encoded value.
 - `k-compile-object` / `k-decompile-object` — object file compilation and decompilation.
 
