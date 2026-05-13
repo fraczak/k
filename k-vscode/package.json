@@ -1,11 +1,24 @@
 {
-  "name": "k",
-  "displayName": "k",
-  "description": "Syntax highlighting for k",
+  "name": "k-language",
+  "displayName": "k language",
+  "description": "Syntax highlighting and snippets for the k language — first-order partial functions over algebraic data types",
   "publisher": "wojtek",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "license": "ISC",
+  "homepage": "https://github.com/fraczak/k",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fraczak/k.git"
+  },
+  "keywords": [
+    "k",
+    "algebraic",
+    "partial functions",
+    "ADT",
+    "types"
+  ],
   "engines": {
-    "vscode": "^1.81.0"
+    "vscode": "^1.90.0"
   },
   "categories": [
     "Programming Languages"
@@ -15,8 +28,8 @@
       {
         "id": "k",
         "aliases": [
-          "k",
-          "kernel/core"
+          "k language",
+          "k"
         ],
         "extensions": [
           ".k"

@@ -1,32 +1,92 @@
 {
-  "Product field": {
-    "prefix": "field",
-    "body": ["${1:typeExpr} ${2:label}"],
-    "description": "Product field: type expression + label"
+  "Code definition (union)": {
+    "prefix": "codeunion",
+    "body": ["\\$ ${1:name} = < ${2:type1} ${3:tag1}, ${4:type2} ${5:tag2} >;"],
+    "description": "Named code (type) using a tagged union"
   },
-  "Product field (quoted label)": {
-    "prefix": "fieldq",
-    "body": ["${1:typeExpr} \"${2:label}\""],
-    "description": "Product field with a quoted label"
+  "Code definition (product)": {
+    "prefix": "codeprod",
+    "body": ["\\$ ${1:name} = { ${2:type1} ${3:label1}, ${4:type2} ${5:label2} };"],
+    "description": "Named code (type) using a product (record)"
   },
-  "Union tag": {
-    "prefix": "tag",
-    "body": ["${1:typeExpr} ${2:tag}"],
-    "description": "Union tag: type expression + tag"
+  "Code definition (recursive union)": {
+    "prefix": "coderecunion",
+    "body": [
+      "\\$ ${1:name} = <",
+      "  {} ${2:base_tag},",
+      "  { ${1:name} ${3:field} } ${4:rec_tag}",
+      ">;"
+    ],
+    "description": "Recursive named code as a tagged union (e.g. nat, list)"
   },
-  "Union tag (quoted label)": {
-    "prefix": "tagq",
-    "body": ["${1:typeExpr} \"${2:tag}\""],
-    "description": "Union tag with a quoted label"
+  "Function definition": {
+    "prefix": "fn",
+    "body": ["${1:name} = ${2:expr};"],
+    "description": "Function/relation definition"
   },
-  "Type definition (product)": {
-    "prefix": "typedef",
-    "body": ["$ ${1:type} = { ${2:typeExpr} ${3:label} };"],
-    "description": "Type definition using a product"
+  "Composition": {
+    "prefix": "comp",
+    "body": ["(${1:f} ${2:g})"],
+    "description": "Function composition: apply f then g"
   },
-  "Type definition (union)": {
-    "prefix": "typeunion",
-    "body": ["$ ${1:type} = < ${2:typeExpr} ${3:tag} >;"],
-    "description": "Type definition using a union"
+  "Merge": {
+    "prefix": "merge",
+    "body": ["< ${1:f}, ${2:g} >"],
+    "description": "Merge: try f first, fall back to g"
+  },
+  "Product combinator": {
+    "prefix": "prod",
+    "body": ["{ ${1:f} ${2:label1}, ${3:g} ${4:label2} }"],
+    "description": "Product combinator: apply functions in parallel, collect into a record"
+  },
+  "Filter (union)": {
+    "prefix": "filtunion",
+    "body": ["?< ${1:type1} ${2:tag1}, ${3:type2} ${4:tag2} > = ${5:X}"],
+    "description": "Filter expression constraining a union type, binding the subtype variable"
+  },
+  "Filter (product)": {
+    "prefix": "filtprod",
+    "body": ["?{ ${1:Type} ${2:field}, ${3:...} } = ${4:X}"],
+    "description": "Filter expression constraining a product type, binding the subtype variable"
+  },
+  "Product projection": {
+    "prefix": "dot",
+    "body": [".${1:field}"],
+    "description": "Product field projection: .field"
+  },
+  "Union tag projection": {
+    "prefix": "slash",
+    "body": ["/${1:tag}"],
+    "description": "Union tag projection (assert and unwrap): /tag"
+  },
+  "Variant introduction": {
+    "prefix": "vid",
+    "body": ["|${1:tag}"],
+    "description": "Variant (tagged union) introduction: |tag"
+  },
+  "Type annotation": {
+    "prefix": "typeref",
+    "body": ["\\$${1:typename}"],
+    "description": "Type annotation: pin expression output to a named code"
+  },
+  "Typed input constraint": {
+    "prefix": "typedprod",
+    "body": ["\\${ ${1:type1} ${2:field1}, ${3:type2} ${4:field2} }"],
+    "description": "Typed product input constraint: ${ type label, ... }"
+  },
+  "Identity": {
+    "prefix": "id",
+    "body": ["()"],
+    "description": "Identity function: pass value through unchanged"
+  },
+  "Empty product (unit leaf)": {
+    "prefix": "unit",
+    "body": ["{}"],
+    "description": "Empty product: the only leaf value in non-recursive definitions"
+  },
+  "Always undefined": {
+    "prefix": "undef",
+    "body": ["<>"],
+    "description": "Empty merge: always undefined (bottom)"
   }
 }

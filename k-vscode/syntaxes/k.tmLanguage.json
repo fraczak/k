@@ -3,235 +3,241 @@
   "name": "k",
   "scopeName": "source.k",
   "patterns": [
-    {"include": "#typeDefinitionContext"},
-    {"include": "#filterContext"},
-    {"include": "#expression"}
+    { "include": "#comment-block" },
+    { "include": "#comment-line" },
+    { "include": "#type-definition" },
+    { "include": "#function-definition" },
+    { "include": "#filter" },
+    { "include": "#type-ref" },
+    { "include": "#canonical-ref" },
+    { "include": "#projection-dot" },
+    { "include": "#projection-slash" },
+    { "include": "#variant-intro" },
+    { "include": "#string-double" },
+    { "include": "#string-single" },
+    { "include": "#dots" },
+    { "include": "#operators" },
+    { "include": "#brackets" }
   ],
   "repository": {
-    "expression": {
-      "patterns": [
-        {"include": "#blockComment"},
-        {"include": "#lineComment"},
-        {"include": "#product"},
-        {"include": "#labelLiteral"},
-        {"include": "#doubleQuotedString"},
-        {"include": "#singleQuotedString"},
-        {"include": "#patternVar"},
-        {"include": "#patternMarker"},
-        {"include": "#dollarConstructor"},
-        {"include": "#typeDefinition"},
-        {"include": "#definition"},
-        {"include": "#typeRef"},
-        {"include": "#atRef"},
-        {"include": "#keywords"},
-        {"include": "#builtinConstants"},
-        {"include": "#numbers"},
-        {"include": "#punctuation"}
-      ]
-    },
-    "typeDefinitionContext": {
-      "begin": "\\$\\s*[a-zA-Z0-9_?!+\\-]+\\s*=",
-      "end": ";",
-      "patterns": [
-        {"include": "#blockComment"},
-        {"include": "#lineComment"},
-        {"include": "#unionType"},
-        {"include": "#product"},
-        {"include": "#labelLiteral"},
-        {"include": "#doubleQuotedString"},
-        {"include": "#singleQuotedString"},
-        {"include": "#typeRef"},
-        {"include": "#numbers"},
-        {"include": "#punctuation"}
-      ]
-    },
-    "filterContext": {
-      "patterns": [
-        {"include": "#filterUnion"},
-        {"include": "#filterProduct"},
-        {"include": "#filterComposition"}
-      ]
-    },
-    "blockComment": {
+
+    "comment-block": {
       "name": "comment.block.k",
       "begin": "/\\*",
-      "end": "\\*/"
+      "end": "\\*/",
+      "beginCaptures": { "0": { "name": "punctuation.definition.comment.k" } },
+      "endCaptures":   { "0": { "name": "punctuation.definition.comment.k" } }
     },
-    "lineComment": {
+
+    "comment-line": {
       "name": "comment.line.k",
-      "match": "(//|#|%|--|\\\\)[^\\n]*"
+      "match": "(?://|--|%|#).*$"
     },
-    "labelLiteral": {
-      "name": "entity.name.tag.k",
-      "match": "(\\.|/|\\||\\\\)\\s*(?:[a-zA-Z0-9_?!+\\-]+|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')"
+
+    "type-definition": {
+      "comment": "$ name = ... ; — defines a named code (type)",
+      "match": "(\\$)\\s*([a-zA-Z0-9_+\\-][a-zA-Z0-9_?!+\\-]*)(?=\\s*=)",
+      "captures": {
+        "1": { "name": "keyword.operator.type.k" },
+        "2": { "name": "entity.name.type.k" }
+      }
     },
-    "filterUnion": {
-      "begin": "\\?\\s*<",
-      "end": ">\\s*(=\\s*([a-zA-Z0-9_?!+\\-]+))?",
-      "endCaptures": {
-        "2": {"name": "variable.other.pattern.k"}
-      },
+
+    "function-definition": {
+      "comment": "name = ... ; — top-level function/relation definition",
+      "match": "^\\s*([a-zA-Z_][a-zA-Z0-9_?!+\\-]*)\\s*(?==)",
+      "captures": {
+        "1": { "name": "entity.name.function.k" }
+      }
+    },
+
+    "filter": {
+      "comment": "? introduces a filter/pattern constraint: ?<...>=X, ?{...}=X",
       "patterns": [
-        {"include": "#blockComment"},
-        {"include": "#lineComment"},
-        {"include": "#filterUnion"},
-        {"include": "#filterProduct"},
-        {"include": "#labelLiteral"},
-        {"include": "#doubleQuotedString"},
-        {"include": "#singleQuotedString"},
-        {"include": "#unionLabel"},
-        {"include": "#filterBinding"},
-        {"include": "#punctuation"}
+        {
+          "comment": "filter union ?< ... > = X",
+          "begin": "(\\?)\\s*(<)",
+          "end": "(>)(?:\\s*(=)\\s*([a-zA-Z0-9_?!+\\-]+))?",
+          "beginCaptures": {
+            "1": { "name": "keyword.operator.filter.k" },
+            "2": { "name": "punctuation.brackets.k" }
+          },
+          "endCaptures": {
+            "1": { "name": "punctuation.brackets.k" },
+            "2": { "name": "keyword.operator.filter.k" },
+            "3": { "name": "variable.other.pattern.k" }
+          },
+          "patterns": [
+            { "include": "#comment-block" },
+            { "include": "#comment-line" },
+            { "include": "#filter" },
+            { "include": "#pattern-variable" },
+            { "include": "#type-ref" },
+            { "include": "#string-double" },
+            { "include": "#string-single" },
+            { "include": "#dots" },
+            { "include": "#operators" },
+            { "include": "#brackets" }
+          ]
+        },
+        {
+          "comment": "filter product ?{ ... } = X",
+          "begin": "(\\?)\\s*(\\{)",
+          "end": "(\\})(?:\\s*(=)\\s*([a-zA-Z0-9_?!+\\-]+))?",
+          "beginCaptures": {
+            "1": { "name": "keyword.operator.filter.k" },
+            "2": { "name": "punctuation.brackets.k" }
+          },
+          "endCaptures": {
+            "1": { "name": "punctuation.brackets.k" },
+            "2": { "name": "keyword.operator.filter.k" },
+            "3": { "name": "variable.other.pattern.k" }
+          },
+          "patterns": [
+            { "include": "#comment-block" },
+            { "include": "#comment-line" },
+            { "include": "#filter" },
+            { "include": "#pattern-variable" },
+            { "include": "#type-ref" },
+            { "include": "#string-double" },
+            { "include": "#string-single" },
+            { "include": "#dots" },
+            { "include": "#operators" },
+            { "include": "#brackets" }
+          ]
+        }
       ]
     },
-    "filterProduct": {
-      "begin": "\\?\\s*\\{|\\{",
-      "end": "\\}",
-      "patterns": [
-        {"include": "#blockComment"},
-        {"include": "#lineComment"},
-        {"include": "#filterProduct"},
-        {"include": "#labelLiteral"},
-        {"include": "#doubleQuotedString"},
-        {"include": "#singleQuotedString"},
-        {"include": "#patternVar"},
-        {"include": "#filterBinding"},
-        {"include": "#productLabel"},
-        {"include": "#punctuation"}
-      ]
-    },
-    "filterComposition": {
-      "begin": "\\?\\s*\\(",
-      "end": "\\)",
-      "patterns": [
-        {"include": "#blockComment"},
-        {"include": "#lineComment"},
-        {"include": "#filterUnion"},
-        {"include": "#filterProduct"},
-        {"include": "#labelLiteral"},
-        {"include": "#doubleQuotedString"},
-        {"include": "#singleQuotedString"},
-        {"include": "#patternVar"},
-        {"include": "#filterBinding"},
-        {"include": "#punctuation"}
-      ]
-    },
-    "filterBinding": {
+
+    "pattern-variable": {
+      "comment": "Uppercase identifiers used as pattern variables inside filter expressions",
       "name": "variable.other.pattern.k",
-      "match": "\\b([a-zA-Z0-9_?!+\\-]+)\\b(?=\\s+(?:[a-zA-Z0-9_?!+\\-]+|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'))"
+      "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
     },
-    "unionType": {
-      "begin": "<",
-      "end": ">",
+
+    "type-ref": {
+      "comment": "$name — use of a named code as a type annotation or type expression",
+      "match": "(\\$)([a-zA-Z0-9_+\\-][a-zA-Z0-9_?!+\\-]*)?",
+      "captures": {
+        "1": { "name": "keyword.operator.type.k" },
+        "2": { "name": "storage.type.k" }
+      }
+    },
+
+    "canonical-ref": {
+      "comment": "@base58hash — content-addressed canonical code reference",
+      "name": "variable.other.constant.k",
+      "match": "@[a-zA-Z0-9]+"
+    },
+
+    "projection-dot": {
+      "comment": ".label or .\"label\" — product field projection",
       "patterns": [
-        {"include": "#blockComment"},
-        {"include": "#lineComment"},
-        {"include": "#unionType"},
-        {"include": "#product"},
-        {"include": "#labelLiteral"},
-        {"include": "#doubleQuotedString"},
-        {"include": "#singleQuotedString"},
-        {"include": "#unionLabel"},
-        {"include": "#punctuation"}
+        {
+          "name": "keyword.operator.projection.k",
+          "match": "\\.(?:[a-zA-Z0-9_+\\-][a-zA-Z0-9_?!+\\-]*)"
+        },
+        {
+          "begin": "\\.(\")",
+          "end": "\"",
+          "beginCaptures": { "0": { "name": "keyword.operator.projection.k" } },
+          "endCaptures":   { "0": { "name": "keyword.operator.projection.k" } },
+          "contentName": "string.quoted.double.k"
+        },
+        {
+          "begin": "\\.(\')",
+          "end": "\'",
+          "beginCaptures": { "0": { "name": "keyword.operator.projection.k" } },
+          "endCaptures":   { "0": { "name": "keyword.operator.projection.k" } },
+          "contentName": "string.quoted.single.k"
+        }
       ]
     },
-    "product": {
-      "begin": "\\{",
-      "end": "\\}",
+
+    "projection-slash": {
+      "comment": "/tag or /\"tag\" — union tag projection (assert and unwrap)",
       "patterns": [
-        {"include": "#blockComment"},
-        {"include": "#lineComment"},
-        {"include": "#product"},
-        {"include": "#labelLiteral"},
-        {"include": "#doubleQuotedString"},
-        {"include": "#singleQuotedString"},
-        {"include": "#patternVar"},
-        {"include": "#patternMarker"},
-        {"include": "#dollarConstructor"},
-        {"include": "#typeDefinition"},
-        {"include": "#definition"},
-        {"include": "#typeRef"},
-        {"include": "#atRef"},
-        {"include": "#keywords"},
-        {"include": "#builtinConstants"},
-        {"include": "#numbers"},
-        {"include": "#productLabel"},
-        {"include": "#punctuation"}
+        {
+          "name": "keyword.operator.projection.k",
+          "match": "/(?:[a-zA-Z0-9_+\\-][a-zA-Z0-9_?!+\\-]*)"
+        },
+        {
+          "begin": "/(\")",
+          "end": "\"",
+          "beginCaptures": { "0": { "name": "keyword.operator.projection.k" } },
+          "endCaptures":   { "0": { "name": "keyword.operator.projection.k" } },
+          "contentName": "string.quoted.double.k"
+        },
+        {
+          "begin": "/(\')",
+          "end": "\'",
+          "beginCaptures": { "0": { "name": "keyword.operator.projection.k" } },
+          "endCaptures":   { "0": { "name": "keyword.operator.projection.k" } },
+          "contentName": "string.quoted.single.k"
+        }
       ]
     },
-    "productLabel": {
-      "name": "entity.name.tag.k",
-      "match": "(?:[a-zA-Z0-9_?!+\\-]+|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')(?=\\s*(?:,|\\}))"
+
+    "variant-intro": {
+      "comment": "|tag or |\"tag\" — variant (tagged union) introduction",
+      "patterns": [
+        {
+          "name": "keyword.operator.intro.k",
+          "match": "\\|[a-zA-Z0-9_+\\-][a-zA-Z0-9_?!+\\-]*"
+        },
+        {
+          "begin": "\\|(\")",
+          "end": "\"",
+          "beginCaptures": { "0": { "name": "keyword.operator.intro.k" } },
+          "endCaptures":   { "0": { "name": "keyword.operator.intro.k" } },
+          "contentName": "string.quoted.double.k"
+        },
+        {
+          "begin": "\\|(\')",
+          "end": "\'",
+          "beginCaptures": { "0": { "name": "keyword.operator.intro.k" } },
+          "endCaptures":   { "0": { "name": "keyword.operator.intro.k" } },
+          "contentName": "string.quoted.single.k"
+        }
+      ]
     },
-    "unionLabel": {
-      "name": "entity.name.tag.k",
-      "match": "(?:[a-zA-Z0-9_?!+\\-]+|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')(?=\\s*(?:,|>))"
-    },
-    "patternVar": {
-      "name": "variable.other.pattern.k",
-      "match": "\\?[A-Za-z_][A-Za-z0-9_]*"
-    },
-    "patternMarker": {
-      "name": "keyword.operator.k",
-      "match": "\\?\\s*[<{(]"
-    },
-    "dollarConstructor": {
-      "name": "keyword.operator.k",
-      "match": "\\$\\s*[<{]"
-    },
-    "doubleQuotedString": {
+
+    "string-double": {
       "name": "string.quoted.double.k",
       "begin": "\"",
       "end": "\"",
       "patterns": [
-        {
-          "name": "constant.character.escape.k",
-          "match": "\\\\."
-        }
+        { "name": "constant.character.escape.k", "match": "\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4})" },
+        { "name": "invalid.illegal.escape.k",    "match": "\\\\." }
       ]
     },
-    "singleQuotedString": {
+
+    "string-single": {
       "name": "string.quoted.single.k",
       "begin": "'",
       "end": "'",
       "patterns": [
-        {
-          "name": "constant.character.escape.k",
-          "match": "\\\\."
-        }
+        { "name": "constant.character.escape.k", "match": "\\\\(?:['\\\\/bfnrt]|u[0-9a-fA-F]{4})" },
+        { "name": "invalid.illegal.escape.k",    "match": "\\\\." }
       ]
     },
-    "definition": {
-      "name": "variable.other.definition.k",
-      "match": "\\b([a-zA-Z0-9_+\\-][a-zA-Z0-9_?!+\\-]*)\\s*="
-    },
-    "typeDefinition": {
-      "name": "entity.name.type.k",
-      "match": "\\$\\s*([a-zA-Z0-9_?!+\\-]+)\\s*="
-    },
-    "typeRef": {
-      "name": "storage.type.k",
-      "match": "\\$\\s*[a-zA-Z0-9_?!+\\-]+"
-    },
-    "atRef": {
-      "name": "variable.other.k",
-      "match": "@\\s*[a-zA-Z0-9_?!+\\-]+"
-    },
-    "keywords": {
-      "name": "keyword.control.k",
-      "match": "\\b(if|then|else)\\b"
-    },
-    "builtinConstants": {
+
+    "dots": {
+      "comment": "... — the any/open pattern (unconstrained position)",
       "name": "constant.language.k",
-      "match": "\\b(EQ|GT|CONCAT|SNOC|CONS|PLUS|MINUS|TIMES|DIV|FDIV|fromJSON|toJSON|toVEC|toDateMsec|toDateStr|int|bool|string|true|false|null|and|or|not)\\b"
+      "match": "\\.\\.\\."
     },
-    "numbers": {
-      "name": "constant.numeric.k",
-      "match": "\\b-?\\d+\\b"
-    },
-    "punctuation": {
+
+    "operators": {
+      "comment": "= ; , : ~ — structural separators and definition operators",
       "name": "punctuation.separator.k",
-      "match": "(=|;|:|,|\\.\\.\\.|\\?|\\$|@|\\{|\\}|\\(|\\)|\\[|\\]|<|>)"
+      "match": "[=;,:]|~"
+    },
+
+    "brackets": {
+      "comment": "{ } ( ) < > — grouping and combinator delimiters",
+      "name": "punctuation.brackets.k",
+      "match": "[{}()<>]"
     }
   }
 }
