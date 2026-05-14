@@ -255,14 +255,10 @@ cdr = list? /cons .cdr;
 For example, the filter annotation for `car` is:
 
 ```k-repl
---R car
-{
-  name: 'yRXGSJrIWCuKV',
-  type: '?<{X1 car, X0 cdr} cons, $KL nil>=X0  -->  ?X1',
-  def: '?<{X1 car, X0 cdr} cons, $KL nil>=X0 .cons .car ?X1'
-}
---C KL
-$ KL = {}; -- $C0={};
+> :t car
+car : ?<{X1 car, X0 cdr} cons, $KL nil>=X0  -->  ?X1  (@...)
+> :C KL
+$ KL = {};  -- @...
 ```
 
 ## Universal Schema Registry

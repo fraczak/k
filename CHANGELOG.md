@@ -15,7 +15,7 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Three combinators: composition `(f g)`, merge `<f, g>`, product `{f l1, g l2}`.
 - Pattern-based type derivation with filter expressions (`?<...>`, `?{...}`).
 - Canonical (hash-addressed) code names — two structurally equivalent codes always produce the same hash.
-- Content-addressed object files (`.kobj` / `.klib`) for compiled modules.
+- Content-addressed object files (`.ko` / `.klib`) for compiled modules.
 
 ### Type System
 
@@ -27,8 +27,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Toolchain
 
 - `k` — CLI executor: reads binary pattern+value stream, applies a k script, writes result.
-- `k-repl` / `k-repl2` — interactive REPL with tab-completion and `--C` / `--R` commands.
-- `k-pattern` — introspect the pattern of a binary-encoded value.
+- `k-repl` / `k-repl2` — interactive interpreter with tab-completion.
+- `k-pattern` — extract the canonical root pattern from a k script.
 - `k-compile-object` / `k-decompile-object` — object file compilation and decompilation.
 
 ### Codec Pipeline
@@ -46,4 +46,3 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ---
 
 [6.0.0]: https://github.com/fraczak/k/releases/tag/v6.0.0
-

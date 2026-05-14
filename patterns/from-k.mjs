@@ -3,14 +3,14 @@
 import fs from "node:fs";
 import { argv, exit, stdin, stdout } from "node:process";
 import k from "../index.mjs";
-import { exportPatternGraph } from "./runtime/codec.mjs";
-import { patternToPropertyList } from "./runtime/pattern-json.mjs";
+import { exportPatternGraph } from "../codecs/runtime/codec.mjs";
+import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
 
 function usage(prog) {
   console.error(`Usage: ${prog} [script-or-file]`);
   console.error("  Read a k script from a file argument or stdin.");
   console.error("  The main expression must be a filter or a type name.");
-  console.error("  Output is the canonical JSON pattern array.");
+  console.error("  Output is the canonical property-list pattern array.");
   console.error("  Example:");
   console.error(`    cat pattern.k | ${prog}`);
   console.error(`    ${prog} '$ bits = < {} _, bits 0, bits 1 >; ?< {} nil, { $bits car, X cdr } cons > = X'`);

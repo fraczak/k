@@ -70,6 +70,11 @@ The runtime boundary is therefore:
 binary pattern+value stream <-> Value(pattern, tree)
 ```
 
+At the command-line boundary, `k-parse` and `k-print` use a JSON-like textual
+notation for k values. That notation is documented in
+[`../DOCS/TEXTUAL_VALUES.md`](../DOCS/TEXTUAL_VALUES.md). It is a readable
+notation for k values, not a separate JSON container format.
+
 `k.mjs` is only the command-line adapter for that boundary. The operational
 runtime sees and preserves the pattern on the `Value` itself.
 
@@ -114,6 +119,9 @@ Canonical rules:
 
 This JSON-like graph is only a readable notation. The wire representation is
 the ordinary k `$pattern` value from `core.k`.
+
+For user-facing pattern export, see [`../DOCS/PATTERNS.md`](../DOCS/PATTERNS.md)
+and the `k-pattern` CLI.
 
 ## Witness-Derived Patterns
 

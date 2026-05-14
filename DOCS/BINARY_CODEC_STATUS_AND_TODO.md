@@ -31,7 +31,7 @@ codec container and is not accepted at the command boundary.
 
 1. `k-parse`: text value plus optional pattern/type script -> binary pattern+value stream
 2. `k`: binary input -> `Value(pattern, tree)` -> evaluate `k` expression -> binary pattern+value stream
-3. `k-print`: binary input -> JSON value text
+3. `k-print`: binary input -> JSON-like textual k value
 
 This keeps the evaluator stage free of formatting concerns while staying close
 to the new semantic codec model.

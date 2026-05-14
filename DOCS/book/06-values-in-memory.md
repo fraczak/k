@@ -114,8 +114,8 @@ Each node in the value tree is encoded based on its automaton state:
 For type `bnat`, intuitively binary natural numbers defined by `$bnat = < bnat 0, bnat 1, {} _ >`, we get
 
 ```k-repl
---C bnat
-$ @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb = < @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb 0, @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb 1, @NiDZqYggx3VZ6b8quBZKTfkgJztWctkesuX4CrhTxM5c _ >; -- $C0=<C0"0",C0"1",C1"_">;$C1={};
+> :C bnat
+$ bnat = < @... 0, @... 1, {} _ >;  -- @...
 ```
 
 The corresponding Context-Free grammar is:

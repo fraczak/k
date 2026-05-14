@@ -28,10 +28,10 @@ const TYPE_DEF_RE = /^\s*\$\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 const REL_DEF_RE = /^\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 const COMMAND_NAMES = [
   "help", "type", "code", "rel", "def", "run", "eval", "t", "d", "C",
-  "codes", "rels", "val", "reset", "save", "klib", "ko", "export", "load",
+  "codes", "rels", "val", "reset", "klib", "ko", "load",
   "quit", "exit"
 ];
-const PATH_COMMANDS = new Set(["save", "klib", "ko", "export", "load"]);
+const PATH_COMMANDS = new Set(["klib", "ko", "load"]);
 const initialCodes = codes.dump();
 
 function cloneJSON(value) {
@@ -88,12 +88,49 @@ function aliasPreamble(state, omitName = null) {
   return lines.filter(Boolean).join("\n");
 }
 
+function preambleLineCount(preamble) {
+  if (!preamble) return 0;
+  return preamble.split("\n").length;
+}
+
+function remapLineNumber(line, offset) {
+  return Math.max(1, line - offset);
+}
+
+function remapDiagnosticMessage(message, lineOffset) {
+  if (!lineOffset) return message;
+
+  let rewritten = message.replace(
+    /\(lines (\d+):(\d+)\.\.\.(\d+):(\d+)\)/g,
+    (_, startLine, startCol, endLine, endCol) =>
+      `(lines ${remapLineNumber(Number(startLine), lineOffset)}:${startCol}...${remapLineNumber(Number(endLine), lineOffset)}:${endCol})`
+  );
+
+  rewritten = rewritten.replace(
+    /Parse error on line (\d+):/g,
+    (_, line) => `Parse error on line ${remapLineNumber(Number(line), lineOffset)}:`
+  );
+
+  return rewritten;
+}
+
+function remapError(error, lineOffset) {
+  if (!lineOffset || !error?.message) return error;
+  const remapped = new Error(remapDiagnosticMessage(error.message, lineOffset));
+  remapped.name = error.name;
+  if (error.stack) {
+    remapped.stack = error.stack.replace(error.message, remapped.message);
+  }
+  if ("cause" in error) remapped.cause = error.cause;
+  return remapped;
+}
+
 function compileWithOptionalIdentity(source, options) {
   try {
     return hydrateObject(compileLibrary(source, options));
   } catch (error) {
     if (!/got 'EOF'|Expecting/.test(error.message)) throw error;
-    return hydrateObject(compileLibrary(`${source}\n()`, options));
+    return hydrateObject(compileLibrary(`${ensureSemicolon(source)}\n()`, options));
   }
 }
 
@@ -102,7 +139,7 @@ function annotateWithOptionalIdentity(source, options) {
     return annotate(source, options);
   } catch (error) {
     if (!/got 'EOF'|Expecting/.test(error.message)) throw error;
-    return annotate(`${source}\n()`, options);
+    return annotate(`${ensureSemicolon(source)}\n()`, options);
   }
 }
 
@@ -183,15 +220,18 @@ function savedLibrary(state) {
 function executableObject(state, mainExpression) {
   const main = (mainExpression || state.lastMain || "").trim();
   if (!main) {
-    throw new Error(":ko requires a main expression unless one has already been evaluated or defined");
+    throw new Error(":ko file expr requires a main expression unless one has already been evaluated or defined");
   }
 
   restoreCodes(state);
+  const preamble = aliasPreamble(state);
   try {
-    return compileObject([aliasPreamble(state), main].filter(Boolean).join("\n"), {
+    return compileObject([preamble, main].filter(Boolean).join("\n"), {
       source: "<repl>",
       libraries: [stateLibrary(state)]
     });
+  } catch (error) {
+    throw remapError(error, preambleLineCount(preamble));
   } finally {
     restoreCodes(state);
   }
@@ -272,6 +312,13 @@ function canonicalNames(state) {
   ])].filter((name) => name.startsWith("@")).sort();
 }
 
+function aliasNames(state) {
+  return [...new Set([
+    ...Object.keys(state.typeAliases),
+    ...Object.keys(state.relAliases)
+  ])].sort();
+}
+
 function expandHome(input) {
   if (input === "~") return os.homedir();
   if (input.startsWith("~/")) return path.join(os.homedir(), input.slice(2));
@@ -300,6 +347,19 @@ function completeCanonical(line, state) {
   const matches = canonicalNames(state)
     .filter((name) => name.startsWith(partial))
     .map((name) => `${prefix}${name}`);
+  return [matches, line];
+}
+
+function completeIdentifier(line, state) {
+  const match = line.match(/^(.*?)(\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*)$/);
+  if (!match) return [[], line];
+  const [, prefix, partial] = match;
+  const isTypeToken = partial.startsWith("$");
+  const barePartial = isTypeToken ? partial.slice(1) : partial;
+  const names = isTypeToken ? Object.keys(state.typeAliases).sort() : aliasNames(state);
+  const matches = names
+    .filter((name) => name.startsWith(barePartial))
+    .map((name) => `${prefix}${isTypeToken ? "$" : ""}${name}`);
   return [matches, line];
 }
 
@@ -359,6 +419,10 @@ function completeCommandArgument(line, state) {
     return completeCanonical(line, state);
   }
 
+  if (/\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*$/.test(line)) {
+    return completeIdentifier(line, state);
+  }
+
   return [[], line];
 }
 
@@ -368,6 +432,9 @@ function completeInput(line, state) {
   }
   if (/@[A-Za-z0-9_?!+-]*$/.test(line)) {
     return completeCanonical(line, state);
+  }
+  if (/\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*$/.test(line)) {
+    return completeIdentifier(line, state);
   }
   return [[], line];
 }
@@ -389,6 +456,76 @@ function ensureSemicolon(source) {
   return source.trim().endsWith(";") ? source : `${source};`;
 }
 
+function isEofParseError(error) {
+  return /got 'EOF'|Unexpected end of input/.test(error.message || "");
+}
+
+function lineForContinuation(line) {
+  return line.replace(/\\\s*$/, "");
+}
+
+function lineHasExplicitContinuation(line) {
+  return /\\\s*$/.test(line);
+}
+
+function lineTerminatesSnippet(line) {
+  return /;\s*$/.test(line);
+}
+
+function explicitSnippetTerminated(source) {
+  const lines = source.split("\n");
+  const lastLine = lines[lines.length - 1] || "";
+  return lineTerminatesSnippet(lastLine);
+}
+
+function analyzeRawSnippet(source) {
+  try {
+    const parsed = parse(source);
+    return { kind: "withMain", parsed };
+  } catch (error) {
+    if (!isEofParseError(error)) throw error;
+  }
+
+  return { kind: "incomplete", parsed: null };
+}
+
+function analyzeAcceptedSnippet(source, explicitTerminated = explicitSnippetTerminated(source)) {
+  try {
+    const parsed = parse(source);
+    return { kind: "withMain", parsed };
+  } catch (error) {
+    if (!explicitTerminated) {
+      if (isEofParseError(error)) return { kind: "incomplete", parsed: null };
+      throw error;
+    }
+  }
+
+  const parsed = parse(`${source}\n()`);
+  return { kind: "definitionsOnly", parsed };
+}
+
+function compileSnippetArtifacts(source, state, sourceName = "<repl>") {
+  restoreCodes(state);
+  const preamble = aliasPreamble(state);
+  const fullSource = [preamble, source].filter(Boolean).join("\n");
+  const options = {
+    source: sourceName,
+    libraries: [stateLibrary(state)]
+  };
+  try {
+    const lib = compileWithOptionalIdentity(fullSource, options);
+    const { relAlias, meta } = libraryOriginsFromSource(source, fullSource, lib, options);
+    const annotated = annotateWithOptionalIdentity(fullSource, options);
+    return {
+      annotated,
+      lib: { ...lib, relAlias, meta },
+      lineOffset: preambleLineCount(preamble)
+    };
+  } catch (error) {
+    throw remapError(error, preambleLineCount(preamble));
+  }
+}
+
 async function defineType(input, state) {
   const typeMatch = input.match(TYPE_DEF_RE);
   if (!typeMatch) {
@@ -397,8 +534,14 @@ async function defineType(input, state) {
 
   const name = typeMatch[1];
   restoreCodes(state);
-  const source = [aliasPreamble(state, name), ensureSemicolon(input), "()"].filter(Boolean).join("\n");
-  const annotated = annotate(source, { libraries: [stateLibrary(state)] });
+  const preamble = aliasPreamble(state, name);
+  const source = [preamble, ensureSemicolon(input), "()"].filter(Boolean).join("\n");
+  let annotated;
+  try {
+    annotated = annotate(source, { libraries: [stateLibrary(state)] });
+  } catch (error) {
+    throw remapError(error, preambleLineCount(preamble));
+  }
   const hash = annotated.representatives[name];
   if (!hash) throw new Error(`Type definition did not produce an alias for '${name}'`);
   state.codes = codes.dump();
@@ -415,8 +558,14 @@ async function defineRelation(input, state) {
 
   const name = relMatch[1];
   restoreCodes(state);
-  const source = [aliasPreamble(state, name), ensureSemicolon(input), name].filter(Boolean).join("\n");
-  const lib = hydrateObject(compileLibrary(source, { source: "<repl>", libraries: [stateLibrary(state)] }));
+  const preamble = aliasPreamble(state, name);
+  const source = [preamble, ensureSemicolon(input), name].filter(Boolean).join("\n");
+  let lib;
+  try {
+    lib = hydrateObject(compileLibrary(source, { source: "<repl>", libraries: [stateLibrary(state)] }));
+  } catch (error) {
+    throw remapError(error, preambleLineCount(preamble));
+  }
   const hash = lib.relAlias?.[name];
   if (!hash || !lib.rels?.[hash]) throw new Error(`Relation definition did not produce an alias for '${name}'`);
   state.codes = codes.dump();
@@ -433,12 +582,48 @@ async function runExpression(input, state) {
   if (!expression) throw new Error(":run requires an expression");
 
   restoreCodes(state);
-  const source = [aliasPreamble(state), expression].filter(Boolean).join("\n");
-  const annotated = annotate(source, { libraries: [stateLibrary(state)] });
+  const preamble = aliasPreamble(state);
+  const source = [preamble, expression].filter(Boolean).join("\n");
+  let annotated;
+  try {
+    annotated = annotate(source, { libraries: [stateLibrary(state)] });
+  } catch (error) {
+    throw remapError(error, preambleLineCount(preamble));
+  }
   const mainRel = annotated.rels.__main__;
   run.defs = annotated;
-  state.value = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
+  try {
+    state.value = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
+  } catch (error) {
+    throw remapError(error, preambleLineCount(preamble));
+  }
   state.lastMain = expression;
+  restoreCodes(state);
+  return [printValue(state.value)];
+}
+
+async function runSnippet(input, state, options = {}) {
+  const snippet = input.trim();
+  if (!snippet) return [];
+
+  const explicitTerminated = options.explicitTerminated ?? explicitSnippetTerminated(input);
+  const analysis = analyzeAcceptedSnippet(snippet, explicitTerminated);
+  const { annotated, lib, lineOffset } = compileSnippetArtifacts(snippet, state);
+  mergeLibrary(state, lib, "<repl>");
+
+  if (analysis.kind === "definitionsOnly") {
+    restoreCodes(state);
+    return [];
+  }
+
+  const mainRel = annotated.rels.__main__;
+  run.defs = annotated;
+  try {
+    state.value = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
+  } catch (error) {
+    throw remapError(error, lineOffset);
+  }
+  state.lastMain = snippet;
   restoreCodes(state);
   return [printValue(state.value)];
 }
@@ -451,9 +636,7 @@ async function evaluateInput(input, state) {
     return evaluateCommand(line, state);
   }
 
-  if (input.match(TYPE_DEF_RE)) return defineType(input, state);
-  if (input.match(REL_DEF_RE)) return defineRelation(input, state);
-  return runExpression(input, state);
+  return runSnippet(input, state);
 }
 
 function parseCommand(line) {
@@ -503,37 +686,20 @@ async function evaluateCommand(line, state) {
       Object.assign(state, fresh);
       return ["reset"];
     }
-    case "save": {
-      if (!arg) throw new Error(`${usagePrefix}save requires a file path`);
-      fs.writeFileSync(arg, encodeLibrary(savedLibrary(state)));
-      return [`saved ${arg}`];
-    }
     case "klib": {
       if (!arg) throw new Error(`${usagePrefix}klib requires a file path`);
       fs.writeFileSync(arg, encodeLibrary(savedLibrary(state)));
       return [`saved ${arg}`];
     }
     case "ko": {
-      if (!arg) throw new Error(`${usagePrefix}ko requires a file path`);
+      if (!arg) throw new Error(`${usagePrefix}ko requires a file path and main expression`);
       const [path, ...mainParts] = arg.split(/\s+/);
-      const object = executableObject(state, mainParts.join(" "));
-      fs.writeFileSync(path, encodeObject(object));
-      const main = (mainParts.join(" ") || state.lastMain).trim();
-      return [`saved ${path} (${main})`];
-    }
-    case "export": {
-      if (!arg) throw new Error(`${usagePrefix}export requires a file path`);
-      const [path, ...mainParts] = arg.split(/\s+/);
-      if (path.endsWith(".klib")) {
-        fs.writeFileSync(path, encodeLibrary(savedLibrary(state)));
-        return [`saved ${path}`];
-      }
-      if (!path.endsWith(".ko")) {
-        throw new Error(":export writes .klib or .ko files; use :klib or :ko for explicit export");
+      if (mainParts.length === 0) {
+        throw new Error(":ko file expr requires a main expression");
       }
       const object = executableObject(state, mainParts.join(" "));
       fs.writeFileSync(path, encodeObject(object));
-      const main = (mainParts.join(" ") || state.lastMain).trim();
+      const main = mainParts.join(" ").trim();
       return [`saved ${path} (${main})`];
     }
     case "load": {
@@ -544,14 +710,19 @@ async function evaluateCommand(line, state) {
       } else {
         restoreCodes(state);
         const source = fs.readFileSync(arg, "utf8");
-        const fullSource = [aliasPreamble(state), source].filter(Boolean).join("\n");
+        const preamble = aliasPreamble(state);
+        const fullSource = [preamble, source].filter(Boolean).join("\n");
         const options = {
           source: arg,
           libraries: [stateLibrary(state)]
         };
-        const lib = compileWithOptionalIdentity(fullSource, options);
-        const { relAlias, meta } = libraryOriginsFromSource(source, fullSource, lib, options);
-        mergeLibrary(state, { ...lib, relAlias, meta }, arg);
+        try {
+          const lib = compileWithOptionalIdentity(fullSource, options);
+          const { relAlias, meta } = libraryOriginsFromSource(source, fullSource, lib, options);
+          mergeLibrary(state, { ...lib, relAlias, meta }, arg);
+        } catch (error) {
+          throw remapError(error, preambleLineCount(preamble));
+        }
       }
       return [`loaded ${arg}`];
     }
@@ -589,14 +760,15 @@ function helpText() {
     ":codes               list type aliases",
     ":rels                list relation aliases",
     ":load file           load .k source or .klib",
-    ":klib file           export state as .klib",
-    ":ko file [expr]      export executable .ko",
-    ":export file [expr]  export by extension: .klib or .ko",
+    ":klib file           export state as a library",
+    ":ko file expr        export executable .ko using expr as main",
     ":val                 print current value",
     ":reset               clear state",
     ":help                show this help",
     "",
-    "Raw k definitions and expressions are still accepted as shorthand."
+    "Raw k input is compiled as a snippet on top of the current state.",
+    "A line ending with ';' plus only spaces closes the snippet.",
+    "Use '\\' to force continuation."
   ].join("\n");
 }
 
@@ -615,19 +787,50 @@ function startRepl() {
   console.log("k interpreter (.klib-backed). Type :help for commands.");
   rl.prompt();
   async function handleLine(line) {
-    if (line.trim().endsWith("\\")) {
-      buffer.push(line.replace(/\\\s*$/, ""));
+    if (lineHasExplicitContinuation(line)) {
+      buffer.push(lineForContinuation(line));
       rl.setPrompt("  ");
       if (!closed) rl.prompt();
       return;
     }
 
-    const input = [...buffer, line].join("\n");
+    if (buffer.length === 0 && line.trim().startsWith(":")) {
+      rl.setPrompt("> ");
+      try {
+        for (const output of await evaluateInput(line, state)) {
+          console.log(output);
+        }
+      } catch (error) {
+        console.error(error.message || String(error));
+      }
+      if (!closed) rl.prompt();
+      return;
+    }
+
+    buffer.push(line);
+    const input = buffer.join("\n");
+    const explicitTerminated = lineTerminatesSnippet(line);
+    if (!explicitTerminated) {
+      try {
+        const analysis = analyzeRawSnippet(input);
+        if (analysis.kind !== "withMain") {
+          rl.setPrompt("  ");
+          if (!closed) rl.prompt();
+          return;
+        }
+      } catch (error) {
+        buffer.length = 0;
+        rl.setPrompt("> ");
+        console.error(error.message || String(error));
+        if (!closed) rl.prompt();
+        return;
+      }
+    }
+
     buffer.length = 0;
     rl.setPrompt("> ");
-
     try {
-      for (const output of await evaluateInput(input, state)) {
+      for (const output of await runSnippet(input, state, { explicitTerminated })) {
         console.log(output);
       }
     } catch (error) {
@@ -649,13 +852,19 @@ if (isMainEntrypoint()) {
 }
 
 export {
+  aliasNames,
+  analyzeAcceptedSnippet,
+  analyzeRawSnippet,
   canonicalNames,
   completeInput,
   createCompleter,
   createState,
   evaluateInput,
+  explicitSnippetTerminated,
   helpText,
   isMainEntrypoint,
+  lineHasExplicitContinuation,
+  lineTerminatesSnippet,
   printValue,
   propertyListToFilter,
   valueToK

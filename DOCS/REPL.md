@@ -1,189 +1,189 @@
 # k Interpreter
 
-## Overview
+`repl2.mjs` is the interactive k interpreter. `k-repl` and `k-repl2` both
+start it.
 
-`repl2.mjs` is the interactive k interpreter. It uses the `.klib` format as
-its internal state: definitions accumulate incrementally, expressions compile
-in the context of the current library state, and the session can be exported as
-either a reusable `.klib` library or an executable `.ko` object.
+The interpreter keeps a live `.klib`-style state in memory:
 
-`k-repl` and `k-repl2` both start this interpreter. The primary interface is
-command-based: commands start with `:`, and raw k input remains available as a
-short form for quick interactive work.
+- registered codes
+- compiled relations
+- human aliases for both
+- the current value flowing through the session
 
-## State Model
+Raw k snippets compile on top of that state. You can also export the current
+session as a `.klib` library or compile an executable `.ko` object from an
+expression in the session context.
 
-```
-┌─────────────────────────────────────────────────┐
-│  codes:   { hash → code definition }            │  ← registered types
-│  rels:    { @hash → typed relation }            │  ← compiled relations
-│  aliases: { name → @hash }                      │  ← human names
-│  value:   current value (with .pattern)         │  ← last result
-│  lastMain: last relation/expression             │  ← default .ko main
-└─────────────────────────────────────────────────┘
-```
+## Prompt Model
 
-- `codes` and `rels` are the live .klib content.
-- `aliases` maps human names to canonical hashes. Redefining a name updates
-  the alias; the old definition remains in `rels` (content-addressed, no conflict).
-- `value` is the current pipeline value, initially `{}`.
+There are two kinds of input:
+
+- commands, starting with `:`
+- raw k source
+
+Commands execute immediately, but only when there is no open raw snippet in the
+buffer.
+
+Raw k source is accumulated until the interpreter can decide the snippet is
+complete.
 
 ## Commands
 
-Each line is a command. Multiline commands can be continued with a trailing
-`\`.
-
-Tab completion is available for command names, file paths in file-taking
-commands such as `:load` and `:export`, and canonical names that start with
-`@`.
-
-| Command | Description |
-|---------|-------------|
-| `:type name = <...>` | Define a type |
-| `:rel name = expr` | Define a relation |
+| Command | Meaning |
+| --- | --- |
+| `:help` | Show command summary |
+| `:type name = <...>` | Define a type alias |
+| `:type name` | Show the canonical definition of a type |
+| `:code name` | Alias for `:C name` |
+| `:rel name = expr` | Define a relation alias |
 | `:def name = expr` | Alias for `:rel` |
-| `:run expr` | Run an expression on the current value |
-| `:t name` | Show type signature of a relation |
-| `:d name` | Show definition of a relation |
-| `:type name` | Show definition of a type |
+| `:run expr` | Evaluate `expr` on the current value |
+| `:eval expr` | Alias for `:run` |
+| `:t name` | Show relation input/output filters |
+| `:d name` | Show relation definition |
+| `:C name` | Show canonical code definition |
 | `:codes` | List type aliases |
 | `:rels` | List relation aliases |
-| `:save file` | Save current state as `.klib` |
-| `:klib file` | Export current state as `.klib` |
-| `:ko file [expr]` | Export executable `.ko`; uses `expr` or the last relation/expression as main |
-| `:export file [expr]` | Export by extension: `.klib` or `.ko` |
-| `:load file` | Load `.k` source or `.klib` into state |
-| `:val` | Print current value with full detail |
-| `:reset` | Clear all state |
-| `:help` | Show available commands |
-| `:quit` | Exit |
+| `:load file` | Load `.k` source or `.klib` into the current state |
+| `:klib file` | Export current state as a `.klib` library |
+| `:ko file expr` | Export a `.ko` executable with `expr` as main |
+| `:val` | Print current value and JSON form |
+| `:reset` | Reset interpreter state |
+| `:quit` / `:exit` | Exit |
 
-The `/` character is never treated as a command prefix, because it is part of
-k expression syntax.
+## Raw Snippets
 
-## Shorthand Input
-
-Raw k input is still accepted:
-
-- `$ name = <...>;` is treated like `:type name = <...>`.
-- `name = expr;` is treated like `:rel name = expr`.
-- Any other non-command input is treated like `:run expr`.
-
-For command-based use, semicolons are optional in `:type` and `:rel`.
-
-## Input Handling
-
-### Type Definition: `:type name = <...>`
-
-- Parse and register the code via `codes.register`.
-- Store canonical hash in `aliases[name]`.
-- Print: `$ name = @hash`
-
-### Relation Definition: `:rel name = expr`
-
-- Build source: alias preamble + definition + `name` as main expression.
-- Compile with current `{codes, rels}` as library context.
-- Store compiled rel in `rels[@hash]`.
-- Update `aliases[name] → @hash`.
-- Print: `name = @hash`
-
-### Expression Evaluation: `:run expr`
-
-- Build source: alias preamble + expression as main.
-- Compile with current library context.
-- Run on current `value`.
-- Update `value` with result.
-- Print result with envelope (see Output Format).
-
-## Alias Preamble
-
-Before compiling any user input, the REPL prepends alias definitions so that
-human names resolve to library relations:
-
-```k
-add = @mKEA...; succ = @Swjz...; nat = @w8iS...;
-<user input>
-```
-
-For type aliases, the preamble uses `$ name = @hash;` syntax (referencing
-an existing canonical code by hash).
-
-This reuses the existing parser and compiler without modification.
-
-## Output Format
-
-Values are printed as:
-
-```
-<value-in-k-syntax> ?<pattern-as-filter>
-```
+Raw input is compiled as k source on top of the current state.
 
 Examples:
 
-```
-> {}|zero|succ|succ
-{succ: {succ: {zero: {}}}} ?<{} zero, X succ>=X
-
-> {{}|1 car, {}|nil cdr}|cons
-{{{}|1 car, {}|nil cdr}|cons} ?<{} nil, {<{} 0, {} 1> car, X cdr} cons>=X
+```k
+> {} |succ
 ```
 
-Uses `valueToK` and `propertyListToFilter` from
-`codecs/runtime/show-value.mjs`.
-
-When the result is `undefined`, print:
-
-```
-... undefined
+```k
+> $ bool = <{} true, {} false>;
 ```
 
-## Loading Files
+```k
+> $ bool = <{} true, {} false>
+  ; not = $bool </true | false, {} | true >
+  ; {} |true not
+```
+
+The interpreter uses these rules, in order:
+
+1. If the line ends with `\` followed only by spaces, keep buffering.
+2. If the line ends with `;` followed only by spaces, that line definitively
+   closes the snippet.
+3. Otherwise, try to parse the buffered snippet:
+   - if it is a complete k program, compile it now
+   - if it is a valid prefix, wait for more input
+   - otherwise report the parse error immediately
+
+After a snippet is accepted:
+
+- if it has a terminal expression, compile it and evaluate it on the current
+  value
+- if it is definitions only, compile it into the current state and print
+  nothing on success
+
+This makes raw snippets useful both for interactive evaluation and for growing
+the live library context.
+
+## State
+
+The interpreter keeps:
+
+- `codes`: canonical code definitions
+- `rels`: canonical compiled relations
+- `typeAliases`: human type names to canonical hashes
+- `relAliases`: human relation names to canonical hashes
+- `value`: current value, initially `{}`
+
+Definitions are content-addressed. Rebinding an alias changes the name-to-hash
+mapping, but older canonical definitions remain available by hash.
+
+## Alias Resolution
+
+Before compiling user input, the interpreter injects an alias preamble so human
+names can be reused naturally:
+
+```k
+$ nat = @...;
+succ = @...;
+<user snippet>
+```
+
+Type aliases use `$ name = @hash;`. Relation aliases use `name = @hash;`.
+
+Diagnostic locations are remapped back to the visible user snippet, so error
+line numbers do not count the hidden preamble.
+
+## Completion
+
+Tab completion covers:
+
+- command names after `:`
+- file paths for `:load`, `:klib`, and `:ko`
+- type aliases
+- relation aliases
+- canonical names beginning with `@`
+
+Type aliases also complete in `$name` position inside raw k input.
+
+## Loading
 
 ### `:load file.k`
 
-- Parse and compile the source as a library in the current context.
-- Merge resulting codes and rels into state.
-- Update aliases from `relAlias` (source name → hash).
+Compiles the source in the current library context, merges the resulting codes
+and relations into the session, and recovers aliases from user-defined names in
+the file.
 
 ### `:load file.klib`
 
-- Decode the .klib file.
-- Merge codes and rels into state.
-- Update aliases from `meta` (recover source names from origins).
+Decodes the library file and merges its codes, relations, and metadata into the
+session.
 
-## Exporting
+## Export
 
-### `:save file.klib`
+### `:klib file`
 
-- Serialize current `{codes, rels, meta, main: null}` as a .klib.
-- `meta` is built from the alias table (each alias → origin entry).
+Writes the current interpreter state as a `.klib` library.
 
-### `:klib file.klib`
+### `:ko file expr`
 
-- Alias for saving the current state as a `.klib`.
+Compiles `expr` as the main expression in the current interpreter context and
+writes the resulting executable `.ko` object.
 
-### `:ko file.ko [expr]`
+## Output
 
-- Compile `expr` as the executable object's main expression.
-- If `expr` is omitted, reuse the last relation definition or expression that
-  was evaluated in the interpreter.
-- The current `.klib` state is passed as the compilation library context.
+Evaluated values print in k syntax together with the inferred envelope:
 
-### `:export file [expr]`
-
-- If `file` ends in `.klib`, save the current library state.
-- If `file` ends in `.ko`, compile an executable object using `expr` or the
-  last main expression.
-
-## Example
-
+```text
+{succ: {succ: {zero: {}}}} ?<{} zero, X succ>=X
 ```
+
+`undefined` prints as:
+
+```text
+... undefined
+```
+
+`valueToK`, `propertyListToFilter`, and `valueWithEnvelopeToK` from
+`codecs/runtime/show-value.mjs` are used for rendering.
+
+## Example Session
+
+```text
 > :type nat = <{} zero, nat succ>
 $ nat = @...
 > :rel succ = |succ
 succ = @...
-> :run succ
-{}|succ ?<{} succ, ...>
+> {} |zero
+{zero: {}} ?<{} zero, X succ>=X
+> :t succ
+succ : ?X  -->  ?<{} zero, X succ>=X  (@...)
 > :klib nat.klib
 saved nat.klib
 > :ko succ.ko succ

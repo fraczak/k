@@ -28,12 +28,12 @@ k-repl               # start the interactive REPL  (or: node repl2.mjs)
 | Binary | Source | Purpose |
 |--------|--------|---------|
 | `k` | `k.mjs` | Execute a `.k` script; reads binary pattern+value stream from stdin |
-| `k-repl` / `k-repl2` | `repl2.mjs` | Interactive REPL |
-| `k-parse` | `codecs/k-parse.mjs` | Encode a JSON value to the binary pattern+value wire format |
-| `k-print` | `codecs/k-print.mjs` | Decode binary pattern+value stream back to JSON |
-| `k-pattern` | `codecs/k-pattern.mjs` | Print the pattern of a binary-encoded value |
-| `k-compile-object` | `objects/compile.mjs` | Compile a `.k` source to a `.kobj` object file |
-| `k-decompile-object` | `objects/decompile.mjs` | Decompile a `.kobj` file back to k source |
+| `k-repl` / `k-repl2` | `repl2.mjs` | Interactive interpreter |
+| `k-parse` | `codecs/k-parse.mjs` | Encode textual k values to the binary pattern+value wire format |
+| `k-print` | `codecs/k-print.mjs` | Decode binary pattern+value stream to JSON-like textual k values |
+| `k-pattern` | `patterns/from-k.mjs` | Extract the canonical root pattern from a k script |
+| `k-compile-object` | `objects/compile.mjs` | Compile a `.k` source to an executable `.ko` object |
+| `k-decompile-object` | `objects/decompile.mjs` | Decompile a `.ko` or `.klib` file back to k source |
 
 ---
 
@@ -47,6 +47,9 @@ Codes are algebraic data types built from two constructors:
 | **Tagged union** (variant) | `< A tag1, B tag2 >` | `< tag1: A, tag2: B >` |
 
 Native k-like notation is canonical; JSON-like is supported as syntactic sugar.
+
+For the JSON-like textual notation used by `k-parse` and `k-print`, see
+[DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md).
 
 ### Defining codes (`$`)
 
@@ -135,37 +138,59 @@ A partial function may be undefined on some inputs. Core primitives:
 
 ---
 
-## REPL
+## Interpreter
 
 Start with `k-repl` (or `node repl2.mjs`). The prompt is `> `.
 
-### Defining names and codes
+`repl2.mjs` keeps a live `.klib`-style state in memory. You can:
 
-```
-> $ nat = < {} zero, nat succ >;
-> succ = |succ;
-> zero = {} |zero $nat;
-```
+- define types and relations incrementally
+- run expressions against the current value
+- load `.k` or `.klib` files into the session
+- export the session as `.klib`
+- export an executable `.ko` from an expression in the current context
 
-### REPL commands
+### Main commands
 
 | Command | Effect |
 |---------|--------|
-| `--C name` | Show canonical (hash-addressed) form of a code |
-| `--R name` | Show the type derivation (pattern graph) for a function |
-| `--help` | List available commands |
+| `:type name = <...>` | Define a type alias |
+| `:rel name = expr` | Define a relation alias |
+| `:run expr` | Evaluate an expression on the current value |
+| `:t name` | Show relation input/output filters |
+| `:d name` | Show relation definition |
+| `:C name` | Show canonical code definition |
+| `:codes` / `:rels` | List type or relation aliases |
+| `:load file` | Load `.k` or `.klib` |
+| `:klib file` | Export current state as `.klib` |
+| `:ko file expr` | Export executable `.ko` |
+| `:val` | Print current value |
+| `:reset` | Clear state |
+| `:help` | Show command summary |
 
-**Example session:**
+### Raw snippets
 
+Raw k input is also accepted. It compiles on top of the current interpreter
+state.
+
+```text
+> $ bool = <{} true, {} false>;
+> not = $bool </true | false, {} | true>;
+> {} |true not
+{false: {}} ?<{} true, {} false>
 ```
-> $ nat = < {} zero, nat succ >;
-> $ pair = { nat x, nat y };
-> --C pair
- $ @wq9VvJgYt8sASQfevD23... = { @w8iSHe... x, @w8iSHe... y };
-> toto = .toto;
-> --R toto
-  toto : ?{ X0 toto, ... }  -->  ?X0
-```
+
+Definitions-only snippets extend the session silently. Snippets with a terminal
+expression are evaluated immediately.
+
+Tab completion covers:
+
+- command names
+- file paths for `:load`, `:klib`, and `:ko`
+- aliases
+- canonical names beginning with `@`
+
+See [DOCS/REPL.md](DOCS/REPL.md) for the exact buffering and evaluation rules.
 
 ---
 
@@ -268,6 +293,25 @@ echo '{"cons":{"car":{"1":{}},"cdr":{"nil":{}}}}' \
 ```
 
 See [`codecs/README.md`](codecs/README.md) for codec internals and format details.
+
+For the textual boundary notation used by `k-parse` and `k-print`, see
+[DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md). For canonical exported
+patterns and `k-pattern`, see [DOCS/PATTERNS.md](DOCS/PATTERNS.md).
+
+## Object and Library Files
+
+The object toolchain is documented in [objects/README.md](objects/README.md).
+
+- `.klib` stores compiled library state: codes, relations, aliases, metadata
+- `.ko` stores an executable object with a main expression
+
+Typical CLI usage:
+
+```bash
+./objects/compile-lib.mjs Examples/ieee.k ieee.klib
+./objects/compile.mjs --lib ieee.klib Examples/nat.k nat.ko
+./objects/decompile.mjs nat.ko
+```
 
 ---
 

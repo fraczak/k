@@ -1,6 +1,6 @@
 {
     "name": "@fraczak/k",
-    "version": "6.0.1",
+    "version": "6.0.2",
     "description": "k — a language for composing first-order partial functions over algebraic data types (products and tagged unions); includes runtime, type derivation, REPL, and codec toolchain",
     "main": "index.mjs",
     "scripts": {
@@ -19,7 +19,7 @@
         "k-compile-object": "./objects/compile.mjs",
         "k-decompile-object": "./objects/decompile.mjs",
         "k-parse": "./codecs/k-parse.mjs",
-        "k-pattern": "./codecs/k-pattern.mjs",
+        "k-pattern": "./patterns/from-k.mjs",
         "k-print": "./codecs/k-print.mjs",
         "k-repl": "./repl2.mjs",
         "k-repl2": "./repl2.mjs"

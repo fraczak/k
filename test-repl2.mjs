@@ -4,7 +4,18 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { completeInput, createState, evaluateInput, isMainEntrypoint } from "./repl2.mjs";
+import {
+  aliasNames,
+  analyzeAcceptedSnippet,
+  analyzeRawSnippet,
+  completeInput,
+  createState,
+  evaluateInput,
+  explicitSnippetTerminated,
+  isMainEntrypoint,
+  lineHasExplicitContinuation,
+  lineTerminatesSnippet
+} from "./repl2.mjs";
 import { decodeObject, objectToFunction } from "./object.mjs";
 import { Product } from "./Value.mjs";
 
@@ -41,12 +52,38 @@ assert(completions.some((line) => line.endsWith(state.typeAliases.nat)));
 completions = completeInput(`(${canonicalPartial}`, state)[0];
 assert(completions.includes(`(${state.typeAliases.nat}`));
 
+completions = completeInput(":run su", state)[0];
+assert(completions.includes(":run succ"));
+
+completions = completeInput("$na", state)[0];
+assert(completions.includes("$nat"));
+
+assert.deepEqual(aliasNames(state), ["nat", "succ"]);
+assert.equal(lineTerminatesSnippet(";"), true);
+assert.equal(lineTerminatesSnippet("  ;   "), true);
+assert.equal(lineTerminatesSnippet("  ;   -- comment"), false);
+assert.equal(lineTerminatesSnippet("succ"), false);
+assert.equal(explicitSnippetTerminated("$ bool = <{} true, {} false>;"), true);
+assert.equal(lineHasExplicitContinuation("succ \\"), true);
+assert.equal(analyzeRawSnippet("$ bool = <{} true, {} false>").kind, "incomplete");
+assert.equal(analyzeAcceptedSnippet("$ bool = <{} true, {} false>;", true).kind, "definitionsOnly");
+assert.equal(analyzeRawSnippet("a =").kind, "incomplete");
+assert.equal(analyzeRawSnippet("{} | succ").kind, "withMain");
+
+const offsetState = createState();
+await evaluateInput(":type ab = <{} 1, {} 2>", offsetState);
+await evaluateInput(":type bool = <{} true, {} false>", offsetState);
+await assert.rejects(
+  () => evaluateInput("$ab", offsetState),
+  /Type Error in 'filter' \(lines 1:1\.\.\.1:4\)/
+);
+
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-repl2-"));
 const libPath = path.join(tmpDir, "session.klib");
 const koPath = path.join(tmpDir, "succ.ko");
 const sourcePath = path.join(tmpDir, "session.k");
 const symlinkPath = path.resolve(".test-k-repl2-link");
-output = await evaluateInput(`:save ${libPath}`, state);
+output = await evaluateInput(`:klib ${libPath}`, state);
 assert.equal(output[0], `saved ${libPath}`);
 
 completions = completeInput(`:load ${tmpDir}/ses`, state)[0];
@@ -89,12 +126,22 @@ output = await evaluateInput("succ", reloaded);
 assert.equal(output[0], "{}|succ ?<{} succ, ...>");
 
 const shorthand = createState();
-output = await evaluateInput("$ nat = <{} zero, nat succ>;", shorthand);
-assert.match(output[0], /^\$ nat = @/);
-output = await evaluateInput("succ = |succ;", shorthand);
-assert.match(output[0], /^succ = @/);
-output = await evaluateInput("succ", shorthand);
-assert.equal(output[0], "{}|succ ?<{} succ, ...>");
+output = await evaluateInput("$ nat = <{} zero, nat succ>\n; succ = |succ\n;", shorthand);
+assert.deepEqual(output, []);
+output = await evaluateInput(":codes", shorthand);
+assert.match(output[0], /^nat = @/m);
+output = await evaluateInput(":rels", shorthand);
+assert.match(output[0], /^succ = @/m);
+output = await evaluateInput("$ bool = <{} true, {} false>\n; not = $bool </true | false, {} | true >\n; {} | true not", shorthand);
+assert.match(output[0], /^\{\}\|false \?</);
+assert.match(output[0], / false/);
+assert.match(output[0], / true/);
+output = await evaluateInput("$ maybe = <{} none, {} some>;", shorthand);
+assert.deepEqual(output, []);
+output = await evaluateInput(":codes", shorthand);
+assert.match(output[0], /^maybe = @/m);
+output = await evaluateInput("{} | true not", shorthand);
+assert.match(output[0], /^\{\}\|false \?</);
 
 await assert.rejects(
   () => evaluateInput("/type", createState()),
