@@ -61,17 +61,84 @@ function hydrateAnnotated(serialized) {
   };
 }
 
+const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
+
+function isSourceName(name) {
+  return NAME_RE.test(name) && !name.startsWith("@") && !name.startsWith(":");
+}
+
+function addOrigin(meta, hash, type, origin) {
+  if (!hash) return;
+  if (!meta[hash]) {
+    meta[hash] = { type, origins: [] };
+  } else if (meta[hash].type == null) {
+    meta[hash].type = type;
+  } else if (meta[hash].type !== type) {
+    throw new Error(`Metadata type conflict for ${hash}: ${meta[hash].type} vs ${type}`);
+  }
+  if (meta[hash].origins.some((existing) =>
+    existing.source === origin.source &&
+    existing.name === origin.name &&
+    existing.compiledAt === origin.compiledAt
+  )) {
+    return;
+  }
+  meta[hash].origins.push(origin);
+}
+
+function mergeMetaEntries(...metas) {
+  const merged = {};
+  for (const meta of metas) {
+    for (const [hash, entry] of Object.entries(meta || {})) {
+      const type = entry?.type;
+      if (type !== "code" && type !== "rel") continue;
+      for (const origin of entry.origins || []) {
+        if (!origin?.name) continue;
+        addOrigin(merged, hash, type, {
+          ...(origin.source == null ? {} : { source: origin.source }),
+          name: origin.name,
+          ...(origin.compiledAt == null ? {} : { compiledAt: origin.compiledAt })
+        });
+      }
+    }
+  }
+  return merged;
+}
+
 function buildMeta(annotated, source) {
   const meta = {};
+  const representatives = annotated.representatives || {};
   const relAlias = annotated.relAlias || {};
   const now = new Date().toISOString();
-  // Relation metadata: source name → canonical hash
+
+  for (const [name, hash] of Object.entries(representatives)) {
+    if (!isSourceName(name)) continue;
+    addOrigin(meta, hash, "code", { source, name, compiledAt: now });
+  }
+
   for (const [name, hash] of Object.entries(relAlias)) {
     if (name === "__main__") continue;
-    if (!meta[hash]) meta[hash] = { origins: [] };
-    meta[hash].origins.push({ source, name, compiledAt: now });
+    if (!isSourceName(name)) continue;
+    addOrigin(meta, hash, "rel", { source, name, compiledAt: now });
   }
   return meta;
+}
+
+function importedLibraryMeta(libraries = []) {
+  return mergeMetaEntries(...libraries.map((library) => library.meta || {}));
+}
+
+function isEofParseError(error) {
+  return error?.hash?.token === "EOF" || /got 'EOF'|Expecting/.test(error?.message || "");
+}
+
+function annotateLibrary(script, options = {}) {
+  try {
+    return annotate(script, options);
+  } catch (error) {
+    if (!isEofParseError(error)) throw error;
+    return annotate(`${script}\n()`, options);
+  }
 }
 
 function collectReachable(mainName, rels, allCodes) {
@@ -140,7 +207,10 @@ function compileObject(script, options = {}) {
   const annotated = annotate(script, options);
   const allCodes = codes.dump();
   const serialized = serializeAnnotated(annotated);
-  const meta = buildMeta(annotated, options.source || null);
+  const meta = mergeMetaEntries(
+    importedLibraryMeta(options.libraries),
+    buildMeta(annotated, options.source || null)
+  );
 
   // Prune to reachable from main
   const { reachableRels, reachableCodes } = collectReachable("__main__", serialized.rels, allCodes);
@@ -189,9 +259,12 @@ function rewriteRefsToCanonical(exp, relAlias) {
 }
 
 function compileLibrary(script, options = {}) {
-  const annotated = annotate(script, options);
+  const annotated = annotateLibrary(script, options);
   const serialized = serializeAnnotated(annotated);
-  const meta = buildMeta(annotated, options.source || null);
+  const meta = mergeMetaEntries(
+    importedLibraryMeta(options.libraries),
+    buildMeta(annotated, options.source || null)
+  );
   const relAlias = serialized.relAlias || {};
 
   // Key rels by canonical hash, rewrite internal refs to canonical hashes
@@ -482,6 +555,83 @@ function decompileObjectBuffer(buffer) {
   return decompileObject(decodeObject(buffer));
 }
 
+function hashBody(hash) {
+  return hash.startsWith("@") ? hash.slice(1) : hash;
+}
+
+function compareAliasEntries(left, right) {
+  return (
+    left.typeOrder - right.typeOrder ||
+    left.name.localeCompare(right.name) ||
+    compareMaybeTimestamp(left.compiledAt, right.compiledAt) ||
+    left.hash.localeCompare(right.hash) ||
+    left.source.localeCompare(right.source)
+  );
+}
+
+function compareMaybeTimestamp(left, right) {
+  if (left == null && right == null) return 0;
+  if (left == null) return 1;
+  if (right == null) return -1;
+  return left.localeCompare(right);
+}
+
+function originComment(origin) {
+  return JSON.stringify({
+    ...(origin.source == null ? {} : { source: origin.source }),
+    ...(origin.compiledAt == null ? {} : { compiledAt: origin.compiledAt })
+  });
+}
+
+function extractAliasesFromObject(object) {
+  const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
+  const entries = [];
+
+  for (const [hash, entry] of Object.entries(hydrated.meta || {})) {
+    const type = entry?.type;
+    if (type !== "code" && type !== "rel") continue;
+    const typeOrder = type === "code" ? 0 : 1;
+    for (const origin of entry.origins || []) {
+      if (!origin?.name || !isSourceName(origin.name)) continue;
+      entries.push({
+        type,
+        typeOrder,
+        hash,
+        name: origin.name,
+        source: origin.source || "",
+        compiledAt: origin.compiledAt,
+        comment: originComment(origin)
+      });
+    }
+  }
+
+  entries.sort(compareAliasEntries);
+
+  const activeEntries = new Set();
+  for (let i = 0; i < entries.length; i++) {
+    const next = entries[i + 1];
+    if (!next || next.type !== entries[i].type || next.name !== entries[i].name) {
+      activeEntries.add(entries[i]);
+    }
+  }
+
+  const lines = [];
+  let lastType = null;
+  for (const entry of entries) {
+    if (lastType != null && lastType !== entry.type) lines.push("");
+    lastType = entry.type;
+    const prefix = entry.type === "code" ? "$ " : "";
+    const line = `${prefix}${entry.name} = @${hashBody(entry.hash)}; # ${entry.comment}`;
+    lines.push(activeEntries.has(entry) ? line : `# ${line}`);
+  }
+
+  return `${lines.join("\n")}${lines.length === 0 ? "" : "\n"}`;
+}
+
+function extractAliasesFromObjectBuffer(buffer) {
+  return extractAliasesFromObject(decodeObject(buffer));
+}
+
 export {
   compileObject,
   compileObjectBuffer,
@@ -496,7 +646,9 @@ export {
   runObject,
   objectToFunction,
   decompileObject,
-  decompileObjectBuffer
+  decompileObjectBuffer,
+  extractAliasesFromObject,
+  extractAliasesFromObjectBuffer
 };
 
 export default {
@@ -513,5 +665,7 @@ export default {
   runObject,
   objectToFunction,
   decompileObject,
-  decompileObjectBuffer
+  decompileObjectBuffer,
+  extractAliasesFromObject,
+  extractAliasesFromObjectBuffer
 };

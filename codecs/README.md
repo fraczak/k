@@ -10,6 +10,10 @@ The default concrete format is now the binary encoding of a `$pattern` value,
 using the `$pattern` type from [`../core.k`](../core.k), immediately followed by
 the binary encoding of the value under that decoded pattern.
 
+`core.k` is not loaded automatically as a library when user programs run. The
+codec only depends on the canonical `$pattern` definition from that file as the
+schema for the leading pattern value.
+
 There is no separate JSON container format.
 
 ## Objectives

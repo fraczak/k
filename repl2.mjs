@@ -146,21 +146,27 @@ function annotateWithOptionalIdentity(source, options) {
 function mergeMeta(state, meta = {}) {
   for (const [hash, entry] of Object.entries(meta)) {
     const origins = entry?.origins || [];
-    if (!state.meta[hash]) state.meta[hash] = { origins: [] };
-    state.meta[hash].origins.push(...origins);
+    const entryType = entry?.type;
+    if (!state.meta[hash]) state.meta[hash] = { type: entryType, origins: [] };
+    if (state.meta[hash].type == null && entryType != null) state.meta[hash].type = entryType;
+    state.meta[hash].origins.push(...origins.map(({ source, name, compiledAt }) => ({
+      source,
+      name,
+      ...(compiledAt == null ? {} : { compiledAt })
+    })));
   }
 }
 
-function rememberOrigin(state, hash, name, kind, source = "<repl>") {
-  if (!state.meta[hash]) state.meta[hash] = { origins: [] };
+function rememberOrigin(state, hash, name, type, source = "<repl>") {
+  if (!state.meta[hash]) state.meta[hash] = { type, origins: [] };
+  if (state.meta[hash].type == null) state.meta[hash].type = type;
   const exists = state.meta[hash].origins.some((origin) =>
-    origin.name === name && origin.kind === kind && origin.source === source
+    origin.name === name && state.meta[hash].type === type && origin.source === source
   );
   if (!exists) {
     state.meta[hash].origins.push({
       source,
       name,
-      kind,
       compiledAt: new Date().toISOString()
     });
   }
@@ -170,40 +176,47 @@ function recoverAliasesFromMeta(state, lib) {
   for (const [hash, entry] of Object.entries(lib.meta || {})) {
     for (const origin of entry?.origins || []) {
       if (!origin?.name || !NAME_RE.test(origin.name)) continue;
-      if (origin.kind === "code" || (!origin.kind && hash in state.codes && !(hash in state.rels))) {
+      const type = entry?.type;
+      if (type === "code" || (!type && hash in state.codes && !(hash in state.rels))) {
         state.typeAliases[origin.name] = hash;
-      } else if (origin.kind === "rel" || hash in state.rels) {
+      } else if (type === "rel" || hash in state.rels) {
         state.relAliases[origin.name] = hash;
       }
     }
   }
 }
 
-function mergeLibrary(state, lib, source = "<load>") {
+function mergeLibrary(state, lib, source = "<load>", options = {}) {
+  const loadAliases = options.loadAliases ?? true;
   state.codes = { ...state.codes, ...(lib.codes || {}) };
   state.rels = { ...state.rels, ...(lib.rels || {}) };
-  state.relAliases = { ...state.relAliases, ...(lib.relAlias || {}) };
   mergeMeta(state, lib.meta);
 
-  for (const [name, hash] of Object.entries(lib.relAlias || {})) {
-    if (name !== "__main__" && NAME_RE.test(name) && hash in state.rels) {
-      state.relAliases[name] = hash;
-      rememberOrigin(state, hash, name, "rel", source);
+  if (loadAliases) {
+    state.relAliases = { ...state.relAliases, ...(lib.relAlias || {}) };
+    for (const [name, hash] of Object.entries(lib.relAlias || {})) {
+      if (name !== "__main__" && NAME_RE.test(name) && hash in state.rels) {
+        state.relAliases[name] = hash;
+        rememberOrigin(state, hash, name, "rel", source);
+      }
     }
+    recoverAliasesFromMeta(state, lib);
   }
-  recoverAliasesFromMeta(state, lib);
   restoreCodes(state);
 }
 
 function savedLibrary(state) {
   const meta = cloneJSON(state.meta);
+  const now = new Date().toISOString();
   for (const [name, hash] of Object.entries(state.typeAliases)) {
-    if (!meta[hash]) meta[hash] = { origins: [] };
-    meta[hash].origins.push({ source: "<repl>", name, kind: "code" });
+    if (!meta[hash]) meta[hash] = { type: "code", origins: [] };
+    if (meta[hash].type == null) meta[hash].type = "code";
+    meta[hash].origins.push({ source: "<repl>", name, compiledAt: now });
   }
   for (const [name, hash] of Object.entries(state.relAliases)) {
-    if (!meta[hash]) meta[hash] = { origins: [] };
-    meta[hash].origins.push({ source: "<repl>", name, kind: "rel" });
+    if (!meta[hash]) meta[hash] = { type: "rel", origins: [] };
+    if (meta[hash].type == null) meta[hash].type = "rel";
+    meta[hash].origins.push({ source: "<repl>", name, compiledAt: now });
   }
   return {
     format: "k-object",
@@ -285,8 +298,8 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
   for (const name of typeNames) {
     const hash = annotated.representatives?.[name];
     if (!hash) continue;
-    if (!meta[hash]) meta[hash] = { origins: [] };
-    meta[hash].origins.push({ source: options.source || null, name, kind: "code", compiledAt: now });
+    if (!meta[hash]) meta[hash] = { type: "code", origins: [] };
+    meta[hash].origins.push({ source: options.source || null, name, compiledAt: now });
   }
 
   const relAlias = Object.fromEntries(
@@ -296,8 +309,8 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
   );
 
   for (const [name, hash] of Object.entries(relAlias)) {
-    if (!meta[hash]) meta[hash] = { origins: [] };
-    meta[hash].origins.push({ source: options.source || null, name, kind: "rel", compiledAt: now });
+    if (!meta[hash]) meta[hash] = { type: "rel", origins: [] };
+    meta[hash].origins.push({ source: options.source || null, name, compiledAt: now });
   }
 
   return { relAlias, meta };
@@ -401,6 +414,26 @@ function commandArgIndex(arg) {
   return trimmed.split(/\s+/).length - 1;
 }
 
+function loadPathCompletionStart(argStart, arg) {
+  const leadingWhitespace = arg.length - arg.trimStart().length;
+  const trimmed = arg.trimStart();
+  if (trimmed === "" || !trimmed.startsWith("--no-alias")) {
+    if (commandArgIndex(arg) !== 0) return null;
+    return argStart + completionTokenStart(arg);
+  }
+  if (!"--no-alias".startsWith(trimmed) && !trimmed.startsWith("--no-alias ")) {
+    return null;
+  }
+  if (trimmed !== "--no-alias" && !trimmed.startsWith("--no-alias ")) {
+    return null;
+  }
+  if (trimmed === "--no-alias") return null;
+  const restStart = leadingWhitespace + "--no-alias".length;
+  const rest = arg.slice(restStart);
+  const restLeadingWhitespace = rest.length - rest.trimStart().length;
+  return argStart + restStart + restLeadingWhitespace + completionTokenStart(rest.trimStart());
+}
+
 function completeCommandArgument(line, state) {
   const body = line.slice(1);
   const firstSpace = body.search(/\s/);
@@ -410,8 +443,13 @@ function completeCommandArgument(line, state) {
   const argStart = 1 + firstSpace + 1;
   const arg = line.slice(argStart);
 
-  if (PATH_COMMANDS.has(command) && commandArgIndex(arg) === 0) {
-    const tokenStart = argStart + completionTokenStart(arg);
+  if (PATH_COMMANDS.has(command)) {
+    const tokenStart = command === "load"
+      ? loadPathCompletionStart(argStart, arg)
+      : commandArgIndex(arg) === 0
+        ? argStart + completionTokenStart(arg)
+        : null;
+    if (tokenStart == null) return [[], line];
     return completePath(line, tokenStart);
   }
 
@@ -458,6 +496,20 @@ function ensureSemicolon(source) {
 
 function isEofParseError(error) {
   return /got 'EOF'|Unexpected end of input/.test(error.message || "");
+}
+
+function parseLoadArgs(arg, usagePrefix = ":") {
+  const trimmed = arg.trim();
+  if (!trimmed) throw new Error(`${usagePrefix}load requires a file path`);
+  if (trimmed === "--no-alias") {
+    throw new Error(`${usagePrefix}load --no-alias requires a file path`);
+  }
+  if (trimmed.startsWith("--no-alias ")) {
+    const path = trimmed.slice("--no-alias".length).trim();
+    if (!path) throw new Error(`${usagePrefix}load --no-alias requires a file path`);
+    return { path, loadAliases: false };
+  }
+  return { path: arg.trim(), loadAliases: true };
 }
 
 function lineForContinuation(line) {
@@ -703,28 +755,28 @@ async function evaluateCommand(line, state) {
       return [`saved ${path} (${main})`];
     }
     case "load": {
-      if (!arg) throw new Error(`${usagePrefix}load requires a file path`);
-      if (arg.endsWith(".klib")) {
-        const lib = loadLibrary(decodeLibrary(fs.readFileSync(arg)));
-        mergeLibrary(state, lib, arg);
+      const { path: loadPath, loadAliases } = parseLoadArgs(arg, usagePrefix);
+      if (loadPath.endsWith(".klib")) {
+        const lib = loadLibrary(decodeLibrary(fs.readFileSync(loadPath)));
+        mergeLibrary(state, lib, loadPath, { loadAliases });
       } else {
         restoreCodes(state);
-        const source = fs.readFileSync(arg, "utf8");
+        const source = fs.readFileSync(loadPath, "utf8");
         const preamble = aliasPreamble(state);
         const fullSource = [preamble, source].filter(Boolean).join("\n");
         const options = {
-          source: arg,
+          source: loadPath,
           libraries: [stateLibrary(state)]
         };
         try {
           const lib = compileWithOptionalIdentity(fullSource, options);
           const { relAlias, meta } = libraryOriginsFromSource(source, fullSource, lib, options);
-          mergeLibrary(state, { ...lib, relAlias, meta }, arg);
+          mergeLibrary(state, { ...lib, relAlias, meta }, loadPath, { loadAliases });
         } catch (error) {
           throw remapError(error, preambleLineCount(preamble));
         }
       }
-      return [`loaded ${arg}`];
+      return [`loaded ${loadPath}`];
     }
     case "t": {
       if (!arg) throw new Error(`${usagePrefix}t requires a relation name`);
@@ -759,7 +811,8 @@ function helpText() {
     ":type name           show type definition",
     ":codes               list type aliases",
     ":rels                list relation aliases",
-    ":load file           load .k source or .klib",
+    ":load [--no-alias] file",
+    "                     load .k source or .klib",
     ":klib file           export state as a library",
     ":ko file expr        export executable .ko using expr as main",
     ":val                 print current value",

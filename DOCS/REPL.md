@@ -44,7 +44,7 @@ complete.
 | `:C name` | Show canonical code definition |
 | `:codes` | List type aliases |
 | `:rels` | List relation aliases |
-| `:load file` | Load `.k` source or `.klib` into the current state |
+| `:load [--no-alias] file` | Load `.k` source or `.klib` into the current state |
 | `:klib file` | Export current state as a `.klib` library |
 | `:ko file expr` | Export a `.ko` executable with `expr` as main |
 | `:val` | Print current value and JSON form |
@@ -134,16 +134,17 @@ Type aliases also complete in `$name` position inside raw k input.
 
 ## Loading
 
-### `:load file.k`
+### `:load [--no-alias] file.k`
 
 Compiles the source in the current library context, merges the resulting codes
 and relations into the session, and recovers aliases from user-defined names in
-the file.
+the file unless `--no-alias` is used.
 
-### `:load file.klib`
+### `:load [--no-alias] file.klib`
 
 Decodes the library file and merges its codes, relations, and metadata into the
-session.
+session. Aliases are recovered from library metadata unless `--no-alias` is
+used.
 
 ## Export
 

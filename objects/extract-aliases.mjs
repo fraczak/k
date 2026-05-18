@@ -2,13 +2,17 @@
 
 import fs from "node:fs";
 import { argv, exit, stdin, stdout } from "node:process";
-import { decompileObjectBuffer } from "../object.mjs";
+import { extractAliasesFromObjectBuffer } from "../object.mjs";
 
 function helpText() {
   return [
-    "Decompile a .ko or .klib object into readable k source.",
+    "Extract metadata aliases from a .ko or .klib as a valid k source snippet.",
     "",
     `Usage: ${argv[1]} [ object-file [ k-file ] ]`,
+    "",
+    "Output is grouped by metadata type (code, then rel), then sorted by alias",
+    "name and compiledAt. Earlier definitions of the same alias are commented",
+    "out so only the latest one remains active.",
     "",
     "Arguments:",
     "  object-file  Input .ko or .klib path. Reads binary object data from stdin when omitted.",
@@ -18,7 +22,7 @@ function helpText() {
     "  -h, --help   Show this help.",
     "",
     "Example:",
-    `  ${argv[1]} program.ko program.decompiled.k`
+    `  ${argv[1]} core.klib aliases.k`
   ].join("\n");
 }
 
@@ -42,7 +46,7 @@ try {
   }
 
   const objectBuffer = objectPath == null ? await readStdinBuffer() : fs.readFileSync(objectPath);
-  const source = decompileObjectBuffer(objectBuffer);
+  const source = extractAliasesFromObjectBuffer(objectBuffer);
   if (outputPath == null) {
     stdout.write(source);
   } else {

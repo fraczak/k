@@ -34,6 +34,7 @@ k-repl               # start the interactive REPL  (or: node repl2.mjs)
 | `k-pattern` | `patterns/from-k.mjs` | Extract the canonical root pattern from a k script |
 | `k-compile-object` | `objects/compile.mjs` | Compile a `.k` source to an executable `.ko` object |
 | `k-decompile-object` | `objects/decompile.mjs` | Decompile a `.ko` or `.klib` file back to k source |
+| `k-extract-aliases` | `objects/extract-aliases.mjs` | Extract `.klib` metadata aliases as k source |
 
 ---
 
@@ -161,7 +162,7 @@ Start with `k-repl` (or `node repl2.mjs`). The prompt is `> `.
 | `:d name` | Show relation definition |
 | `:C name` | Show canonical code definition |
 | `:codes` / `:rels` | List type or relation aliases |
-| `:load file` | Load `.k` or `.klib` |
+| `:load [--no-alias] file` | Load `.k` or `.klib`; aliases are loaded unless `--no-alias` is used |
 | `:klib file` | Export current state as `.klib` |
 | `:ko file expr` | Export executable `.ko` |
 | `:val` | Print current value |
@@ -239,8 +240,9 @@ console.log(annotated.compileStats);  // per-SCC strategy and iteration counts
 
 ## Standard Library — `core.k`
 
-`core.k` is the k standard core library. It is loaded automatically by the codec pipeline and
-is available as a reference for any k program that needs canonical types.
+`core.k` is the k standard core library. It is **not** pre-loaded into ordinary k
+programs or relation evaluation. Instead, it is the reference source for a few
+canonical definitions that the binary codec depends on, especially `$pattern`.
 It defines four things, in order:
 
 ### §1 & §2 — `$bits` and arithmetic
@@ -277,7 +279,8 @@ $ pattern       = < {} nil, { pattern-node car, pattern cdr } cons >;
 The singleton pattern of `$pattern` itself is the fixed framing constant for the wire format:
 every k binary stream starts with a `$pattern` encoded under that constant,
 followed by the value encoded under the pattern just decoded.
-This is why `core.k` ends with a bare `$pattern` expression — it pins that canonical hash.
+This is why `core.k` ends with a bare `$pattern` expression — it pins that
+canonical code/hash used by the wire codec for the leading pattern payload.
 
 ---
 
@@ -310,6 +313,7 @@ Typical CLI usage:
 ```bash
 ./objects/compile-lib.mjs Examples/ieee.k ieee.klib
 ./objects/compile.mjs --lib ieee.klib Examples/nat.k nat.ko
+./objects/extract-aliases.mjs ieee.klib aliases.k
 ./objects/decompile.mjs nat.ko
 ```
 

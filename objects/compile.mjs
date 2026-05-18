@@ -4,8 +4,27 @@ import fs from "node:fs";
 import { argv, exit, stdin, stdout } from "node:process";
 import { compileObjectBuffer, decodeObject, loadLibrary } from "../object.mjs";
 
-function usage() {
-  console.error(`Usage: ${argv[1]} [ --lib lib-file ]... [ k-file [ object-file ] ]`);
+function helpText() {
+  return [
+    "Compile a k source file into an executable .ko object.",
+    "",
+    `Usage: ${argv[1]} [ --lib lib-file ]... [ k-file [ object-file ] ]`,
+    "",
+    "Arguments:",
+    "  k-file       Source .k file to compile. Reads UTF-8 source from stdin when omitted.",
+    "  object-file  Output .ko path. Writes binary object data to stdout when omitted.",
+    "",
+    "Options:",
+    "  --lib file   Load a .klib dependency before compiling. May be repeated.",
+    "  -h, --help   Show this help.",
+    "",
+    "Example:",
+    `  ${argv[1]} --lib core.klib program.k program.ko`
+  ].join("\n");
+}
+
+function usage(stream = console.error) {
+  stream(helpText());
 }
 
 async function readStdinText() {
@@ -18,6 +37,11 @@ async function readStdinText() {
 
 try {
   const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    exit(0);
+  }
+
   const libraries = [];
   while (args.length > 0 && args[0] === "--lib") {
     args.shift();

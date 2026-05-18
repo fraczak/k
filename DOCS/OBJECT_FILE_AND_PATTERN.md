@@ -29,6 +29,10 @@ $ pattern-node = <
 $ pattern = < {} nil, { pattern-node car, pattern cdr } cons >;
 ```
 
+This does not mean `core.k` is pre-loaded into ordinary program execution. The
+special role of `core.k` here is that the wire codec relies on the canonical
+`$pattern` definition from that file.
+
 In this schema:
 
 - the first pattern-list element is node `0`, the root,

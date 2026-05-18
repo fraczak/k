@@ -6,7 +6,14 @@ import { decodeWire, encodeToWire, CORE_PATTERN_PROPERTY_LIST } from "./codecs/r
 import { Product, Variant } from "./Value.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
-import { compileObjectBuffer, decodeObject, objectToFunction, decompileObjectBuffer } from "./object.mjs";
+import {
+  compileObjectBuffer,
+  compileLibraryBuffer,
+  decodeObject,
+  objectToFunction,
+  decompileObjectBuffer,
+  extractAliasesFromObject
+} from "./object.mjs";
 
 const value = parseValue("{a:{b:x,c:{}}}");
 const wire = encodeToWire(value, null);
@@ -70,5 +77,74 @@ assert.deepEqual(k.compile("7jfi = ?X0; 7jfi")(new Product({})).toJSON(), {});
 const sccSource = decompileObjectBuffer(compileObjectBuffer("c = {}; b = c |x; a = b |y; a"));
 assert.match(sccSource, /----- rels -----\nPQgV = .+\n\naQAD = .+\n\nN9UH = /s);
 assert.deepEqual(k.compile(sccSource)(new Product({})).toJSON(), { y: "x" });
+
+const library = decodeObject(compileLibraryBuffer("$ nat = <{} zero, nat succ>;\nsucc = |succ;\n", { source: "defs-only.k" }));
+assert.equal(library.main, null);
+assert(Object.values(library.meta).some(({ type, origins }) =>
+  type === "code" &&
+  origins.some((origin) =>
+    origin.source === "defs-only.k" &&
+    origin.name === "nat" &&
+    JSON.stringify(Object.keys(origin).sort()) === JSON.stringify(["compiledAt", "name", "source"]) &&
+    typeof origin.compiledAt === "string"
+  )
+));
+assert(Object.values(library.meta).some(({ type, origins }) =>
+  type === "rel" &&
+  origins.some((origin) =>
+    origin.source === "defs-only.k" &&
+    origin.name === "succ" &&
+    JSON.stringify(Object.keys(origin).sort()) === JSON.stringify(["compiledAt", "name", "source"]) &&
+    typeof origin.compiledAt === "string"
+  )
+));
+
+const derivedLibrary = decodeObject(compileLibraryBuffer("other = |other;\n", {
+  source: "derived.k",
+  libraries: [library]
+}));
+const derivedAliases = extractAliasesFromObject(derivedLibrary);
+assert.match(derivedAliases, /^\$ nat = @/m);
+assert.match(derivedAliases, /^succ = @/m);
+assert.match(derivedAliases, /^other = @/m);
+assert(derivedAliases.indexOf("$ nat = @") < derivedAliases.indexOf("other = @"));
+assert(derivedAliases.indexOf("other = @") < derivedAliases.indexOf("succ = @"));
+
+const aliasSnippet = extractAliasesFromObject({
+  format: "k-object",
+  version: 2,
+  codes: {},
+  rels: {},
+  meta: {
+    "@relB": {
+      type: "rel",
+      origins: [
+        { source: "new.k", name: "times", compiledAt: "2026-04-12T06:08:10.390Z" },
+        { source: "core.k", name: "times", compiledAt: "2026-03-09T06:17:23.390Z" },
+        { source: "other.k", name: "plus", compiledAt: "2026-05-17T06:10:23.390Z" }
+      ]
+    },
+    "@codeB": {
+      type: "code",
+      origins: [
+        { source: "z.k", name: "edges", compiledAt: "2026-03-09T06:17:23.390Z" }
+      ]
+    },
+    "@codeA": {
+      type: "code",
+      origins: [
+        { source: "a.k", name: "bits", compiledAt: "2026-05-17T06:10:23.390Z" }
+      ]
+    }
+  },
+  main: null
+});
+assert.deepEqual(aliasSnippet.split("\n").filter(Boolean), [
+  '$ bits = @codeA; # {"source":"a.k","compiledAt":"2026-05-17T06:10:23.390Z"}',
+  '$ edges = @codeB; # {"source":"z.k","compiledAt":"2026-03-09T06:17:23.390Z"}',
+  'plus = @relB; # {"source":"other.k","compiledAt":"2026-05-17T06:10:23.390Z"}',
+  '# times = @relB; # {"source":"core.k","compiledAt":"2026-03-09T06:17:23.390Z"}',
+  'times = @relB; # {"source":"new.k","compiledAt":"2026-04-12T06:08:10.390Z"}'
+]);
 
 console.log("OK");

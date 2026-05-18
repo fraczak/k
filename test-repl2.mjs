@@ -88,6 +88,8 @@ assert.equal(output[0], `saved ${libPath}`);
 
 completions = completeInput(`:load ${tmpDir}/ses`, state)[0];
 assert(completions.includes(`:load ${libPath}`));
+completions = completeInput(`:load --no-alias ${tmpDir}/ses`, state)[0];
+assert(completions.includes(`:load --no-alias ${libPath}`));
 
 output = await evaluateInput(`:ko ${koPath} succ`, state);
 assert.equal(output[0], `saved ${koPath} (succ)`);
@@ -124,6 +126,14 @@ assert.match(output[0], /^succ = @/m);
 
 output = await evaluateInput("succ", reloaded);
 assert.equal(output[0], "{}|succ ?<{} succ, ...>");
+
+const noAliasReloaded = createState();
+output = await evaluateInput(`:load --no-alias ${libPath}`, noAliasReloaded);
+assert.equal(output[0], `loaded ${libPath}`);
+output = await evaluateInput(":codes", noAliasReloaded);
+assert.equal(output[0], "(none)");
+output = await evaluateInput(":rels", noAliasReloaded);
+assert.equal(output[0], "(none)");
 
 const shorthand = createState();
 output = await evaluateInput("$ nat = <{} zero, nat succ>\n; succ = |succ\n;", shorthand);

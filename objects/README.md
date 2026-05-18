@@ -31,6 +31,16 @@ Decompiles a `.ko` or `.klib` back into human-readable k source.
 ./objects/decompile.mjs [object-file [k-file]]
 ```
 
+### extract-aliases.mjs
+
+Extracts metadata aliases from a `.ko` or `.klib` as a valid k definition
+snippet. Output is grouped by metadata type (`code`, then `rel`), then sorted by
+alias name and `compiledAt`.
+
+```bash
+./objects/extract-aliases.mjs [object-file [k-file]]
+```
+
 ## Further reading
 
 - [DOCS/OBJECT_FILE_AND_PATTERN.md](../DOCS/OBJECT_FILE_AND_PATTERN.md) — object file format and pattern encoding
