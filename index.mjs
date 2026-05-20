@@ -51,7 +51,7 @@ function annotate(script, options = {}) {
 
   const { relAlias, compileStats } = compileTypes(representatives, rels, options);
  
-  return {rels, representatives, relAlias, compileStats};
+  return {rels, representatives, relAlias, compileStats, sourceDefs: defs};
 }
 annotate.doc = "Annotate all the script expressions with patterns";
 

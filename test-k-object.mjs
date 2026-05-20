@@ -11,6 +11,7 @@ import {
   compileLibraryBuffer,
   decodeObject,
   objectToFunction,
+  runConvergedObject,
   decompileObjectBuffer,
   extractAliasesFromObject
 } from "./object.mjs";
@@ -54,10 +55,30 @@ const objectBuffer = compileObjectBuffer(`
   $ int = < bits +, bits - >;
   {}|_|0|1|+ $int
 `);
-const objectFn = objectToFunction(decodeObject(objectBuffer));
+assert.equal(objectBuffer.subarray(0, 5).toString("utf8"), "KOBJ\n");
+const object = decodeObject(objectBuffer);
+assert.equal("version" in object, false);
+assert(Object.values(object.codes).every((code) => code.typeDerivation == null));
+assert.equal(JSON.stringify(object.codes).includes('"start"'), false);
+assert.equal(JSON.stringify(object.codes).includes('"end"'), false);
+assert.equal(JSON.stringify(object.meta).includes('"spans"'), false);
+assert(Object.values(object.rels).every((rel) =>
+  JSON.stringify(Object.keys(rel.typeDerivation || {}).sort()) === JSON.stringify(["status"]) &&
+  rel.typeDerivation.status === "converged"
+));
+assert.notEqual(object.rels.__main__.def.comp?.[0]?.op, "filter");
+assert.equal(JSON.stringify(object.rels.__main__.def).includes('"start"'), false);
+assert(object.meta[object.relAlias.__main__]?.origins?.some((origin) =>
+  origin.name === "__main__" && origin.start && origin.end
+));
+
+const objectFn = objectToFunction(object);
 const objectResult = objectFn(new Product({}));
 assert.deepEqual(objectResult.pattern, INT_PATTERN);
 assert.deepEqual(objectResult.toJSON(), { "+": { "1": { "0": "_" } } });
+const convergedObjectResult = runConvergedObject(object, new Product({}));
+assert.deepEqual(convergedObjectResult.pattern, INT_PATTERN);
+assert.deepEqual(convergedObjectResult.toJSON(), objectResult.toJSON());
 
 const decompiledSource = decompileObjectBuffer(objectBuffer);
 const decompiledResult = k.compile(decompiledSource)(new Product({}));
@@ -78,15 +99,28 @@ const sccSource = decompileObjectBuffer(compileObjectBuffer("c = {}; b = c |x; a
 assert.match(sccSource, /----- rels -----\nPQgV = .+\n\naQAD = .+\n\nN9UH = /s);
 assert.deepEqual(k.compile(sccSource)(new Product({})).toJSON(), { y: "x" });
 
-const library = decodeObject(compileLibraryBuffer("$ nat = <{} zero, nat succ>;\nsucc = |succ;\n", { source: "defs-only.k" }));
+const libraryBuffer = compileLibraryBuffer("$ nat = <{} zero, nat succ>;\nsucc = |succ;\n", { source: "defs-only.k" });
+assert.equal(libraryBuffer.subarray(0, 1).toString("utf8"), "{");
+const library = decodeObject(libraryBuffer);
+assert.equal("version" in library, false);
 assert.equal(library.main, null);
+assert(Object.values(library.codes).every((code) => code.typeDerivation == null));
+assert.equal(JSON.stringify(library.codes).includes('"start"'), false);
+assert.equal(JSON.stringify(library.codes).includes('"end"'), false);
+assert.equal(JSON.stringify(library.meta).includes('"spans"'), false);
+assert(Object.values(library.rels).every((rel) =>
+  JSON.stringify(Object.keys(rel.typeDerivation || {}).sort()) === JSON.stringify(["status"]) &&
+  rel.typeDerivation.status === "converged"
+));
+assert(Object.values(library.rels).every((rel) => rel.def.op !== "comp" || rel.def.comp[0]?.op !== "filter"));
 assert(Object.values(library.meta).some(({ type, origins }) =>
   type === "code" &&
   origins.some((origin) =>
     origin.source === "defs-only.k" &&
     origin.name === "nat" &&
-    JSON.stringify(Object.keys(origin).sort()) === JSON.stringify(["compiledAt", "name", "source"]) &&
-    typeof origin.compiledAt === "string"
+    typeof origin.compiledAt === "string" &&
+    origin.start &&
+    origin.end
   )
 ));
 assert(Object.values(library.meta).some(({ type, origins }) =>
@@ -94,8 +128,9 @@ assert(Object.values(library.meta).some(({ type, origins }) =>
   origins.some((origin) =>
     origin.source === "defs-only.k" &&
     origin.name === "succ" &&
-    JSON.stringify(Object.keys(origin).sort()) === JSON.stringify(["compiledAt", "name", "source"]) &&
-    typeof origin.compiledAt === "string"
+    typeof origin.compiledAt === "string" &&
+    origin.start &&
+    origin.end
   )
 ));
 
@@ -110,9 +145,25 @@ assert.match(derivedAliases, /^other = @/m);
 assert(derivedAliases.indexOf("$ nat = @") < derivedAliases.indexOf("other = @"));
 assert(derivedAliases.indexOf("other = @") < derivedAliases.indexOf("succ = @"));
 
+{
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const nonConverged = decodeObject(compileObjectBuffer("f = .x f; f", {
+      convergence: { strategy: "fixed_point", maxIterations: 1 }
+    }));
+    assert.equal(nonConverged.rels.__main__.typeDerivation.status, "not-converged");
+    assert.throws(
+      () => runConvergedObject(nonConverged, new Product({ x: new Product({}) })),
+      /type derivation is not-converged/
+    );
+  } finally {
+    console.warn = warn;
+  }
+}
+
 const aliasSnippet = extractAliasesFromObject({
   format: "k-object",
-  version: 2,
   codes: {},
   rels: {},
   meta: {

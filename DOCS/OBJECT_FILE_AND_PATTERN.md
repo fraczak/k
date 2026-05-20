@@ -82,29 +82,53 @@ type still needs design work because the concrete input value is typed by the
 decoded pattern. The important boundary is that object files should carry
 ordinary k values and patterns, not a JSON codec object.
 
-Later versions can add relation IR, constant tables, symbol dictionaries,
-relocation/linking records, optimization metadata, and optional indexes.
+The format can add relation IR, constant tables, symbol dictionaries,
+relocation/linking records, optimization metadata, and optional indexes as the
+implementation changes.
 
-## Executable Object Container v1
+## Object And Library Containers
 
-The current executable object format is a small binary container:
+The current executable `.ko` format is a small binary container:
 
 ```text
-"KOBJ" 0x00 0x01 0x0a
+"KOBJ" 0x0a
 uint32-be payload-byte-length
 utf8-json-payload
 ```
 
+Library files (`.klib`) are plain UTF-8 JSON with no binary header.
+
+Both containers use the same JSON payload shape. Executable `.ko` files set
+`main` to the entry relation name. Library `.klib` files set `main` to `null`.
+There is no payload version field.
+
 The payload stores:
 
 - the normalized code repository needed by the object,
-- the compiled relation IR,
+- the compiled relation IR without generated boundary filters,
 - each relation's type-pattern graph state,
+- each relation's `typeDerivation.status`,
+- relation aliases in `relAlias`,
+- compiler convergence details in top-level `compileStats`,
+- metadata, including aliases and origin source locations,
 - the main relation name.
 
+Relation `def` values do not store source `start` / `end` markers. Source
+locations live on `meta[hash].origins[]` entries. Each metadata entry has
+`type: "code"` or `type: "rel"`. Origin entries hold `source`, `name`,
+`compiledAt`, and optional `start` / `end`; origin entries do not have `kind`.
+
+Relation `def` values also do not store the generated input/output filters.
+Those filters are derived from `def.patterns` and `typePatternGraph` when
+printing or enforcing relation boundaries.
+
+Codes/types do not carry `typeDerivation`. Type derivation is a relation
+property, and the persisted `typeDerivation` object currently contains only
+`status`.
+
 Loading an object hydrates the type-pattern graphs back into runtime
-`TypePatternGraph` instances and executes them through `run.mjs`. This avoids
-source parsing and type derivation on the execution path.
+`TypePatternGraph` instances and executes relation boundaries through
+`run.mjs`. This avoids source parsing and type derivation on the execution path.
 
 Object execution through `k.mjs`:
 
@@ -120,10 +144,12 @@ Standalone helpers live in `objects/`:
 
 ```sh
 ./objects/compile.mjs path/to/program.k path/to/program.ko
+./objects/compile-lib.mjs path/to/library.k path/to/library.klib
 ./objects/decompile.mjs path/to/program.ko path/to/program.decompiled.k
+./objects/extract-aliases.mjs path/to/library.klib path/to/aliases.k
 ```
 
-With no arguments, both helpers read from stdin and write to stdout:
+With no arguments, the helpers read from stdin and write to stdout:
 
 ```sh
 cat path/to/program.k | ./objects/compile.mjs > path/to/program.ko
@@ -153,8 +179,8 @@ compile it with:
 The first bytes of `id.ko` are the binary container header:
 
 ```text
-4b 4f 42 4a 00 01 0a 00 00 03 0b ...
-K  O  B  J  \0 v1 \n payload-length
+4b 4f 42 4a 0a 00 00 03 0b ...
+K  O  B  J  \n payload-length
 ```
 
 After the header, the payload is UTF-8 JSON. Pretty-printed and shortened, the
@@ -163,59 +189,119 @@ payload has this shape:
 ```json
 {
   "format": "k-object",
-  "version": 1,
-  "codes": {
-    "@NiDZqYggx3VZ6b8quBZKTfkgJztWctkesuX4CrhTxM5c": {
-      "code": "product",
-      "product": {},
-      "def": "$C0={};"
+  "codes": {},
+  "main": "__main__",
+  "rels": {
+    "__main__": {
+      "def": { "op": "identity", "patterns": [0, 0] },
+      "typeDerivation": {
+        "status": "converged"
+      },
+      "typePatternGraph": {
+        "patterns": {
+          "nodes": [{ "pattern": "(...)", "fields": [] }],
+          "parent": []
+        },
+        "edges": [{}],
+        "codeId": {}
+      }
     }
   },
-  "main": "__main__",
-  "defs": {
-    "rels": {
-      "__main__": {
-        "def": {
-          "op": "filter",
-          "filter": { "type": null, "open": true, "fields": {}, "name": "X0" },
-          "patterns": [0, 0],
+  "relAlias": { "__main__": "@QfyLpmn56wuppuGvrrUJz8LKtgaXfbMtad7RnzBcFk2S" },
+  "compileStats": { "sccs": [...], "sccCount": 1 },
+  "meta": {
+    "@QfyLpmn56wuppuGvrrUJz8LKtgaXfbMtad7RnzBcFk2S": {
+      "type": "rel",
+      "origins": [
+        {
+          "source": "id.k",
+          "name": "__main__",
+          "compiledAt": "2026-05-20T00:00:00.000Z",
           "start": { "line": 1, "column": 1 },
           "end": { "line": 1, "column": 3 }
-        },
-        "typePatternGraph": {
-          "patterns": {
-            "nodes": [{ "pattern": "(...)", "fields": [] }],
-            "parent": []
-          },
-          "edges": [{}],
-          "codeId": {}
         }
-      }
-    },
-    "representatives": {},
-    "relAlias": { "__main__": "..." },
-    "compileStats": { "sccs": [...], "sccCount": 1 }
+      ]
+    }
   }
 }
 ```
 
 The `codes` field is the type repository snapshot needed by this object. The
-`defs.rels.__main__.def` field is the executable relation IR. The
+`rels.__main__.def` field is the executable relation body. The
 `typePatternGraph` field is the compiled pattern graph used by `run.mjs` for
-input-envelope refinement. Loading the object reconstructs live
+relation-boundary refinement. Loading the object reconstructs live
 `TypePatternGraph` instances from this JSON state and then evaluates the input
-value directly against the compiled IR.
+value against the compiled IR.
 
 Decompiling this object produces canonical source with generated prefix names:
 
 ```k
 ----- codes -----
-$ NiDZ = {};
 ----- rels -----
-QfyL = ?X0;
+QfyL = ?(...) () ?(...);
 ----- main -----
 ?(...) QfyL ?(...)
 ```
 
 In the `rels` section, relation definitions are printed in the same SCC order
 recorded during compilation. Non-empty SCC groups are separated by a blank line.
+
+## Small Library Example
+
+For a definitions-only source file:
+
+```k
+-- defs.k
+$ nat = <{} zero, nat succ>;
+succ = |succ;
+```
+
+compile it with:
+
+```sh
+./objects/compile-lib.mjs defs.k defs.klib
+```
+
+The output file is plain JSON and starts with `{`, not a binary prefix. Its
+shape is the same object payload shape with `main: null`:
+
+```json
+{
+  "format": "k-object",
+  "codes": {
+    "@...": {
+      "code": "union",
+      "union": { "zero": "@...", "succ": "@..." },
+      "def": "$C0=<C1\"succ\",C2\"zero\">;..."
+    }
+  },
+  "rels": {
+    "@...": {
+      "def": { "op": "vid", "vid": "succ", "patterns": [0, 1] },
+      "typeDerivation": { "status": "converged" },
+      "typePatternGraph": { "patterns": "...", "edges": "...", "codeId": "..." }
+    }
+  },
+  "relAlias": { "succ": "@..." },
+  "compileStats": { "sccs": [...], "sccCount": 1 },
+  "meta": {
+    "@...": {
+      "type": "rel",
+      "origins": [
+        {
+          "source": "defs.k",
+          "name": "succ",
+          "compiledAt": "2026-05-20T00:00:00.000Z",
+          "start": { "line": 3, "column": 8 },
+          "end": { "line": 3, "column": 13 }
+        }
+      ]
+    }
+  },
+  "main": null
+}
+```
+
+When a library is compiled with `--lib`, the output is the merged library
+closure. Imported codes, relations, aliases, and metadata are preserved, and the
+new source adds its own origins.

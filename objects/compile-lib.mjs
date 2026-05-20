@@ -6,13 +6,14 @@ import { compileLibraryBuffer, decodeObject, loadLibrary } from "../object.mjs";
 
 function helpText() {
   return [
-    "Compile a k source file into a .klib library object.",
+    "Compile a k source file into a plain-JSON .klib library object.",
+    "The library records type-derivation convergence for each stored relation.",
     "",
     `Usage: ${argv[1]} [ --lib lib-file ]... [ k-file [ lib-file ] ]`,
     "",
     "Arguments:",
     "  k-file    Source .k file to compile. Reads UTF-8 source from stdin when omitted.",
-    "  lib-file  Output .klib path. Writes binary library data to stdout when omitted.",
+    "  lib-file  Output .klib path. Writes plain JSON library data to stdout when omitted.",
     "",
     "Options:",
     "  --lib file   Load a .klib dependency before compiling. May be repeated.",

@@ -19,7 +19,8 @@ import {
   encodeObject,
   encodeLibrary,
   hydrateObject,
-  loadLibrary
+  loadLibrary,
+  prettyRelation
 } from "./object.mjs";
 import { propertyListToFilter, valueToK, valueWithEnvelopeToK } from "./codecs/runtime/show-value.mjs";
 
@@ -58,7 +59,6 @@ function createState() {
 function stateLibrary(state) {
   return {
     format: "k-object",
-    version: 2,
     codes: state.codes,
     rels: state.rels,
     relAlias: state.relAliases,
@@ -149,11 +149,7 @@ function mergeMeta(state, meta = {}) {
     const entryType = entry?.type;
     if (!state.meta[hash]) state.meta[hash] = { type: entryType, origins: [] };
     if (state.meta[hash].type == null && entryType != null) state.meta[hash].type = entryType;
-    state.meta[hash].origins.push(...origins.map(({ source, name, compiledAt }) => ({
-      source,
-      name,
-      ...(compiledAt == null ? {} : { compiledAt })
-    })));
+    state.meta[hash].origins.push(...origins.map((origin) => ({ ...origin })));
   }
 }
 
@@ -220,7 +216,6 @@ function savedLibrary(state) {
   }
   return {
     format: "k-object",
-    version: 2,
     codes: state.codes,
     rels: state.rels,
     relAlias: state.relAliases,
@@ -289,6 +284,16 @@ function userDefinedNames(source) {
   };
 }
 
+function originFromSourceNode(source, name, compiledAt, node) {
+  return {
+    source,
+    name,
+    compiledAt,
+    ...(node?.start ? { start: node.start } : {}),
+    ...(node?.end ? { end: node.end } : {})
+  };
+}
+
 function libraryOriginsFromSource(source, fullSource, lib, options) {
   const { typeNames, relNames } = userDefinedNames(source);
   const annotated = annotateWithOptionalIdentity(fullSource, options);
@@ -299,7 +304,12 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
     const hash = annotated.representatives?.[name];
     if (!hash) continue;
     if (!meta[hash]) meta[hash] = { type: "code", origins: [] };
-    meta[hash].origins.push({ source: options.source || null, name, compiledAt: now });
+    meta[hash].origins.push(originFromSourceNode(
+      options.source || null,
+      name,
+      now,
+      annotated.sourceDefs?.codes?.[name]
+    ));
   }
 
   const relAlias = Object.fromEntries(
@@ -310,7 +320,12 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
 
   for (const [name, hash] of Object.entries(relAlias)) {
     if (!meta[hash]) meta[hash] = { type: "rel", origins: [] };
-    meta[hash].origins.push({ source: options.source || null, name, compiledAt: now });
+    meta[hash].origins.push(originFromSourceNode(
+      options.source || null,
+      name,
+      now,
+      annotated.rels?.[name]?.def
+    ));
   }
 
   return { relAlias, meta };
@@ -788,7 +803,7 @@ async function evaluateCommand(line, state) {
       if (!arg) throw new Error(`${usagePrefix}d requires a relation name`);
       const { hash, rel } = resolveRel(state, arg);
       if (!rel) throw new Error(`Unknown relation '${arg}'`);
-      return [`${arg} = ${prettyRel(rel.def)};  -- ${hash}`];
+      return [`${arg} = ${prettyRelation(rel)};  -- ${hash}`];
     }
     case "C": {
       if (!arg) throw new Error(`${usagePrefix}C requires a type name`);

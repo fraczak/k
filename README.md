@@ -305,8 +305,14 @@ patterns and `k-pattern`, see [DOCS/PATTERNS.md](DOCS/PATTERNS.md).
 
 The object toolchain is documented in [objects/README.md](objects/README.md).
 
-- `.klib` stores compiled library state: codes, relations, aliases, metadata
-- `.ko` stores an executable object with a main expression
+- `.klib` is plain JSON. It has `format: "k-object"`, `main: null`,
+  `codes`, canonical hashed `rels`, `relAlias`, `compileStats`, and `meta`.
+- `.ko` is a binary `KOBJ\n` container around the same JSON payload shape, with
+  `main: "__main__"` for the executable entry relation.
+- Relation `typeDerivation` stores only `status`.
+- Source locations live only in `meta[hash].origins[]` entries as `start` and
+  `end`; definitions do not carry parser locations.
+- Relation definitions do not store generated input/output boundary filters.
 
 Typical CLI usage:
 

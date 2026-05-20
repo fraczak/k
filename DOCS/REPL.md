@@ -8,6 +8,7 @@ The interpreter keeps a live `.klib`-style state in memory:
 - registered codes
 - compiled relations
 - human aliases for both
+- metadata origins used to recover aliases
 - the current value flowing through the session
 
 Raw k snippets compile on top of that state. You can also export the current
@@ -142,15 +143,16 @@ the file unless `--no-alias` is used.
 
 ### `:load [--no-alias] file.klib`
 
-Decodes the library file and merges its codes, relations, and metadata into the
-session. Aliases are recovered from library metadata unless `--no-alias` is
-used.
+Reads the plain-JSON library file and merges its codes, relations, aliases, and
+metadata into the session. Aliases are recovered from `meta[hash].origins[]`
+unless `--no-alias` is used.
 
 ## Export
 
 ### `:klib file`
 
-Writes the current interpreter state as a `.klib` library.
+Writes the current interpreter state as a plain-JSON `.klib` library. The
+library has `main: null`; it has no binary header and no object payload version.
 
 ### `:ko file expr`
 

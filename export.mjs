@@ -54,7 +54,7 @@ export function simplifyRel(relDef,rels) {
   const newRel = prune(rel);
   let resultRel = {...newRel};
   if (newRel.op == "identity")
-    return {...resultRel, ...filters[0]}; 
+    return {...resultRel, ...filters[0], start: rel.start, end: rel.end};
 
   if (newRel.op == "comp") { 
     resultRel.comp = [ filters[0], ...newRel.comp, filters[1] ];

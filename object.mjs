@@ -1,11 +1,10 @@
 import { annotate } from "./index.mjs";
-import run from "./run.mjs";
+import run, { run_rel, run_converged } from "./run.mjs";
 import codes from "./codes.mjs";
 import { TypePatternGraph } from "./TypePatternGraph.mjs";
 import { patterns2filters, prettyRel } from "./pretty.mjs";
 
-const MAGIC = Buffer.from([0x4b, 0x4f, 0x42, 0x4a, 0x00, 0x01, 0x0a]);
-const LIB_MAGIC = Buffer.from([0x4b, 0x4c, 0x49, 0x42, 0x00, 0x01, 0x0a]);
+const OBJECT_MAGIC = Buffer.from("KOBJ\n");
 
 function serializeTypePatternGraph(typePatternGraph) {
   return {
@@ -27,9 +26,11 @@ function hydrateTypePatternGraph(serialized) {
   return graph;
 }
 
-function serializeRelation(rel) {
+function serializeRelation(rel, typeDerivation = rel.typeDerivation) {
+  const def = stripDebugFieldsFromExp(stripRelationBoundaryFilters(rel.def, rel.typePatternGraph));
   return {
-    ...rel,
+    def,
+    ...(typeDerivation ? { typeDerivation } : {}),
     typePatternGraph: serializeTypePatternGraph(rel.typePatternGraph)
   };
 }
@@ -42,22 +43,17 @@ function hydrateRelation(rel) {
 }
 
 function serializeAnnotated(annotated) {
+  const typeDerivations = buildRelTypeDerivations(annotated.rels, annotated.compileStats);
   return {
     rels: Object.fromEntries(
-      Object.entries(annotated.rels).map(([name, rel]) => [name, serializeRelation(rel)])
+      Object.entries(annotated.rels).map(([name, rel]) => [
+        name,
+        serializeRelation(rel, typeDerivations[name])
+      ])
     ),
     representatives: annotated.representatives,
     relAlias: annotated.relAlias,
     compileStats: annotated.compileStats
-  };
-}
-
-function hydrateAnnotated(serialized) {
-  return {
-    ...serialized,
-    rels: Object.fromEntries(
-      Object.entries(serialized.rels).map(([name, rel]) => [name, hydrateRelation(rel)])
-    )
   };
 }
 
@@ -86,6 +82,207 @@ function addOrigin(meta, hash, type, origin) {
   meta[hash].origins.push(origin);
 }
 
+const TYPE_DERIVATION_STATUSES = new Set(["converged", "not-converged", "unknown"]);
+
+function validTypeDerivationStatus(status) {
+  return TYPE_DERIVATION_STATUSES.has(status) ? status : "unknown";
+}
+
+function compileStatsByRelName(compileStats = {}) {
+  const byName = {};
+  for (const scc of compileStats.sccs || []) {
+    for (const member of scc.members || []) {
+      byName[member] = scc;
+    }
+  }
+  return byName;
+}
+
+function samePatternId(typePatternGraph, left, right) {
+  return typePatternGraph.find(left) === typePatternGraph.find(right);
+}
+
+function isBoundaryFilter(exp, typePatternGraph, patternId) {
+  return exp?.op === "filter" &&
+    exp.patterns?.length === 2 &&
+    samePatternId(typePatternGraph, exp.patterns[0], patternId) &&
+    samePatternId(typePatternGraph, exp.patterns[1], patternId);
+}
+
+function stripRelationBoundaryFilters(exp, typePatternGraph = null) {
+  if (!exp) return exp;
+  if (typePatternGraph == null) {
+    return exp;
+  }
+  const [inputPattern, outputPattern] = exp.patterns || [];
+  if (inputPattern == null || outputPattern == null) return exp;
+
+  if (isBoundaryFilter(exp, typePatternGraph, inputPattern) && samePatternId(typePatternGraph, inputPattern, outputPattern)) {
+    return {
+      op: "identity",
+      patterns: [...exp.patterns],
+      ...(exp.start ? { start: exp.start } : {}),
+      ...(exp.end ? { end: exp.end } : {})
+    };
+  }
+
+  if (exp.op !== "comp") return exp;
+  let parts = exp.comp || [];
+  if (parts.length > 0 && isBoundaryFilter(parts[0], typePatternGraph, inputPattern)) {
+    parts = parts.slice(1);
+  }
+  if (parts.length > 0 && isBoundaryFilter(parts[parts.length - 1], typePatternGraph, outputPattern)) {
+    parts = parts.slice(0, -1);
+  }
+  if (parts.length === (exp.comp || []).length) return exp;
+  if (parts.length === 0) {
+    return {
+      op: "identity",
+      patterns: [...exp.patterns],
+      ...(exp.start ? { start: exp.start } : {}),
+      ...(exp.end ? { end: exp.end } : {})
+    };
+  }
+  if (parts.length === 1) return { ...parts[0], patterns: [...exp.patterns] };
+  return { ...exp, comp: parts };
+}
+
+function stripDebugFieldsFromFilter(filter) {
+  if (!filter) return filter;
+  const { start, end, fields, ...rest } = filter;
+  if (!fields) return rest;
+  return {
+    ...rest,
+    fields: Object.fromEntries(
+      Object.entries(fields).map(([label, child]) => [label, stripDebugFieldsFromFilter(child)])
+    )
+  };
+}
+
+function stripDebugFieldsFromExp(exp) {
+  if (!exp) return exp;
+  const { start, end, ...rest } = exp;
+  switch (rest.op) {
+    case "filter":
+      return { ...rest, filter: stripDebugFieldsFromFilter(rest.filter) };
+    case "comp":
+      return { ...rest, comp: rest.comp.map(stripDebugFieldsFromExp) };
+    case "union":
+      return { ...rest, union: rest.union.map(stripDebugFieldsFromExp) };
+    case "product":
+      return {
+        ...rest,
+        product: rest.product.map(({ label, exp: child }) => ({
+          label,
+          exp: stripDebugFieldsFromExp(child)
+        }))
+      };
+    default:
+      return rest;
+  }
+}
+
+function stripDebugFieldsFromCode(code) {
+  if (!code) return code;
+  const { start, end, ...rest } = code;
+  return rest;
+}
+
+function stripDebugFieldsFromCodes(codeTable) {
+  return Object.fromEntries(
+    Object.entries(codeTable || {}).map(([hash, code]) => [hash, stripDebugFieldsFromCode(code)])
+  );
+}
+
+function firstFilterSourceRange(filter) {
+  if (!filter) return null;
+  if (filter.start || filter.end) {
+    return {
+      ...(filter.start ? { start: filter.start } : {}),
+      ...(filter.end ? { end: filter.end } : {})
+    };
+  }
+  for (const child of Object.values(filter.fields || {})) {
+    const range = firstFilterSourceRange(child);
+    if (range) return range;
+  }
+  return null;
+}
+
+function firstExpSourceRange(exp) {
+  if (!exp) return null;
+  if (exp.start || exp.end) {
+    return {
+      ...(exp.start ? { start: exp.start } : {}),
+      ...(exp.end ? { end: exp.end } : {})
+    };
+  }
+  switch (exp.op) {
+    case "filter":
+      return firstFilterSourceRange(exp.filter);
+    case "comp":
+      for (const child of exp.comp) {
+        const range = firstExpSourceRange(child);
+        if (range) return range;
+      }
+      return null;
+    case "union":
+      for (const child of exp.union) {
+        const range = firstExpSourceRange(child);
+        if (range) return range;
+      }
+      return null;
+    case "product":
+      for (const { exp: child } of exp.product) {
+        const range = firstExpSourceRange(child);
+        if (range) return range;
+      }
+      return null;
+    default:
+      return null;
+  }
+}
+
+function originFromSourceNode(source, name, compiledAt, node) {
+  return {
+    source,
+    name,
+    compiledAt,
+    ...(node?.start ? { start: node.start } : {}),
+    ...(node?.end ? { end: node.end } : {})
+  };
+}
+
+function relationOrigin(source, name, compiledAt, rel) {
+  const printableDef = stripRelationBoundaryFilters(rel.def, rel.typePatternGraph);
+  const range = firstExpSourceRange(printableDef);
+  return {
+    source,
+    name,
+    compiledAt,
+    ...(range?.start ? { start: range.start } : {}),
+    ...(range?.end ? { end: range.end } : {})
+  };
+}
+
+function buildRelTypeDerivation(rel, sccStats) {
+  const existing = rel?.typeDerivation || {};
+  const status = sccStats
+    ? (sccStats.converged ? "converged" : "not-converged")
+    : validTypeDerivationStatus(existing.status);
+  return { status };
+}
+
+function buildRelTypeDerivations(rels, compileStats) {
+  const statsByName = compileStatsByRelName(compileStats);
+  return Object.fromEntries(
+    Object.entries(rels || {}).map(([name, rel]) => [
+      name,
+      buildRelTypeDerivation(rel, statsByName[name])
+    ])
+  );
+}
+
 function mergeMetaEntries(...metas) {
   const merged = {};
   for (const meta of metas) {
@@ -94,11 +291,7 @@ function mergeMetaEntries(...metas) {
       if (type !== "code" && type !== "rel") continue;
       for (const origin of entry.origins || []) {
         if (!origin?.name) continue;
-        addOrigin(merged, hash, type, {
-          ...(origin.source == null ? {} : { source: origin.source }),
-          name: origin.name,
-          ...(origin.compiledAt == null ? {} : { compiledAt: origin.compiledAt })
-        });
+        addOrigin(merged, hash, type, { ...origin });
       }
     }
   }
@@ -113,13 +306,20 @@ function buildMeta(annotated, source) {
 
   for (const [name, hash] of Object.entries(representatives)) {
     if (!isSourceName(name)) continue;
-    addOrigin(meta, hash, "code", { source, name, compiledAt: now });
+    addOrigin(meta, hash, "code", originFromSourceNode(
+      source,
+      name,
+      now,
+      annotated.sourceDefs?.codes?.[name]
+    ));
   }
 
   for (const [name, hash] of Object.entries(relAlias)) {
-    if (name === "__main__") continue;
-    if (!isSourceName(name)) continue;
-    addOrigin(meta, hash, "rel", { source, name, compiledAt: now });
+    const rel = annotated.rels?.[name];
+    if (!rel) continue;
+    if (name === "__main__" || isSourceName(name)) {
+      addOrigin(meta, hash, "rel", relationOrigin(source, name, now, rel));
+    }
   }
   return meta;
 }
@@ -196,7 +396,7 @@ function collectReachable(mainName, rels, allCodes) {
     const rel = rels[relName];
     if (rel.typePatternGraph) {
       const codeId = rel.typePatternGraph.codeId || (rel.typePatternGraph.codeId);
-      if (codeId) Object.values(codeId).forEach(walkCode);
+      if (codeId) Object.keys(codeId).forEach(walkCode);
     }
   }
 
@@ -205,7 +405,7 @@ function collectReachable(mainName, rels, allCodes) {
 
 function compileObject(script, options = {}) {
   const annotated = annotate(script, options);
-  const allCodes = codes.dump();
+  const allCodes = stripDebugFieldsFromCodes(codes.dump());
   const serialized = serializeAnnotated(annotated);
   const meta = mergeMetaEntries(
     importedLibraryMeta(options.libraries),
@@ -220,13 +420,15 @@ function compileObject(script, options = {}) {
   const prunedRels = Object.fromEntries(
     Object.entries(serialized.rels).filter(([name]) => reachableRels.has(name))
   );
+  const reachableRelHashes = new Set(
+    [...reachableRels].map((name) => serialized.relAlias?.[name] || name)
+  );
   const prunedMeta = Object.fromEntries(
-    Object.entries(meta).filter(([h]) => reachableRels.has(h) || reachableCodes.has(h))
+    Object.entries(meta).filter(([h]) => reachableRels.has(h) || reachableRelHashes.has(h) || reachableCodes.has(h))
   );
 
   return {
     format: "k-object",
-    version: 2,
     codes: prunedCodes,
     rels: prunedRels,
     relAlias: serialized.relAlias,
@@ -260,6 +462,7 @@ function rewriteRefsToCanonical(exp, relAlias) {
 
 function compileLibrary(script, options = {}) {
   const annotated = annotateLibrary(script, options);
+  const allCodes = stripDebugFieldsFromCodes(codes.dump());
   const serialized = serializeAnnotated(annotated);
   const meta = mergeMetaEntries(
     importedLibraryMeta(options.libraries),
@@ -278,15 +481,21 @@ function compileLibrary(script, options = {}) {
       def: rewriteRefsToCanonical(rel.def, relAlias)
     };
   }
+  const libraryMetaHashes = new Set([
+    ...Object.keys(allCodes),
+    ...Object.keys(libRels)
+  ]);
+  const libMeta = Object.fromEntries(
+    Object.entries(meta).filter(([hash]) => libraryMetaHashes.has(hash))
+  );
 
   return {
     format: "k-object",
-    version: 2,
-    codes: codes.dump(),
+    codes: allCodes,
     rels: libRels,
     relAlias: serialized.relAlias,
     compileStats: serialized.compileStats,
-    meta,
+    meta: libMeta,
     main: null
   };
 }
@@ -295,15 +504,6 @@ function hydrateObject(object) {
   if (object?.format !== "k-object") {
     throw new Error("Unsupported k object file");
   }
-  // v1 compat: defs wrapper
-  if (object.version === 1) {
-    codes.load(object.codes);
-    return {
-      ...object,
-      defs: hydrateAnnotated(object.defs)
-    };
-  }
-  // v2: flat rels
   codes.load(object.codes);
   const hydratedRels = Object.fromEntries(
     Object.entries(object.rels).map(([name, rel]) => [name, hydrateRelation(rel)])
@@ -320,25 +520,23 @@ function loadLibrary(object) {
 }
 
 function isHydratedObject(object) {
-  // v2 format
   if (object?.rels) {
     const firstRel = Object.values(object.rels)[0];
     return firstRel?.typePatternGraph instanceof TypePatternGraph;
   }
-  // v1 format
-  return object?.defs?.rels?.[object.main]?.typePatternGraph instanceof TypePatternGraph;
+  return false;
 }
 
 function encodeObject(object) {
-  const magic = object.main == null ? LIB_MAGIC : MAGIC;
+  if (object.main == null) return encodeLibrary(object);
   const payload = Buffer.from(JSON.stringify(object), "utf8");
   if (payload.length > 0xffffffff) {
     throw new Error("k object payload is too large");
   }
 
-  const header = Buffer.alloc(magic.length + 4);
-  magic.copy(header, 0);
-  header.writeUInt32BE(payload.length, magic.length);
+  const header = Buffer.alloc(OBJECT_MAGIC.length + 4);
+  OBJECT_MAGIC.copy(header, 0);
+  header.writeUInt32BE(payload.length, OBJECT_MAGIC.length);
   return Buffer.concat([header, payload]);
 }
 
@@ -346,15 +544,16 @@ function decodeObject(buffer) {
   if (!Buffer.isBuffer(buffer)) {
     throw new Error("k object input must be a Buffer");
   }
-  const isObj = buffer.length >= MAGIC.length && buffer.subarray(0, MAGIC.length).equals(MAGIC);
-  const isLib = buffer.length >= LIB_MAGIC.length && buffer.subarray(0, LIB_MAGIC.length).equals(LIB_MAGIC);
-  if (!isObj && !isLib) {
+  const trimmed = buffer.toString("utf8").trimStart();
+  if (trimmed.startsWith("{")) {
+    return hydrateObject(JSON.parse(trimmed));
+  }
+  if (buffer.length < OBJECT_MAGIC.length || !buffer.subarray(0, OBJECT_MAGIC.length).equals(OBJECT_MAGIC)) {
     throw new Error("Invalid k object file header");
   }
 
-  const magic = isLib ? LIB_MAGIC : MAGIC;
-  const length = buffer.readUInt32BE(magic.length);
-  const payloadStart = magic.length + 4;
+  const length = buffer.readUInt32BE(OBJECT_MAGIC.length);
+  const payloadStart = OBJECT_MAGIC.length + 4;
   const payloadEnd = payloadStart + length;
   if (payloadEnd !== buffer.length) {
     throw new Error("Invalid k object file length");
@@ -364,7 +563,7 @@ function decodeObject(buffer) {
 }
 
 function encodeLibrary(object) {
-  return encodeObject(object);
+  return Buffer.from(JSON.stringify(object), "utf8");
 }
 
 function decodeLibrary(buffer) {
@@ -380,25 +579,47 @@ function compileObjectBuffer(script, options = {}) {
 }
 
 function compileLibraryBuffer(script, options = {}) {
-  return encodeObject(compileLibrary(script, options));
+  return encodeLibrary(compileLibrary(script, options));
 }
 
 function getRels(hydrated) {
-  // v2: flat rels; v1: defs.rels
-  return hydrated.rels || hydrated.defs?.rels;
+  return hydrated.rels;
 }
 
 function runObject(object, value) {
   const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
   const rels = getRels(hydrated);
-  run.defs = hydrated.defs || { rels };
+  run.defs = { rels };
   const mainRel = rels[hydrated.main];
-  return run(codes.find, mainRel.def, value, mainRel.typePatternGraph);
+  return run_rel(codes.find, mainRel, value, hydrated.main);
 }
 
 function objectToFunction(object) {
   const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
   return (value) => runObject(hydrated, value);
+}
+
+function assertRelConverged(rel, name) {
+  const status = rel?.typeDerivation?.status || "unknown";
+  if (status !== "converged") {
+    throw new Error(`Cannot run '${name}' without envelopes: type derivation is ${status}`);
+  }
+}
+
+function runConvergedObject(object, value) {
+  const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
+  const rels = getRels(hydrated);
+  const mainRel = rels[hydrated.main];
+  assertRelConverged(mainRel, hydrated.main);
+  run_converged.defs = { rels };
+  return run_converged(codes.find, mainRel.def, value, mainRel.typePatternGraph, {
+    requireConverged: true
+  });
+}
+
+function objectToConvergedFunction(object) {
+  const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
+  return (value) => runConvergedObject(hydrated, value);
 }
 
 function hashAlias(hash) {
@@ -486,10 +707,23 @@ function boundaryFilterSource(typePatternGraph, patternId, aliases) {
   return prettyRel({ op: "filter", filter: rewriteCodesInFilter(filter, aliases) });
 }
 
+function prettyRelation(rel, aliases = {}, relAliases = {}) {
+  const body = rewriteRefsInExp(
+    stripRelationBoundaryFilters(stripDebugFieldsFromExp(rel.def), rel.typePatternGraph),
+    aliases,
+    relAliases
+  );
+  return [
+    boundaryFilterSource(rel.typePatternGraph, rel.def.patterns[0], aliases),
+    prettyRel(body),
+    boundaryFilterSource(rel.typePatternGraph, rel.def.patterns[1], aliases)
+  ].join(" ");
+}
+
 function decompileObject(object) {
   const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
   const rels = getRels(hydrated);
-  const relAliases = hydrated.defs?.relAlias || hydrated.relAlias || {};
+  const relAliases = hydrated.relAlias || {};
   const aliases = shortestUniqueAliases([
     ...Object.keys(hydrated.codes),
     ...Object.values(relAliases)
@@ -505,9 +739,9 @@ function decompileObject(object) {
     const relName = relAliases[name] || name;
     if (emittedRelAliases.has(relName)) return null;
     emittedRelAliases.add(relName);
-    return `${aliases[relName] || relName} = ${prettyRel(rewriteRefsInExp(rel.def, aliases, relAliases))};`;
+    return `${aliases[relName] || relName} = ${prettyRelation(rel, aliases, relAliases)};`;
   };
-  const compileStats = hydrated.defs?.compileStats || hydrated.compileStats;
+  const compileStats = hydrated.compileStats;
   const sccs = compileStats?.sccs || [];
   const relGroups = sccs.map(({ members }) =>
     members.map(relDefForName).filter((line) => line != null)
@@ -592,6 +826,7 @@ function extractAliasesFromObject(object) {
     if (type !== "code" && type !== "rel") continue;
     const typeOrder = type === "code" ? 0 : 1;
     for (const origin of entry.origins || []) {
+      if (origin?.name === "__main__") continue;
       if (!origin?.name || !isSourceName(origin.name)) continue;
       entries.push({
         type,
@@ -644,7 +879,10 @@ export {
   hydrateObject,
   loadLibrary,
   runObject,
+  runConvergedObject,
   objectToFunction,
+  objectToConvergedFunction,
+  prettyRelation,
   decompileObject,
   decompileObjectBuffer,
   extractAliasesFromObject,
@@ -663,7 +901,10 @@ export default {
   hydrateObject,
   loadLibrary,
   runObject,
+  runConvergedObject,
   objectToFunction,
+  objectToConvergedFunction,
+  prettyRelation,
   decompileObject,
   decompileObjectBuffer,
   extractAliasesFromObject,

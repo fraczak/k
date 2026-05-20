@@ -7,6 +7,7 @@ import { compileObjectBuffer, decodeObject, loadLibrary } from "../object.mjs";
 function helpText() {
   return [
     "Compile a k source file into an executable .ko object.",
+    "The object records type-derivation convergence for each stored relation.",
     "",
     `Usage: ${argv[1]} [ --lib lib-file ]... [ k-file [ object-file ] ]`,
     "",

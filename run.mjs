@@ -166,7 +166,7 @@ function compiledExp(findCode, exp, typePatternGraph) {
       {
         const defn = run.defs.rels[exp.ref];
         if (defn != undefined) {
-          const refFn = compiledExp(findCode, defn.def, defn.typePatternGraph);
+          const refFn = compiledRel(findCode, defn, exp.ref);
           fn = (value) => {
             return value === undefined ? undefined : refFn(value);
           };
@@ -266,6 +266,161 @@ function compiledExp(findCode, exp, typePatternGraph) {
   return compiled.fn;
 }
 
+function compiledRel(findCode, relDef, name = "<anonymous>") {
+  const cached = relDef._compiledRunRel;
+  if (cached?.findCode === findCode && cached?.defs === run.defs) {
+    return cached.fn;
+  }
+
+  const compiled = {
+    findCode,
+    defs: run.defs,
+    target: null,
+    fn(value) {
+      return compiled.target(value);
+    }
+  };
+  relDef._compiledRunRel = compiled;
+
+  const exp = relDef.def;
+  const typePatternGraph = relDef.typePatternGraph || null;
+  const inputPattern = staticPattern(typePatternGraph, exp, 0);
+  const staticOutputPattern = outputPattern(typePatternGraph, exp);
+  const bodyFn = compiledExp(findCode, exp, typePatternGraph);
+
+  compiled.target = (value) => {
+    if (value === undefined) return undefined;
+    value = constrainWithPattern(value, inputPattern, exp);
+    const result = bodyFn(value);
+    if (result === undefined) return undefined;
+    try {
+      return constrainWithPattern(result, staticOutputPattern, exp);
+    } catch (error) {
+      error.message = `Type Error in output of '${name}'\n - ${error.message}`;
+      throw error;
+    }
+  };
+  return compiled.fn;
+}
+
+function assertConvergedRel(rel, name) {
+  const status = rel?.typeDerivation?.status || "unknown";
+  if (status !== "converged") {
+    throw new Error(`Cannot run '${name}' without envelopes: type derivation is ${status}`);
+  }
+}
+
+function compiledConvergedExp(findCode, exp, typePatternGraph, options = {}) {
+  const requireConverged = options.requireConverged === true;
+  const cached = exp._compiledConvergedRun;
+  if (
+    cached?.findCode === findCode &&
+    cached?.typePatternGraph === typePatternGraph &&
+    cached?.defs === run_converged.defs &&
+    cached?.requireConverged === requireConverged
+  ) {
+    return cached.fn;
+  }
+
+  const compiled = {
+    findCode,
+    typePatternGraph,
+    defs: run_converged.defs,
+    requireConverged,
+    target: null,
+    fn(value) {
+      return compiled.target(value);
+    }
+  };
+  exp._compiledConvergedRun = compiled;
+
+  let fn;
+  switch (exp.op) {
+    case "code":
+    case "filter":
+    case "identity":
+      fn = (value) => value;
+      break;
+    case "ref":
+      {
+        const defn = run_converged.defs?.rels?.[exp.ref];
+        if (defn != undefined) {
+          if (requireConverged) assertConvergedRel(defn, exp.ref);
+          const refFn = compiledConvergedExp(findCode, defn.def, defn.typePatternGraph, options);
+          fn = (value) => value === undefined ? undefined : refFn(value);
+        } else {
+          const builtin_func = builtin[exp.ref];
+          if (builtin_func != null) {
+            fn = (value) => value === undefined ? undefined : builtin_func(value);
+          } else {
+            fn = () => {
+              throw(`Unknown ref: '${exp.ref}'`);
+            };
+          }
+        }
+      }
+      break;
+    case "dot":
+      fn = (value) => {
+        if (value === undefined || !(value instanceof Product)) return undefined;
+        return Object.hasOwn(value.product, exp.dot) ? value.product[exp.dot] : undefined;
+      };
+      break;
+    case "div":
+      fn = (value) => {
+        if (value === undefined || !(value instanceof Variant) || value.tag !== exp.div) return undefined;
+        return value.value;
+      };
+      break;
+    case "comp": {
+      const parts = exp.comp.map((part) => compiledConvergedExp(findCode, part, typePatternGraph, options));
+      fn = (value) => {
+        for (let i = 0, len = parts.length; i < len; i++) {
+          value = parts[i](value);
+          if (value === undefined) return undefined;
+        }
+        return value;
+      };
+      break;
+    }
+    case "union": {
+      const parts = exp.union.map((part) => compiledConvergedExp(findCode, part, typePatternGraph, options));
+      fn = (value) => {
+        if (value === undefined) return undefined;
+        for (let i = 0, len = parts.length; i < len; i++) {
+          const result = parts[i](value);
+          if (result !== undefined) return result;
+        }
+        return undefined;
+      };
+      break;
+    }
+    case "product": {
+      const labels = exp.product.map(({ label }) => label);
+      const fieldFns = exp.product.map(({ exp: e }) => compiledConvergedExp(findCode, e, typePatternGraph, options));
+      fn = (value) => {
+        if (value === undefined) return undefined;
+        const result = {};
+        for (let i = 0, len = labels.length; i < len; i++) {
+          const r = fieldFns[i](value);
+          if (r === undefined) return undefined;
+          result[labels[i]] = r;
+        }
+        return new Product(result);
+      };
+      break;
+    }
+    case "vid":
+      fn = (value) => value === undefined ? undefined : new Variant(exp.vid, value);
+      break;
+    default:
+      assert(false,`Unknown operation: '${exp.op}'`);
+  }
+
+  compiled.target = fn;
+  return compiled.fn;
+}
+
 function verify(findCode, code, value) {
   "use strict";
   if (code == null) return false;
@@ -296,7 +451,22 @@ function run(findCode, exp, value, typePatternGraph) {
   return compiledExp(findCode, exp, typePatternGraph || null)(value);
 }
 
+function run_rel(findCode, relDef, value, name) {
+  return compiledRel(findCode, relDef, name)(value);
+}
+
+function run_converged(findCode, exp, value, typePatternGraph, options = {}) {
+  const graph = typePatternGraph || null;
+  const result = compiledConvergedExp(findCode, exp, graph, options)(value);
+  if (result === undefined) return undefined;
+  return withPattern(result, outputPattern(graph, exp));
+}
+
 run.builtin = builtin;
+run_converged.builtin = builtin;
+run_converged.defs = null;
+
+const run_coverged = run_converged;
 
 export default run;
-export { run  };
+export { run, run_rel, run_converged, run_coverged };

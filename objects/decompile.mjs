@@ -11,7 +11,7 @@ function helpText() {
     `Usage: ${argv[1]} [ object-file [ k-file ] ]`,
     "",
     "Arguments:",
-    "  object-file  Input .ko or .klib path. Reads binary object data from stdin when omitted.",
+    "  object-file  Input .ko or .klib path. Reads object data from stdin when omitted.",
     "  k-file       Output .k path. Writes source to stdout when omitted.",
     "",
     "Options:",
