@@ -5,6 +5,15 @@ import { argv, stdin, stdout, stderr } from "node:process";
 import { decodeWire } from "./runtime/prefix-codec.mjs";
 import { propertyListToFilter, valueToK } from "./runtime/show-value.mjs";
 
+function usage(stream = console.error) {
+  stream(`Usage: ${argv[1]} [wire-file]`);
+  stream("  Pass the wire stream through unchanged on stdout.");
+  stream("  Print the decoded value and filter to stderr.");
+  stream("");
+  stream("Options:");
+  stream("  -h, --help   Show this help.");
+}
+
 function readAll(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -16,10 +25,15 @@ function readAll(stream) {
 
 async function main() {
   const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    return;
+  }
+
   let fileArg = null;
   for (const arg of args) {
     if (fileArg == null) fileArg = arg;
-    else { console.error("Usage: show.mjs [wire-file]"); process.exit(1); }
+    else { usage(); process.exit(1); }
   }
 
   const buffer = fileArg ? fs.readFileSync(fileArg) : await readAll(stdin);

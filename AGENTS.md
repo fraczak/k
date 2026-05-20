@@ -11,7 +11,7 @@
 - `npm install` installs dev dependencies and runs `prepare` to generate parsers.
 - `npm run prepare` regenerates `parser.mjs` and `valueParser.mjs` from `.jison` grammars.
 - `npm test` runs the full suite (`test.mjs`, `Code-derivation-tests/*.mjs`, `test-fingerprint.mjs`, `tests.sh`).
-- `node repl2.mjs` (or `k-repl`) starts the interactive REPL.
+- `node repl.mjs` (or `k-repl`) starts the interactive REPL.
 - `./k.mjs <file.k>` executes a k script on binary pattern+value stream input from stdin or a file; use `k-parse` and `k-print` at the boundaries.
 
 ## Coding Style & Naming Conventions

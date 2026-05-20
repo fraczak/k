@@ -3,6 +3,13 @@
 import { stdin, stdout, argv, exit } from "node:process";
 import { encodeText, decodeText } from "./string-codec.mjs";
 
+function usage(stream = console.error) {
+  stream(`Usage: ${argv[1]} --parse | --print`);
+  stream("  --parse      Read UTF-8 text from stdin, write binary pattern+value stream of k string.");
+  stream("  --print      Read binary pattern+value stream of k string, write UTF-8 text.");
+  stream("  -h, --help   Show this help.");
+}
+
 function readAll(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -14,10 +21,13 @@ function readAll(stream) {
 
 async function main() {
   const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    exit(0);
+  }
+
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    console.error("Usage: utf8.mjs --parse | --print");
-    console.error("  --parse  read UTF-8 text from stdin, write binary pattern+value stream of k string");
-    console.error("  --print  read binary pattern+value stream of k string, write UTF-8 text");
+    usage();
     exit(1);
   }
 

@@ -51,9 +51,9 @@ value-payload DAG compression.
 
 ```bash
 echo '["zebara", "ela", "kupa", ala, owca]' | \
-  ./codecs/k-parse.mjs | \
+  k-parse | \
   ./k.mjs '{.1 0,.3 1}' | \
-  ./codecs/k-print.mjs
+  k-print
 ```
 
 Expected output:

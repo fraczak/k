@@ -17,6 +17,13 @@ import { stdin, stdout, argv, exit } from "node:process";
 import { Product, Variant } from "../Value.mjs";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 
+function usage(stream = console.error) {
+  stream(`Usage: ${argv[1]} --parse | --print`);
+  stream("  --parse      Read a decimal integer from stdin, write binary pattern+value stream.");
+  stream("  --print      Read binary pattern+value stream from stdin, write decimal integer.");
+  stream("  -h, --help   Show this help.");
+}
+
 // Closed pattern for $ int = < bits '+', bits '-' >
 // with $ bits = < {} _, bits 0, bits 1 >
 const INT_PATTERN = [
@@ -79,10 +86,13 @@ function printIntValue(value) {
 
 async function main() {
   const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    exit(0);
+  }
+
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    console.error("Usage: int.mjs --parse | --print");
-    console.error("  --parse  read a decimal integer from stdin, write binary pattern+value stream");
-    console.error("  --print  read binary pattern+value stream from stdin, write decimal integer");
+    usage();
     exit(1);
   }
 

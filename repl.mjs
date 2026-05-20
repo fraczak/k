@@ -840,6 +840,16 @@ function helpText() {
   ].join("\n");
 }
 
+function cliUsage() {
+  console.log("Usage: k-repl");
+  console.log("       k-repl -h");
+  console.log("");
+  console.log("Start the interactive k interpreter. Type :help inside the REPL for commands.");
+  console.log("");
+  console.log("Options:");
+  console.log("  -h, --help   Show this help.");
+}
+
 function startRepl() {
   const state = createState();
   const rl = readline.createInterface({
@@ -916,6 +926,15 @@ function startRepl() {
 }
 
 if (isMainEntrypoint()) {
+  const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    cliUsage();
+    exit(0);
+  }
+  if (args.length > 0) {
+    cliUsage();
+    exit(1);
+  }
   startRepl();
 }
 

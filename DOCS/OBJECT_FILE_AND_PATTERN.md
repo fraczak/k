@@ -143,17 +143,17 @@ compilation.
 Standalone helpers live in `objects/`:
 
 ```sh
-./objects/compile.mjs path/to/program.k path/to/program.ko
-./objects/compile-lib.mjs path/to/library.k path/to/library.klib
-./objects/decompile.mjs path/to/program.ko path/to/program.decompiled.k
-./objects/extract-aliases.mjs path/to/library.klib path/to/aliases.k
+k-compile path/to/program.k path/to/program.ko
+k-compile-lib path/to/library.k path/to/library.klib
+k-decompile path/to/program.ko path/to/program.decompiled.k
+k-extract-aliases path/to/library.klib path/to/aliases.k
 ```
 
 With no arguments, the helpers read from stdin and write to stdout:
 
 ```sh
-cat path/to/program.k | ./objects/compile.mjs > path/to/program.ko
-cat path/to/program.ko | ./objects/decompile.mjs > path/to/program.decompiled.k
+cat path/to/program.k | k-compile > path/to/program.ko
+cat path/to/program.ko | k-decompile > path/to/program.decompiled.k
 ```
 
 The decompiled source is canonical source regenerated from object IR. It uses
@@ -173,7 +173,7 @@ For a tiny source file:
 compile it with:
 
 ```sh
-./objects/compile.mjs id.k id.ko
+k-compile id.k id.ko
 ```
 
 The first bytes of `id.ko` are the binary container header:
@@ -259,7 +259,7 @@ succ = |succ;
 compile it with:
 
 ```sh
-./objects/compile-lib.mjs defs.k defs.klib
+k-compile-lib defs.k defs.klib
 ```
 
 The output file is plain JSON and starts with `{`, not a binary prefix. Its

@@ -113,7 +113,7 @@ Each node in the value tree is encoded based on its automaton state:
 
 For type `bnat`, intuitively binary natural numbers defined by `$bnat = < bnat 0, bnat 1, {} _ >`, we get
 
-```k-repl
+```text
 > :C bnat
 $ bnat = < @... 0, @... 1, {} _ >;  -- @...
 ```

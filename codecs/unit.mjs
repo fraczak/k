@@ -4,6 +4,13 @@ import { stdin, stdout, argv, exit } from "node:process";
 import { Product } from "../Value.mjs";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 
+function usage(stream = console.error) {
+  stream(`Usage: ${argv[1]} --parse | --print`);
+  stream("  --parse      Ignore stdin and write the unit binary pattern+value stream.");
+  stream("  --print      Validate the unit binary pattern+value stream and write {}.");
+  stream("  -h, --help   Show this help.");
+}
+
 const UNIT_PATTERN = [
   ["closed-product", []]
 ];
@@ -23,10 +30,13 @@ function unitEncoding() {
 
 async function main() {
   const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    exit(0);
+  }
+
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    console.error("Usage: unit.mjs --parse | --print");
-    console.error("  --parse  ignore stdin and write the unit binary pattern+value stream");
-    console.error("  --print  validate the unit binary pattern+value stream and write {}");
+    usage();
     exit(1);
   }
 

@@ -66,9 +66,10 @@ list
 
 In both cases, the compiler derives a root pattern from `__main__`.
 
-## `k-pattern`
+## Pattern Export Helper
 
-`k-pattern` extracts that root pattern from a k script.
+`patterns/from-k.mjs` extracts that root pattern from a k script. It is a
+repository helper, not an installed `package.json` binary.
 
 It:
 
@@ -84,7 +85,7 @@ It:
 Example:
 
 ```bash
-echo '?< {} nil, { $bits car, X cdr } cons > = X' | k-pattern
+echo '?< {} nil, { $bits car, X cdr } cons > = X' | node ./patterns/from-k.mjs
 ```
 
 Typical output:
@@ -101,8 +102,8 @@ The active wire format is:
 encode($pattern_value : $pattern) encode(value : decoded_pattern)
 ```
 
-So the property-list array printed by `k-pattern` is a readable externalization
-of the same pattern information carried in the wire stream.
+So the property-list array printed by `patterns/from-k.mjs` is a readable
+externalization of the same pattern information carried in the wire stream.
 
 `k-parse --input-pattern ...` and `k-parse --input-type ...` both ultimately
 produce the same kind of root pattern used to interpret textual values.

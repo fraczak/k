@@ -3,6 +3,13 @@
 import { stdin, stdout, argv, exit } from "node:process";
 import { encodeText, decodeText } from "./string-codec.mjs";
 
+function usage(stream = console.error) {
+  stream(`Usage: ${argv[1]} --parse | --print`);
+  stream("  --parse      Read UTF-16 text from stdin (BOM-aware), write binary pattern+value stream of k string.");
+  stream("  --print      Read binary pattern+value stream of k string, write UTF-16LE text with BOM.");
+  stream("  -h, --help   Show this help.");
+}
+
 function readAll(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -43,10 +50,13 @@ function encodeUtf16Output(text) {
 
 async function main() {
   const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    exit(0);
+  }
+
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    console.error("Usage: utf16.mjs --parse | --print");
-    console.error("  --parse  read UTF-16 text from stdin (BOM-aware), write binary pattern+value stream of k string");
-    console.error("  --print  read binary pattern+value stream of k string, write UTF-16LE text with BOM");
+    usage();
     exit(1);
   }
 

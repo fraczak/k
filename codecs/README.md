@@ -82,6 +82,25 @@ notation for k values, not a separate JSON container format.
 `k.mjs` is only the command-line adapter for that boundary. The operational
 runtime sees and preserves the pattern on the `Value` itself.
 
+## Command-Line Tools
+
+Installed codec binaries use the `k-` prefix followed by the source basename
+without `.mjs`. Source names that already include `k-`, such as
+`k-parse.mjs`, keep that name. Every installed codec binary supports `-h` and
+`--help`.
+
+| Binary | Source | Purpose |
+| --- | --- | --- |
+| `k-parse` | `k-parse.mjs` | Read a textual k value and write a binary pattern+value stream. Use `--input-type` or `--input-pattern` to supply the input envelope. |
+| `k-print` | `k-print.mjs` | Read a binary pattern+value stream and write the decoded JSON-like value. Use `--debug` to include the decoded pattern. |
+| `k-show` | `show.mjs` | Pass the wire stream through unchanged on stdout while printing the decoded value and filter to stderr. |
+| `k-json` | `json.mjs` | Convert JSON to/from the binary stream with `--parse` or `--print`. |
+| `k-int` | `int.mjs` | Convert decimal integers to/from the binary stream with `--parse` or `--print`. |
+| `k-ieee` | `ieee.mjs` | Convert float literals to/from the binary stream with `--parse` or `--print`. |
+| `k-unit` | `unit.mjs` | Write or validate the unit value `{}` with `--parse` or `--print`. |
+| `k-utf8` | `utf8.mjs` | Convert UTF-8 text to/from a k string stream with `--parse` or `--print`. |
+| `k-utf16` | `utf16.mjs` | Convert BOM-aware UTF-16 input or UTF-16LE output to/from a k string stream with `--parse` or `--print`. |
+
 ## Pattern Graph Representation
 
 For documentation and tests, a pattern graph may be shown as a property-list
@@ -124,8 +143,8 @@ Canonical rules:
 This JSON-like graph is only a readable notation. The wire representation is
 the ordinary k `$pattern` value from `core.k`.
 
-For user-facing pattern export, see [`../DOCS/PATTERNS.md`](../DOCS/PATTERNS.md)
-and the `k-pattern` CLI.
+For pattern export, see [`../DOCS/PATTERNS.md`](../DOCS/PATTERNS.md) and the
+repository helper `patterns/from-k.mjs`.
 
 ## Witness-Derived Patterns
 

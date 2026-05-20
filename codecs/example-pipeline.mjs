@@ -16,6 +16,20 @@ import { encodeToWire, decodeWire } from './runtime/prefix-codec.mjs';
 import { patternToPropertyList } from './runtime/pattern-json.mjs';
 import { Product, Variant } from '../Value.mjs';
 import hash from '../hash.mjs';
+import { argv, exit } from 'node:process';
+
+function usage() {
+  console.log(`Usage: ${argv[1]}`);
+  console.log("       Run a self-contained demonstration of the codec pipeline.");
+  console.log("");
+  console.log("Options:");
+  console.log("  -h, --help   Show this help.");
+}
+
+if (argv.slice(2).includes("-h") || argv.slice(2).includes("--help")) {
+  usage();
+  exit(0);
+}
 
 console.log('=== K Codec Pipeline Example ===\n');
 

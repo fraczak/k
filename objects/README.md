@@ -4,17 +4,17 @@ CLI tools for compiling and inspecting k object files (`.ko`) and library files 
 
 ## Tools
 
-### compile.mjs
+### `k-compile`
 
 Compiles a `.k` source file into an executable object file (`.ko`).
 The output contains only the codes and relations reachable from `main`.
 Each stored relation includes `typeDerivation.status` for backend eligibility.
 
 ```bash
-./objects/compile.mjs [--lib lib-file]... [k-file [object-file]]
+k-compile [--lib lib-file]... [k-file [object-file]]
 ```
 
-### compile-lib.mjs
+### `k-compile-lib`
 
 Compiles a `.k` source file into a library file (`.klib`).
 The output is plain JSON with no binary header. It contains the library closure
@@ -25,26 +25,29 @@ Each stored relation includes `typeDerivation.status`; libraries may contain a
 mix of converged and non-converged relations.
 
 ```bash
-./objects/compile-lib.mjs [--lib lib-file]... [k-file [lib-file]]
+k-compile-lib [--lib lib-file]... [k-file [lib-file]]
 ```
 
-### decompile.mjs
+### `k-decompile`
 
 Decompiles a `.ko` or `.klib` back into human-readable k source.
 
 ```bash
-./objects/decompile.mjs [object-file [k-file]]
+k-decompile [object-file [k-file]]
 ```
 
-### extract-aliases.mjs
+### `k-extract-aliases`
 
 Extracts metadata aliases from a `.ko` or `.klib` as a valid k definition
 snippet. Output is grouped by metadata type (`code`, then `rel`), then sorted by
 alias name and `compiledAt`.
 
 ```bash
-./objects/extract-aliases.mjs [object-file [k-file]]
+k-extract-aliases [object-file [k-file]]
 ```
+
+The installed names are `k-` plus the source basename without `.mjs`. Every
+installed object binary supports `-h` and `--help`.
 
 ## Current Format Notes
 

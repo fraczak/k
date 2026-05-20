@@ -6,6 +6,13 @@ import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 import { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";
 const UNIT = new Product({});
 
+function usage(stream = console.error) {
+  stream(`Usage: ${argv[1]} --parse | --print`);
+  stream("  --parse      Read a float literal from stdin, write binary pattern+value stream.");
+  stream("  --print      Read binary pattern+value stream from stdin, write a float literal.");
+  stream("  -h, --help   Show this help.");
+}
+
 function bitValue(bit) {
   return new Variant(bit === 0 ? "0" : "1", UNIT);
 }
@@ -116,10 +123,13 @@ function readAll(stream) {
 
 async function main() {
   const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    exit(0);
+  }
+
   if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    console.error("Usage: ieee.mjs --parse | --print");
-    console.error("  --parse  read a float literal from stdin, write binary pattern+value stream");
-    console.error("  --print  read binary pattern+value stream from stdin, write a float literal");
+    usage();
     exit(1);
   }
 

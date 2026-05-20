@@ -82,7 +82,7 @@ filter_label_list ::= /* empty */ | '...'
 
 Examples:
 
-```k-repl
+```text
   X                 -- any type
   ( ... )           -- any type
   { ... }           -- any product type
@@ -178,7 +178,7 @@ The normalization steps are:
 
 #### Example 1
 
-```k-repl
+```text
 $ bit = < {} o, {} i >;
 bit0 = | o $bit;
 bit1 = | i $bit;
@@ -242,7 +242,7 @@ Such a pattern is called _singleton pattern_, as only one type fits the pattern.
 
 Polymorphic list functions:
 
-```k-repl
+```text
 list? = ?< {} nil, {X car, Y cdr} cons > = Y;
 nil = {} |nil list?;
 singleton = {() car, nil cdr} |cons list?;
@@ -254,7 +254,7 @@ cdr = list? /cons .cdr;
 
 For example, the filter annotation for `car` is:
 
-```k-repl
+```text
 > :t car
 car : ?<{X1 car, X0 cdr} cons, $KL nil>=X0  -->  ?X1  (@...)
 > :C KL
@@ -301,7 +301,7 @@ A type can be translated into a Rust data structure, and a function can be trans
 
 Extending `@string` into `@bits`. 
 
-```k-repl
+```text
 $ bits = < {} _, bits 0, bits 1 >;
 ```
 

@@ -49,6 +49,11 @@ async function main() {
   const prog = argv[1];
   const args = argv.slice(2);
 
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(prog);
+    return exit(0);
+  }
+
   let inputTypeArg = null;
   let inputPatternArg = null;
   let valueFile = null;

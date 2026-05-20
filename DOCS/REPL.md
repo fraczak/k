@@ -1,7 +1,7 @@
 # k Interpreter
 
-`repl2.mjs` is the interactive k interpreter. `k-repl` and `k-repl2` both
-start it.
+`repl.mjs` is the interactive k interpreter. After linking or installing the
+package, start it with `k-repl`.
 
 The interpreter keeps a live `.klib`-style state in memory:
 

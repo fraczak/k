@@ -27,9 +27,9 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Toolchain
 
 - `k` — CLI executor: reads binary pattern+value stream, applies a k script, writes result.
-- `k-repl` / `k-repl2` — interactive interpreter with tab-completion.
-- `k-pattern` — extract the canonical root pattern from a k script.
-- `k-compile-object` / `k-decompile-object` — object file compilation and decompilation.
+- `k-repl` — interactive interpreter with tab-completion.
+- `k-compile` / `k-decompile` — object file compilation and decompilation.
+- `k-compile-lib` / `k-extract-aliases` — library compilation and alias extraction.
 
 ### Codec Pipeline
 

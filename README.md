@@ -15,7 +15,7 @@ Types (called *codes*) are finite tree automata; equivalence is bisimilarity.
 ```bash
 npm install          # install dev deps and generate parsers
 npm test             # run the full test suite
-k-repl               # start the interactive REPL  (or: node repl2.mjs)
+k-repl               # start the interactive REPL  (or: node repl.mjs)
 ./k.mjs <file.k>     # execute a k script
 ```
 
@@ -28,13 +28,25 @@ k-repl               # start the interactive REPL  (or: node repl2.mjs)
 | Binary | Source | Purpose |
 |--------|--------|---------|
 | `k` | `k.mjs` | Execute a `.k` script; reads binary pattern+value stream from stdin |
-| `k-repl` / `k-repl2` | `repl2.mjs` | Interactive interpreter |
+| `k-repl` | `repl.mjs` | Interactive interpreter |
+| `k-compile` | `objects/compile.mjs` | Compile a `.k` source to an executable `.ko` object |
+| `k-compile-lib` | `objects/compile-lib.mjs` | Compile a `.k` source to a plain-JSON `.klib` library |
+| `k-decompile` | `objects/decompile.mjs` | Decompile a `.ko` or `.klib` file back to k source |
+| `k-extract-aliases` | `objects/extract-aliases.mjs` | Extract `.ko`/`.klib` metadata aliases as k source |
 | `k-parse` | `codecs/k-parse.mjs` | Encode textual k values to the binary pattern+value wire format |
 | `k-print` | `codecs/k-print.mjs` | Decode binary pattern+value stream to JSON-like textual k values |
-| `k-pattern` | `patterns/from-k.mjs` | Extract the canonical root pattern from a k script |
-| `k-compile-object` | `objects/compile.mjs` | Compile a `.k` source to an executable `.ko` object |
-| `k-decompile-object` | `objects/decompile.mjs` | Decompile a `.ko` or `.klib` file back to k source |
-| `k-extract-aliases` | `objects/extract-aliases.mjs` | Extract `.klib` metadata aliases as k source |
+| `k-show` | `codecs/show.mjs` | Pass through a wire stream on stdout and print its decoded value/filter to stderr |
+| `k-json` | `codecs/json.mjs` | Convert between JSON and the binary pattern+value stream (`--parse` / `--print`) |
+| `k-int` | `codecs/int.mjs` | Convert between decimal integers and the binary pattern+value stream |
+| `k-ieee` | `codecs/ieee.mjs` | Convert between float literals and the binary pattern+value stream |
+| `k-unit` | `codecs/unit.mjs` | Convert the unit value `{}` to/from the binary pattern+value stream |
+| `k-utf8` | `codecs/utf8.mjs` | Convert UTF-8 text to/from a k string wire stream |
+| `k-utf16` | `codecs/utf16.mjs` | Convert BOM-aware UTF-16 input / UTF-16LE output to/from a k string wire stream |
+
+Installed binary names are `k-` plus the source basename without `.mjs`, except
+for `k.mjs` itself. Source names that already include `k-`, such as
+`codecs/k-parse.mjs`, keep that name rather than becoming `k-k-parse`.
+Every installed binary supports `-h` and `--help`.
 
 ---
 
@@ -141,9 +153,9 @@ A partial function may be undefined on some inputs. Core primitives:
 
 ## Interpreter
 
-Start with `k-repl` (or `node repl2.mjs`). The prompt is `> `.
+Start with `k-repl` (or `node repl.mjs`). The prompt is `> `.
 
-`repl2.mjs` keeps a live `.klib`-style state in memory. You can:
+`repl.mjs` keeps a live `.klib`-style state in memory. You can:
 
 - define types and relations incrementally
 - run expressions against the current value
@@ -299,7 +311,7 @@ See [`codecs/README.md`](codecs/README.md) for codec internals and format detail
 
 For the textual boundary notation used by `k-parse` and `k-print`, see
 [DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md). For canonical exported
-patterns and `k-pattern`, see [DOCS/PATTERNS.md](DOCS/PATTERNS.md).
+patterns, see [DOCS/PATTERNS.md](DOCS/PATTERNS.md).
 
 ## Object and Library Files
 
@@ -317,10 +329,10 @@ The object toolchain is documented in [objects/README.md](objects/README.md).
 Typical CLI usage:
 
 ```bash
-./objects/compile-lib.mjs Examples/ieee.k ieee.klib
-./objects/compile.mjs --lib ieee.klib Examples/nat.k nat.ko
-./objects/extract-aliases.mjs ieee.klib aliases.k
-./objects/decompile.mjs nat.ko
+k-compile-lib Examples/ieee.k ieee.klib
+k-compile --lib ieee.klib Examples/nat.k nat.ko
+k-extract-aliases ieee.klib aliases.k
+k-decompile nat.ko
 ```
 
 ---
@@ -353,7 +365,7 @@ The test suite covers:
 - `Code-derivation-tests/*.mjs` — type derivation suite
 - `test-fingerprint.mjs` — hash/fingerprint stability
 - `test-k-object.mjs` — object file round-trip
-- `test-repl2.mjs` — REPL scripted interaction
+- `test-repl.mjs` — REPL scripted interaction
 - `tests.sh` — shell integration tests
 
 ---

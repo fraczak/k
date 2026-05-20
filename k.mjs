@@ -13,7 +13,10 @@ let kScript, inputStream;
 
 function usage() {
   console.error(`Usage: ${prog} [ --lib lib-file ]... ( k-expr | -k file ) [ input-file ]`);
-  console.error(`       E.g.,  echo '["zebara","ela"]' | ./codecs/k-parse.mjs --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
+  console.error(`       E.g.,  echo '["zebara","ela"]' | k-parse --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
+  console.error("Options:");
+  console.error("  --lib file   Load a .klib dependency before compiling. May be repeated.");
+  console.error("  -h, --help   Show this help.");
 }
 
 function compileFile(path, libraries) {
@@ -27,6 +30,11 @@ function compileFile(path, libraries) {
 
 ({ kScript, inputStream } = ((args) => {
   try {
+    if (args.includes("-h") || args.includes("--help")) {
+      usage();
+      return exit(0);
+    }
+
     const libraries = [];
     // Parse --lib flags
     while (args.length > 0 && args[0] === "--lib") {

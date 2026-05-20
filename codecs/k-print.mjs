@@ -4,6 +4,15 @@ import fs from "node:fs";
 import { argv, stdin, stdout } from "node:process";
 import { decodeWire } from "./runtime/prefix-codec.mjs";
 
+function usage(stream = console.error) {
+  stream(`Usage: ${argv[1]} [--debug] [file]`);
+  stream("  Read a binary pattern+value stream and print the decoded textual value.");
+  stream("");
+  stream("Options:");
+  stream("  --debug      Print decoded pattern and value as JSON.");
+  stream("  -h, --help   Show this help.");
+}
+
 function readAll(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -15,6 +24,11 @@ function readAll(stream) {
 
 async function main() {
   const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    return;
+  }
+
   let debug = false;
   let fileArg = null;
 
@@ -24,7 +38,8 @@ async function main() {
     } else if (fileArg == null) {
       fileArg = arg;
     } else {
-      throw new Error("Usage: k-print [--debug] [file]");
+      usage();
+      process.exit(1);
     }
   }
 
