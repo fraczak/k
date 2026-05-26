@@ -7,6 +7,22 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [6.1.0] — 2026-05-20 — CLI aliases and help
+
+### Toolchain
+
+- Renamed the REPL entry point to `repl.mjs` and the installed binary to `k-repl`.
+- Unified installed command names around the `k-` prefix and source basenames.
+- Added `-h` / `--help` support across executable CLI scripts.
+- Added public aliases in `Examples/ieee.k` for `add`, `sub`, `mul`, `div`, comparisons, and `neg`.
+
+### Documentation
+
+- Reworked the README around typed data transformations, contributor entry points, and the IEEE example.
+- Updated CLI references across documentation to the current installed command names.
+
+---
+
 ## [6.0.0] — 2026-05-12 — First public release
 
 ### Language & Runtime
@@ -22,7 +38,7 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Finite tree automaton type representation (`codes.mjs`).
 - Graph-based constraint propagation via `TypePatternGraph`.
 - SCC-aware convergence with configurable strategy (`auto` / `single_pass` / `fixed_point`).
-- `compileStats` API for inspecting convergence behaviour per SCC.
+- `compileStats` API for inspecting convergence behavior per SCC.
 
 ### Toolchain
 
@@ -33,7 +49,7 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Codec Pipeline
 
-- Binary format: serialised pattern graph followed by value encoded under that pattern.
+- Binary format: serialized pattern graph followed by value encoded under that pattern.
 - JSON codec, UTF-8/UTF-16 string codec, IEEE 754 codec.
 - Polymorphic codec streams: pattern carried in-memory through projections and constructors.
 
@@ -45,4 +61,5 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+[6.1.0]: https://github.com/fraczak/k/releases/tag/v6.1.0
 [6.0.0]: https://github.com/fraczak/k/releases/tag/v6.0.0

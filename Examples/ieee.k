@@ -15545,6 +15545,29 @@ div_float64 = $float_pair
   .result
   $float64;
 
+# -----------------------------------------------------------------------------
+# Public API
+# -----------------------------------------------------------------------------
+# Operations return a product with:
+#   result : float64
+#   flags  : operation-specific exception flags
+#
+# Use `add .result`, `mul .result`, etc. when only the numeric result is needed.
+
+add = float64_add;
+sub = float64_sub;
+mul = float64_mul;
+div = float64_div;
+
+cmp = cmp_float64;
+eq? = eq_float64?;
+lt? = lt_float64?;
+le? = le_float64?;
+gt? = gt_float64?;
+ge? = ge_float64?;
+
+neg = negate_float64;
+
 # --- useful float64 constants (IEEE-754 binary64) ---
 
 # 1.0  exponent = 1023 = 0b01111111111
@@ -15569,7 +15592,7 @@ frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12
 10f = {} {+ sign,  exp_10 exponent, frac_10 fraction} $float64;
 
 
-{() x,()y}  mul_float64
+{() x, () y} mul .result
 
 /*
 -- TESTS --

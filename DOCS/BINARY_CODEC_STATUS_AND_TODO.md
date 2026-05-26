@@ -52,7 +52,7 @@ value-payload DAG compression.
 ```bash
 echo '["zebara", "ela", "kupa", ala, owca]' | \
   k-parse | \
-  ./k.mjs '{.1 0,.3 1}' | \
+  k '{.1 0,.3 1}' | \
   k-print
 ```
 

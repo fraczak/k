@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-k-language is an experimental programming language for building and manipulating algebraic data types ("codes")—tree-shaped values built from product and tagged union. The native k-like notation is canonical; a JSON-like notation is available as a convenience for newcomers.
+k is an experimental language for describing algebraic data shapes and composing typed transformations over them. Data descriptions and transformations share one syntax; the native k-like notation is canonical, and a JSON-like notation is available as a convenience for textual values.
 
 ## Essential Commands
 
@@ -20,7 +20,7 @@ npm test  # Run comprehensive test suite (unit tests, derivation tests, shell te
 
 **Running k programs:**
 ```bash
-./k.mjs <file.k>      # Execute k script
+./k.mjs -k <file.k>   # Execute k script
 ./repl.mjs            # Start interactive REPL (or: k-repl)
 ```
 
@@ -61,4 +61,4 @@ npm test  # Run comprehensive test suite (unit tests, derivation tests, shell te
 - No external runtime dependencies (only jiwson for parser generation)
 - Uses ES6 modules (.mjs files) throughout
 - Extensive test suite in `Code-derivation-tests/` for type system validation
-- REPL supports commands like `--C name` (show canonical type) and `--R name` (show type derivation)
+- REPL supports commands like `:C name` (show canonical type), `:t name` (show relation type), and `:d name` (show relation definition)

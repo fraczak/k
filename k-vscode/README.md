@@ -1,7 +1,8 @@
 # k language — VS Code extension
 
-Syntax highlighting and snippets for the **k language**: a language for composing
-first-order partial functions over algebraic data types (products and tagged unions).
+Syntax highlighting and snippets for the **k language**: a small language for
+typed data transformations over algebraic data types (products and tagged
+unions).
 
 ## Features
 

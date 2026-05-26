@@ -133,7 +133,7 @@ Loading an object hydrates the type-pattern graphs back into runtime
 Object execution through `k.mjs`:
 
 ```sh
-echo "..." | ./some-codec --parse | ./k.mjs -k path/to/program.ko | ./some-codec --print
+echo "..." | some-codec --parse | k -k path/to/program.ko | some-codec --print
 ```
 
 The `-k` option accepts either an object file or a source `.k` file. `k.mjs`

@@ -1,387 +1,301 @@
-# k-language
+# k
 
-> **k** is a language for composing first-order partial functions over algebraic data types.
+**k is a small language for typed data transformations.**
 
-Values are tree-shaped and built solely from **products** (records) and **tagged unions** (variants).
-There are no built-in primitive types — the only leaf in a non-recursive definition is the empty product `{}`.
-Types (called *codes*) are finite tree automata; equivalence is bisimilarity.
+It describes data as algebraic shapes, programs as first-order partial
+functions, and runtime values as a binary `pattern + value` stream that can be
+parsed, transformed, printed, compiled, and inspected.
 
----
+Data descriptions and transformations share one syntax, so a k file can define
+both the shapes of values and the relations that move between them.
 
-## Quick Start
+k is experimental, but it already has a working parser, type-derivation engine,
+REPL, binary codec pipeline, object/library format, Node.js API, and test suite.
 
-**Prerequisites:** Node.js 18+
+## Why k?
+
+Many systems need to answer the same questions:
+
+- What shape does this data have?
+- Which transformations are valid for that shape?
+- What does a program accept, produce, or reject?
+- Can this transformation be serialized, tested, reused, or inspected?
+
+k explores a compact answer: define algebraic data shapes, compose partial
+transformations over them, derive input/output patterns automatically, and move
+values across process boundaries with a canonical binary representation.
+
+That makes k interesting as a foundation for:
+
+- schema definitions and schema-to-schema transformations
+- binary codecs and canonical serialization
+- protocol, hardware, or test-vector transformation pipelines
+- teaching algebraic data types and compositional programming
+- research into partial functions, finite tree automata, and typed IRs
+
+## A Small Example
+
+k can define recursive data and transformations in the same file. Peano natural
+numbers are either `0` or one more than another natural number:
+
+```k
+$ nat = < {} 0, nat +1 >;
+
+zero = {} |0;
+inc = |+1;
+
+add = ?X <
+  { .x /+1 x, .y inc y } ?X add,
+  .y
+>;
+```
+
+`add` takes a product `{ x, y }`. If `x` has a `+1`, it moves that successor
+from `x` to `y` and recurses. When that no longer applies, it returns `y`.
+
+In the REPL:
+
+```text
+> { {} |0 inc inc x, {} |0 inc y } add
+{}|0|+1|+1|+1 ?<X0 +1, {} 0, ...>=X0
+```
+
+That evaluates `2 + 1` to `3`: a value starts at `0`, and each `+1` tag adds
+one successor. The REPL also prints the inferred value envelope.
+
+## Try It
+
+From a checkout:
 
 ```bash
-npm install          # install dev deps and generate parsers
-npm test             # run the full test suite
-k-repl               # start the interactive REPL  (or: node repl.mjs)
-./k.mjs <file.k>     # execute a k script
+node --version        # requires Node.js 18+
+npm install
+npm test
+npm link
 ```
 
-> After `npm link` (or `npm install -g .`) the binaries `k`, `k-repl`, `k-parse`, `k-print`, etc. are available globally.
+Then run a tiny binary pipeline:
 
----
+```bash
+k-unit --parse | k '{} |ok' | k-print
+```
 
-## CLI Binaries
+Expected output:
 
-| Binary | Source | Purpose |
-|--------|--------|---------|
-| `k` | `k.mjs` | Execute a `.k` script; reads binary pattern+value stream from stdin |
-| `k-repl` | `repl.mjs` | Interactive interpreter |
-| `k-compile` | `objects/compile.mjs` | Compile a `.k` source to an executable `.ko` object |
-| `k-compile-lib` | `objects/compile-lib.mjs` | Compile a `.k` source to a plain-JSON `.klib` library |
-| `k-decompile` | `objects/decompile.mjs` | Decompile a `.ko` or `.klib` file back to k source |
-| `k-extract-aliases` | `objects/extract-aliases.mjs` | Extract `.ko`/`.klib` metadata aliases as k source |
-| `k-parse` | `codecs/k-parse.mjs` | Encode textual k values to the binary pattern+value wire format |
-| `k-print` | `codecs/k-print.mjs` | Decode binary pattern+value stream to JSON-like textual k values |
-| `k-show` | `codecs/show.mjs` | Pass through a wire stream on stdout and print its decoded value/filter to stderr |
-| `k-json` | `codecs/json.mjs` | Convert between JSON and the binary pattern+value stream (`--parse` / `--print`) |
-| `k-int` | `codecs/int.mjs` | Convert between decimal integers and the binary pattern+value stream |
-| `k-ieee` | `codecs/ieee.mjs` | Convert between float literals and the binary pattern+value stream |
-| `k-unit` | `codecs/unit.mjs` | Convert the unit value `{}` to/from the binary pattern+value stream |
-| `k-utf8` | `codecs/utf8.mjs` | Convert UTF-8 text to/from a k string wire stream |
-| `k-utf16` | `codecs/utf16.mjs` | Convert BOM-aware UTF-16 input / UTF-16LE output to/from a k string wire stream |
+```json
+"ok"
+```
 
-Installed binary names are `k-` plus the source basename without `.mjs`, except
-for `k.mjs` itself. Source names that already include `k-`, such as
-`codecs/k-parse.mjs`, keep that name rather than becoming `k-k-parse`.
-Every installed binary supports `-h` and `--help`.
+Start the interactive interpreter:
 
----
+```bash
+k-repl
+```
 
-## Data Model: Codes = ADTs
+Every installed command supports `-h` and `--help`.
 
-Codes are algebraic data types built from two constructors:
+## What k Gives You
 
-| Constructor | Native k notation | JSON-like notation |
-|-------------|------------------|--------------------|
-| **Product** (record) | `{ A label1, B label2 }` | `{ label1: A, label2: B }` |
-| **Tagged union** (variant) | `< A tag1, B tag2 >` | `< tag1: A, tag2: B >` |
+**Algebraic data shapes**
 
-Native k-like notation is canonical; JSON-like is supported as syntactic sugar.
-
-For the JSON-like textual notation used by `k-parse` and `k-print`, see
-[DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md).
-
-### Defining codes (`$`)
+Types, called *codes*, are built from products and tagged unions:
 
 ```k
-$ nat   = < {} zero, nat succ >;          -- Peano naturals
-$ bit   = < {} 0, {} 1 >;
-$ byte  = { bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7 };
-$ list  = < {} nil, { bit car, list cdr } cons >;
-```
-
-Two codes are equal iff they are bisimilar: same label/tag sets, same constructor kind (product vs. union), and subcodes relate pointwise under each label/tag.
-
----
-
-## Partial Functions
-
-A partial function may be undefined on some inputs. Core primitives:
-
-| Syntax | Name | Meaning |
-|--------|------|---------|
-| `.field` | product projection | extract `field` from a product value |
-| `/tag` | union projection | assert value has tag `tag`, extract payload |
-| `\|tag` | variant introduction | wrap value in tag `tag` |
-| `()` | identity | pass value through unchanged |
-| `<>` | always-undefined | undefined for all inputs |
-| `{}` | empty product | map any input to `{}` |
-
-**Examples:**
-
-```text
-.toto :
-    { "toto": {"5":{}}, "titi": {"10":{}} }  -->  {"5":{}}
-    { "titi": {"10":{}} }                         ... undefined
-
-/toto :
-    {"toto": {}}  -->  {}
-    {"other": {}} ... undefined
-
-|toto :
-    {"5":{}}  -->  { "toto": {"5":{}} }
-```
-
----
-
-## Combining Functions
-
-### 1. Composition — sequential application
-
-`(f g h)` applies `f`, then `g`, then `h`. Parentheses can be omitted.
-
-```text
-(.toto .titi) :
-    { "toto": { "titi": {} } }    -->  {}
-    { "toto": { "other": {} } }   ...  undefined
-```
-
-### 2. Merge — first-defined wins
-
-`<f, g>` tries `f` first; if undefined, tries `g`.
-
-```text
-< .x .y, .z .y > :
-    { "x": {"y": {"5":{}}}, "z": {"y": {"10":{}}} }   -->  {"5":{}}
-    { "x": {"o": {}},        "z": {"y": {"10":{}}} }   -->  {"10":{}}
-    { "x": {"o": {}},        "z": {"o": {}} }          ...  undefined
-```
-
-### 3. Product — parallel, labelled collection
-
-`{f label1, g label2}` applies `f` and `g` in parallel and builds a record.
-
-```text
-{ .toto TOTO, .titi TITI } :
-    { "toto": {"5":{}}, "titi": {"10":{}}, "x":{} }
-         -->  { "TOTO": {"5":{}}, "TITI": {"10":{}} }
-```
-
----
-
-## Syntactic Sugar
-
-- Parentheses may be omitted (except for empty composition `()`).
-- `.a .b /c` is equivalent to `(.a (.b /c))`.
-- Comments: `//`, `--`, `%`, `#` (single-line) or `/* ... */` (multi-line).
-- Both notation forms work in the same file.
-
----
-
-## Interpreter
-
-Start with `k-repl` (or `node repl.mjs`). The prompt is `> `.
-
-`repl.mjs` keeps a live `.klib`-style state in memory. You can:
-
-- define types and relations incrementally
-- run expressions against the current value
-- load `.k` or `.klib` files into the session
-- export the session as `.klib`
-- export an executable `.ko` from an expression in the current context
-
-### Main commands
-
-| Command | Effect |
-|---------|--------|
-| `:type name = <...>` | Define a type alias |
-| `:rel name = expr` | Define a relation alias |
-| `:run expr` | Evaluate an expression on the current value |
-| `:t name` | Show relation input/output filters |
-| `:d name` | Show relation definition |
-| `:C name` | Show canonical code definition |
-| `:codes` / `:rels` | List type or relation aliases |
-| `:load [--no-alias] file` | Load `.k` or `.klib`; aliases are loaded unless `--no-alias` is used |
-| `:klib file` | Export current state as `.klib` |
-| `:ko file expr` | Export executable `.ko` |
-| `:val` | Print current value |
-| `:reset` | Clear state |
-| `:help` | Show command summary |
-
-### Raw snippets
-
-Raw k input is also accepted. It compiles on top of the current interpreter
-state.
-
-```text
-> $ bool = <{} true, {} false>;
-> not = $bool </true | false, {} | true>;
-> {} |true not
-{false: {}} ?<{} true, {} false>
-```
-
-Definitions-only snippets extend the session silently. Snippets with a terminal
-expression are evaluated immediately.
-
-Tab completion covers:
-
-- command names
-- file paths for `:load`, `:klib`, and `:ko`
-- aliases
-- canonical names beginning with `@`
-
-See [DOCS/REPL.md](DOCS/REPL.md) for the exact buffering and evaluation rules.
-
----
-
-## Code Derivation and Patterns
-
-A **pattern** (or *filter*) is a constraint on the type of values flowing through a function.
-The type derivation engine infers patterns automatically and can optionally be guided with filter expressions:
-
-```k
-treeFilter = ?< (...) leaf, { T left, T right } tree > = T;
-```
-
-This tells the derivation engine that `treeFilter` operates on values that are either a `leaf` or a `tree` with matched left/right subtypes.
-
----
-
-## Using k as a Library (Node.js)
-
-```js
-import k from "@fraczak/k";  // or "./index.mjs"
-
-// compile + run
-const fn = k.compile(`
-  $ bool = < {} true, {} false >;
-  not = < /true {} |false $bool, /false {} |true $bool >
-`);
-
-console.log(fn({ "true": {} }));   // { false: {} }
-
-// annotate only (type-check without running)
-const annotated = k.annotate(source, {
-  convergence: { strategy: "auto" }  // "auto" | "single_pass" | "fixed_point"
-});
-console.log(annotated.compileStats);  // per-SCC strategy and iteration counts
-```
-
-### Convergence strategies
-
-| Strategy | Behaviour |
-|----------|-----------|
-| `auto` *(default)* | Single-pass for non-recursive SCCs; fixed-point for recursive ones |
-| `single_pass` | Force single-pass (fast, use for acyclic modules) |
-| `fixed_point` | Force the full convergence loop (useful for debugging) |
-
----
-
-## Standard Library — `core.k`
-
-`core.k` is the k standard core library. It is **not** pre-loaded into ordinary k
-programs or relation evaluation. Instead, it is the reference source for a few
-canonical definitions that the binary codec depends on, especially `$pattern`.
-It defines four things, in order:
-
-### §1 & §2 — `$bits` and arithmetic
-
-`$bits` is the canonical binary number type (LSB-first trie: empty `_`, extend with `0` or `1`).
-It is also used as node-index encoding inside pattern graphs.
-
-```k
+$ bit  = < {} 0, {} 1 >;
+$ byte = { bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7 };
 $ bits = < {} _, bits 0, bits 1 >;
 ```
 
-Built-in functions: `inv`, `concat`, `succ`, `plus`, `times`, and integer constants `0`–`10`.
+There are no built-in primitive values. The empty product `{}` is the only leaf
+in a non-recursive definition.
 
-### §3 — `$unicode` and `$string`
+**Composable partial functions**
 
-Full Unicode scalar-value type, partitioned by plane and BMP range, built up from `$bit` and `$byte`.
-`$string` is a linked-list of `$unicode` values — used for field/tag label names in pattern graphs.
+Core expressions are deliberately small:
 
-```k
-$ string = < {} nil, { unicode car, string cdr } cons >;
+| Syntax | Meaning |
+| --- | --- |
+| `.field` | project a product field |
+| `/tag` | project a tagged-union branch |
+| `\|tag` | introduce a tagged-union branch |
+| `(f g)` | compose transformations |
+| `<f, g>` | try `f`, then `g` if `f` is undefined |
+| `{f a, g b}` | build a product from parallel transformations |
+| `()` | identity |
+| `<>` | always undefined |
+| `{}` | constant empty product |
+
+**Derived input/output patterns**
+
+k derives structural constraints for expressions. Those patterns become useful
+for diagnostics, REPL output, binary encoding, and object metadata.
+
+**Binary-friendly runtime values**
+
+The command-line pipeline uses a self-describing binary stream:
+
+```text
+encoded pattern, followed by value encoded under that pattern
 ```
 
-### §4 — `$pattern`
-
-The self-describing type of k pattern graphs. A pattern is a cons-list of `$pattern-node` values;
-node 0 is the root; edges carry `$string` labels and `$bits` target indices.
-
-```k
-$ pattern-node = < {} any, edges open-product, edges open-union,
-                         edges closed-product, edges closed-union >;
-$ pattern       = < {} nil, { pattern-node car, pattern cdr } cons >;
-```
-
-The singleton pattern of `$pattern` itself is the fixed framing constant for the wire format:
-every k binary stream starts with a `$pattern` encoded under that constant,
-followed by the value encoded under the pattern just decoded.
-This is why `core.k` ends with a bare `$pattern` expression — it pins that
-canonical code/hash used by the wire codec for the leading pattern payload.
-
----
-
-## Binary Codec Pipeline
-
-The `k` CLI reads and writes a binary stream: a serialised pattern followed by the value encoded under that pattern.
+The boundary tools are:
 
 ```bash
-echo '{"cons":{"car":{"1":{}},"cdr":{"nil":{}}}}' \
-  | k-parse \
-  | k ./Examples/nat.k \
-  | k-print
+k-parse   # textual k value -> binary pattern+value stream
+k         # apply a k expression or .k/.ko program to the stream
+k-print   # binary pattern+value stream -> textual value
 ```
 
-See [`codecs/README.md`](codecs/README.md) for codec internals and format details.
+**Inspectable objects and libraries**
 
-For the textual boundary notation used by `k-parse` and `k-print`, see
-[DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md). For canonical exported
-patterns, see [DOCS/PATTERNS.md](DOCS/PATTERNS.md).
+k programs can be compiled into:
 
-## Object and Library Files
+- `.klib`: plain JSON library objects
+- `.ko`: executable binary object containers
 
-The object toolchain is documented in [objects/README.md](objects/README.md).
+These keep canonical code/relation definitions, aliases, metadata, and
+type-derivation status.
 
-- `.klib` is plain JSON. It has `format: "k-object"`, `main: null`,
-  `codes`, canonical hashed `rels`, `relAlias`, `compileStats`, and `meta`.
-- `.ko` is a binary `KOBJ\n` container around the same JSON payload shape, with
-  `main: "__main__"` for the executable entry relation.
-- Relation `typeDerivation` stores only `status`.
-- Source locations live only in `meta[hash].origins[]` entries as `start` and
-  `end`; definitions do not carry parser locations.
-- Relation definitions do not store generated input/output boundary filters.
+## CLI Tour
 
-Typical CLI usage:
+**Running k**
 
-```bash
-k-compile-lib Examples/ieee.k ieee.klib
-k-compile --lib ieee.klib Examples/nat.k nat.ko
-k-extract-aliases ieee.klib aliases.k
-k-decompile nat.ko
+| Command | Purpose |
+| --- | --- |
+| `k` | Execute a k expression, or `-k` source/object file, over a binary stream |
+| `k-repl` | Start the interactive interpreter |
+
+**Serialization boundaries**
+
+| Command | Purpose |
+| --- | --- |
+| `k-parse` | Convert textual k values to binary pattern+value streams |
+| `k-print` | Convert binary pattern+value streams back to textual values |
+| `k-show` | Pass a stream through while showing the decoded value/filter |
+
+**Built-in codecs**
+
+| Command | Purpose |
+| --- | --- |
+| `k-json` | Convert JSON to/from the binary stream |
+| `k-int` | Convert decimal integers to/from the binary stream |
+| `k-ieee` | Convert float literals to/from the binary stream |
+| `k-unit` | Produce or validate the unit value |
+| `k-utf8` / `k-utf16` | Convert text to/from k string streams |
+
+**Object and library tooling**
+
+| Command | Purpose |
+| --- | --- |
+| `k-compile` | Compile `.k` source to an executable `.ko` object |
+| `k-compile-lib` | Compile `.k` source to a `.klib` library |
+| `k-decompile` | Decompile `.ko` or `.klib` back to k source |
+| `k-extract-aliases` | Recover metadata aliases as k source |
+
+Installed binary names are `k-` plus the source basename without `.mjs`, except
+for `k.mjs` itself. Source names that already include `k-`, such as
+`codecs/k-parse.mjs`, keep that name.
+
+## Node.js API
+
+```js
+import k from "@fraczak/k";
+
+const fn = k.compile("{} |ok");
+
+console.log(fn({})); // "ok"
 ```
 
----
+For deeper inspection:
+
+```js
+const annotated = k.annotate(source, {
+  convergence: { strategy: "auto" }
+});
+
+console.log(annotated.compileStats);
+```
+
+## Project Status
+
+k is usable as an experimental language and toolkit, not a stable production
+platform yet.
+
+Working today:
+
+- parser and runtime for the core language
+- type derivation over recursive algebraic data shapes
+- REPL with aliases, loading, completion, `.klib` export, and `.ko` export
+- binary pattern+value codec
+- object and library files
+- Node.js API
+- regression tests for runtime, codecs, objects, hashes, and type derivation
+
+Still evolving:
+
+- surface syntax and diagnostics
+- standard libraries
+- documentation and tutorials
+- object metadata format
+- optimization and backend experiments
+- larger real-world examples
+
+## Good Areas For Contributors
+
+k is small enough to study, but there are several useful directions:
+
+- examples: schema transformations, codecs, protocol examples, teaching tasks
+- documentation: tutorials, diagrams, and clearer language walkthroughs
+- tooling: formatter, editor integration, better diagnostics, REPL ergonomics
+- compiler work: optimization, object inspection, backend experiments
+- theory: normalization, equivalence, convergence, and pattern derivation
+- applications: hardware modeling, asynchronous/synchronous test pipelines,
+  schema repositories, and data migration tooling
+
+If you are interested in languages, compilers, data modeling, formal methods,
+serialization, or teaching tools, there is room to shape the project.
 
 ## Examples
 
-The [`Examples/`](Examples/) directory contains ready-to-run `.k` scripts:
+The [`Examples/`](Examples/) directory contains small language demonstrations:
 
 | File | Contents |
-|------|----------|
+| --- | --- |
 | `nat.k` | Peano natural numbers |
-| `list.k` | Polymorphic lists |
-| `byte.k` | Byte type (8 bits) |
+| `byte.k` | Byte type |
 | `ieee.k` | IEEE 754 floating-point layout |
 | `bnat.k` | Binary natural numbers |
-| `arithmetics.k` | Integer and rational arithmetic (binary encoding) |
+| `arithmetics.k` | Integer and rational arithmetic built from scratch |
 
----
+`list.k` is also useful as a focused demonstration of filters and patterns.
+
+`ieee.k` is the largest example. It builds an IEEE-754 binary64 model from
+bit-level types upward, including comparison and floating-point `add`, `sub`,
+`mul`, and `div` relations. Those public aliases return `{ result, flags }`;
+compose with `.result` when only the floating-point value is needed.
 
 ## Development
 
 ```bash
-npm run prepare   # regenerate parsers from .jison grammars (after editing them)
-npm test          # run full test suite
+npm run prepare   # regenerate parsers from .jison grammars
+npm test          # run the full suite
 ```
 
 The test suite covers:
 
-- `test.mjs` — core runtime and parser unit tests
-- `Code-derivation-tests/*.mjs` — type derivation suite
-- `test-fingerprint.mjs` — hash/fingerprint stability
-- `test-k-object.mjs` — object file round-trip
-- `test-repl.mjs` — REPL scripted interaction
-- `tests.sh` — shell integration tests
+- core runtime and parser behavior
+- type derivation cases in `Code-derivation-tests/`
+- hash/fingerprint stability
+- object file round-trips
+- REPL scripted interaction
+- shell integration tests
 
----
+## Further Reading
 
-## Quiz
-
-What does each of the following evaluate to?
-
-| Expression | Hint |
-|------------|------|
-| `()` | Empty composition |
-| `<>` | Empty merge |
-| `{}` | Empty product |
-| `\|s\|s\|s/s/s/s` | Tag and untag three times |
-| `({{{() a} b} c} .c .b .a)` | Nest and project |
-
----
-
-For more details see the [`DOCS/`](DOCS/) folder, and especially [`DOCS/book.md`](DOCS/book.md) for the language reference.
+- [DOCS/REPL.md](DOCS/REPL.md) - interactive interpreter details
+- [DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md) - textual boundary notation
+- [DOCS/PATTERNS.md](DOCS/PATTERNS.md) - pattern representation
+- [DOCS/OBJECT_FILE_AND_PATTERN.md](DOCS/OBJECT_FILE_AND_PATTERN.md) - object format
+- [codecs/README.md](codecs/README.md) - binary codec internals
+- [objects/README.md](objects/README.md) - object/library tools
+- [DOCS/book.md](DOCS/book.md) - longer language reference
