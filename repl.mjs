@@ -261,8 +261,16 @@ function listAliases(aliases) {
   return entries.map(([name, hash]) => `${name} = ${hash}`).join("\n");
 }
 
-function printValue(value = null) {
+function printValue(value) {
   return valueWithEnvelopeToK(value);
+}
+
+function commitResult(state, result, lastMain) {
+  if (result !== undefined) {
+    state.value = result;
+    state.lastMain = lastMain;
+  }
+  return [printValue(result)];
 }
 
 function userDefinedNames(source) {
@@ -345,6 +353,17 @@ function aliasNames(state) {
     ...Object.keys(state.typeAliases),
     ...Object.keys(state.relAliases)
   ])].sort();
+}
+
+function displayAliases(state) {
+  const aliases = {};
+  for (const [name, hash] of [
+    ...Object.entries(state.typeAliases),
+    ...Object.entries(state.relAliases)
+  ].sort(([a], [b]) => a.localeCompare(b))) {
+    if (!aliases[hash]) aliases[hash] = name;
+  }
+  return aliases;
 }
 
 function expandHome(input) {
@@ -659,14 +678,14 @@ async function runExpression(input, state) {
   }
   const mainRel = annotated.rels.__main__;
   run.defs = annotated;
+  let result;
   try {
-    state.value = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
+    result = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
   } catch (error) {
     throw remapError(error, preambleLineCount(preamble));
   }
-  state.lastMain = expression;
   restoreCodes(state);
-  return [printValue(state.value)];
+  return commitResult(state, result, expression);
 }
 
 async function runSnippet(input, state, options = {}) {
@@ -685,14 +704,14 @@ async function runSnippet(input, state, options = {}) {
 
   const mainRel = annotated.rels.__main__;
   run.defs = annotated;
+  let result;
   try {
-    state.value = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
+    result = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
   } catch (error) {
     throw remapError(error, lineOffset);
   }
-  state.lastMain = snippet;
   restoreCodes(state);
-  return [printValue(state.value)];
+  return commitResult(state, result, snippet);
 }
 
 async function evaluateInput(input, state) {
@@ -803,13 +822,13 @@ async function evaluateCommand(line, state) {
       if (!arg) throw new Error(`${usagePrefix}d requires a relation name`);
       const { hash, rel } = resolveRel(state, arg);
       if (!rel) throw new Error(`Unknown relation '${arg}'`);
-      return [`${arg} = ${prettyRelation(rel)};  -- ${hash}`];
+      return [`${arg} = ${prettyRelation(rel, displayAliases(state), state.relAliases)};  -- ${hash}`];
     }
     case "C": {
       if (!arg) throw new Error(`${usagePrefix}C requires a type name`);
       const hash = state.typeAliases[arg] || (arg.startsWith("@") ? arg : null);
       if (!hash || !(hash in state.codes)) throw new Error(`Unknown type '${arg}'`);
-      return [`$ ${arg} = ${prettyCode({}, codes.find, codes.find(hash))};  -- ${hash}`];
+      return [`$ ${arg} = ${prettyCode(displayAliases(state), codes.find, codes.find(hash))};  -- ${hash}`];
     }
     default:
       throw new Error(`Unknown command ':${command}'. Try :help`);

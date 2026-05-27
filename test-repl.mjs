@@ -36,6 +36,13 @@ assert.match(output[0], /^succ = @/m);
 output = await evaluateInput(":run succ", state);
 assert.equal(output[0], "{}|succ ?<{} succ, ...>");
 
+output = await evaluateInput("/zero", state);
+assert.equal(output[0], "... undefined");
+assert.equal(state.value.toJSON(), "succ");
+
+output = await evaluateInput("succ", state);
+assert.match(output[0], /^\{\}\|succ\|succ \?</);
+
 output = await evaluateInput(":t succ", state);
 assert.match(output[0], /^succ : /);
 
@@ -97,7 +104,7 @@ const objectFn = objectToFunction(decodeObject(fs.readFileSync(koPath)));
 const objectResult = objectFn(new Product({}, [["closed-product", []]]));
 assert.equal(objectResult.toJSON(), "succ");
 
-fs.writeFileSync(sourcePath, "$ nat = <{} zero, nat succ>;\nsucc = |succ;\n");
+fs.writeFileSync(sourcePath, "$ nat = <{} zero, nat succ>;\nsucc = $nat |succ $nat;\ntwice = succ succ;\n");
 const loadedSource = createState();
 output = await evaluateInput(`:load ${sourcePath}`, loadedSource);
 assert.equal(output[0], `loaded ${sourcePath}`);
@@ -105,6 +112,10 @@ output = await evaluateInput(":codes", loadedSource);
 assert.match(output[0], /^nat = @/m);
 output = await evaluateInput(":rels", loadedSource);
 assert.match(output[0], /^succ = @/m);
+output = await evaluateInput(":d twice", loadedSource);
+assert.match(output[0], /^twice = \$nat succ succ \$nat;  -- @/);
+output = await evaluateInput(":C nat", loadedSource);
+assert.match(output[0], /^\$ nat = < nat succ, @[^ ]+ zero >;  -- @/);
 
 const replPath = fileURLToPath(new URL("./repl.mjs", import.meta.url));
 try {
