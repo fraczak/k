@@ -2,6 +2,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { fromJsonValue, toJsonValue, patternFromJsonValue } from "./json-codec.mjs";
 
 function usage(stream = console.error) {
@@ -44,7 +45,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message || String(error));
-  exit(1);
-});
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch((error) => {
+    console.error(error.stack || error.message || String(error));
+    exit(1);
+  });
+}

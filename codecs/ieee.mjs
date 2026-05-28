@@ -2,9 +2,12 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product, Variant } from "../Value.mjs";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 import { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";
 const UNIT = new Product({});
+const name = "ieee";
+const patterns = [FLOAT64_PATTERN];
 
 function usage(stream = console.error) {
   stream(`Usage: ${argv[1]} --parse | --print`);
@@ -112,6 +115,14 @@ function printFloatText(number) {
   return String(number);
 }
 
+function parse(text) {
+  return encodeNumberToValue(parseFloatText(text));
+}
+
+function print(value) {
+  return printFloatText(decodeValueToNumber(value));
+}
+
 function readAll(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -144,7 +155,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error.message || String(error));
-  exit(1);
-});
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch((error) => {
+    console.error(error.message || String(error));
+    exit(1);
+  });
+}
+
+export { FLOAT64_PATTERN, name, patterns, parse, print };

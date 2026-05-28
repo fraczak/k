@@ -45,6 +45,9 @@ complete.
 | `:C name` | Show canonical code definition |
 | `:codes` | List type aliases |
 | `:rels` | List relation aliases |
+| `:codec load file` | Load an importable REPL codec module |
+| `:codec list` | List loaded REPL codecs |
+| `:input type [codec]` | Read the next line as codec input for a singleton type |
 | `:load [--no-alias] file` | Load `.k` source or `.klib` into the current state |
 | `:klib file` | Export current state as a `.klib` library |
 | `:ko file expr` | Export a `.ko` executable with `expr` as main |
@@ -133,6 +136,10 @@ Tab completion covers:
 
 Type aliases also complete in `$name` position inside raw k input.
 
+For codec commands, completion covers `:codec load`, `:codec list`, file paths
+after `:codec load`, singleton type names after `:input`, and loaded codec names
+after the input type.
+
 ## Loading
 
 ### `:load [--no-alias] file.k`
@@ -146,6 +153,32 @@ the file unless `--no-alias` is used.
 Reads the plain-JSON library file and merges its codes, relations, aliases, and
 metadata into the session. Aliases are recovered from `meta[hash].origins[]`
 unless `--no-alias` is used.
+
+## Codecs
+
+REPL codecs are keyed by canonical singleton code hashes. Open filters are not
+used for codec dispatch.
+
+### `:codec load file`
+
+Loads an importable ES module that exports a codec shape:
+
+```js
+export const name = "utf8";
+export const codes = ["@..."];
+export function parse(text) { /* text -> Value */ }
+export function print(value) { /* Value -> text */ }
+```
+
+A codec may export `patterns` instead of `codes`; each pattern must be a
+singleton closed property-list pattern, and its code hash is recalculated by the
+REPL.
+
+### `:input type [codec]`
+
+Resolves `type` to a canonical singleton code, selects the registered codec,
+and consumes the next line verbatim as codec input. The parsed value is validated
+against that code before becoming the current value.
 
 ## Export
 

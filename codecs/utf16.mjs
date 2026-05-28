@@ -1,7 +1,25 @@
 #!/usr/bin/env node
 
 import { stdin, stdout, argv, exit } from "node:process";
-import { encodeText, decodeText } from "./string-codec.mjs";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
+import {
+  STRING_PATTERN_PROPERTY_LIST,
+  encodeText,
+  decodeText,
+  textToStringValue,
+  stringValueToText
+} from "./string-codec.mjs";
+
+const name = "utf16";
+const patterns = [STRING_PATTERN_PROPERTY_LIST];
+
+function parse(text) {
+  return textToStringValue(text);
+}
+
+function print(value) {
+  return stringValueToText(value);
+}
 
 function usage(stream = console.error) {
   stream(`Usage: ${argv[1]} --parse | --print`);
@@ -70,7 +88,11 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error(err.message || String(err));
-  exit(1);
-});
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch(err => {
+    console.error(err.message || String(err));
+    exit(1);
+  });
+}
+
+export { name, patterns, parse, print };

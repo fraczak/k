@@ -15460,7 +15460,7 @@ float64_div_finite = $float_pair
     .exp_pre exp_pre,
     .exp_dec exp_dec,
     {.ge_bit sel, .sigx a, .sigx_sh b} mux_sig56 sigx_adj,
-    {.ge_bit sel, .exp_pre a, .exp_dec b} mux_exp11 exp_adj
+    {.ge_bit sel, .exp_dec a, .exp_pre b} mux_exp11 exp_adj
   }
   {
     .sign_out sign_out,
@@ -15583,16 +15583,15 @@ frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12
               0 48, 0 49, 1 50, 0 51} $frac52;
 
 # signed zeros (aliases)
-0+f = pos_zero;
-0-f = neg_zero;
+0f = pos_zero;
+-0f = neg_zero;
 
 # 1.0, -1.0, 10.0
 1f  = {} {+ sign,  exp_1  exponent, frac0   fraction} $float64;
 -1f = {} {- sign,  exp_1  exponent, frac0   fraction} $float64;
 10f = {} {+ sign,  exp_10 exponent, frac_10 fraction} $float64;
 
-
-{() x, () y} mul .result
+()
 
 /*
 -- TESTS --

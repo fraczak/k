@@ -44,6 +44,32 @@ assert.deepEqual(decodedMerged.pattern, INT_PATTERN);
 const identityResult = k.compile("()")(withPattern(two, INT_PATTERN));
 assert.deepEqual(identityResult.pattern, INT_PATTERN);
 
+const wrappedFloatPattern = [
+  ["closed-product", [["result", 1], ["flags", 6]]],
+  ["closed-product", [["sign", 2], ["exponent", 3], ["fraction", 4]]],
+  ["closed-union", [["+", 5], ["-", 5]]],
+  ["closed-product", [["0", 2]]],
+  ["closed-product", [["0", 2]]],
+  ["closed-product", []],
+  ["closed-union", [["inexact", 5]]]
+];
+const wrappedFloat = new Product({
+  result: new Product({
+    sign: new Variant("+", new Product({})),
+    exponent: new Product({ 0: new Variant("1", new Product({})) }),
+    fraction: new Product({ 0: new Variant("0", new Product({})) })
+  }),
+  flags: new Variant("inexact", new Product({}))
+});
+const resultProjection = k.compile(".result")(withPattern(wrappedFloat, wrappedFloatPattern));
+assert.deepEqual(resultProjection.pattern, [
+  ["closed-product", [["sign", 1], ["exponent", 3], ["fraction", 4]]],
+  ["closed-union", [["+", 2], ["-", 2]]],
+  ["closed-product", []],
+  ["closed-product", [["0", 1]]],
+  ["closed-product", [["0", 1]]]
+]);
+
 assert.throws(
   () => k.compile(".x")(withPattern(two, INT_PATTERN)),
   /Type Error in 'comp'.*Value envelope does not intersect expression input pattern/s

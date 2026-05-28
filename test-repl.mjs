@@ -2,7 +2,7 @@ import assert from "node:assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   aliasNames,
@@ -12,6 +12,7 @@ import {
   createState,
   evaluateInput,
   explicitSnippetTerminated,
+  helpText,
   isMainEntrypoint,
   lineHasExplicitContinuation,
   lineTerminatesSnippet
@@ -61,6 +62,8 @@ assert(completions.includes(`(${state.typeAliases.nat}`));
 
 completions = completeInput(":run su", state)[0];
 assert(completions.includes(":run succ"));
+completions = completeInput(":co", state)[0];
+assert(completions.includes(":codec"));
 
 completions = completeInput("$na", state)[0];
 assert(completions.includes("$nat"));
@@ -89,6 +92,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-repl-"));
 const libPath = path.join(tmpDir, "session.klib");
 const koPath = path.join(tmpDir, "succ.ko");
 const sourcePath = path.join(tmpDir, "session.k");
+const codecPath = path.join(tmpDir, "bool-codec.mjs");
 const symlinkPath = path.resolve(".test-k-repl-link");
 output = await evaluateInput(`:klib ${libPath}`, state);
 assert.equal(output[0], `saved ${libPath}`);
@@ -116,6 +120,61 @@ output = await evaluateInput(":d twice", loadedSource);
 assert.match(output[0], /^twice = \$nat succ succ \$nat;  -- @/);
 output = await evaluateInput(":C nat", loadedSource);
 assert.match(output[0], /^\$ nat = < nat succ, @[^ ]+ zero >;  -- @/);
+
+const codecState = createState();
+output = await evaluateInput(":type bool = <{} true, {} false>", codecState);
+assert.match(output[0], /^\$ bool = @/);
+const boolHash = codecState.typeAliases.bool;
+const valueModuleUrl = pathToFileURL(path.resolve("Value.mjs")).href;
+fs.writeFileSync(codecPath, `
+import { Product, Variant } from ${JSON.stringify(valueModuleUrl)};
+
+export const name = "yn";
+export const codes = [${JSON.stringify(boolHash)}];
+
+export function parse(text) {
+  const tag = text.trim();
+  if (tag !== "true" && tag !== "false") throw new Error("expected true or false");
+  return new Variant(tag, new Product({}));
+}
+
+export function print(value) {
+  return value.tag;
+}
+`);
+assert.match(helpText(), /:codec load file/);
+output = await evaluateInput(":codec list", codecState);
+assert.equal(output[0], "(none)");
+completions = completeInput(":codec l", codecState)[0];
+assert(completions.includes(":codec load"));
+assert(completions.includes(":codec list"));
+completions = completeInput(`:codec load ${tmpDir}/bool`, codecState)[0];
+assert(completions.includes(`:codec load ${codecPath}`));
+output = await evaluateInput(`:codec load ${codecPath}`, codecState);
+assert.equal(output[0], `loaded codec yn for ${boolHash}`);
+output = await evaluateInput(":codec list", codecState);
+assert.match(output[0], new RegExp(`^yn ${boolHash.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+completions = completeInput(":input bo", codecState)[0];
+assert(completions.includes(":input bool"));
+completions = completeInput(":input bool y", codecState)[0];
+assert(completions.includes(":input bool yn"));
+output = await evaluateInput(":input bool yn", codecState);
+assert.equal(output[0], `input ${boolHash} using yn: enter value text`);
+output = await evaluateInput("true", codecState);
+assert.match(output[0], /\{\}\|true \?</);
+assert.match(output[0], /yn: true/);
+output = await evaluateInput("{} | false", codecState);
+assert.doesNotMatch(output[0], /yn: false/);
+
+const utf8State = createState();
+output = await evaluateInput(":load core.k", utf8State);
+assert.equal(output[0], "loaded core.k");
+output = await evaluateInput(":codec load ./codecs/utf8.mjs", utf8State);
+assert.equal(output[0], `loaded codec utf8 for ${utf8State.typeAliases.string}`);
+output = await evaluateInput(":input string utf8", utf8State);
+assert.equal(output[0], `input ${utf8State.typeAliases.string} using utf8: enter value text`);
+output = await evaluateInput("hello", utf8State);
+assert.match(output[0], /utf8: hello/);
 
 const replPath = fileURLToPath(new URL("./repl.mjs", import.meta.url));
 try {

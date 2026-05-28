@@ -2,6 +2,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product } from "../Value.mjs";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 
 function usage(stream = console.error) {
@@ -14,6 +15,8 @@ function usage(stream = console.error) {
 const UNIT_PATTERN = [
   ["closed-product", []]
 ];
+const name = "unit";
+const patterns = [UNIT_PATTERN];
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -26,6 +29,17 @@ function readAll(stream) {
 
 function unitEncoding() {
   return encodeToWire(new Product({}), UNIT_PATTERN);
+}
+
+function parse() {
+  return new Product({});
+}
+
+function print(value) {
+  if (!(value instanceof Product) || Object.keys(value.product).length !== 0) {
+    throw new Error("Input is not a unit value");
+  }
+  return "{}";
 }
 
 async function main() {
@@ -49,13 +63,14 @@ async function main() {
 
   const input = await readAll(stdin);
   const { value } = decodeWire(input);
-  if (!(value instanceof Product) || Object.keys(value.product).length !== 0) {
-    throw new Error("Input is not a unit value");
-  }
-  stdout.write("{}");
+  stdout.write(print(value));
 }
 
-main().catch((error) => {
-  console.error(error.message || String(error));
-  exit(1);
-});
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch((error) => {
+    console.error(error.message || String(error));
+    exit(1);
+  });
+}
+
+export { UNIT_PATTERN, name, patterns, parse, print };

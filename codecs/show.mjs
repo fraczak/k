@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import { argv, stdin, stdout, stderr } from "node:process";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire } from "./runtime/prefix-codec.mjs";
 import { propertyListToFilter, valueToK } from "./runtime/show-value.mjs";
 
@@ -49,7 +50,9 @@ async function main() {
   stderr.write(`${valueStr} ?${filterStr}\n`);
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message || String(error));
-  process.exit(1);
-});
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch((error) => {
+    console.error(error.stack || error.message || String(error));
+    process.exit(1);
+  });
+}

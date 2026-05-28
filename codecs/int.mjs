@@ -15,6 +15,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { Product, Variant } from "../Value.mjs";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 
 function usage(stream = console.error) {
@@ -31,6 +32,8 @@ const INT_PATTERN = [
   ["closed-union", [["0", 1], ["1", 1], ["_", 2]]],
   ["closed-product", []]
 ];
+const name = "int";
+const patterns = [INT_PATTERN];
 
 function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -108,7 +111,11 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error(err.message || String(err));
-  exit(1);
-});
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch(err => {
+    console.error(err.message || String(err));
+    exit(1);
+  });
+}
+
+export { INT_PATTERN, name, patterns, parseIntStr as parse, printIntValue as print };

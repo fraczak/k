@@ -122,6 +122,20 @@ function constrainWithPattern(value, constraint, exp) {
   return withPattern(value, pattern);
 }
 
+function projectionPattern(staticOutputPattern, valuePattern, label, exp) {
+  const dynamicOutputPattern = edgeSubpattern(valuePattern, label);
+  const pattern = intersectPatterns(staticOutputPattern, dynamicOutputPattern);
+  if (!pattern && staticOutputPattern && dynamicOutputPattern) {
+    throw new TypeError(
+      `Type Error in '${exp.op}'${expLocation(exp)}\n` +
+      ` - Projected value envelope does not intersect expression output pattern.\n` +
+      ` - output pattern: ${patternPreview(staticOutputPattern)}\n` +
+      ` - projected envelope: ${patternPreview(dynamicOutputPattern)}`
+    );
+  }
+  return pattern;
+}
+
 function compiledExp(findCode, exp, typePatternGraph) {
   const cached = exp._compiledRun;
   if (cached?.findCode === findCode && cached?.typePatternGraph === typePatternGraph && cached?.defs === run.defs) {
@@ -188,13 +202,13 @@ function compiledExp(findCode, exp, typePatternGraph) {
     case "dot":
       fn = (value) => {
         if (value === undefined) return undefined;
-        return withPattern(value.product[exp.dot], staticOutputPattern || edgeSubpattern(value.pattern, exp.dot));
+        return withPattern(value.product[exp.dot], projectionPattern(staticOutputPattern, value.pattern, exp.dot, exp));
       };
       break;
     case "div":
       fn = (value) => {
         if (value === undefined || value.tag !== exp.div) return undefined;
-        return withPattern(value.value, staticOutputPattern || edgeSubpattern(value.pattern, exp.div));
+        return withPattern(value.value, projectionPattern(staticOutputPattern, value.pattern, exp.div, exp));
       };
       break;
     case "comp": {

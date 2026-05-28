@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import { argv, stdin, stdout } from "node:process";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire } from "./runtime/prefix-codec.mjs";
 
 function usage(stream = console.error) {
@@ -55,7 +56,9 @@ async function main() {
   stdout.write(`${JSON.stringify(value)}\n`);
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message || String(error));
-  process.exit(1);
-});
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch((error) => {
+    console.error(error.stack || error.message || String(error));
+    process.exit(1);
+  });
+}

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import k from "../index.mjs";
 import { parseValue } from "../valueIO.mjs";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { exportPatternGraph } from "./runtime/codec.mjs";
 import { patternToPropertyList } from "./runtime/pattern-json.mjs";
 import { encodeToWire } from "./runtime/prefix-codec.mjs";
@@ -89,7 +90,9 @@ async function main() {
   stdout.write(encodeToWire(value, propertyList));
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message || String(error));
-  process.exit(1);
-});
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch((error) => {
+    console.error(error.stack || error.message || String(error));
+    process.exit(1);
+  });
+}

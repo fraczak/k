@@ -1,11 +1,11 @@
 {
     "name": "@fraczak/k",
-    "version": "6.1.1",
+    "version": "6.1.2",
     "description": "k — a language for composing first-order partial functions over algebraic data types (products and tagged unions); includes runtime, type derivation, REPL, and codec toolchain",
     "main": "index.mjs",
     "scripts": {
         "prepare": "jiwson -m es6 parser.jison -o parser.mjs; jiwson -m es6 valueParser.jison -o valueParser.mjs; ",
-        "test": "node test.mjs; for f in Code-derivation-tests/*.mjs; do echo $f; node $f; done; node test-fingerprint.mjs; node test-hash-fuzz.mjs; node test-hash-normalization.mjs; node test-k-object.mjs; node test-repl.mjs; ./tests.sh",
+        "test": "node test.mjs; for f in Code-derivation-tests/*.mjs; do echo $f; node $f; done; node test-fingerprint.mjs; node test-hash-fuzz.mjs; node test-hash-normalization.mjs; node test-k-object.mjs; node test-repl.mjs; node test-ieee-arithmetic.mjs; ./tests.sh",
         "deps:graph": "node scripts/generate-dependency-graph.mjs"
     },
     "repository": {

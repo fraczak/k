@@ -23,15 +23,25 @@ import {
   prettyRelation
 } from "./object.mjs";
 import { propertyListToFilter, valueToK, valueWithEnvelopeToK } from "./codecs/runtime/show-value.mjs";
+import {
+  codecNames,
+  codeHashToPattern,
+  listCodecs,
+  loadCodecModule,
+  resolveCodec,
+  singletonPatternToCodeHash,
+  valueForCode
+} from "./repl-codecs.mjs";
 
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 const TYPE_DEF_RE = /^\s*\$\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 const REL_DEF_RE = /^\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 const COMMAND_NAMES = [
   "help", "type", "code", "rel", "def", "run", "eval", "t", "d", "C",
-  "codes", "rels", "val", "reset", "klib", "ko", "load",
+  "codes", "rels", "val", "codec", "input", "reset", "klib", "ko", "load",
   "quit", "exit"
 ];
+const CODEC_COMMAND_NAMES = ["load", "list"];
 const PATH_COMMANDS = new Set(["klib", "ko", "load"]);
 const initialCodes = codes.dump();
 
@@ -50,6 +60,8 @@ function createState() {
     rels: {},
     relAliases: {},
     typeAliases: {},
+    codecs: {},
+    pendingInput: null,
     meta: {},
     value: emptyValue(),
     lastMain: null
@@ -261,8 +273,27 @@ function listAliases(aliases) {
   return entries.map(([name, hash]) => `${name} = ${hash}`).join("\n");
 }
 
-function printValue(value) {
-  return valueWithEnvelopeToK(value);
+function formatCodecOutput(output) {
+  if (Buffer.isBuffer(output)) return output.toString("utf8");
+  return String(output);
+}
+
+function printValue(value, state = null) {
+  const lines = [valueWithEnvelopeToK(value)];
+  if (!state || value === undefined) return lines[0];
+
+  const codeHash = singletonPatternToCodeHash(value.pattern);
+  if (!codeHash) return lines[0];
+
+  for (const codec of state.codecs?.[codeHash] || []) {
+    if (typeof codec.print !== "function") continue;
+    try {
+      lines.push(`${codec.name}: ${formatCodecOutput(codec.print(value, { codeHash, state }))}`);
+    } catch (error) {
+      lines.push(`${codec.name}: <error: ${error.message || String(error)}>`);
+    }
+  }
+  return lines.join("\n");
 }
 
 function commitResult(state, result, lastMain) {
@@ -270,7 +301,7 @@ function commitResult(state, result, lastMain) {
     state.value = result;
     state.lastMain = lastMain;
   }
-  return [printValue(result)];
+  return [printValue(result, state)];
 }
 
 function userDefinedNames(source) {
@@ -348,6 +379,13 @@ function canonicalNames(state) {
   ])].filter((name) => name.startsWith("@")).sort();
 }
 
+function canonicalCodeNames(state) {
+  return [...new Set([
+    ...Object.keys(state.codes),
+    ...Object.values(state.typeAliases)
+  ])].filter((name) => name.startsWith("@")).sort();
+}
+
 function aliasNames(state) {
   return [...new Set([
     ...Object.keys(state.typeAliases),
@@ -397,6 +435,16 @@ function completeCanonical(line, state) {
   return [matches, line];
 }
 
+function completeCanonicalCode(line, state) {
+  const match = line.match(/^(.*?)(@[A-Za-z0-9_?!+-]*)$/);
+  if (!match) return [[], line];
+  const [, prefix, partial] = match;
+  const matches = canonicalCodeNames(state)
+    .filter((name) => name.startsWith(partial))
+    .map((name) => `${prefix}${name}`);
+  return [matches, line];
+}
+
 function completeIdentifier(line, state) {
   const match = line.match(/^(.*?)(\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*)$/);
   if (!match) return [[], line];
@@ -405,6 +453,19 @@ function completeIdentifier(line, state) {
   const barePartial = isTypeToken ? partial.slice(1) : partial;
   const names = isTypeToken ? Object.keys(state.typeAliases).sort() : aliasNames(state);
   const matches = names
+    .filter((name) => name.startsWith(barePartial))
+    .map((name) => `${prefix}${isTypeToken ? "$" : ""}${name}`);
+  return [matches, line];
+}
+
+function completeTypeIdentifier(line, state) {
+  const match = line.match(/^(.*?)(\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*)$/);
+  if (!match) return [[], line];
+  const [, prefix, partial] = match;
+  const isTypeToken = partial.startsWith("$");
+  const barePartial = isTypeToken ? partial.slice(1) : partial;
+  const matches = Object.keys(state.typeAliases)
+    .sort()
     .filter((name) => name.startsWith(barePartial))
     .map((name) => `${prefix}${isTypeToken ? "$" : ""}${name}`);
   return [matches, line];
@@ -468,6 +529,75 @@ function loadPathCompletionStart(argStart, arg) {
   return argStart + restStart + restLeadingWhitespace + completionTokenStart(rest.trimStart());
 }
 
+function completeCommandWord(line, argStart, arg, words) {
+  const leadingWhitespace = arg.length - arg.trimStart().length;
+  const trimmed = arg.trimStart();
+  if (/\s/.test(trimmed)) return [[], line];
+  const prefix = line.slice(0, argStart + leadingWhitespace);
+  const matches = words
+    .filter((word) => word.startsWith(trimmed))
+    .map((word) => `${prefix}${word}`);
+  return [matches, line];
+}
+
+function codecLoadPathCompletionStart(argStart, arg) {
+  const match = arg.match(/^(\s*)load(?:\s+(.*))?$/);
+  if (!match) return null;
+  if (match[2] == null) return null;
+  const [, leading, rest] = match;
+  const restLeadingWhitespace = rest.length - rest.trimStart().length;
+  return argStart + leading.length + "load".length + 1 + restLeadingWhitespace + completionTokenStart(rest.trimStart());
+}
+
+function completeCodecCommand(line, argStart, arg) {
+  const trimmed = arg.trimStart();
+  if (trimmed === "" || !/\s/.test(trimmed)) {
+    return completeCommandWord(line, argStart, arg, CODEC_COMMAND_NAMES);
+  }
+
+  const tokenStart = codecLoadPathCompletionStart(argStart, arg);
+  if (tokenStart == null) return [[], line];
+  return completePath(line, tokenStart);
+}
+
+function resolveTypeHash(state, rawName) {
+  const token = rawName.trim();
+  const bareName = token.startsWith("$") ? token.slice(1) : token;
+  const hash = state.typeAliases[bareName] || (token.startsWith("@") ? token : null);
+  if (!hash || !(hash in state.codes)) throw new Error(`Unknown type '${rawName}'`);
+  return hash;
+}
+
+function completeInputCommand(line, state, argStart, arg) {
+  const match = arg.match(/^(\s*)(\S+)?(\s+)?(\S*)?$/);
+  if (!match) return [[], line];
+  const [, leading, typeToken = "", afterTypeWhitespace = "", codecPartial = ""] = match;
+
+  if (!typeToken || !afterTypeWhitespace) {
+    if (/@[A-Za-z0-9_?!+-]*$/.test(line)) return completeCanonicalCode(line, state);
+    return completeTypeIdentifier(line, state);
+  }
+
+  if (typeToken) {
+    const prefix = line.slice(0, argStart + leading.length + typeToken.length + afterTypeWhitespace.length);
+    const names = (() => {
+      try {
+        return codecNames(state, resolveTypeHash(state, typeToken));
+      } catch {
+        return codecNames(state);
+      }
+    })();
+    return [
+      names
+        .filter((name) => name.startsWith(codecPartial))
+        .map((name) => `${prefix}${name}`),
+      line
+    ];
+  }
+
+  return [[], line];
+}
+
 function completeCommandArgument(line, state) {
   const body = line.slice(1);
   const firstSpace = body.search(/\s/);
@@ -476,6 +606,14 @@ function completeCommandArgument(line, state) {
   const command = body.slice(0, firstSpace);
   const argStart = 1 + firstSpace + 1;
   const arg = line.slice(argStart);
+
+  if (command === "codec") {
+    return completeCodecCommand(line, argStart, arg);
+  }
+
+  if (command === "input") {
+    return completeInputCommand(line, state, argStart, arg);
+  }
 
   if (PATH_COMMANDS.has(command)) {
     const tokenStart = command === "load"
@@ -714,7 +852,59 @@ async function runSnippet(input, state, options = {}) {
   return commitResult(state, result, snippet);
 }
 
+async function loadCodec(input, state) {
+  const [subcommand, ...rest] = input.trim().split(/\s+/);
+  switch (subcommand) {
+    case "load": {
+      const filePath = rest.join(" ");
+      if (!filePath) throw new Error(":codec load requires a file path");
+      const registered = await loadCodecModule(state, expandHome(filePath));
+      return registered.map(({ name, codeHash }) => `loaded codec ${name} for ${codeHash}`);
+    }
+    case "list":
+      if (rest.length > 0) throw new Error(":codec list does not accept arguments");
+      return [listCodecs(state)];
+    default:
+      throw new Error(":codec requires 'load' or 'list'");
+  }
+}
+
+async function requestCodecInput(input, state) {
+  const parts = input.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0 || parts.length > 2) {
+    throw new Error(":input requires a singleton type and optional codec name");
+  }
+
+  const codeHash = resolveTypeHash(state, parts[0]);
+  const codecName = parts[1] || null;
+  resolveCodec(state, codeHash, codecName, "parse");
+  state.pendingInput = { codeHash, codecName };
+  return [`input ${codeHash}${codecName ? ` using ${codecName}` : ""}: enter value text`];
+}
+
+async function consumeCodecInput(input, state) {
+  const pending = state.pendingInput;
+  if (!pending) return null;
+  state.pendingInput = null;
+
+  restoreCodes(state);
+  const codec = resolveCodec(state, pending.codeHash, pending.codecName, "parse");
+  const pattern = codeHashToPattern(pending.codeHash, codes.find);
+  const parsed = await codec.parse(input, {
+    codeHash: pending.codeHash,
+    pattern,
+    state
+  });
+  const value = valueForCode(parsed, pending.codeHash, codes.find);
+  state.value = value;
+  return [printValue(value, state)];
+}
+
 async function evaluateInput(input, state) {
+  if (state.pendingInput) {
+    return consumeCodecInput(input, state);
+  }
+
   const line = input.trim();
   if (line === "" || line.startsWith("#") || line.startsWith("//") || line.startsWith("--")) return [];
 
@@ -764,9 +954,13 @@ async function evaluateCommand(line, state) {
       return [listAliases(state.relAliases)];
     case "val":
       return [
-        printValue(state.value),
+        printValue(state.value, state),
         JSON.stringify(state.value, null, 2)
       ];
+    case "codec":
+      return loadCodec(arg, state);
+    case "input":
+      return requestCodecInput(arg, state);
     case "reset": {
       const fresh = createState();
       Object.assign(state, fresh);
@@ -845,6 +1039,9 @@ function helpText() {
     ":type name           show type definition",
     ":codes               list type aliases",
     ":rels                list relation aliases",
+    ":codec load file     load a REPL codec module",
+    ":codec list          list loaded codecs",
+    ":input type [codec]  read next line as codec input",
     ":load [--no-alias] file",
     "                     load .k source or .klib",
     ":klib file           export state as a library",
@@ -884,6 +1081,19 @@ function startRepl() {
   console.log("k interpreter (.klib-backed). Type :help for commands.");
   rl.prompt();
   async function handleLine(line) {
+    if (state.pendingInput && buffer.length === 0) {
+      rl.setPrompt("> ");
+      try {
+        for (const output of await consumeCodecInput(line, state)) {
+          console.log(output);
+        }
+      } catch (error) {
+        console.error(error.message || String(error));
+      }
+      if (!closed) rl.prompt();
+      return;
+    }
+
     if (lineHasExplicitContinuation(line)) {
       buffer.push(lineForContinuation(line));
       rl.setPrompt("  ");
