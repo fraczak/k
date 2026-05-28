@@ -78,6 +78,14 @@ Alternative:
 - Compile KIR-P directly. This is useful for a correctness experiment, but it
   recreates the polymorphic interpreter and is not the final performance path.
 
+Relationship to kVM:
+
+- [KVM_EXECUTION_MODEL.md](KVM_EXECUTION_MODEL.md) sketches kVM as the concrete
+  execution contract for KIR-M.
+- KIR-R remains the retyping contract.
+- kVM keeps product and union as structured regions so backends can choose
+  sequential execution first, then safe parallel scheduling later.
+
 ## Object IR
 
 ### Step 1: Define KIR-P
@@ -449,10 +457,11 @@ Alternative:
 10. Add call-site retyping for helper relations.
 11. Add retyping cache.
 12. Reject non-converged relations in LLVM/Wasm compilation.
-13. Prototype a small C or Wasm backend for KIR-R.
+13. Prototype a small C or Wasm backend through kVM.
 
 Rule:
 
 - KIR-P is the portable semantic contract.
 - KIR-R is the retyping contract.
-- KIR-M is backend material.
+- KIR-M is backend material; kVM is the proposed concrete execution model for
+  that material.
