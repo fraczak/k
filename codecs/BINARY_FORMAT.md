@@ -9,7 +9,7 @@ in [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md):
 encode($pattern_value : $pattern) encode(value : decoded_pattern)
 ```
 
-## Purpose Of This File
+## Purpose of This File
 
 This file records constraints for any future optimized container layered above
 the canonical stream.

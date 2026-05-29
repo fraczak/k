@@ -4,7 +4,7 @@
 
 This algorithm infers type constraints for programs consisting of mutually recursive partial functions over algebraic data types (products and unions).
 
-**Input:** AST of a `k` program, consisting of function definitions (expressions) - can be seen as a set of (recursive) equations.
+**Input:** AST of a `k` program, consisting of function definitions (expressions), which can be seen as a set of recursive equations.
 **Output:** Annotated AST with type patterns (also called filters)
 
 It is assumed that we have access (through APIs) to a universal "type registry", which provides us with unique (canonical) names for each type.
@@ -22,12 +22,12 @@ A **pattern** represents a set of types:
 | `<>` | Closed union | Exactly specified |
 | `T` | Named type | From type definition |
 
-**Fields:** Each pattern has associated field labels. For open patterns, additional fields may exist. For closed patterns, the field set is exact. 
+**Fields:** Each pattern has associated field labels. For open patterns, additional fields may exist. For closed patterns, the field set is exact.
 Unknown-kind patterns have only the open form `(...)`; a closed filter must choose product `{...}`/`{}` or union `<...>`/`<>`.
 
 A type pattern is a singleton pattern, i.e., only one type is captured by such a pattern.
 
-## 3. Pattern Graph - a data structure used during type derivation
+## 3. Pattern Graph - A Data Structure Used During Type Derivation
 
 **Nodes:** Patterns organized in a "reps" (representatives) forest, similar to union-find. However, a union of two (or more) different trees always produces a new "rep" (root) node, joining the trees.
 **Edges:** Labeled by field names, pointing to other patterns
@@ -42,13 +42,13 @@ A type pattern is a singleton pattern, i.e., only one type is captured by such a
 
 ## 4. Unification
 
-`unify(p₁, ..., pₙ)` computes the least upper bound (most specific common pattern); it may add a new node (rep) into the reps forest; the operation does not modify any existing pattern node
+`unify(p₁, ..., pₙ)` computes the least upper bound (most specific common pattern); it may add a new node (rep) into the reps forest, but it does not modify any existing pattern node.
 
 **Rules:**
 
 - **Open + Open:** Merge field sets, stay open
-- **Open + Closed:** Check fields ⊆, become closed
-- **Closed + Closed:** Check fields =, stay closed
+- **Open + Closed:** Check field inclusion, then become closed
+- **Closed + Closed:** Check field equality, then stay closed
 - **Product ⊥ Union:** Error (incompatible)
 - **Type T:** Unique (canonical name)
 
@@ -75,7 +75,7 @@ out(eᵢ) = in(eᵢ₊₁)  for i = 1..n-1
 out((e₁ e₂ ... eₙ)) = out(eₙ)
 ```
 
-In case when `n=0`, identity, `()`
+When `n=0`, the composition is the identity, `()`.
 
 ```text
 in(()) = out(())
@@ -136,7 +136,7 @@ in(T) = out(T) = pattern(T)
 see patterns.filterToPattern(F)
 ```
 
-Filter expression is a syntax for describing pattern graphs.
+A filter expression is syntax for describing pattern graphs.
 
 ## 6. Global Algorithm
 
@@ -166,13 +166,13 @@ For each SCC (in topological order):
     For each function `f` in SCC:
       1. Compact `f`'s pattern graph
       2. For each occurrence `o` of `g` in `f`, clone(in(g), out(g)) and unify input and output patterns of `o` with the corresponding cloned patterns
-      
+
     If pattern graphs unchanged: break
 ```
 
 ## 7. Compaction
 
-**Purpose:** Replace all pattern nodes by their reps and replace all singleton patterns by types.
+**Purpose:** Replace all pattern nodes with their reps and replace all singleton patterns with types.
 
 **Algorithm:**
 
@@ -186,7 +186,7 @@ For each SCC (in topological order):
 
 **Criterion:** Pattern graph structure unchanged between iterations
 
-**Measured by:** 
+**Measured by:**
 1. Representative forest structure (parent pointers)
 2. Edge sets for each representative
 3. Pattern descriptors for each representative
@@ -206,7 +206,7 @@ Converged = (current_state == previous_state)
 
 ## 9. Error Handling
 
-**Unification errors:**
+**Unification errors include:**
 
 - Product vs Union
 - Closed pattern field mismatch

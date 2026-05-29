@@ -1,4 +1,5 @@
 # Appendix B — Incorporating External Predefined Types and Functions
+
 ## **B.1  Purpose**
 
 The k language is intentionally minimal.

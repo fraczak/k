@@ -702,21 +702,29 @@ function codeToSource(code, aliases) {
   return code.code === "product" ? `{${body}}` : `< ${body} >`;
 }
 
-function boundaryFilterSource(typePatternGraph, patternId, aliases) {
-  const [filter] = patterns2filters(typePatternGraph, patternId);
-  return prettyRel({ op: "filter", filter: rewriteCodesInFilter(filter, aliases) });
+function boundaryFilterSources(typePatternGraph, patternIds, aliases) {
+  return patterns2filters(typePatternGraph, ...patternIds)
+    .map((filter) => prettyRel({
+      op: "filter",
+      filter: rewriteCodesInFilter(filter, aliases)
+    }));
 }
 
 function prettyRelation(rel, aliases = {}, relAliases = {}) {
+  const [inputFilter, outputFilter] = boundaryFilterSources(
+    rel.typePatternGraph,
+    [rel.def.patterns[0], rel.def.patterns[1]],
+    aliases
+  );
   const body = rewriteRefsInExp(
     stripRelationBoundaryFilters(stripDebugFieldsFromExp(rel.def), rel.typePatternGraph),
     aliases,
     relAliases
   );
   return [
-    boundaryFilterSource(rel.typePatternGraph, rel.def.patterns[0], aliases),
+    inputFilter,
     prettyRel(body),
-    boundaryFilterSource(rel.typePatternGraph, rel.def.patterns[1], aliases)
+    outputFilter
   ].join(" ");
 }
 
@@ -768,10 +776,15 @@ function decompileObject(object) {
 
   const mainRel = relAliases[hydrated.main] || hydrated.main;
   const mainRelDef = rels[hydrated.main];
+  const [mainInputFilter, mainOutputFilter] = boundaryFilterSources(
+    mainRelDef.typePatternGraph,
+    [mainRelDef.def.patterns[0], mainRelDef.def.patterns[1]],
+    aliases
+  );
   const main = [
-    boundaryFilterSource(mainRelDef.typePatternGraph, mainRelDef.def.patterns[0], aliases),
+    mainInputFilter,
     aliases[mainRel] || mainRel,
-    boundaryFilterSource(mainRelDef.typePatternGraph, mainRelDef.def.patterns[1], aliases)
+    mainOutputFilter
   ].join(" ");
 
   return [

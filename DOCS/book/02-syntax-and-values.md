@@ -10,7 +10,7 @@ $ type_name = ...type_expression... ;
 function_name = ...expression... ;
 ```
 
-The definitions are followed in the file by the *main expression*; it represents the partial function defined by the program as a whole.
+The definitions are followed in the file by the *main expression*, which represents the partial function defined by the program as a whole.
 
 There is no syntax for values.
 Every syntactic form in an expression describes a **function** -- possibly a constant function that always returns the same value.
@@ -48,22 +48,22 @@ Every type denotes a finite tree automaton whose accepted trees are the possible
 
 ## **2.4 Projections**
 
-**Dot** notation, e.g., 
+**Dot** notation, e.g.,
 
 ```k
  . field_name
 ```
 
 is used for extracting the value of a field from a record (product type value).
-**Div** notation, e.g., 
+**Div** notation, e.g.,
 
 ```k
  / variant_name
 ```
 
 is used for asserting a particular variant of a union and extracting its value.
-Product type `{ T₁ l₁, T₂ l₂, … , Tₙ lₙ }` naturally defines `n` partial functions: `.l₁, .l₂, … , .lₙ`,  
-and union type `< T₁ l₁, T₂ l₂, … , Tₙ lₙ >` naturally defines `n` partial functions `/l₁, /l₂, … , /lₙ`.
+A product type `{ T₁ l₁, T₂ l₂, … , Tₙ lₙ }` naturally defines `n` partial functions: `.l₁, .l₂, … , .lₙ`,
+and a union type `< T₁ l₁, T₂ l₂, … , Tₙ lₙ >` naturally defines `n` partial functions `/l₁, /l₂, … , /lₙ`.
 Those partial functions are called **projections** and they constitute the basis for the definition
 of all other partial functions in the `k` language.
 
@@ -81,10 +81,10 @@ Expressions combine partial functions using the following operators:
 Parentheses around a composition may be omitted except for the empty composition `()` — the identity function.
 Empty product, `{ }`, defines a constant function (ignoring its input) returning *unit*.
 
-It is important to notice that after the three markers: `dot (.)`, `div (/)`, or `pipe (|)`, there must be a constant label literal. For that reason, it is possible and advised not to leave any blanks after the marker, e.g.:
+It is important to notice that after the three markers `dot (.)`, `div (/)`, or `pipe (|)`, there must be a constant label literal. For that reason, it is possible and recommended not to leave any blanks after the marker, e.g.:
 
 ```k-lang
-  .field /'a-tag' |"strange and long tag name ✅" 
+  .field /'a-tag' |"strange and long tag name ✅"
 ```
 
 ---
@@ -105,7 +105,7 @@ This defines a "two-variant" union type and three functions: two constants and o
 ## **2.7 Summary**
 
 * All types describe tree shapes.
-* As type expression, `{}` is the empty product type (with one value, called *unit*).
+* As a type expression, `{}` is the empty product type (with one value, called *unit*).
 * Functions, not values, are the only expressions in `k`.
 
 ---

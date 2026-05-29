@@ -91,6 +91,25 @@ assert.match(decompiledSource, /\$ Nws3 =/);
 assert.match(decompiledSource, /^7jfi = /m);
 assert.match(decompiledSource, /^----- main -----\n\?\(\.\.\.\) 7jfi \$Nws3$/m);
 
+const natLibraryBuffer = compileLibraryBuffer(fs.readFileSync("Examples/nat.k", "utf8"), { source: "Examples/nat.k" });
+const natDecompiledSource = decompileObjectBuffer(natLibraryBuffer);
+const natRoundTripSource = decompileObjectBuffer(
+  compileLibraryBuffer(natDecompiledSource, { source: "Examples/nat.decompiled.k" })
+);
+const recursiveNatPattern = /\?\{<X0 succ, \.\.\.>=X0 x, <X1 succ, \.\.\.>=X1 y\} .* \?X1;/;
+assert.equal(natRoundTripSource, natDecompiledSource);
+assert.match(natDecompiledSource, recursiveNatPattern);
+
+const arithmeticsLibraryBuffer = compileLibraryBuffer(
+  fs.readFileSync("Examples/arithmetics.k", "utf8"),
+  { source: "Examples/arithmetics.k" }
+);
+const arithmeticsDecompiledSource = decompileObjectBuffer(arithmeticsLibraryBuffer);
+const arithmeticsRoundTripSource = decompileObjectBuffer(
+  compileLibraryBuffer(arithmeticsDecompiledSource, { source: "Examples/arithmetics.decompiled.k" })
+);
+assert.equal(arithmeticsRoundTripSource, arithmeticsDecompiledSource);
+
 assert.throws(() => k.compile("@A = (); @A"), /Parse error/);
 assert.throws(() => k.compile("$ @A = {}; $@A"), /Parse error/);
 assert.deepEqual(k.compile("7jfi = ?X0; 7jfi")(new Product({})).toJSON(), {});

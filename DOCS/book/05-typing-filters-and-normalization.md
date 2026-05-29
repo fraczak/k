@@ -87,13 +87,13 @@ Here:
 
 ## **5.6 Type inference and normalization**
 
-Every `k` program can be analyzed to assign an input and an output filter to every sub-expression. This process is called type inference abd normalization.
+Every `k` program can be analyzed to assign an input and an output filter to every sub-expression. This process is called type inference and normalization.
 
-Type inference and normalization proceeds as follows:
+Type inference and normalization proceed as follows:
 
 1. Build a graph of all type references appearing explicitly and implicitly in the program.
 2. Annotate each expression node with a pair of (input filter, output filter).
-3. Replace filters that match a single, concrete type with that type expression, adding any newly-discovered types to the graph.
+3. Replace filters that match a single, concrete type with that type expression, adding any newly discovered types to the graph.
 4. Repeat until a fixed point is reached and no more changes occur.
 5. Compute canonical forms for all newly introduced types.
 

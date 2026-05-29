@@ -40,13 +40,12 @@ numbers are either `0` or one more than another natural number:
 
 ```k
 $ nat = < {} 0, nat +1 >;
-
-zero = {} |0;
-inc = |+1;
-
-add = ?X <
-  { .x /+1 x, .y inc y } ?X add,
-  .y
+0 = {} | 0 $ nat ;
+inc = | +1 $ nat ;
+dec = $ nat / +1 ;       # undefined for '0'
+add = $ { nat x, nat y } <
+  { . x dec x, . y inc y } add,    # defined if 'x > 0'
+  . y                              # else, return 'y'
 >;
 ```
 
@@ -240,7 +239,7 @@ Still evolving:
 - optimization and backend experiments
 - larger real-world examples
 
-## Good Areas For Contributors
+## Good Areas for Contributors
 
 k is small enough to study, but there are several useful directions:
 

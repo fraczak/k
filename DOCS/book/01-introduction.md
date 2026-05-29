@@ -44,8 +44,8 @@ computation in a concise and understandable way.
 
 There is another concept in the language, called **filters**.
 Filters play a role in the process of reasoning about types of partial functions.
-Filters have been added to the syntax of the language as they allow explicit annotations
-of "polymorphic" expressions, i.e., expressions which make sense in different contexts.
+Filters have been added to the syntax of the language because they allow explicit annotations
+of "polymorphic" expressions, i.e., expressions that make sense in different contexts.
 Filters are similar to *type classes* in other languages.
 
 ---

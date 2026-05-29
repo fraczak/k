@@ -44,7 +44,7 @@ Each stage transforms one representation of the program into another, simpler on
 
 A minimal compiler can be viewed as three connected modules:
 
-* **Front end** — reads source code, builds the AST, performs type analysis.
+* **Front end** — reads source code, builds the AST, and performs type analysis.
 * **Middle** — resolves all references, normalizes types, and simplifies expressions.
 * **Back end** — produces the executable form.
 
@@ -107,7 +107,7 @@ For `k`, the IR mirrors the structure of partial functions:
 
 | Concept in k          | IR operation                     |
 | --------------------- | -------------------------------- |
-| Projection `.x` '/x'  | `PROJECT label_id`               |
+| Projection `.x` `/x`  | `PROJECT label_id`               |
 | Composition `(f g)`   | `CALL f; CALL g`                 |
 | Union `<f,g>`         | `TRY f; IF undefined THEN TRY g` |
 | Product `{.x f, .y g}` | `PRODUCT_CALL (f, g); COMBINE`   |

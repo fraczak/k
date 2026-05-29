@@ -12,7 +12,7 @@ with that tree.
 
 ### Types (codes)
 
-Formally, a _type_ is a (subclass of finite tree automata. The type defines a set of its values,
+Formally, a _type_ is a finite tree automaton. The type defines a set of values,
 which corresponds to the set of trees accepted by the automaton.
 Therefore, every type admits a unique normal form in terms of its minimal deterministic tree automaton.
 
@@ -38,7 +38,7 @@ Given a finite (possibly empty) set of types `t1, t2, ..., tn` and a set of pair
   Each projection function maps a value of type `{t1 l1, t2 l2, ..., tn ln}`
   into a value of type `t1`, `t2`, `...`, `tn`, respectively.
 - by `< t1 l1, t2 l2, ..., tn ln >`, we define a _union type_ with exactly `n` projection functions `/l1`, `/l2`, `...`, `/ln`,
-  maps a value of type `<t1 l1, t2 l2, ..., tn ln>` into a value of type `t1`, `t2`, `...`, `tn`, respectively.
+  mapping a value of type `<t1 l1, t2 l2, ..., tn ln>` into a value of type `t1`, `t2`, `...`, `tn`, respectively.
 
 Intuitively, the projection functions on a product type are all total (meaning, they are defined for every value of the
 input product type), whereas in the case of a union type, exactly one projection function is defined
@@ -68,7 +68,7 @@ Two (possibly recursive) codes are equivalent iff they are bisimilar over their 
 
 ### Filters (patterns)
 
-A _filter_ is a way of representing a _pattern_, i.e, a set of types sharing some structure.
+A _filter_ is a way of representing a _pattern_, i.e., a set of types sharing some structure.
 For example, if I wanted to refer to all product types that have a field `f` of type `T`,
 I would write: `?{ T f, ... }`. In general, a filter is defined by:
 
@@ -158,14 +158,14 @@ registry of types (schemas) and functions.
 
 ## Typing and Polymorphism (codes and patterns)
 
-Abstract Syntax Tree of a program consists of a dictionary of _type definitions_,
-a dictionary  of _function definitions_, and the final _main expression_.
+The abstract syntax tree of a program consists of a dictionary of _type definitions_,
+a dictionary of _function definitions_, and the final _main expression_.
 
 In principle, the initial form of the Abstract Syntax Tree, _raw_ AST, is enough to evaluate
 the program on an input.
 
-Our objective however is to compute canonical representations for types and normalized
-representations for functions, so they could be reused.
+Our objective, however, is to compute canonical representations for types and normalized
+representations for functions so they can be reused.
 
 The normalization steps are:
 
@@ -225,7 +225,7 @@ Functions `inc` and `inc3` are (non-polymorphic) functions of types
 `${ bit overflown, byte byte } -> ${ bit overflown, byte byte }`, respectively.
 
 Function `inc_o` is a polymorphic function of type patterns: `?X -> ${ byte byte, bit overflown }`
-with following constraints:
+with the following constraints:
 
 - `?X` is a product type with at least two fields: `byte` and `overflown`, denoted by:
    > `?{ $byte byte, Z overflown, ...}`;
@@ -269,7 +269,7 @@ The registry will be a key-value store, where the key is the hash of the normali
 and the value is the normalized type itself.
 
 All functions (non-polymorphic and polymorphic) will be renamed by the hash of their normalized
-definition and stored in the similar key-value store.
+definition and stored in a similar key-value store.
 
 Non-polymorphic functions can be easily indexed by the hashes of their input and output types
 so that we can quickly find the function we need.
@@ -280,7 +280,7 @@ Indexing polymorphic functions seems complicated (TODO).
 The language is designed to transform _codes_, i.e., serialized typed values, i.e., trees
 accepted by a tree automaton, into other _codes_.
 The transformation is done by partial functions as defined in the language.
-The non-recursive and tail-recursive (and even some non-tail recursive) functions can
+The non-recursive and tail-recursive (and even some non-tail-recursive) functions can
 be compiled into deterministic finite (pushdown) transducers.
 
 ### AND-OR graphs for encoding and decoding codes

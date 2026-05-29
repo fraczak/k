@@ -133,7 +133,7 @@ otherwise it is an identity
 ⟨ ?F , v ⟩ ⇓ v
 ```
 
-Filters therefore act as compile time annotations for type checking only.
+Filters therefore act as compile-time annotations for type checking only.
 As operations they are identities at run time, unless they lead to fully typed
 expressions (i.e., can be replaced by a type). Their pattern information may
 still be present on the runtime value because values can carry codec patterns.

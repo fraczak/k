@@ -91,7 +91,7 @@ Here, `true_bool` and `false_bool` are constant functions. They are also **total
 
 ---
 
-## **4.6  Projection and Variant Value constructor**
+## **4.6  Projection and variant value constructors**
 
 Projection selects a field or a variant from a product or union.
 It is written with a leading dot `.` or a leading slash `/`, respectively:
@@ -141,6 +141,6 @@ The empty product `{}` is the constant function returning the unit value.
 * **Product composition** `{...}` runs functions in parallel and gathers their results.
 * **Union composition** `<...>` tries functions in order, returning the first successful result.
 * **Projections** (`.x`, `/x`) are fundamental building blocks for accessing data structures.
-* **Variant constructor** (`|tag`) allows lifting a value into a variant type value.
+* **Variant constructors** (`|tag`) allow lifting a value into a variant type value.
 
 ---

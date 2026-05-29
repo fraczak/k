@@ -248,43 +248,24 @@ function finalizeIncremental(newCodes) {
     }
   }
 
-  const representatives = minimize(resolvedCodes).representatives;
-  for (const name in refResolution) {
-    if (refResolution[name] !== name) {
-      const target = refResolution[name];
-      representatives[name] = representatives[target] || target;
+  const reachableCodes = {};
+  const queue = Object.keys(resolvedCodes);
+  while (queue.length > 0) {
+    const name = queue.shift();
+    if (reachableCodes[name]) continue;
+
+    const code = resolvedCodes[name] || theRepository.codes[name];
+    if (code == null) {
+      throw new Error(`Type references undefined type: ${name}`);
+    }
+    reachableCodes[name] = code;
+
+    for (const dest of Object.values(code[code.code] || {})) {
+      if (!reachableCodes[dest]) queue.push(dest);
     }
   }
 
-  const normalizedCodes = normalizeAll(resolvedCodes, representatives);
-  const allReadableCodes = { ...theRepository.codes, ...normalizedCodes };
-  const globalNames = {};
-
-  for (const name in normalizedCodes) {
-    const globalDef = encodeCodeToString(name, allReadableCodes);
-    normalizedCodes[name].def = globalDef;
-    globalNames[name] = hash(globalDef);
-  }
-
-  const globalCodes = Object.keys(normalizedCodes).reduce((result, name) => {
-    result[globalNames[name]] = normalizedCodes[name];
-    return result;
-  }, {});
-
-  const extendedRepresentatives = Object.keys(representatives).reduce((result, name) => {
-    result[name] = globalNames[representatives[name]] || representatives[name] || name;
-    return result;
-  }, {});
-
-  Object.values(globalNames).forEach((name) => {
-    extendedRepresentatives[name] = name;
-  });
-
-  const normalizedGlobalCodes = normalizeAll(globalCodes, extendedRepresentatives);
-  return {
-    codes: normalizedGlobalCodes,
-    representatives: extendedRepresentatives
-  };
+  return finalize(reachableCodes);
 }
 
 function register(newCodes) {

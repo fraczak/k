@@ -3,7 +3,7 @@
 ## **7.1  Purpose**
 
 The **application binary interface (ABI)** defines how partial functions in `k` are represented and invoked at runtime.
-Its goal is to make all functions - whether user-defined or compiled - compatible with the same calling convention and data layout.
+Its goal is to make all functions, whether user-defined or compiled, compatible with the same calling convention and data layout.
 
 Every compiled `k` function receives a single argument (a runtime value) and may either produce a result or remain undefined.
 The ABI provides a uniform way to express both outcomes.

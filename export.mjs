@@ -87,13 +87,13 @@ function theID(alias, rel, scc, name) {
         break;
       case "ref": {
         const n = rel.ref;
-        if (alias[n] != undefined) {
-          newRel.ref = alias[n];
-        } else if (auxNames[n] != undefined) {
+        if (auxNames[n] != undefined) {
           newRel.ref = auxNames[n];
         } else if (sccNames.has(n)) {
           auxNames[n] = `X${Object.keys(auxNames).length}`;
           newRel.ref = auxNames[n];
+        } else if (alias[n] != undefined) {
+          newRel.ref = alias[n];
         };
       }; break;
       default:

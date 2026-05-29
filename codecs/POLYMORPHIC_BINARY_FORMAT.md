@@ -288,7 +288,7 @@ Decoding the stream yields `Value(pattern, tree)`. Encoding a runtime `Value`
 uses its carried pattern by default, or an explicit caller-supplied pattern when
 one is provided.
 
-## Out Of Scope For The Base Codec
+## Out of Scope for the Base Codec
 
 The following are intentionally outside the primitive codec:
 

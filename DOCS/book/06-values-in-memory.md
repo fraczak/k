@@ -138,7 +138,7 @@ The value `{}|_|0|1` or in JSON-like notation `{1:{0:{_:{}}}}` (binary 10₂ = d
 01 00 10
 ```
 
-This represents the left-most derivation of  `{}|_|0|1` from `C0`.
+This represents the leftmost derivation of `{}|_|0|1` from `C0`.
 
 #### **Prefix-free property**
 
@@ -304,7 +304,7 @@ Without DAG: Each "Engineering" string encoded separately
 - 1000 records × 30 bytes/record = 30KB
 
 With DAG: "Engineering" string shared via back-references  
-- 1 × "Engineering" (11 bytes) + 800 × back-reference (3 bytes) = 2.4KB
+- 1 × "Engineering" (11 bytes) + 800 × back-reference (3 bytes) = 2.4 KB
 - Compression ratio: ~12.5×
 ```
 
@@ -1061,7 +1061,7 @@ The final encoding strategy balances theoretical optimality with practical hardw
 - **Decode performance**: 5-10× faster than bit-level encoding  
 - **Cache behavior**: Excellent (word-aligned, sequential access)
 - **SIMD compatibility**: Yes (bulk discriminator processing)
-- **Architecture agnostic**: Optimized for x86-64 and ARM64
+- **Architecture-agnostic**: Optimized for x86-64 and ARM64
 
 **Performance characteristics**:
 
