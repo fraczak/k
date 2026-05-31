@@ -1,6 +1,6 @@
-import k from './index.mjs';
-import { encodeCodeToString, find } from './codes.mjs';
-import hash from './hash.mjs';
+import k from '../index.mjs';
+import { encodeCodeToString, find } from '../codes.mjs';
+import hash from '../hash.mjs';
 [
     `
     $bits = < bits 0,  bits 1, {} _ >;

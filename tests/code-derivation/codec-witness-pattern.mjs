@@ -1,7 +1,7 @@
 import assert from 'assert';
-import { parseValue } from '../valueIO.mjs';
-import { encodeToWire, decodeWire } from '../codecs/runtime/prefix-codec.mjs';
-import { Product, Variant } from '../Value.mjs';
+import { parseValue } from '../../valueIO.mjs';
+import { encodeToWire, decodeWire } from '../../codecs/runtime/prefix-codec.mjs';
+import { Product, Variant } from '../../Value.mjs';
 
 const value = parseValue('{a:{b:x,c:{}}}');
 const repeatedClosedValue = parseValue('{a:{m:{},n:{}},b:{m:{},n:{}}}');

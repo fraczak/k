@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { annotate } from "./index.mjs";
+import { annotate } from "../index.mjs";
 
 function mulberry32(seed) {
   let t = seed >>> 0;

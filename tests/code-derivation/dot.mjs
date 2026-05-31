@@ -1,5 +1,5 @@
 import { t, in_out } from './index.mjs';
-import { hash } from '../hash.mjs';
+import { hash } from '../../hash.mjs';
 import assert from 'assert';
 
 t(`

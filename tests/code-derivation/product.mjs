@@ -1,6 +1,6 @@
 import { t, in_out } from './index.mjs';
 import assert from 'assert';
-import hash from "../hash.mjs";
+import hash from "../../hash.mjs";
 
 const unitCode = hash('$C0={};');
 

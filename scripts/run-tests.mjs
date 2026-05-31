@@ -7,21 +7,21 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const node = process.execPath;
-const derivationTests = fs.readdirSync(path.join(root, "Code-derivation-tests"))
+const derivationTests = fs.readdirSync(path.join(root, "tests/code-derivation"))
   .filter((name) => name.endsWith(".mjs"))
   .sort()
-  .map((name) => [`Code-derivation-tests/${name}`, node, [`Code-derivation-tests/${name}`]]);
+  .map((name) => [`tests/code-derivation/${name}`, node, [`tests/code-derivation/${name}`]]);
 
 const tests = [
-  ["test.mjs", node, ["test.mjs"]],
+  ["tests/test.mjs", node, ["tests/test.mjs"]],
   ...derivationTests,
-  ["test-fingerprint.mjs", node, ["test-fingerprint.mjs"]],
-  ["test-hash-fuzz.mjs", node, ["test-hash-fuzz.mjs"]],
-  ["test-hash-normalization.mjs", node, ["test-hash-normalization.mjs"]],
-  ["test-k-object.mjs", node, ["test-k-object.mjs"]],
-  ["test-repl.mjs", node, ["test-repl.mjs"]],
-  ["test-ieee-arithmetic.mjs", node, ["test-ieee-arithmetic.mjs"]],
-  ["tests.sh", path.join(root, "tests.sh"), []]
+  ["tests/test-fingerprint.mjs", node, ["tests/test-fingerprint.mjs"]],
+  ["tests/test-hash-fuzz.mjs", node, ["tests/test-hash-fuzz.mjs"]],
+  ["tests/test-hash-normalization.mjs", node, ["tests/test-hash-normalization.mjs"]],
+  ["tests/test-k-object.mjs", node, ["tests/test-k-object.mjs"]],
+  ["tests/test-repl.mjs", node, ["tests/test-repl.mjs"]],
+  ["tests/test-ieee-arithmetic.mjs", node, ["tests/test-ieee-arithmetic.mjs"]],
+  ["tests/integration.sh", path.join(root, "tests/integration.sh"), []]
 ];
 
 function formatDuration(milliseconds) {

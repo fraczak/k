@@ -1,4 +1,4 @@
-import { annotate } from "../index.mjs";
+import { annotate } from "../../index.mjs";
 
 function in_out(annotated) {
   const [input,output] = annotated.rels.__main__.def.patterns.map( (pat) => 

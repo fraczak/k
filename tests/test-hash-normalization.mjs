@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { annotate } from "./index.mjs";
-import { hash } from "./hash.mjs";
+import { annotate } from "../index.mjs";
+import { hash } from "../hash.mjs";
 
 const nameRegex = /^[a-zA-Z0-9_+][a-zA-Z0-9_?!+]*$/;
 

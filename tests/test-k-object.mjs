@@ -1,11 +1,11 @@
 import assert from "node:assert";
 import fs from "node:fs";
-import k from "./index.mjs";
-import { parseValue } from "./valueIO.mjs";
-import { decodeWire, encodeToWire, CORE_PATTERN_PROPERTY_LIST } from "./codecs/runtime/prefix-codec.mjs";
-import { Product, Variant } from "./Value.mjs";
-import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
-import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
+import k from "../index.mjs";
+import { parseValue } from "../valueIO.mjs";
+import { decodeWire, encodeToWire, CORE_PATTERN_PROPERTY_LIST } from "../codecs/runtime/prefix-codec.mjs";
+import { Product, Variant } from "../Value.mjs";
+import { exportPatternGraph } from "../codecs/runtime/codec.mjs";
+import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
 import {
   compileObjectBuffer,
   compileLibraryBuffer,
@@ -14,7 +14,7 @@ import {
   runConvergedObject,
   decompileObjectBuffer,
   extractAliasesFromObject
-} from "./object.mjs";
+} from "../object.mjs";
 
 const value = parseValue("{a:{b:x,c:{}}}");
 const wire = encodeToWire(value, null);

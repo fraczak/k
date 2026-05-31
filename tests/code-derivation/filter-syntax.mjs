@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { annotate } from '../index.mjs';
+import { annotate } from '../../index.mjs';
 
 function succeeds(script) {
   assert.doesNotThrow(() => annotate(script));

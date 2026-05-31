@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 
-import { createState, evaluateInput } from "./repl.mjs";
-import { Product } from "./Value.mjs";
-import codes from "./codes.mjs";
-import { parse as parseFloat64, print as printFloat64 } from "./codecs/ieee.mjs";
-import { singletonPatternToCodeHash, valueForCode } from "./repl-codecs.mjs";
+import { createState, evaluateInput } from "../repl.mjs";
+import { Product } from "../Value.mjs";
+import codes from "../codes.mjs";
+import { parse as parseFloat64, print as printFloat64 } from "../codecs/ieee.mjs";
+import { singletonPatternToCodeHash, valueForCode } from "../repl-codecs.mjs";
 
 const state = createState();
 await evaluateInput(":load Examples/ieee.k", state);

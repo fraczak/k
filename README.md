@@ -284,7 +284,7 @@ The test runner prints each test before execution and reports its elapsed time
 afterward. It stops immediately when a test fails. The suite covers:
 
 - core runtime and parser behavior
-- type derivation cases in `Code-derivation-tests/`
+- type derivation cases in `tests/code-derivation/`
 - hash/fingerprint stability
 - object file round-trips
 - REPL scripted interaction

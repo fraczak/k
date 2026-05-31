@@ -16,9 +16,9 @@ import {
   isMainEntrypoint,
   lineHasExplicitContinuation,
   lineTerminatesSnippet
-} from "./repl.mjs";
-import { decodeObject, objectToFunction } from "./object.mjs";
-import { Product } from "./Value.mjs";
+} from "../repl.mjs";
+import { decodeObject, objectToFunction } from "../object.mjs";
+import { Product } from "../Value.mjs";
 
 const state = createState();
 
@@ -194,7 +194,7 @@ assert.equal(output[0], `input ${utf8State.typeAliases.string} using utf8: enter
 output = await evaluateInput("hello", utf8State);
 assert.match(output[0], /utf8: hello/);
 
-const replPath = fileURLToPath(new URL("./repl.mjs", import.meta.url));
+const replPath = fileURLToPath(new URL("../repl.mjs", import.meta.url));
 try {
   fs.rmSync(symlinkPath, { force: true });
 } catch {}

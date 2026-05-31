@@ -1,4 +1,4 @@
-import k from "./index.mjs";
+import k from "../index.mjs";
 
 [
   [{"unit": {}}, "()"],

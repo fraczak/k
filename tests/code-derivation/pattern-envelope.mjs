@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import k from "../index.mjs";
-import { Product, Variant, mergePatterns, withPattern } from "../Value.mjs";
-import { decodeWire, encodeToWire } from "../codecs/runtime/prefix-codec.mjs";
-import run from "../run.mjs";
-import codes from "../codes.mjs";
+import k from "../../index.mjs";
+import { Product, Variant, mergePatterns, withPattern } from "../../Value.mjs";
+import { decodeWire, encodeToWire } from "../../codecs/runtime/prefix-codec.mjs";
+import run from "../../run.mjs";
+import codes from "../../codes.mjs";
 
 const INT_PATTERN = [
   ["closed-union", [["+", 1], ["-", 1]]],

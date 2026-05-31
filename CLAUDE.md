@@ -60,5 +60,5 @@ npm test  # Run comprehensive test suite (unit tests, derivation tests, shell te
 
 - No external runtime dependencies (only jiwson for parser generation)
 - Uses ES6 modules (.mjs files) throughout
-- Extensive test suite in `Code-derivation-tests/` for type system validation
+- Extensive test suite in `tests/code-derivation/` for type system validation
 - REPL supports commands like `:C name` (show canonical type), `:t name` (show relation type), and `:d name` (show relation definition)

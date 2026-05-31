@@ -5,12 +5,12 @@
 - `k_compiler/` contains the Python prototype compiler and supporting modules.
 - `type_registry/` houses registry experiments and grammar artifacts.
 - `Examples/` and `DOCS/` provide sample programs and design notes.
-- Tests live in top-level `test*.mjs`, `Code-derivation-tests/`, and `tests.sh`.
+- Tests live in `tests/`, with type-derivation cases in `tests/code-derivation/`.
 
 ## Build, Test, and Development Commands
 - `npm install` installs dev dependencies and runs `prepare` to generate parsers.
 - `npm run prepare` regenerates `parser.mjs` and `valueParser.mjs` from `.jison` grammars.
-- `npm test` runs the full suite (`test.mjs`, `Code-derivation-tests/*.mjs`, `test-fingerprint.mjs`, `tests.sh`).
+- `npm test` runs the full suite through `scripts/run-tests.mjs`.
 - `node repl.mjs` (or `k-repl`) starts the interactive REPL.
 - `./k.mjs -k <file.k>` executes a k script on binary pattern+value stream input from stdin or a file; use `k-parse` and `k-print` at the boundaries.
 
@@ -21,8 +21,8 @@
 - Grammar sources are `parser.jison` and `valueParser.jison`; generated files should not be hand-edited.
 
 ## Testing Guidelines
-- Add runtime tests alongside `test.mjs` or new `test-*.mjs` files.
-- Add type-derivation coverage in `Code-derivation-tests/` (one case per file is typical).
+- Add runtime tests alongside `tests/test.mjs` or new `tests/test-*.mjs` files.
+- Add type-derivation coverage in `tests/code-derivation/` (one case per file is typical).
 - Verify locally with `npm test` before opening a PR.
 
 ## Commit & Pull Request Guidelines
