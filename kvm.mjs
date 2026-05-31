@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import { argv, stdin, exit, stdout } from "node:process";
 import { Product, Variant, composePattern, withPattern } from "./Value.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
@@ -8,6 +11,11 @@ import {
   verify,
   run
 } from "./run.mjs";
+import { annotate } from "./index.mjs";
+import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
+import { decodeObject, loadLibrary } from "./object.mjs";
+import codes from "./codes.mjs";
+import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
 
 class KVMBuilder {
   constructor(typePatternGraph) {
@@ -411,3 +419,99 @@ export default {
   lowerToKVM,
   executeKVM
 };
+
+function usage() {
+  const prog = argv[1] || "kvm.mjs";
+  console.error(`Usage: node ${prog} [ options ] ( k-expr | -k file ) [ input-file ]`);
+  console.error("Options:");
+  console.error("  --lib file          Load a .klib dependency before compiling. May be repeated.");
+  console.error("  --envelope-free     Run the interpreter in envelope-free mode.");
+  console.error("  -h, --help          Show this help.");
+}
+
+async function main() {
+  const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage();
+    return exit(0);
+  }
+
+  let envelopeFree = false;
+  const libraries = [];
+
+  // Parse options
+  while (args.length > 0) {
+    if (args[0] === "--envelope-free") {
+      envelopeFree = true;
+      args.shift();
+    } else if (args[0] === "--lib") {
+      args.shift();
+      const libPath = args.shift();
+      if (!libPath) throw new Error("--lib requires a file argument");
+      const libBuffer = fs.readFileSync(libPath);
+      libraries.push(loadLibrary(decodeObject(libBuffer)));
+    } else {
+      break;
+    }
+  }
+
+  let kScriptStr = (function (arg) {
+    if (arg == null) {
+      throw new Error("Missing script argument");
+    }
+    if (arg === "-k") {
+      const fileArg = args.shift();
+      if (!fileArg) throw new Error("-k requires a file argument");
+      return fs.readFileSync(fileArg, "utf8");
+    } else {
+      return arg;
+    }
+  })(args.shift());
+
+  const inputStream = (function (arg) {
+    if (arg == null) {
+      return stdin;
+    }
+    return fs.createReadStream(arg);
+  })(args.shift());
+
+  const defs = annotate(kScriptStr, { libraries });
+  const mainRel = defs.rels.__main__;
+  if (!mainRel) {
+    throw new Error("No main relation (__main__) defined in script");
+  }
+
+  const kvmFunc = lowerToKVM(mainRel, "__main__");
+
+  const buffer = [];
+  inputStream.on("data", (data) => buffer.push(Buffer.isBuffer(data) ? data : Buffer.from(data)));
+  inputStream.on("end", () => {
+    try {
+      const inputBuffer = Buffer.concat(buffer);
+      const { pattern: inputPattern, value } = decodeWire(inputBuffer);
+      const context = {
+        rels: defs.rels,
+        findCode: codes.find,
+        options: {
+          envelopeFree
+        }
+      };
+      const result = executeKVM(kvmFunc, value, context);
+      if (result === undefined) {
+        throw new Error("kVM expression evaluated to undefined");
+      }
+      stdout.write(encodeToWire(result, result.pattern));
+    } catch (error) {
+      console.error(error.stack || error.message || String(error));
+      exit(1);
+    }
+  });
+}
+
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch((error) => {
+    console.error(error.stack || error.message || String(error));
+    usage();
+    exit(1);
+  });
+}

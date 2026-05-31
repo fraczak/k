@@ -30,7 +30,8 @@
         "k-show": "./codecs/show.mjs",
         "k-unit": "./codecs/unit.mjs",
         "k-utf16": "./codecs/utf16.mjs",
-        "k-utf8": "./codecs/utf8.mjs"
+        "k-utf8": "./codecs/utf8.mjs",
+        "k-vm": "./kvm.mjs"
     },
     "devDependencies": {
         "jiwson": "^0.1.2"
