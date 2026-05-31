@@ -96,7 +96,7 @@ const natDecompiledSource = decompileObjectBuffer(natLibraryBuffer);
 const natRoundTripSource = decompileObjectBuffer(
   compileLibraryBuffer(natDecompiledSource, { source: "Examples/nat.decompiled.k" })
 );
-const recursiveNatPattern = /\?\{<X0 succ, \.\.\.>=X0 x, <X1 succ, \.\.\.>=X1 y\} .* \?X1;/;
+const recursiveNatPattern = /\$dTww <\{\.x PgmQ x, \.y h4Wg y\} re64, \.y> \$e9WP;/;
 assert.equal(natRoundTripSource, natDecompiledSource);
 assert.match(natDecompiledSource, recursiveNatPattern);
 

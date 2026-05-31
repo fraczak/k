@@ -113,6 +113,16 @@ function theID(alias, rel, scc, name) {
 export function assignCanonicalNames(scc, rels, relAlias) {
   const newAlias = scc.reduce( (newAlias,relName) => {
     const relDef = rels[relName];
+    // Rehashing an imported recursive relation would create a wrapper around its canonical hash.
+    if (
+      relDef.def.op == "ref" &&
+      relDef.def.ref.startsWith("@") &&
+      rels[relDef.def.ref]?._library
+    ) {
+      rels[relName] = rels[relDef.def.ref];
+      newAlias[relName] = relDef.def.ref;
+      return newAlias;
+    }
     if (relDef.def.op == "ref" && rels[relDef.def.ref] != undefined) {
       // inlining if direct alias to a non built-in relation
       // relDef.def = rels[relDef.def.ref]; // simplifyRel(rels[relDef.def.ref],rels);

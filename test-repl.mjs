@@ -90,12 +90,30 @@ await assert.rejects(
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-repl-"));
 const libPath = path.join(tmpDir, "session.klib");
+const recursiveLibPath = path.join(tmpDir, "recursive.klib");
 const koPath = path.join(tmpDir, "succ.ko");
 const sourcePath = path.join(tmpDir, "session.k");
 const codecPath = path.join(tmpDir, "bool-codec.mjs");
 const symlinkPath = path.resolve(".test-k-repl-link");
 output = await evaluateInput(`:klib ${libPath}`, state);
 assert.equal(output[0], `saved ${libPath}`);
+
+const recursiveState = createState();
+await evaluateInput(":type $ nat = < {}_, nat 0, nat 1 >;", recursiveState);
+await evaluateInput(":rel 0? = $ nat < / _ {}|0, / 0 0? >;", recursiveState);
+const staleZeroHash = recursiveState.relAliases["0?"];
+await evaluateInput(":rel 0? = $ nat < / _ {}|_, / 0 0? >;", recursiveState);
+const zeroHash = recursiveState.relAliases["0?"];
+assert.notEqual(zeroHash, staleZeroHash);
+await evaluateInput("{}|_|0|0 $nat", recursiveState);
+assert.deepEqual(
+  Object.keys(recursiveState.rels).sort(),
+  [staleZeroHash, zeroHash].sort()
+);
+output = await evaluateInput(`:klib ${recursiveLibPath}`, recursiveState);
+assert.equal(output[0], `saved ${recursiveLibPath}`);
+const recursiveLibrary = JSON.parse(fs.readFileSync(recursiveLibPath, "utf8"));
+assert.deepEqual(Object.keys(recursiveLibrary.rels), [zeroHash]);
 
 completions = completeInput(`:load ${tmpDir}/ses`, state)[0];
 assert(completions.includes(`:load ${libPath}`));

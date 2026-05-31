@@ -305,3 +305,9 @@ shape is the same object payload shape with `main: null`:
 When a library is compiled with `--lib`, the output is the merged library
 closure. Imported codes, relations, aliases, and metadata are preserved, and the
 new source adds its own origins.
+
+The REPL `:klib` command uses active relation aliases as roots. It stores their
+transitive relation closure and omits historical content-addressed relations
+that remain in the live session after alias rebinding but are no longer
+reachable from an active alias. Its `codes` field remains the registered code
+snapshot needed to reload the library.

@@ -213,6 +213,40 @@ function mergeLibrary(state, lib, source = "<load>", options = {}) {
   restoreCodes(state);
 }
 
+function reachableRelations(rels, roots) {
+  const reachable = new Set();
+  const queue = [...roots];
+
+  function walkExp(exp) {
+    if (!exp) return;
+    switch (exp.op) {
+      case "ref":
+        if (exp.ref in rels && !reachable.has(exp.ref)) queue.push(exp.ref);
+        break;
+      case "comp":
+        exp.comp.forEach(walkExp);
+        break;
+      case "union":
+        exp.union.forEach(walkExp);
+        break;
+      case "product":
+        exp.product.forEach(({ exp: child }) => walkExp(child));
+        break;
+    }
+  }
+
+  while (queue.length > 0) {
+    const hash = queue.shift();
+    if (reachable.has(hash) || !(hash in rels)) continue;
+    reachable.add(hash);
+    walkExp(rels[hash].def);
+  }
+
+  return Object.fromEntries(
+    Object.entries(rels).filter(([hash]) => reachable.has(hash))
+  );
+}
+
 function savedLibrary(state) {
   const meta = cloneJSON(state.meta);
   const now = new Date().toISOString();
@@ -226,13 +260,20 @@ function savedLibrary(state) {
     if (meta[hash].type == null) meta[hash].type = "rel";
     meta[hash].origins.push({ source: "<repl>", name, compiledAt: now });
   }
+  const rels = reachableRelations(state.rels, Object.values(state.relAliases));
+  const storedHashes = new Set([
+    ...Object.keys(state.codes),
+    ...Object.keys(rels)
+  ]);
   return {
     format: "k-object",
     codes: state.codes,
-    rels: state.rels,
+    rels,
     relAlias: state.relAliases,
     compileStats: { sccs: [], sccCount: 0 },
-    meta,
+    meta: Object.fromEntries(
+      Object.entries(meta).filter(([hash]) => storedHashes.has(hash))
+    ),
     main: null
   };
 }

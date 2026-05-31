@@ -55,8 +55,8 @@ from `x` to `y` and recurses. When that no longer applies, it returns `y`.
 In the REPL:
 
 ```text
-> { {} |0 inc inc x, {} |0 inc y } add
-{}|0|+1|+1|+1 ?<X0 +1, {} 0, ...>=X0
+> { 0 inc inc x, 0 inc y } add
+{}|0|+1|+1|+1 ?<X0 +1, {} 0>=X0
 ```
 
 That evaluates `2 + 1` to `3`: a value starts at `0`, and each `+1` tag adds
@@ -277,10 +277,11 @@ compose with `.result` when only the floating-point value is needed.
 
 ```bash
 npm run prepare   # regenerate parsers from .jison grammars
-npm test          # run the full suite
+npm test          # run the fail-fast full suite with per-test timings
 ```
 
-The test suite covers:
+The test runner prints each test before execution and reports its elapsed time
+afterward. It stops immediately when a test fails. The suite covers:
 
 - core runtime and parser behavior
 - type derivation cases in `Code-derivation-tests/`

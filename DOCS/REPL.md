@@ -11,9 +11,9 @@ The interpreter keeps a live `.klib`-style state in memory:
 - metadata origins used to recover aliases
 - the current value flowing through the session
 
-Raw k snippets compile on top of that state. You can also export the current
-session as a `.klib` library or compile an executable `.ko` object from an
-expression in the session context.
+Raw k snippets compile on top of that state. You can also export the active
+library closure as a `.klib` file or compile an executable `.ko` object from
+an expression in the session context.
 
 ## Prompt Model
 
@@ -49,7 +49,7 @@ complete.
 | `:codec list` | List loaded REPL codecs |
 | `:input type [codec]` | Read the next line as codec input for a singleton type |
 | `:load [--no-alias] file` | Load `.k` source or `.klib` into the current state |
-| `:klib file` | Export current state as a `.klib` library |
+| `:klib file` | Export the active relation closure as a `.klib` library |
 | `:ko file expr` | Export a `.ko` executable with `expr` as main |
 | `:val` | Print current value and JSON form |
 | `:reset` | Reset interpreter state |
@@ -62,7 +62,7 @@ Raw input is compiled as k source on top of the current state.
 Examples:
 
 ```k
-> {} |succ
+> {} |ok
 ```
 
 ```k
@@ -107,6 +107,8 @@ The interpreter keeps:
 
 Definitions are content-addressed. Rebinding an alias changes the name-to-hash
 mapping, but older canonical definitions remain available by hash.
+They stay available in the live session, but `:klib` omits historical
+relations that are no longer reachable from an active relation alias.
 
 ## Alias Resolution
 
@@ -184,8 +186,11 @@ against that code before becoming the current value.
 
 ### `:klib file`
 
-Writes the current interpreter state as a plain-JSON `.klib` library. The
-library has `main: null`; it has no binary header and no object payload version.
+Writes a plain-JSON `.klib` library rooted at the current relation aliases.
+Relations referenced by those aliases are included transitively. Historical
+relations retained in the live session are omitted when no active alias
+depends on them. The registered code snapshot is still included. The library
+has `main: null`; it has no binary header and no object payload version.
 
 ### `:ko file expr`
 
@@ -197,7 +202,7 @@ writes the resulting executable `.ko` object.
 Evaluated values print in k syntax together with the inferred envelope:
 
 ```text
-{succ: {succ: {zero: {}}}} ?<{} zero, X succ>=X
+{}|0|+1 ?<<{} 0, ...> +1, ...>
 ```
 
 `undefined` prints as:
@@ -212,16 +217,16 @@ Evaluated values print in k syntax together with the inferred envelope:
 ## Example Session
 
 ```text
-> :type nat = <{} zero, nat succ>
+> :type nat = <{} 0, nat +1>
 $ nat = @...
-> :rel succ = |succ
-succ = @...
-> {} |zero
-{zero: {}} ?<{} zero, X succ>=X
-> :t succ
-succ : ?X  -->  ?<{} zero, X succ>=X  (@...)
+> :rel inc = |+1
+inc = @...
+> {} |0
+{}|0 ?<{} 0, ...>
+> :t inc
+inc : ?X0  -->  ?<X0 +1, ...>  (@...)
 > :klib nat.klib
 saved nat.klib
-> :ko succ.ko succ
-saved succ.ko (succ)
+> :ko inc.ko inc
+saved inc.ko (inc)
 ```

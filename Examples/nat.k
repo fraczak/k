@@ -1,15 +1,12 @@
-$ nat = < {} zero, nat succ >;
-zero = {} | zero ;
-zero? = {/zero if, () then} .then;
-succ = | succ;
-add = ?X <
-    {.x /succ x, .y succ y} ?X add,
-    .y
->;
+$ nat = < {} 0, nat +1 >;
+0 = {} | 0 ;
+0? = $ nat { / 0 if, () then} .then;
+succ = | +1 $ nat ;
+pred = $nat / +1 ;
+add = ?{ $nat x, ... } = X <{.x pred x, .y succ y} ?X add, .y> ;
 mult = <
-    <.x zero?, .y zero?> zero,
-    {{.x/succ x, .y y} mult x, .y y} add
->;
+    {{.x pred x, .y y} mult x, .y y} add,
+    0
+> ;
 
-$nat zero?
-
+succ {()x,()y} add
