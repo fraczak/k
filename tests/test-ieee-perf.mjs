@@ -27,26 +27,43 @@ function floatPair(x, y) {
   }), floatPairHash, codes.find);
 }
 
+const values = ["0.5", "-4", "0", "Infinity", "-Infinity", "NaN"];
 const ops = ["add", "sub", "mul", "div"];
-const x = "2";
-const y = "4";
 
-// Compile all operations and precompute expected results
+// Compile all operations
 const relDefs = {};
 const kvmFuncs = {};
-const expectedResults = {};
-const inputVal = floatPair(x, y);
-
 for (const op of ops) {
   const hash = state.relAliases[op];
   const relDef = state.rels[hash];
   relDefs[op] = relDef;
   kvmFuncs[op] = lowerToKVM(relDef, op);
-  
-  // Get expected result once
-  run.defs = state;
-  run_converged.defs = state;
-  expectedResults[op] = run(codes.find, relDef.def, inputVal, relDef.typePatternGraph);
+}
+
+// Generate the test matrix (6 * 6 * 4 = 144 cases)
+console.log("==> Generating test cases and caching expected results");
+const testSuite = [];
+for (const op of ops) {
+  for (const x of values) {
+    for (const y of values) {
+      const inputVal = floatPair(x, y);
+      const relDef = relDefs[op];
+      
+      // Compute the native expected result
+      run.defs = state;
+      run_converged.defs = state;
+      const expected = run(codes.find, relDef.def, inputVal, relDef.typePatternGraph);
+      if (expected === undefined) continue;
+      
+      testSuite.push({
+        op,
+        x,
+        y,
+        inputVal,
+        expected
+      });
+    }
+  }
 }
 
 // Define context options
@@ -62,17 +79,17 @@ const contextFree = {
   options: { envelopeFree: true }
 };
 
-// Allow custom iteration count via environment variable (default to 5 for fast test validation)
-const ITERATIONS = process.env.ITERATIONS ? parseInt(process.env.ITERATIONS, 10) : 5;
+// Default to 3 iterations for execution
+const ITERATIONS = process.env.ITERATIONS ? parseInt(process.env.ITERATIONS, 10) : 3;
 
-console.log(`==> Running Performance Test (Operations: [${ops.join(", ")}], Input: ${x} op ${y}, Iterations: ${ITERATIONS})...`);
+console.log(`==> Running Performance Test (${testSuite.length} cases, Iterations: ${ITERATIONS})...`);
 
 // 1. Native JS Envelope-Aware
 const t0 = performance.now();
 for (let i = 0; i < ITERATIONS; i++) {
-  for (const op of ops) {
-    const relDef = relDefs[op];
-    const res = run(codes.find, relDef.def, inputVal, relDef.typePatternGraph);
+  for (const tc of testSuite) {
+    const relDef = relDefs[tc.op];
+    const res = run(codes.find, relDef.def, tc.inputVal, relDef.typePatternGraph);
     assert.ok(res !== undefined);
   }
 }
@@ -81,9 +98,9 @@ const timeNativeAware = performance.now() - t0;
 // 2. Native JS Envelope-Free
 const t1 = performance.now();
 for (let i = 0; i < ITERATIONS; i++) {
-  for (const op of ops) {
-    const relDef = relDefs[op];
-    const res = run_converged(codes.find, relDef.def, inputVal, relDef.typePatternGraph);
+  for (const tc of testSuite) {
+    const relDef = relDefs[tc.op];
+    const res = run_converged(codes.find, relDef.def, tc.inputVal, relDef.typePatternGraph);
     assert.ok(res !== undefined);
   }
 }
@@ -92,9 +109,9 @@ const timeNativeFree = performance.now() - t1;
 // 3. kVM Envelope-Aware
 const t2 = performance.now();
 for (let i = 0; i < ITERATIONS; i++) {
-  for (const op of ops) {
-    const kvmFunc = kvmFuncs[op];
-    const res = executeKVM(kvmFunc, inputVal, contextAware);
+  for (const tc of testSuite) {
+    const kvmFunc = kvmFuncs[tc.op];
+    const res = executeKVM(kvmFunc, tc.inputVal, contextAware);
     assert.ok(res !== undefined);
   }
 }
@@ -103,16 +120,16 @@ const timeKVMAware = performance.now() - t2;
 // 4. kVM Envelope-Free
 const t3 = performance.now();
 for (let i = 0; i < ITERATIONS; i++) {
-  for (const op of ops) {
-    const kvmFunc = kvmFuncs[op];
-    const res = executeKVM(kvmFunc, inputVal, contextFree);
+  for (const tc of testSuite) {
+    const kvmFunc = kvmFuncs[tc.op];
+    const res = executeKVM(kvmFunc, tc.inputVal, contextFree);
     assert.ok(res !== undefined);
   }
 }
 const timeKVMFree = performance.now() - t3;
 
 console.log("\n=================== BENCHMARK RESULTS ===================");
-console.log(`Total Operations evaluated: ${ITERATIONS * ops.length} (${ops.length} ops * ${ITERATIONS} iterations)`);
+console.log(`Total Operations evaluated: ${ITERATIONS * testSuite.length}`);
 console.log("---------------------------------------------------------");
 console.log(`1. Native JS (Envelope-Aware):   ${timeNativeAware.toFixed(2)} ms`);
 console.log(`2. Native JS (Envelope-Free):    ${timeNativeFree.toFixed(2)} ms`);
@@ -121,11 +138,11 @@ console.log(`4. kVM Interpreter (Env-Free):   ${timeKVMFree.toFixed(2)} ms`);
 console.log("=========================================================\n");
 
 // Conformance check
-for (const op of ops) {
-  const kvmFunc = kvmFuncs[op];
-  const resAware = executeKVM(kvmFunc, inputVal, contextAware);
-  const resFree = executeKVM(kvmFunc, inputVal, contextFree);
-  assert.deepEqual(JSON.stringify(resAware), JSON.stringify(expectedResults[op]));
-  assert.deepEqual(JSON.stringify(resFree), JSON.stringify(expectedResults[op]));
+for (const tc of testSuite) {
+  const kvmFunc = kvmFuncs[tc.op];
+  const resAware = executeKVM(kvmFunc, tc.inputVal, contextAware);
+  const resFree = executeKVM(kvmFunc, tc.inputVal, contextFree);
+  assert.deepEqual(JSON.stringify(resAware), JSON.stringify(tc.expected));
+  assert.deepEqual(JSON.stringify(resFree), JSON.stringify(tc.expected));
 }
 console.log("Conformance validation: ALL RESULTS MATCH EXPECTED VALUES!");
