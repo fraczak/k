@@ -283,89 +283,172 @@ const contextFree = {
 };
 
 // Default to 3 iterations for execution
+// Set WASM_ONLY=1 WASM_PROFILE=1 for allocation stats. WASM_RESET=0 and
+// WASM_WARMUP_ITERATIONS=0 reproduce the retained-arena and cold-start costs.
 const ITERATIONS = process.env.ITERATIONS ? parseInt(process.env.ITERATIONS, 10) : 3;
+const WASM_ONLY = process.env.WASM_ONLY === "1";
+const WASM_PROFILE = process.env.WASM_PROFILE === "1";
+const WASM_RESET = process.env.WASM_RESET !== "0";
+const WASM_WARMUP_ITERATIONS = process.env.WASM_WARMUP_ITERATIONS
+  ? parseInt(process.env.WASM_WARMUP_ITERATIONS, 10)
+  : 10;
 
 console.log(`==> Running Performance Test (${testSuite.length} cases, Iterations: ${ITERATIONS})...`);
 
+function runWasmIterations(iterations, { profile = false, resetArena = false } = {}) {
+  const iterationTimes = [];
+  const opStats = Object.fromEntries(ops.map(op => [op, {
+    calls: 0,
+    allocatedBytes: 0,
+    maxAllocatedBytes: 0,
+    time: 0
+  }]));
+  const arenaStart = exports.arena_mark();
+  const memoryStart = exports.memory.buffer.byteLength;
+  const startedAt = performance.now();
+
+  for (let i = 0; i < iterations; i++) {
+    const iterationStartedAt = profile ? performance.now() : 0;
+    for (const tc of testSuite) {
+      const mark = resetArena || profile ? exports.arena_mark() : 0;
+      const callStartedAt = profile ? performance.now() : 0;
+      const funcName = cleanName(state.relAliases[tc.op]);
+      const result = exports[funcName](tc.wasmPtrIn);
+      assert.ok(result[1] === 1);
+
+      if (profile) {
+        const allocatedBytes = exports.arena_mark() - mark;
+        const stats = opStats[tc.op];
+        stats.calls++;
+        stats.allocatedBytes += allocatedBytes;
+        stats.maxAllocatedBytes = Math.max(stats.maxAllocatedBytes, allocatedBytes);
+        stats.time += performance.now() - callStartedAt;
+      }
+      if (resetArena) {
+        exports.arena_reset(mark);
+      }
+    }
+    if (profile) {
+      iterationTimes.push(performance.now() - iterationStartedAt);
+    }
+  }
+
+  return {
+    time: performance.now() - startedAt,
+    arenaStart,
+    arenaEnd: exports.arena_mark(),
+    memoryStart,
+    memoryEnd: exports.memory.buffer.byteLength,
+    iterationTimes,
+    opStats
+  };
+}
+
 // 1. Native JS Envelope-Aware
-const t0 = performance.now();
-for (let i = 0; i < ITERATIONS; i++) {
-  for (const tc of testSuite) {
-    const relDef = relDefs[tc.op];
-    const res = run(codes.find, relDef.def, tc.inputVal, relDef.typePatternGraph);
-    assert.ok(res !== undefined);
-  }
-}
-const timeNativeAware = performance.now() - t0;
+let timeNativeAware;
+let timeNativeFree;
+let timeKVMAware;
+let timeKVMFree;
 
-// 2. Native JS Envelope-Free
-const t1 = performance.now();
-for (let i = 0; i < ITERATIONS; i++) {
-  for (const tc of testSuite) {
-    const relDef = relDefs[tc.op];
-    const res = run_converged(codes.find, relDef.def, tc.inputVal, relDef.typePatternGraph);
-    assert.ok(res !== undefined);
+if (!WASM_ONLY) {
+  const t0 = performance.now();
+  for (let i = 0; i < ITERATIONS; i++) {
+    for (const tc of testSuite) {
+      const relDef = relDefs[tc.op];
+      const res = run(codes.find, relDef.def, tc.inputVal, relDef.typePatternGraph);
+      assert.ok(res !== undefined);
+    }
   }
-}
-const timeNativeFree = performance.now() - t1;
+  timeNativeAware = performance.now() - t0;
 
-// 3. kVM Envelope-Aware
-const t2 = performance.now();
-for (let i = 0; i < ITERATIONS; i++) {
-  for (const tc of testSuite) {
-    const kvmFunc = kvmFuncs[tc.op];
-    const res = executeKVM(kvmFunc, tc.inputVal, contextAware);
-    assert.ok(res !== undefined);
+  // 2. Native JS Envelope-Free
+  const t1 = performance.now();
+  for (let i = 0; i < ITERATIONS; i++) {
+    for (const tc of testSuite) {
+      const relDef = relDefs[tc.op];
+      const res = run_converged(codes.find, relDef.def, tc.inputVal, relDef.typePatternGraph);
+      assert.ok(res !== undefined);
+    }
   }
-}
-const timeKVMAware = performance.now() - t2;
+  timeNativeFree = performance.now() - t1;
 
-// 4. kVM Envelope-Free
-const t3 = performance.now();
-for (let i = 0; i < ITERATIONS; i++) {
-  for (const tc of testSuite) {
-    const kvmFunc = kvmFuncs[tc.op];
-    const res = executeKVM(kvmFunc, tc.inputVal, contextFree);
-    assert.ok(res !== undefined);
+  // 3. kVM Envelope-Aware
+  const t2 = performance.now();
+  for (let i = 0; i < ITERATIONS; i++) {
+    for (const tc of testSuite) {
+      const kvmFunc = kvmFuncs[tc.op];
+      const res = executeKVM(kvmFunc, tc.inputVal, contextAware);
+      assert.ok(res !== undefined);
+    }
   }
+  timeKVMAware = performance.now() - t2;
+
+  // 4. kVM Envelope-Free
+  const t3 = performance.now();
+  for (let i = 0; i < ITERATIONS; i++) {
+    for (const tc of testSuite) {
+      const kvmFunc = kvmFuncs[tc.op];
+      const res = executeKVM(kvmFunc, tc.inputVal, contextFree);
+      assert.ok(res !== undefined);
+    }
+  }
+  timeKVMFree = performance.now() - t3;
 }
-const timeKVMFree = performance.now() - t3;
 
 // 5. WebAssembly Option B
-const t4 = performance.now();
-for (let i = 0; i < ITERATIONS; i++) {
-  for (const tc of testSuite) {
-    const funcName = cleanName(state.relAliases[tc.op]);
-    const result = exports[funcName](tc.wasmPtrIn);
-    assert.ok(result[1] === 1);
-  }
+if (WASM_WARMUP_ITERATIONS > 0) {
+  console.log(`==> Warming WebAssembly (${WASM_WARMUP_ITERATIONS} iterations)...`);
+  runWasmIterations(WASM_WARMUP_ITERATIONS, { resetArena: true });
 }
-const timeWasm = performance.now() - t4;
+
+const wasmResult = runWasmIterations(ITERATIONS, {
+  profile: WASM_PROFILE,
+  resetArena: WASM_RESET
+});
 
 console.log("\n=================== BENCHMARK RESULTS ===================");
 console.log(`Total Operations evaluated: ${ITERATIONS * testSuite.length}`);
 console.log("---------------------------------------------------------");
-console.log(`1. Native JS (Envelope-Aware):   ${timeNativeAware.toFixed(2)} ms`);
-console.log(`2. Native JS (Envelope-Free):    ${timeNativeFree.toFixed(2)} ms`);
-console.log(`3. kVM Interpreter (Env-Aware):  ${timeKVMAware.toFixed(2)} ms`);
-console.log(`4. kVM Interpreter (Env-Free):   ${timeKVMFree.toFixed(2)} ms`);
-console.log(`5. WebAssembly (Option B):       ${timeWasm.toFixed(2)} ms`);
+if (!WASM_ONLY) {
+  console.log(`1. Native JS (Envelope-Aware):   ${timeNativeAware.toFixed(2)} ms`);
+  console.log(`2. Native JS (Envelope-Free):    ${timeNativeFree.toFixed(2)} ms`);
+  console.log(`3. kVM Interpreter (Env-Aware):  ${timeKVMAware.toFixed(2)} ms`);
+  console.log(`4. kVM Interpreter (Env-Free):   ${timeKVMFree.toFixed(2)} ms`);
+}
+console.log(`5. WebAssembly (Option B):       ${wasmResult.time.toFixed(2)} ms`);
 console.log("=========================================================\n");
+
+if (WASM_PROFILE) {
+  console.log("================ WEBASSEMBLY ALLOCATION PROFILE ================");
+  console.log(`Arena bytes retained:            ${wasmResult.arenaEnd - wasmResult.arenaStart}`);
+  console.log(`Linear memory growth:            ${wasmResult.memoryEnd - wasmResult.memoryStart}`);
+  console.log(`Linear memory size:              ${wasmResult.memoryEnd}`);
+  console.log(`Iteration times:                 ${wasmResult.iterationTimes.map(time => time.toFixed(2)).join(", ")} ms`);
+  for (const op of ops) {
+    const stats = wasmResult.opStats[op];
+    console.log(`${op.padEnd(3)}: calls=${stats.calls}, allocated=${stats.allocatedBytes}, max/call=${stats.maxAllocatedBytes}, time=${stats.time.toFixed(2)} ms`);
+  }
+  console.log("================================================================\n");
+}
 
 // Conformance check
 const toPlainObject = val => JSON.parse(JSON.stringify(val));
 
 for (const tc of testSuite) {
-  const kvmFunc = kvmFuncs[tc.op];
-  const resAware = executeKVM(kvmFunc, tc.inputVal, contextAware);
-  const resFree = executeKVM(kvmFunc, tc.inputVal, contextFree);
-  assert.deepEqual(toPlainObject(resAware), toPlainObject(tc.expected));
-  assert.deepEqual(toPlainObject(resFree), toPlainObject(tc.expected));
+  if (!WASM_ONLY) {
+    const kvmFunc = kvmFuncs[tc.op];
+    const resAware = executeKVM(kvmFunc, tc.inputVal, contextAware);
+    const resFree = executeKVM(kvmFunc, tc.inputVal, contextFree);
+    assert.deepEqual(toPlainObject(resAware), toPlainObject(tc.expected));
+    assert.deepEqual(toPlainObject(resFree), toPlainObject(tc.expected));
+  }
   
+  const mark = exports.arena_mark();
   const funcName = cleanName(state.relAliases[tc.op]);
   const wasmRes = exports[funcName](tc.wasmPtrIn);
   assert.ok(wasmRes[1] === 1);
   const resWasm = readArenaValue(exports, wasmRes[0], tc.wasmOutputPattern, 0, tc.wasmOutputPatternPropertyList);
   assert.deepEqual(toPlainObject(resWasm), toPlainObject(tc.expected));
+  exports.arena_reset(mark);
 }
 console.log("Conformance validation: ALL RESULTS MATCH EXPECTED VALUES (including Wasm)!");

@@ -295,6 +295,8 @@ export function lowerToWasm(relDef, name, options = {}) {
           const N = inst.branches.length;
           
           const unionId = nextUnionId++;
+          const arenaMark = `union_mark_${unionId}`;
+          registers.add(arenaMark);
           
           lines.push(`    ;; union choice for $${dest}`);
           lines.push(`    (block $union_done_${unionId}`);
@@ -305,6 +307,8 @@ export function lowerToWasm(relDef, name, options = {}) {
           
           for (let i = 0; i < N; i++) {
             const branch = inst.branches[i];
+            lines.push(`      global.get $arena_free`);
+            lines.push(`      local.set $${arenaMark}`);
             const branchWat = compileInstructions(
               branch.body, 
               { ...inputMap, "in": src }, 
@@ -314,6 +318,8 @@ export function lowerToWasm(relDef, name, options = {}) {
             lines.push(branchWat);
             lines.push(`      br $union_done_${unionId}`);
             lines.push(`      ) ;; end $b${i}_try_${unionId}`);
+            lines.push(`      local.get $${arenaMark}`);
+            lines.push(`      global.set $arena_free`);
           }
           
           // If we reach here, all branches failed

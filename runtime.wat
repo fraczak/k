@@ -74,4 +74,29 @@
 
     local.get $old_free
   )
+
+  ;; Return a checkpoint that can be restored after a temporary result is consumed.
+  (func $arena_mark (export "arena_mark") (result i32)
+    global.get $arena_free
+  )
+
+  ;; Bulk-free allocations made after a checkpoint. Memory pages remain available for reuse.
+  (func $arena_reset (export "arena_reset") (param $mark i32)
+    local.get $mark
+    i32.const 1024
+    i32.lt_u
+    if
+      unreachable
+    end
+
+    local.get $mark
+    global.get $arena_free
+    i32.gt_u
+    if
+      unreachable
+    end
+
+    local.get $mark
+    global.set $arena_free
+  )
 )

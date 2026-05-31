@@ -11,6 +11,9 @@ echo '-21' | node ./codecs/int.mjs --parse | node ./codecs/int.mjs --print | gre
 echo
 node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print | grep -qx '{}'
 echo 
+node ./codecs/unit.mjs --parse | node ./k-wasm.mjs '|ok' | node ./codecs/k-print.mjs | grep -qx '"ok"'
+printf '{"a": {}, "b": {}}\n' | node ./codecs/k-parse.mjs | node ./k-wasm.mjs '|ok' | node ./codecs/k-print.mjs | grep -qx '{"ok":{"a":{},"b":{}}}'
+echo
 printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./k.mjs -k Examples/byte.k |./codecs/utf8.mjs --print
 echo
 ./objects/compile-lib.mjs Examples/ieee.k ieee.klib

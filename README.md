@@ -195,6 +195,63 @@ Installed binary names are `k-` plus the source basename without `.mjs`, except
 for `k.mjs` itself. Source names that already include `k-`, such as
 `codecs/k-parse.mjs`, keep that name.
 
+## Running with WebAssembly
+
+The experimental WebAssembly backend is available from a checkout as
+`node ./k-wasm.mjs`. It accepts the same binary `pattern + value` stream as
+`k`, compiles the requested k program to WebAssembly in memory, executes it,
+and writes a binary output stream for the next pipeline stage.
+
+Run a k expression between the usual codec boundaries:
+
+```bash
+k-unit --parse |
+  node ./k-wasm.mjs '|ok' |
+  k-print
+```
+
+Expected output:
+
+```json
+"ok"
+```
+
+Use `-k` to compile a source file whose final expression is the program entry
+point:
+
+```bash
+k-parse |
+  node ./k-wasm.mjs -k program.k |
+  k-print
+```
+
+The optional final argument is a binary input file, which is useful when a
+stream has already been encoded:
+
+```bash
+node ./k-wasm.mjs -k program.k input.kv > output.kv
+```
+
+Load `.klib` dependencies with `--lib`. The option may be repeated. Loaded
+relations are content-addressed, so extract the canonical hash for a public
+alias and use that hash in the program expression. For a library that defines
+`transform`:
+
+```bash
+k-compile-lib library.k /tmp/library.klib
+TRANSFORM=$(k-extract-aliases /tmp/library.klib |
+  sed -n 's/^transform = \(@[^;]*\);.*$/\1/p')
+k-parse |
+  node ./k-wasm.mjs --lib /tmp/library.klib "$TRANSFORM" |
+  k-print
+```
+
+The backend currently lowers source through the kVM representation, generates
+WebAssembly text, and instantiates the module inside Node.js. It does not yet
+emit standalone `.wasm` files or execute `.ko` objects. Treat it as an
+experimental backend while pattern-shape coverage and optimization continue to
+evolve; use `k` for the general-purpose runtime path.
+
 ## Node.js API
 
 ```js

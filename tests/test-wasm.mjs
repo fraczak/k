@@ -77,7 +77,14 @@ console.log("==> Running runtime.wat Core Allocator Tests");
   assert.equal(ptr2, 1040, "Allocation 2 must start at 1040");
   assert.equal(ptr2 % 8, 0, "Allocation 2 must be 8-byte aligned");
 
-  // Test 3: Large allocation causing memory growth beyond 64KB (page 1 limit)
+  // Test 3: Resetting to a mark must make temporary arena space reusable
+  const mark = runtimeExports.arena_mark();
+  assert.equal(mark, 1056, "Arena mark must point to the next free byte");
+  assert.equal(runtimeExports.alloc(32), mark, "Temporary allocation must start at the mark");
+  runtimeExports.arena_reset(mark);
+  assert.equal(runtimeExports.alloc(32), mark, "Reset arena space must be reused");
+
+  // Test 4: Large allocation causing memory growth beyond 64KB (page 1 limit)
   const ptr3 = runtimeExports.alloc(70000);
   assert.ok(ptr3 > 1040, "Large allocation must return a valid pointer");
   assert.equal(ptr3 % 8, 0, "Large allocation must be 8-byte aligned");
@@ -248,7 +255,31 @@ console.log("==> Running Union & Choice Integration Tests");
   `, { convergence: { strategy: "auto" } });
 
   const chooseWat = lowerToWasm(unionDefs.rels.choose, "choose");
-  const fullWat = runtimeWat.trim().slice(0, -1) + "\n" + chooseWat + "\n)";
+  const chooseWithRollbackWat = lowerToWasm({
+    body: [
+      {
+        op: "union",
+        dest: "%v0",
+        src: "%in",
+        branches: [
+          {
+            body: [
+              { op: "make_variant", dest: "%v1", tag: "temporary", src: "%in" },
+              { op: "fail" }
+            ]
+          },
+          {
+            body: [
+              { op: "id", dest: "%v2", src: "%in" },
+              { op: "return", src: "%v2" }
+            ]
+          }
+        ]
+      },
+      { op: "return", src: "%v0" }
+    ]
+  }, "choose_with_rollback");
+  const fullWat = runtimeWat.trim().slice(0, -1) + "\n" + chooseWat + "\n" + chooseWithRollbackWat + "\n)";
   const binary = compileWat("union_tests.wat", fullWat);
   const exports = await instantiateWasm(binary);
 
@@ -277,6 +308,11 @@ console.log("==> Running Union & Choice Integration Tests");
   const ptrZ = writeVariantToArena("z", 999);
   const resZ = exports.choose(ptrZ);
   assert.deepEqual(resZ, [0, 0], "choose with tag 'z' should return [0, 0]");
+
+  // 4. Failed branches must release scratch allocations before trying the next choice
+  const mark = exports.arena_mark();
+  assert.deepEqual(exports.choose_with_rollback(999), [999, 1], "Fallback branch should return the input");
+  assert.equal(exports.arena_mark(), mark, "Failed union branch allocations must be reclaimed");
 
   console.log("Union & Choice integration tests passed successfully!");
 }

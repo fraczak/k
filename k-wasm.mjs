@@ -10,7 +10,7 @@ import { lowerToKVM } from "./kvm.mjs";
 import { lowerToWasm, getTagId, getTagFromId } from "./kvm2wasm.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 import { decodeObject, loadLibrary } from "./object.mjs";
-import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
+import { exportPatternGraph, NODE_KIND } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList, propertyListToPattern } from "./codecs/runtime/pattern-json.mjs";
 import { Product, Variant } from "./Value.mjs";
 import codes from "./codes.mjs";
@@ -122,11 +122,17 @@ function getPattern(graph, patternId) {
   return propertyListToPattern(patternToPropertyList(exportPatternGraph(graph, nodeId)));
 }
 
-function readArenaValue(exports, ptr, pattern, patternNodeId, patternPropertyList) {
+function readArenaValue(exports, ptr, pattern, patternNodeId, patternPropertyList, arenaValues) {
   const patternNode = pattern.nodes[patternNodeId];
   const view = new DataView(exports.memory.buffer);
   
-  if (patternNode.kind === 1 || patternNode.kind === 3) {
+  if (patternNode.kind === NODE_KIND.ANY) {
+    const value = arenaValues.get(ptr);
+    if (value === undefined) {
+      throw new Error(`Cannot decode arena pointer ${ptr} through an unconstrained output pattern`);
+    }
+    return value;
+  } else if (patternNode.kind === NODE_KIND.OPEN_PRODUCT || patternNode.kind === NODE_KIND.CLOSED_PRODUCT) {
     const size = view.getUint32(ptr, true);
     const N = view.getUint32(ptr + 4, true);
     const productObj = {};
@@ -135,10 +141,10 @@ function readArenaValue(exports, ptr, pattern, patternNodeId, patternPropertyLis
       const edge = patternNode.edges[i];
       const offsetVal = view.getUint32(ptr + 8 + 4 * i, true);
       const childPtr = view.getUint32(ptr + offsetVal, true);
-      productObj[edge.label] = readArenaValue(exports, childPtr, pattern, edge.target, patternPropertyList);
+      productObj[edge.label] = readArenaValue(exports, childPtr, pattern, edge.target, patternPropertyList, arenaValues);
     }
     return new Product(productObj, patternPropertyList);
-  } else if (patternNode.kind === 2 || patternNode.kind === 4) {
+  } else if (patternNode.kind === NODE_KIND.OPEN_UNION || patternNode.kind === NODE_KIND.CLOSED_UNION) {
     const size = view.getUint32(ptr, true);
     const tagId = view.getUint32(ptr + 4, true);
     const payloadPtr = view.getUint32(ptr + 8, true);
@@ -148,16 +154,17 @@ function readArenaValue(exports, ptr, pattern, patternNodeId, patternPropertyLis
     if (!edge) {
       throw new Error(`Variant tag '${tag}' not found in pattern edges`);
     }
-    const payloadVal = readArenaValue(exports, payloadPtr, pattern, edge.target, patternPropertyList);
+    const payloadVal = readArenaValue(exports, payloadPtr, pattern, edge.target, patternPropertyList, arenaValues);
     return new Variant(tag, payloadVal, patternPropertyList);
   }
   throw new Error(`Unsupported pattern kind: ${patternNode.kind}`);
 }
 
-function writeValueToArena(exports, value, pattern, patternNodeId) {
+function writeValueToArena(exports, value, pattern, patternNodeId, arenaValues) {
   const patternNode = pattern.nodes[patternNodeId];
   
   if (value instanceof Product) {
+    const isAny = patternNode.kind === NODE_KIND.ANY;
     const keys = Object.keys(value.product).sort();
     const N = keys.length;
     const totalSize = 8 + 8 * N;
@@ -166,8 +173,17 @@ function writeValueToArena(exports, value, pattern, patternNodeId) {
     const childPtrs = [];
     for (let i = 0; i < N; i++) {
       const label = keys[i];
-      const edge = patternNode.edges.find(e => e.label === label);
-      const childPtr = writeValueToArena(exports, value.product[label], pattern, edge.target);
+      const edge = isAny ? null : patternNode.edges.find(e => e.label === label);
+      if (!isAny && !edge) {
+        throw new Error(`Product field '${label}' is not present in input pattern node ${patternNodeId}`);
+      }
+      const childPtr = writeValueToArena(
+        exports,
+        value.product[label],
+        pattern,
+        isAny ? patternNodeId : edge.target,
+        arenaValues
+      );
       childPtrs.push(childPtr);
     }
     
@@ -182,11 +198,22 @@ function writeValueToArena(exports, value, pattern, patternNodeId) {
       view.setUint32(ptr + 8 + 4 * i, offsetVal, true);
       view.setUint32(ptr + offsetVal, childPtrs[i], true);
     }
+    arenaValues.set(ptr, value);
     return ptr;
   } else if (value instanceof Variant) {
+    const isAny = patternNode.kind === NODE_KIND.ANY;
     const tagId = getTagId(value.tag);
-    const edge = patternNode.edges.find(e => e.label === value.tag);
-    const childPtr = writeValueToArena(exports, value.value, pattern, edge.target);
+    const edge = isAny ? null : patternNode.edges.find(e => e.label === value.tag);
+    if (!isAny && !edge) {
+      throw new Error(`Variant tag '${value.tag}' is not present in input pattern node ${patternNodeId}`);
+    }
+    const childPtr = writeValueToArena(
+      exports,
+      value.value,
+      pattern,
+      isAny ? patternNodeId : edge.target,
+      arenaValues
+    );
     
     const ptr = exports.alloc(12);
     const view = new DataView(exports.memory.buffer);
@@ -194,6 +221,7 @@ function writeValueToArena(exports, value, pattern, patternNodeId) {
     view.setUint32(ptr, 12, true);
     view.setUint32(ptr + 4, tagId, true);
     view.setUint32(ptr + 8, childPtr, true);
+    arenaValues.set(ptr, value);
     return ptr;
   }
   throw new Error(`Unsupported value type: ${value}`);
@@ -276,7 +304,8 @@ async function main() {
       const outputPattern = propertyListToPattern(outputPatternPropertyList);
       
       // Write input to the arena
-      const ptrIn = writeValueToArena(exports, value, inputPattern, 0);
+      const arenaValues = new Map();
+      const ptrIn = writeValueToArena(exports, value, inputPattern, 0, arenaValues);
       
       // Call main Wasm function
       const result = exports.rel___main__(ptrIn);
@@ -285,7 +314,7 @@ async function main() {
       }
       
       // Decode return value
-      const resVal = readArenaValue(exports, result[0], outputPattern, 0, outputPatternPropertyList);
+      const resVal = readArenaValue(exports, result[0], outputPattern, 0, outputPatternPropertyList, arenaValues);
       
       // Output wire format
       stdout.write(encodeToWire(resVal, resVal.pattern));
