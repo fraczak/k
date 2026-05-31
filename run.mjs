@@ -483,4 +483,4 @@ run_converged.defs = null;
 const run_coverged = run_converged;
 
 export default run;
-export { run, run_rel, run_converged, run_coverged };
+export { run, run_rel, run_converged, run_coverged, constrainWithPattern, intersectPatterns, projectionPattern, verify };
