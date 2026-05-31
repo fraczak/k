@@ -326,10 +326,16 @@ function executeInstruction(inst, registers, context) {
       if (options.requireConverged && relDef.typeDerivation?.status !== "converged") {
         throw new Error(`Cannot run '${inst.func}' without envelopes: type derivation is not converged`);
       }
+      if (options.trace) {
+        console.log(`[Trace] Calling ${inst.func} with:`, val ? val.toString() : "null");
+      }
       if (!relDef._kvmFunc) {
         relDef._kvmFunc = lowerToKVM(relDef, inst.func);
       }
       const res = executeKVM(relDef._kvmFunc, val, context);
+      if (options.trace) {
+        console.log(`[Trace] Returned from ${inst.func} ->:`, res ? res.toString() : "fail");
+      }
       if (res === undefined) return undefined;
       registers.set(inst.dest, res);
       return { type: "continue" };
