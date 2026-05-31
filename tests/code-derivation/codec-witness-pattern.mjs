@@ -20,7 +20,7 @@ const explicitProductWire = decodeWire(encodeToWire(value, [
   ["any", []]
 ]));
 assert.deepEqual(explicitProductWire.pattern, [
-  ["open-product", [["a", 1]]],
+  ["closed-product", [["a", 1]]],
   ["closed-product", [["b", 2], ["c", 3]]],
   ["open-union", [["x", 3]]],
   ["closed-product", []]

@@ -614,6 +614,7 @@ function refinePatternForValue(pattern, value) {
     }
 
     if (baseNode.kind === NODE_KIND.CLOSED_PRODUCT || baseNode.kind === NODE_KIND.OPEN_PRODUCT) {
+      result.kind = NODE_KIND.CLOSED_PRODUCT;
       const values = occurrences.get(patternNodeId) || [];
       const explicit = new Map(baseNode.edges.map((edge) => [edge.label, edge.target]));
       let labels = [...explicit.keys()].sort();
