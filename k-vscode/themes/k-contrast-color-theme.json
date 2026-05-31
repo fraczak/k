@@ -1,0 +1,104 @@
+{
+  "$schema": "vscode://schemas/color-theme",
+  "name": "k Contrast",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#161B22",
+    "editor.foreground": "#C9D1D9",
+    "editorLineNumber.foreground": "#6E7681",
+    "editorLineNumber.activeForeground": "#C9D1D9",
+    "editor.selectionBackground": "#264F78",
+    "editor.inactiveSelectionBackground": "#264F7855"
+  },
+  "tokenColors": [
+    {
+      "scope": [
+        "comment.block.k",
+        "comment.line.k"
+      ],
+      "settings": {
+        "foreground": "#8B949E",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": "entity.name.type.k",
+      "settings": {
+        "foreground": "#FF7B72",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": "support.type.k",
+      "settings": {
+        "foreground": "#FFA657"
+      }
+    },
+    {
+      "scope": "support.function.identifier.k",
+      "settings": {
+        "foreground": "#79C0FF"
+      }
+    },
+    {
+      "scope": "support.type.canonical.k",
+      "settings": {
+        "foreground": "#F778BA"
+      }
+    },
+    {
+      "scope": "support.function.canonical.k",
+      "settings": {
+        "foreground": "#FF967D"
+      }
+    },
+    {
+      "scope": "entity.name.label.k",
+      "settings": {
+        "foreground": "#7EE787"
+      }
+    },
+    {
+      "scope": "entity.name.tag.k",
+      "settings": {
+        "foreground": "#F2CC60"
+      }
+    },
+    {
+      "scope": "variable.other.pattern.k",
+      "settings": {
+        "foreground": "#56D4DD"
+      }
+    },
+    {
+      "scope": [
+        "keyword.operator.assignment.k",
+        "keyword.operator.binding.k",
+        "keyword.operator.filter.k",
+        "keyword.operator.projection.product.k",
+        "keyword.operator.projection.union.k",
+        "keyword.operator.type.k",
+        "keyword.operator.variant.k"
+      ],
+      "settings": {
+        "foreground": "#FFDF5D"
+      }
+    },
+    {
+      "scope": "punctuation.definition.canonical.k",
+      "settings": {
+        "foreground": "#B392F0"
+      }
+    },
+    {
+      "scope": [
+        "constant.language.any.k",
+        "string.quoted.double.k",
+        "string.quoted.single.k"
+      ],
+      "settings": {
+        "foreground": "#A5D6FF"
+      }
+    }
+  ]
+}

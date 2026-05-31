@@ -16,6 +16,13 @@ unions).
   - Canonical content-addressed references: `@base58hash`
   - Quoted label strings: `"label"`, `'label'` (with escape sequences)
   - The `...` any/open pattern marker
+- **Code-definition backgrounds** applied uniformly from the opening `$` through
+  the terminating `;`
+- **Nested expression backgrounds** for filters and `$` code expressions inside
+  relations, with code-expression backgrounds layered over filter backgrounds
+- **k Contrast color theme** with:
+  - Separate foreground colors for type names, relation identifiers, labels, tags,
+    filter variables, canonical type names, and canonical relation names
 - **Snippets** for every common pattern (trigger via `Tab` after prefix):
 
 | Prefix | Inserts |
@@ -48,13 +55,15 @@ unions).
 
 1. Open the `k-vscode/` folder in VS Code.
 2. Press **F5** — this opens an Extension Development Host with the extension loaded.
+3. Expression backgrounds activate automatically. Run **Preferences: Color Theme**
+   and select **k Contrast** to use the bundled foreground token palette.
 
 ### Build and install a VSIX
 
 ```bash
 cd k-vscode
 npm install
-npx vsce package        # produces k-language-0.2.0.vsix
+npx vsce package --no-dependencies  # produces k-language-0.2.0.vsix
 ```
 
 Then in VS Code: **Extensions → ⋯ → Install from VSIX…** and select the generated file.

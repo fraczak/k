@@ -23,6 +23,21 @@
   "categories": [
     "Programming Languages"
   ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:k"
+  ],
+  "files": [
+    "extension.js",
+    "language-configuration.json",
+    "README.md",
+    "snippets/k.json",
+    "syntaxes/k.tmLanguage.json",
+    "themes/k-contrast-color-theme.json"
+  ],
+  "scripts": {
+    "test": "node test/background-ranges.test.js"
+  },
   "contributes": {
     "languages": [
       {
@@ -42,6 +57,13 @@
         "language": "k",
         "scopeName": "source.k",
         "path": "./syntaxes/k.tmLanguage.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "k Contrast",
+        "uiTheme": "vs-dark",
+        "path": "./themes/k-contrast-color-theme.json"
       }
     ],
     "snippets": [
