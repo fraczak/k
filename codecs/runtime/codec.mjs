@@ -480,67 +480,89 @@ function refinePatternForValue(pattern, value) {
   }
 
   function collect(patternNodeId, currentValue) {
-    const patternNode = base.nodes[patternNodeId];
-    if (!patternNode) {
-      throw new Error(`Unknown pattern node ${patternNodeId}`);
-    }
-    pushOccurrence(patternNodeId, currentValue);
+    const stack = [{ patternNodeId, currentValue }];
 
-    switch (patternNode.kind) {
-      case NODE_KIND.ANY:
-        return;
+    while (stack.length > 0) {
+      const frame = stack.pop();
+      if (frame.extra) {
+        pushExtra(frame.patternNodeId, frame.label, frame.currentValue);
+        continue;
+      }
 
-      case NODE_KIND.CLOSED_PRODUCT:
-      case NODE_KIND.OPEN_PRODUCT: {
-        if (!(currentValue instanceof Product)) {
-          throw new Error(`Expected Product for pattern node ${patternNodeId}`);
-        }
-        const actualLabels = Object.keys(currentValue.product).sort();
-        const explicit = patternNode.edges.map((edge) => edge.label);
-        if (patternNode.kind === NODE_KIND.CLOSED_PRODUCT) {
-          if (actualLabels.length !== explicit.length || actualLabels.some((label, idx) => label !== explicit[idx])) {
-            throw new Error(`Closed product pattern does not match value fields [${actualLabels.join(", ")}]`);
+      const patternNode = base.nodes[frame.patternNodeId];
+      if (!patternNode) {
+        throw new Error(`Unknown pattern node ${frame.patternNodeId}`);
+      }
+      pushOccurrence(frame.patternNodeId, frame.currentValue);
+
+      switch (patternNode.kind) {
+        case NODE_KIND.ANY:
+          break;
+
+        case NODE_KIND.CLOSED_PRODUCT:
+        case NODE_KIND.OPEN_PRODUCT: {
+          if (!(frame.currentValue instanceof Product)) {
+            throw new Error(`Expected Product for pattern node ${frame.patternNodeId}`);
           }
-        } else {
-          for (const label of explicit) {
-            if (!(label in currentValue.product)) {
-              throw new Error(`Open product pattern is missing required field '${label}'`);
+          const actualLabels = Object.keys(frame.currentValue.product).sort();
+          const explicit = patternNode.edges.map((edge) => edge.label);
+          if (patternNode.kind === NODE_KIND.CLOSED_PRODUCT) {
+            if (actualLabels.length !== explicit.length || actualLabels.some((label, idx) => label !== explicit[idx])) {
+              throw new Error(`Closed product pattern does not match value fields [${actualLabels.join(", ")}]`);
+            }
+          } else {
+            for (const label of explicit) {
+              if (!(label in frame.currentValue.product)) {
+                throw new Error(`Open product pattern is missing required field '${label}'`);
+              }
             }
           }
-        }
 
-        const explicitTargets = new Map(patternNode.edges.map((edge) => [edge.label, edge.target]));
-        for (const label of actualLabels) {
-          if (explicitTargets.has(label)) {
-            collect(explicitTargets.get(label), currentValue.product[label]);
-          } else if (patternNode.kind === NODE_KIND.OPEN_PRODUCT) {
-            pushExtra(patternNodeId, label, currentValue.product[label]);
-          } else {
-            throw new Error(`Unexpected extra field '${label}' for closed product pattern`);
+          const explicitTargets = new Map(patternNode.edges.map((edge) => [edge.label, edge.target]));
+          for (let i = actualLabels.length - 1; i >= 0; i--) {
+            const label = actualLabels[i];
+            if (explicitTargets.has(label)) {
+              stack.push({
+                patternNodeId: explicitTargets.get(label),
+                currentValue: frame.currentValue.product[label]
+              });
+            } else if (patternNode.kind === NODE_KIND.OPEN_PRODUCT) {
+              stack.push({
+                extra: true,
+                patternNodeId: frame.patternNodeId,
+                label,
+                currentValue: frame.currentValue.product[label]
+              });
+            } else {
+              throw new Error(`Unexpected extra field '${label}' for closed product pattern`);
+            }
           }
+          break;
         }
-        return;
-      }
 
-      case NODE_KIND.CLOSED_UNION:
-      case NODE_KIND.OPEN_UNION: {
-        if (!(currentValue instanceof Variant)) {
-          throw new Error(`Expected Variant for pattern node ${patternNodeId}`);
+        case NODE_KIND.CLOSED_UNION:
+        case NODE_KIND.OPEN_UNION: {
+          if (!(frame.currentValue instanceof Variant)) {
+            throw new Error(`Expected Variant for pattern node ${frame.patternNodeId}`);
+          }
+          const explicitTargets = new Map(patternNode.edges.map((edge) => [edge.label, edge.target]));
+          if (explicitTargets.has(frame.currentValue.tag)) {
+            stack.push({
+              patternNodeId: explicitTargets.get(frame.currentValue.tag),
+              currentValue: frame.currentValue.value
+            });
+            break;
+          }
+          if (patternNode.kind === NODE_KIND.OPEN_UNION) {
+            pushExtra(frame.patternNodeId, frame.currentValue.tag, frame.currentValue.value);
+            break;
+          }
+          throw new Error(`Unexpected variant tag '${frame.currentValue.tag}' for closed union pattern`);
         }
-        const explicitTargets = new Map(patternNode.edges.map((edge) => [edge.label, edge.target]));
-        if (explicitTargets.has(currentValue.tag)) {
-          collect(explicitTargets.get(currentValue.tag), currentValue.value);
-          return;
-        }
-        if (patternNode.kind === NODE_KIND.OPEN_UNION) {
-          pushExtra(patternNodeId, currentValue.tag, currentValue.value);
-          return;
-        }
-        throw new Error(`Unexpected variant tag '${currentValue.tag}' for closed union pattern`);
-      }
 
-      default:
-        throw new Error(`Unknown pattern node kind: ${patternNode.kind}`);
+        default:
+          throw new Error(`Unknown pattern node kind: ${patternNode.kind}`);
+      }
     }
   }
 
@@ -714,47 +736,88 @@ function refinePatternForValue(pattern, value) {
 
 function coerceValueForPattern(pattern, value) {
   const base = normalizePattern(pattern);
+  let result;
+  const stack = [{
+    patternNodeId: 0,
+    currentValue: value,
+    assign(coercedValue) {
+      result = coercedValue;
+    }
+  }];
 
-  function coerce(patternNodeId, currentValue) {
-    const patternNode = base.nodes[patternNodeId];
+  while (stack.length > 0) {
+    const frame = stack.pop();
+    if (frame.passthrough) {
+      frame.assign();
+      continue;
+    }
+    const patternNode = base.nodes[frame.patternNodeId];
     if (!patternNode) {
-      throw new Error(`Unknown pattern node ${patternNodeId}`);
+      throw new Error(`Unknown pattern node ${frame.patternNodeId}`);
     }
 
     switch (patternNode.kind) {
       case NODE_KIND.ANY:
-        return currentValue;
+        frame.assign(frame.currentValue);
+        break;
 
       case NODE_KIND.CLOSED_PRODUCT:
       case NODE_KIND.OPEN_PRODUCT: {
-        let productValue = currentValue;
-        if (currentValue instanceof Variant) {
-          productValue = new Product({ [currentValue.tag]: currentValue.value });
+        let productValue = frame.currentValue;
+        if (frame.currentValue instanceof Variant) {
+          productValue = new Product({ [frame.currentValue.tag]: frame.currentValue.value });
         }
         if (!(productValue instanceof Product)) {
-          throw new Error(`Expected Product for pattern node ${patternNodeId}`);
+          throw new Error(`Expected Product for pattern node ${frame.patternNodeId}`);
         }
 
         const explicitTargets = new Map(patternNode.edges.map((edge) => [edge.label, edge.target]));
         const product = {};
-        for (const [label, childValue] of Object.entries(productValue.product)) {
-          product[label] = explicitTargets.has(label)
-            ? coerce(explicitTargets.get(label), childValue)
-            : childValue;
+        frame.assign(new Product(product));
+        const entries = Object.entries(productValue.product);
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const [label, childValue] = entries[i];
+          const target = explicitTargets.get(label);
+          if (target == null) {
+            stack.push({
+              assign() {
+                product[label] = childValue;
+              },
+              passthrough: true
+            });
+          } else {
+            stack.push({
+              patternNodeId: target,
+              currentValue: childValue,
+              assign(coercedValue) {
+                product[label] = coercedValue;
+              }
+            });
+          }
         }
-        return new Product(product);
+        break;
       }
 
       case NODE_KIND.CLOSED_UNION:
       case NODE_KIND.OPEN_UNION: {
-        if (!(currentValue instanceof Variant)) {
-          throw new Error(`Expected Variant for pattern node ${patternNodeId}`);
+        if (!(frame.currentValue instanceof Variant)) {
+          throw new Error(`Expected Variant for pattern node ${frame.patternNodeId}`);
         }
-        const target = patternNode.edges.find((edge) => edge.label === currentValue.tag)?.target;
-        return new Variant(
-          currentValue.tag,
-          target == null ? currentValue.value : coerce(target, currentValue.value)
-        );
+        const target = patternNode.edges.find((edge) => edge.label === frame.currentValue.tag)?.target;
+        const variant = new Variant(frame.currentValue.tag, undefined);
+        frame.assign(variant);
+        if (target == null) {
+          variant.value = frame.currentValue.value;
+        } else {
+          stack.push({
+            patternNodeId: target,
+            currentValue: frame.currentValue.value,
+            assign(coercedValue) {
+              variant.value = coercedValue;
+            }
+          });
+        }
+        break;
       }
 
       default:
@@ -762,7 +825,7 @@ function coerceValueForPattern(pattern, value) {
     }
   }
 
-  return coerce(0, value);
+  return result;
 }
 
 export { deriveClosedPattern, exportPatternGraph, refinePatternForValue, coerceValueForPattern, canonicalizePattern, intersectPropertyListPatterns, NODE_KIND };

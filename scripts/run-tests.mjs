@@ -18,6 +18,7 @@ const tests = [
   ["tests/test-fingerprint.mjs", node, ["tests/test-fingerprint.mjs"]],
   ["tests/test-hash-fuzz.mjs", node, ["tests/test-hash-fuzz.mjs"]],
   ["tests/test-hash-normalization.mjs", node, ["tests/test-hash-normalization.mjs"]],
+  ["tests/test-deep-wire-value.mjs", node, ["tests/test-deep-wire-value.mjs"]],
   ["tests/test-k-object.mjs", node, ["tests/test-k-object.mjs"]],
   ["tests/test-repl.mjs", node, ["tests/test-repl.mjs"]],
   ["tests/test-kvm.mjs", node, ["tests/test-kvm.mjs"]],

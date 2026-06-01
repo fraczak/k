@@ -120,87 +120,121 @@ function choiceWidth(cardinality) {
 }
 
 function encodeNode(writer, value, pattern, patternNodeId) {
-  const patternNode = pattern.nodes[patternNodeId];
-  if (!patternNode) {
-    throw new Error(`Unknown pattern node ${patternNodeId}`);
-  }
+  const stack = [{ value, patternNodeId }];
 
-  switch (patternNode.kind) {
-    case NODE_KIND.ANY:
-      throw new Error("Pattern node 'any' is not directly encodable");
-
-    case NODE_KIND.OPEN_PRODUCT:
-    case NODE_KIND.CLOSED_PRODUCT: {
-      if (!(value instanceof Product)) {
-        throw new Error(`Expected Product for pattern node ${patternNodeId}`);
-      }
-      const actual = Object.keys(value.product).sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
-      const expected = patternNode.edges.map((edge) => edge.label);
-      if (actual.length !== expected.length || actual.some((label, i) => label !== expected[i])) {
-        throw new Error(`Product fields do not match pattern node ${patternNodeId}`);
-      }
-      for (const edge of patternNode.edges) {
-        encodeNode(writer, value.product[edge.label], pattern, edge.target);
-      }
-      return;
+  while (stack.length > 0) {
+    const frame = stack.pop();
+    const patternNode = pattern.nodes[frame.patternNodeId];
+    if (!patternNode) {
+      throw new Error(`Unknown pattern node ${frame.patternNodeId}`);
     }
 
-    case NODE_KIND.OPEN_UNION:
-    case NODE_KIND.CLOSED_UNION: {
-      if (!(value instanceof Variant)) {
-        throw new Error(`Expected Variant for pattern node ${patternNodeId}`);
-      }
-      const tagOrdinal = patternNode.edges.findIndex((edge) => edge.label === value.tag);
-      if (tagOrdinal === -1) {
-        throw new Error(`Variant tag '${value.tag}' is not present in pattern node ${patternNodeId}`);
-      }
-      const width = choiceWidth(patternNode.edges.length);
-      writer.writeBits(tagOrdinal, width);
-      encodeNode(writer, value.value, pattern, patternNode.edges[tagOrdinal].target);
-      return;
-    }
+    switch (patternNode.kind) {
+      case NODE_KIND.ANY:
+        throw new Error("Pattern node 'any' is not directly encodable");
 
-    default:
-      throw new Error(`Unsupported pattern node kind ${patternNode.kind}`);
+      case NODE_KIND.OPEN_PRODUCT:
+      case NODE_KIND.CLOSED_PRODUCT: {
+        if (!(frame.value instanceof Product)) {
+          throw new Error(`Expected Product for pattern node ${frame.patternNodeId}`);
+        }
+        const actual = Object.keys(frame.value.product).sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
+        const expected = patternNode.edges.map((edge) => edge.label);
+        if (actual.length !== expected.length || actual.some((label, i) => label !== expected[i])) {
+          throw new Error(`Product fields do not match pattern node ${frame.patternNodeId}`);
+        }
+        for (let i = patternNode.edges.length - 1; i >= 0; i--) {
+          const edge = patternNode.edges[i];
+          stack.push({ value: frame.value.product[edge.label], patternNodeId: edge.target });
+        }
+        break;
+      }
+
+      case NODE_KIND.OPEN_UNION:
+      case NODE_KIND.CLOSED_UNION: {
+        if (!(frame.value instanceof Variant)) {
+          throw new Error(`Expected Variant for pattern node ${frame.patternNodeId}`);
+        }
+        const tagOrdinal = patternNode.edges.findIndex((edge) => edge.label === frame.value.tag);
+        if (tagOrdinal === -1) {
+          throw new Error(`Variant tag '${frame.value.tag}' is not present in pattern node ${frame.patternNodeId}`);
+        }
+        const width = choiceWidth(patternNode.edges.length);
+        writer.writeBits(tagOrdinal, width);
+        stack.push({ value: frame.value.value, patternNodeId: patternNode.edges[tagOrdinal].target });
+        break;
+      }
+
+      default:
+        throw new Error(`Unsupported pattern node kind ${patternNode.kind}`);
+    }
   }
 }
 
 function decodeNode(reader, pattern, patternNodeId) {
-  const patternNode = pattern.nodes[patternNodeId];
-  if (!patternNode) {
-    throw new Error(`Unknown pattern node ${patternNodeId}`);
-  }
+  let result;
+  const stack = [{
+    patternNodeId,
+    assign(value) {
+      result = value;
+    }
+  }];
 
-  switch (patternNode.kind) {
-    case NODE_KIND.ANY:
-      throw new Error("Pattern node 'any' is not directly decodable");
-
-    case NODE_KIND.OPEN_PRODUCT:
-    case NODE_KIND.CLOSED_PRODUCT: {
-      const product = {};
-      for (const edge of patternNode.edges) {
-        product[edge.label] = decodeNode(reader, pattern, edge.target);
-      }
-      return new Product(product);
+  while (stack.length > 0) {
+    const frame = stack.pop();
+    const patternNode = pattern.nodes[frame.patternNodeId];
+    if (!patternNode) {
+      throw new Error(`Unknown pattern node ${frame.patternNodeId}`);
     }
 
-    case NODE_KIND.OPEN_UNION:
-    case NODE_KIND.CLOSED_UNION: {
-      if (patternNode.edges.length === 0) {
-        throw new Error(`Union pattern node ${patternNodeId} has no tags`);
-      }
-      const width = choiceWidth(patternNode.edges.length);
-      const tagOrdinal = reader.readBits(width);
-      if (tagOrdinal >= patternNode.edges.length) {
-        throw new Error(`Choice ${tagOrdinal} is out of range for pattern node ${patternNodeId}`);
-      }
-      const edge = patternNode.edges[tagOrdinal];
-      return new Variant(edge.label, decodeNode(reader, pattern, edge.target));
-    }
+    switch (patternNode.kind) {
+      case NODE_KIND.ANY:
+        throw new Error("Pattern node 'any' is not directly decodable");
 
-    default:
-      throw new Error(`Unsupported pattern node kind ${patternNode.kind}`);
+      case NODE_KIND.OPEN_PRODUCT:
+      case NODE_KIND.CLOSED_PRODUCT: {
+        const product = {};
+        frame.assign(new Product(product));
+        for (let i = patternNode.edges.length - 1; i >= 0; i--) {
+          const edge = patternNode.edges[i];
+          stack.push({
+            patternNodeId: edge.target,
+            assign(value) {
+              product[edge.label] = value;
+            }
+          });
+        }
+        break;
+      }
+
+      case NODE_KIND.OPEN_UNION:
+      case NODE_KIND.CLOSED_UNION: {
+        if (patternNode.edges.length === 0) {
+          throw new Error(`Union pattern node ${frame.patternNodeId} has no tags`);
+        }
+        const width = choiceWidth(patternNode.edges.length);
+        const tagOrdinal = reader.readBits(width);
+        if (tagOrdinal >= patternNode.edges.length) {
+          throw new Error(`Choice ${tagOrdinal} is out of range for pattern node ${frame.patternNodeId}`);
+        }
+        const edge = patternNode.edges[tagOrdinal];
+        const variant = new Variant(edge.label, undefined);
+        frame.assign(variant);
+        stack.push({
+          patternNodeId: edge.target,
+          assign(value) {
+            variant.value = value;
+          }
+        });
+        break;
+      }
+
+      default:
+        throw new Error(`Unsupported pattern node kind ${patternNode.kind}`);
+    }
   }
+
+  return result;
 }
 
 function preparePatternAndValue(value, propertyList) {
