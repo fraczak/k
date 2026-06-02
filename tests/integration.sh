@@ -16,7 +16,7 @@ node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print | grep -qx '{}'
 echo 
 printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./k.mjs -k Examples/byte.k |./codecs/utf8.mjs --print
 echo
-./objects/compile-lib.mjs Examples/ieee.k "$TMP_DIR/ieee.klib"
+./objects/compile.mjs Examples/ieee.k "$TMP_DIR/ieee.klib"
 MUL=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^mul = @' | sed 's/^mul = \(@[^;]*\);.*$/\1/'`
 DIV=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^div = @' | sed 's/^div = \(@[^;]*\);.*$/\1/'`
 ARG=0.12

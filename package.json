@@ -18,7 +18,6 @@
     "bin": {
         "k": "./k.mjs",
         "k-compile": "./objects/compile.mjs",
-        "k-compile-lib": "./objects/compile-lib.mjs",
         "k-decompile": "./objects/decompile.mjs",
         "k-extract-aliases": "./objects/extract-aliases.mjs",
         "k-ieee": "./codecs/ieee.mjs",
