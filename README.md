@@ -151,9 +151,11 @@ k programs can be compiled into:
 
 - `.klib`: plain JSON library objects
 - `.ko`: executable binary object containers
+- `.kvm`: JSON kVM programs
 
-These keep canonical code/relation definitions, aliases, metadata, and
-type-derivation status.
+Object and library files keep canonical code/relation definitions, aliases,
+metadata, and type-derivation status. The `.kvm` output is a lowered JSON
+program for backend inspection and execution experiments.
 
 ## CLI Tour
 
@@ -186,8 +188,7 @@ type-derivation status.
 
 | Command | Purpose |
 | --- | --- |
-| `k-compile` | Compile `.k` source to an executable `.ko` object |
-| `k-compile-lib` | Compile `.k` source to a `.klib` library |
+| `k-compile` | Compile `.k` source to `.ko`, `.klib`, or `.kvm` output |
 | `k-decompile` | Decompile `.ko` or `.klib` back to k source |
 | `k-extract-aliases` | Recover metadata aliases as k source |
 

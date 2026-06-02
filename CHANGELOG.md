@@ -7,6 +7,16 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [6.2.3] — 2026-06-03 — Unified k compiler output
+
+### Toolchain
+
+- Unified `k-compile` so it can emit `.ko`, `.klib`, and `.kvm` output.
+- Removed the separate `k-compile-lib` binary; use `k-compile ... .klib`.
+- Added inline source snippet input to `k-compile`, matching the `k` CLI style.
+
+---
+
 ## [6.1.0] — 2026-05-20 — CLI aliases and help
 
 ### Toolchain
@@ -61,5 +71,6 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+[6.2.3]: https://github.com/fraczak/k/releases/tag/v6.2.3
 [6.1.0]: https://github.com/fraczak/k/releases/tag/v6.1.0
 [6.0.0]: https://github.com/fraczak/k/releases/tag/v6.0.0

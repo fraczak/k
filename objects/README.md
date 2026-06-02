@@ -6,27 +6,17 @@ CLI tools for compiling and inspecting k object files (`.ko`) and library files 
 
 ### `k-compile`
 
-Compiles a `.k` source file into an executable object file (`.ko`).
-The output contains only the codes and relations reachable from `main`.
-Each stored relation includes `typeDerivation.status` for backend eligibility.
+Compiles `.k` source into an executable object file (`.ko`), library file
+(`.klib`), or kVM JSON (`.kvm`). Output format is inferred from the output
+extension, or from `--format`.
 
 ```bash
-k-compile [--lib lib-file]... [k-file [object-file]]
+k-compile [--lib lib-file]... [--format ko|klib|kvm] [source-snippet | input-file [output-file]]
 ```
 
-### `k-compile-lib`
-
-Compiles a `.k` source file into a library file (`.klib`).
-The output is plain JSON with no binary header. It contains the library closure
-formed from loaded `--lib` dependencies plus the compiled source definitions,
-with `main: null`.
-Use `--lib` to build on top of existing libraries.
-Each stored relation includes `typeDerivation.status`; libraries may contain a
-mix of converged and non-converged relations.
-
-```bash
-k-compile-lib [--lib lib-file]... [k-file [lib-file]]
-```
+Existing input paths are read as files. A non-existing input with `.k`, `.ko`,
+or `.klib` extension is reported as a missing file; otherwise it is compiled as
+inline k source, in the same style as `k.mjs`.
 
 ### `k-decompile`
 

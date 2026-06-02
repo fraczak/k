@@ -12,19 +12,20 @@ const prog = argv[1];
 let kScript, inputStream;
 
 function usage() {
-  console.error(`Usage: ${prog} [ --lib lib-file ]... ( k-expr | -k file ) [ input-file ]`);
+  console.error(`Usage: ${prog} [ --lib lib-file ]... [ --export spec ]... ( k-expr | -k file ) [ input-file ]`);
   console.error(`       E.g.,  echo '["zebara","ela"]' | k-parse --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
   console.error("Options:");
-  console.error("  --lib file   Load a .klib dependency before compiling. May be repeated.");
-  console.error("  -h, --help   Show this help.");
+  console.error("  --lib file      Load a .klib dependency before compiling. May be repeated.");
+  console.error("  --export spec   Export a library alias into scope. 'name' or 'libname:localname'. May be repeated.");
+  console.error("  -h, --help      Show this help.");
 }
 
-function compileFile(path, libraries) {
-  const buffer = fs.readFileSync(path);
+function compileFile(filePath, libraries, preamble) {
+  const buffer = fs.readFileSync(filePath);
   try {
     return objectToFunction(decodeObject(buffer));
   } catch {
-    return k.compile(buffer.toString("utf8"), { libraries });
+    return k.compile(preamble + buffer.toString("utf8"), { libraries });
   }
 }
 
@@ -36,13 +37,48 @@ function compileFile(path, libraries) {
     }
 
     const libraries = [];
-    // Parse --lib flags
-    while (args.length > 0 && args[0] === "--lib") {
-      args.shift();
-      const libPath = args.shift();
-      if (!libPath) throw new Error("--lib requires a file argument");
-      const libBuffer = fs.readFileSync(libPath);
-      libraries.push(loadLibrary(decodeObject(libBuffer)));
+    const exports = [];
+    // Parse --lib and --export flags
+    while (args.length > 0 && args[0].startsWith("--")) {
+      if (args[0] === "--lib") {
+        args.shift();
+        const libPath = args.shift();
+        if (!libPath) throw new Error("--lib requires a file argument");
+        const libBuffer = fs.readFileSync(libPath);
+        libraries.push(loadLibrary(decodeObject(libBuffer)));
+      } else if (args[0] === "--export") {
+        args.shift();
+        const spec = args.shift();
+        if (!spec) throw new Error("--export requires a spec argument");
+        exports.push(spec);
+      } else {
+        break;
+      }
+    }
+
+    function buildExportPreamble() {
+      if (exports.length === 0) return "";
+      const aliasMap = {};
+      for (const lib of libraries) {
+        for (const [name, hash] of Object.entries(lib.relAlias || {})) {
+          if (name !== "__main__") aliasMap[name] = hash;
+        }
+        for (const [hash, entry] of Object.entries(lib.meta || {})) {
+          if (entry?.type !== "rel") continue;
+          for (const origin of entry?.origins || []) {
+            if (origin?.name && origin.name !== "__main__") aliasMap[origin.name] = hash;
+          }
+        }
+      }
+      const lines = [];
+      for (const spec of exports) {
+        const [libName, localName] = spec.includes(":") ? spec.split(":", 2) : [spec, spec];
+        const hash = aliasMap[libName];
+        if (!hash) throw new Error(`--export: '${libName}' not found in loaded libraries`);
+        const body = hash.startsWith("@") ? hash.slice(1) : hash;
+        lines.push(`${localName} = @${body};`);
+      }
+      return lines.join("\n") + "\n";
     }
 
     let kScriptStr = (function (arg) {
@@ -50,9 +86,9 @@ function compileFile(path, libraries) {
         throw new Error("Missing script argument");
       }
       if (arg === "-k") {
-        return compileFile(args.shift(), libraries);
+        return compileFile(args.shift(), libraries, buildExportPreamble());
       } else {
-        return arg;
+        return buildExportPreamble() + arg;
       }
     })(args.shift());
     let kScript = typeof kScriptStr === "function" ? kScriptStr : k.compile(kScriptStr, { libraries });

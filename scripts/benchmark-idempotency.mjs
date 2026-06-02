@@ -44,7 +44,7 @@ function formatBytes(value) {
   return `${value} B`;
 }
 
-console.log(`compile-lib/decompile round-trip benchmark (${iterations} iterations)`);
+console.log(`compile/decompile .klib round-trip benchmark (${iterations} iterations)`);
 console.log("example, median, min, max, object");
 
 for (const example of benchmarkExamples) {
@@ -54,9 +54,9 @@ for (const example of benchmarkExamples) {
   for (let i = 0; i < iterations; i++) {
     const out = mkdtempSync(join(tmpdir(), `k-idempotency-bench-${example.replaceAll("/", "_")}-`));
     const t0 = performance.now();
-    run(["objects/compile-lib.mjs", example, join(out, "1.klib")]);
+    run(["objects/compile.mjs", example, join(out, "1.klib")]);
     run(["objects/decompile.mjs", join(out, "1.klib"), join(out, "1.k")]);
-    run(["objects/compile-lib.mjs", join(out, "1.k"), join(out, "2.klib")]);
+    run(["objects/compile.mjs", join(out, "1.k"), join(out, "2.klib")]);
     run(["objects/decompile.mjs", join(out, "2.klib"), join(out, "2.k")]);
     times.push(performance.now() - t0);
     size = statSync(join(out, "1.klib")).size;

@@ -144,14 +144,17 @@ Standalone helpers live in `objects/`:
 
 ```sh
 k-compile path/to/program.k path/to/program.ko
-k-compile-lib path/to/library.k path/to/library.klib
+k-compile path/to/library.k path/to/library.klib
+k-compile path/to/program.k path/to/program.kvm
 k-decompile path/to/program.ko path/to/program.decompiled.k
 k-extract-aliases path/to/library.klib path/to/aliases.k
 ```
 
-With no arguments, the helpers read from stdin and write to stdout:
+`k-compile` also accepts inline source snippets. With no arguments, the helpers
+read from stdin and write to stdout:
 
 ```sh
+k-compile 'x = |x; x x' > path/to/program.ko
 cat path/to/program.k | k-compile > path/to/program.ko
 cat path/to/program.ko | k-decompile > path/to/program.decompiled.k
 ```
@@ -259,7 +262,7 @@ succ = |succ;
 compile it with:
 
 ```sh
-k-compile-lib defs.k defs.klib
+k-compile defs.k defs.klib
 ```
 
 The output file is plain JSON and starts with `{`, not a binary prefix. Its
