@@ -43,6 +43,10 @@ grep -q 'Input file not found:' "$TMP_DIR/missing.err"
 
 echo '["zebara", "ela", "kupa", ala, owca]' | node ./codecs/k-parse.mjs | ./k.mjs '{.1 0,.3 1}' | node ./codecs/k-print.mjs
 echo 
+echo "a" | ./codecs/k-parse.mjs --input-type '?< {} a, X b, ...>' | ./k.mjs '{() i, /a o}' | ./codecs/show.mjs > "$TMP_DIR/polymorphic-relation.wire" 2> "$TMP_DIR/polymorphic-relation.show"
+grep -Fqx '{{}|a i, {} o} ?{<{}=X0 a, (...) b, ...> i, X0 o}' "$TMP_DIR/polymorphic-relation.show"
+./codecs/k-print.mjs "$TMP_DIR/polymorphic-relation.wire" | grep -qx '{"i":"a","o":{}}'
+echo
 echo '-21' | node ./codecs/int.mjs --parse | node ./codecs/int.mjs --print | grep -qx -- '-21'
 echo
 node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print | grep -qx '{}'

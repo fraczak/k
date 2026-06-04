@@ -238,32 +238,31 @@ function compiledExp(findCode, exp, typePatternGraph) {
     case "product": {
       const labels = exp.product.map(({ label }) => label);
       const fieldFns = exp.product.map(({ exp: e }) => compiledExp(findCode, e, typePatternGraph));
-      if (staticOutputPattern) {
-        fn = (value) => {
-          if (value === undefined) return undefined;
-          const result = {};
-          for (let i = 0, len = labels.length; i < len; i++) {
-            const r = fieldFns[i](value);
-            if (r === undefined) return undefined;
-            result[labels[i]] = r;
-          }
-          return new Product(result, staticOutputPattern);
-        };
-      } else {
-        fn = (value) => {
-          if (value === undefined) return undefined;
-          const result = {};
-          const patternEntries = [];
-          for (let i = 0, len = labels.length; i < len; i++) {
-            const r = fieldFns[i](value);
-            if (r === undefined) return undefined;
-            const label = labels[i];
-            result[label] = r;
-            patternEntries.push([label, r.pattern]);
-          }
-          return new Product(result, composePattern("closed-product", patternEntries));
-        };
-      }
+      fn = (value) => {
+        if (value === undefined) return undefined;
+        const result = {};
+        const patternEntries = [];
+        for (let i = 0, len = labels.length; i < len; i++) {
+          const r = fieldFns[i](value);
+          if (r === undefined) return undefined;
+          const label = labels[i];
+          result[label] = r;
+          patternEntries.push([label, r.pattern]);
+        }
+        const dynamicOutputPattern = composePattern("closed-product", patternEntries);
+        const pattern = staticOutputPattern && dynamicOutputPattern
+          ? intersectPatterns(staticOutputPattern, dynamicOutputPattern)
+          : staticOutputPattern || dynamicOutputPattern;
+        if (!pattern && staticOutputPattern && dynamicOutputPattern) {
+          throw new TypeError(
+            `Type Error in '${exp.op}'${expLocation(exp)}\n` +
+            ` - Product value envelope does not intersect expression output pattern.\n` +
+            ` - output pattern: ${patternPreview(staticOutputPattern)}\n` +
+            ` - product envelope: ${patternPreview(dynamicOutputPattern)}`
+          );
+        }
+        return new Product(result, pattern);
+      };
       break;
     }
     case "vid":
