@@ -11,7 +11,7 @@ Compiles `.k` source into an executable object file (`.ko`), library file
 extension, or from `--format`.
 
 ```bash
-k-compile [--lib lib-file]... [--format ko|klib|kvm] [source-snippet | input-file [output-file]]
+k-compile [--lib lib-file] [--format ko|klib|kvm] [source-snippet | input-file [output-file]]
 ```
 
 Existing input paths are read as files. A non-existing input with `.k`, `.ko`,

@@ -19,6 +19,22 @@ grep -q '"__main__"' "$TMP_DIR/stdin.kvm"
 ./objects/compile.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' "$TMP_DIR/export.ko"
 ./objects/decompile.mjs "$TMP_DIR/export.ko" | grep -q '^----- main -----$'
 node ./codecs/unit.mjs --parse | ./k.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' | node ./codecs/unit.mjs --print | grep -qx '{}'
+node ./codecs/unit.mjs --parse | ./k.mjs "$TMP_DIR/export.ko" | node ./codecs/unit.mjs --print | grep -qx '{}'
+if ./k.mjs --lib "$TMP_DIR/export.klib" --lib "$TMP_DIR/export.klib" '()' > "$TMP_DIR/two-lib.out" 2> "$TMP_DIR/two-lib.err"; then
+  echo "expected repeated --lib to fail" >&2
+  exit 1
+fi
+grep -q -- '--lib may be specified at most once' "$TMP_DIR/two-lib.err"
+if ./objects/compile.mjs --lib "$TMP_DIR/export.klib" --lib "$TMP_DIR/export.klib" '()' "$TMP_DIR/two-lib.ko" > "$TMP_DIR/two-lib-compile.out" 2> "$TMP_DIR/two-lib-compile.err"; then
+  echo "expected repeated k-compile --lib to fail" >&2
+  exit 1
+fi
+grep -q -- '--lib may be specified at most once' "$TMP_DIR/two-lib-compile.err"
+if ./kvm.mjs --lib "$TMP_DIR/export.klib" --lib "$TMP_DIR/export.klib" '()' > "$TMP_DIR/two-lib-kvm.out" 2> "$TMP_DIR/two-lib-kvm.err"; then
+  echo "expected repeated k-vm --lib to fail" >&2
+  exit 1
+fi
+grep -q -- '--lib may be specified at most once' "$TMP_DIR/two-lib-kvm.err"
 if ./objects/compile.mjs "$TMP_DIR/missing.k" > "$TMP_DIR/missing.out" 2> "$TMP_DIR/missing.err"; then
   echo "expected missing .k input to fail" >&2
   exit 1
@@ -31,7 +47,12 @@ echo '-21' | node ./codecs/int.mjs --parse | node ./codecs/int.mjs --print | gre
 echo
 node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print | grep -qx '{}'
 echo 
-printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./k.mjs -k Examples/byte.k |./codecs/utf8.mjs --print
+if ./k.mjs -k Examples/byte.k > "$TMP_DIR/dash-k.out" 2> "$TMP_DIR/dash-k.err"; then
+  echo "expected -k to fail" >&2
+  exit 1
+fi
+grep -q -- '-k is no longer supported' "$TMP_DIR/dash-k.err"
+printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./k.mjs Examples/byte.k |./codecs/utf8.mjs --print
 echo
 ./objects/compile.mjs Examples/ieee.k "$TMP_DIR/ieee.klib"
 MUL=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^mul = @' | sed 's/^mul = \(@[^;]*\);.*$/\1/'`

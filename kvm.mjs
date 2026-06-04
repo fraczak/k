@@ -430,7 +430,7 @@ function usage() {
   const prog = argv[1] || "kvm.mjs";
   console.error(`Usage: node ${prog} [ options ] ( k-expr | -k file ) [ input-file ]`);
   console.error("Options:");
-  console.error("  --lib file          Load a .klib dependency before compiling. May be repeated.");
+  console.error("  --lib file          Load one .klib dependency before compiling.");
   console.error("  --envelope-free     Run the interpreter in envelope-free mode.");
   console.error("  -h, --help          Show this help.");
 }
@@ -454,6 +454,7 @@ async function main() {
       args.shift();
       const libPath = args.shift();
       if (!libPath) throw new Error("--lib requires a file argument");
+      if (libraries.length > 0) throw new Error("--lib may be specified at most once");
       const libBuffer = fs.readFileSync(libPath);
       libraries.push(loadLibrary(decodeObject(libBuffer)));
     } else {

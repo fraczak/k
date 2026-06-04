@@ -20,7 +20,7 @@ npm test  # Run comprehensive test suite (unit tests, derivation tests, shell te
 
 **Running k programs:**
 ```bash
-./k.mjs -k <file.k>   # Execute k script
+./k.mjs <file.k>      # Execute k source/object file
 ./repl.mjs            # Start interactive REPL (or: k-repl)
 ```
 

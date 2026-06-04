@@ -25,7 +25,7 @@ function helpText() {
     "  output-file     Output path (.ko, .klib, or .kvm). Writes to stdout when omitted.",
     "",
     "Options:",
-    "  --lib file       Load a .klib dependency before compiling. May be repeated.",
+    "  --lib file       Load one .klib dependency before compiling.",
     "  --export spec    Export a library alias into the source scope. May be repeated.",
     "                   spec is 'name' or 'libname:localname'.",
     "  --format fmt     Output format: ko, klib, or kvm. Overrides extension detection.",
@@ -168,6 +168,7 @@ try {
       args.shift();
       const libPath = args.shift();
       if (!libPath) throw new Error("--lib requires a file argument");
+      if (libraries.length > 0) throw new Error("--lib may be specified at most once");
       libraries.push(loadLibrary(decodeObject(fs.readFileSync(libPath))));
     } else if (args[0] === "--export") {
       args.shift();

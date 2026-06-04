@@ -1,6 +1,6 @@
 {
     "name": "@fraczak/k",
-    "version": "6.2.3",
+    "version": "6.2.4",
     "description": "k — a language for composing first-order partial functions over algebraic data types (products and tagged unions); includes runtime, type derivation, REPL, and codec toolchain",
     "main": "index.mjs",
     "scripts": {

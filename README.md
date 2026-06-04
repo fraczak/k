@@ -163,7 +163,7 @@ program for backend inspection and execution experiments.
 
 | Command | Purpose |
 | --- | --- |
-| `k` | Execute a k expression, or `-k` source/object file, over a binary stream |
+| `k` | Execute a k expression, or an existing source/object file, over a binary stream |
 | `k-repl` | Start the interactive interpreter |
 
 **Serialization boundaries**

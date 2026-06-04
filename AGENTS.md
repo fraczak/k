@@ -12,7 +12,7 @@
 - `npm run prepare` regenerates `parser.mjs` and `valueParser.mjs` from `.jison` grammars.
 - `npm test` runs the full suite through `scripts/run-tests.mjs`.
 - `node repl.mjs` (or `k-repl`) starts the interactive REPL.
-- `./k.mjs -k <file.k>` executes a k script on binary pattern+value stream input from stdin or a file; use `k-parse` and `k-print` at the boundaries.
+- `./k.mjs <file.k>` executes a k source/object file on binary pattern+value stream input from stdin or a file; if the argument is not an existing file, it is treated as an inline k expression.
 
 ## Coding Style & Naming Conventions
 - JavaScript uses ES modules (`.mjs`) with 2-space indentation and semicolons.

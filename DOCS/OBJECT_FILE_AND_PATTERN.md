@@ -133,12 +133,12 @@ Loading an object hydrates the type-pattern graphs back into runtime
 Object execution through `k.mjs`:
 
 ```sh
-echo "..." | some-codec --parse | k -k path/to/program.ko | some-codec --print
+echo "..." | some-codec --parse | k path/to/program.ko | some-codec --print
 ```
 
-The `-k` option accepts either an object file or a source `.k` file. `k.mjs`
-tries to load the file as an object first, then falls back to source parsing and
-compilation.
+When the first positional argument names an existing file, `k.mjs` loads it as
+either an object file or a source `.k` file. It tries to load the file as an
+object first, then falls back to source parsing and compilation.
 
 Standalone helpers live in `objects/`:
 

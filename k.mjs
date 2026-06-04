@@ -12,12 +12,21 @@ const prog = argv[1];
 let kScript, inputStream;
 
 function usage() {
-  console.error(`Usage: ${prog} [ --lib lib-file ]... [ --export spec ]... ( k-expr | -k file ) [ input-file ]`);
+  console.error(`Usage: ${prog} [ --lib lib-file ] [ --export spec ]... ( k-expr | file ) [ input-file ]`);
   console.error(`       E.g.,  echo '["zebara","ela"]' | k-parse --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
   console.error("Options:");
-  console.error("  --lib file      Load a .klib dependency before compiling. May be repeated.");
+  console.error("  --lib file      Load one .klib dependency before compiling.");
   console.error("  --export spec   Export a library alias into scope. 'name' or 'libname:localname'. May be repeated.");
   console.error("  -h, --help      Show this help.");
+}
+
+function isFile(filePath) {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return false;
+    throw error;
+  }
 }
 
 function compileFile(filePath, libraries, preamble) {
@@ -44,6 +53,7 @@ function compileFile(filePath, libraries, preamble) {
         args.shift();
         const libPath = args.shift();
         if (!libPath) throw new Error("--lib requires a file argument");
+        if (libraries.length > 0) throw new Error("--lib may be specified at most once");
         const libBuffer = fs.readFileSync(libPath);
         libraries.push(loadLibrary(decodeObject(libBuffer)));
       } else if (args[0] === "--export") {
@@ -86,10 +96,10 @@ function compileFile(filePath, libraries, preamble) {
         throw new Error("Missing script argument");
       }
       if (arg === "-k") {
-        return compileFile(args.shift(), libraries, buildExportPreamble());
-      } else {
-        return buildExportPreamble() + arg;
+        throw new Error("-k is no longer supported; pass the source/object file path directly");
       }
+      if (isFile(arg)) return compileFile(arg, libraries, buildExportPreamble());
+      return buildExportPreamble() + arg;
     })(args.shift());
     let kScript = typeof kScriptStr === "function" ? kScriptStr : k.compile(kScriptStr, { libraries });
     inputStream = (function (arg) {
