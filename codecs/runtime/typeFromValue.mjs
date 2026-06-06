@@ -1,4 +1,4 @@
-import { Product, Variant } from "../../Value.mjs";
+import { isProduct, isVariant } from "../../Value.mjs";
 
 function typeDefsFromValue(value) {
   let nextId = 0;
@@ -6,7 +6,7 @@ function typeDefsFromValue(value) {
 
   function visit(node) {
     const name = `:auto${nextId++}`;
-    if (node instanceof Product) {
+    if (isProduct(node)) {
       const labels = Object.keys(node.product).sort();
       const product = {};
       for (const label of labels) {
@@ -16,7 +16,7 @@ function typeDefsFromValue(value) {
       return name;
     }
 
-    if (node instanceof Variant) {
+    if (isVariant(node)) {
       const childName = visit(node.value);
       defs[name] = { code: "union", union: { [node.tag]: childName } };
       return name;

@@ -14,7 +14,7 @@
 import { deriveClosedPattern } from './runtime/codec.mjs';
 import { encodeToWire, decodeWire } from './runtime/prefix-codec.mjs';
 import { patternToPropertyList } from './runtime/pattern-json.mjs';
-import { Product, Variant } from '../Value.mjs';
+import { Value, isVariant } from '../Value.mjs';
 import hash from '../hash.mjs';
 import { argv, exit } from 'node:process';
 
@@ -84,9 +84,9 @@ function resolveType(typeName) {
 // Step 3: Create input value: Maybe Bool = something(true)
 // ============================================================================
 
-const inputValue = new Variant(
+const inputValue = Value.variant(
   'something',
-  new Variant('true', new Product({}))
+  Value.variant('true', Value.product({}))
 );
 
 console.log('Input value:', inputValue.toString());
@@ -119,14 +119,14 @@ console.log('Program sees value:', programInput.toString());
 
 // Example transformation: NOT operation (flip bool inside Maybe)
 let programOutput;
-if (programInput instanceof Variant && programInput.tag === 'something') {
+if (isVariant(programInput) && programInput.tag === 'something') {
   const innerBool = programInput.value;
-  if (innerBool instanceof Variant) {
-    const flipped = new Variant(
+  if (isVariant(innerBool)) {
+    const flipped = Value.variant(
       innerBool.tag === 'true' ? 'false' : 'true',
       innerBool.value
     );
-    programOutput = new Variant('something', flipped);
+    programOutput = Value.variant('something', flipped);
   }
 } else {
   programOutput = programInput; // nothing → nothing

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { Product, Variant } from "../Value.mjs";
+import { Value } from "../Value.mjs";
 import { decodeWire, encodeToWire } from "../codecs/runtime/prefix-codec.mjs";
 
 const depth = 12000;
@@ -9,12 +9,12 @@ const pattern = [
   ["closed-product", []]
 ];
 
-let bits = new Variant("_", new Product({}));
+let bits = Value.variant("_", Value.product({}));
 for (let i = 0; i < depth; i++) {
-  bits = new Variant("1", bits);
+  bits = Value.variant("1", bits);
 }
 
-const wire = encodeToWire(new Variant("+", bits), pattern);
+const wire = encodeToWire(Value.variant("+", bits), pattern);
 const decoded = decodeWire(wire).value;
 assert.equal(decoded.tag, "+");
 

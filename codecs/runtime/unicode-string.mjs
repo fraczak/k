@@ -1,22 +1,22 @@
-import { Product, Variant } from "../../Value.mjs";
+import { Value, isProduct, isVariant } from "../../Value.mjs";
 
-const UNIT = new Product({});
-const BIT0 = new Variant("0", UNIT);
-const BIT1 = new Variant("1", UNIT);
+const UNIT = Value.product({});
+const BIT0 = Value.variant("0", UNIT);
+const BIT1 = Value.variant("1", UNIT);
 
 function bitValue(bit) {
   return bit === 0 ? BIT0 : BIT1;
 }
 
 function requireProduct(value, where) {
-  if (!(value instanceof Product)) {
+  if (!isProduct(value)) {
     throw new Error(`${where}: expected Product`);
   }
   return value.product;
 }
 
 function requireVariant(value, where) {
-  if (!(value instanceof Variant)) {
+  if (!isVariant(value)) {
     throw new Error(`${where}: expected Variant`);
   }
   return value;
@@ -27,7 +27,7 @@ function bitsProduct(width, n) {
   for (let i = width - 1; i >= 0; i--) {
     product[String(i)] = bitValue((n >> i) & 1);
   }
-  return new Product(product);
+  return Value.product(product);
 }
 
 function parseBitsProduct(value, maxBit, where) {
@@ -52,14 +52,14 @@ function parseByteProduct(value, where) {
 }
 
 function encodeBmpCommonHi(hi) {
-  if (hi >= 0x08 && hi <= 0x0f) return new Variant("h08_0F", bitsProduct(3, hi - 0x08));
-  if (hi >= 0x10 && hi <= 0x7f) return new Variant("h10_7F", bitsProduct(7, hi - 0x10));
-  if (hi >= 0x80 && hi <= 0xcf) return new Variant("h80_CF", bitsProduct(7, hi - 0x80));
-  if (hi >= 0xd0 && hi <= 0xd7) return new Variant("hD0_D7", bitsProduct(3, hi - 0xd0));
-  if (hi === 0xf9) return new Variant("hF9", UNIT);
-  if (hi >= 0xfa && hi <= 0xfb) return new Variant("hFA_FB", bitsProduct(1, hi - 0xfa));
-  if (hi >= 0xfc && hi <= 0xfd) return new Variant("hFC_FD", bitsProduct(1, hi - 0xfc));
-  if (hi >= 0xfe && hi <= 0xff) return new Variant("hFE_FF", bitsProduct(1, hi - 0xfe));
+  if (hi >= 0x08 && hi <= 0x0f) return Value.variant("h08_0F", bitsProduct(3, hi - 0x08));
+  if (hi >= 0x10 && hi <= 0x7f) return Value.variant("h10_7F", bitsProduct(7, hi - 0x10));
+  if (hi >= 0x80 && hi <= 0xcf) return Value.variant("h80_CF", bitsProduct(7, hi - 0x80));
+  if (hi >= 0xd0 && hi <= 0xd7) return Value.variant("hD0_D7", bitsProduct(3, hi - 0xd0));
+  if (hi === 0xf9) return Value.variant("hF9", UNIT);
+  if (hi >= 0xfa && hi <= 0xfb) return Value.variant("hFA_FB", bitsProduct(1, hi - 0xfa));
+  if (hi >= 0xfc && hi <= 0xfd) return Value.variant("hFC_FD", bitsProduct(1, hi - 0xfc));
+  if (hi >= 0xfe && hi <= 0xff) return Value.variant("hFE_FF", bitsProduct(1, hi - 0xfe));
   throw new Error(`Unsupported BMP common hi byte: 0x${hi.toString(16)}`);
 }
 
@@ -77,9 +77,9 @@ function decodeBmpCommonHi(value) {
 }
 
 function encodeBmpPrivateHi(hi) {
-  if (hi >= 0xe0 && hi <= 0xef) return new Variant("hE0_EF", bitsProduct(4, hi - 0xe0));
-  if (hi >= 0xf0 && hi <= 0xf7) return new Variant("hF0_F7", bitsProduct(3, hi - 0xf0));
-  if (hi === 0xf8) return new Variant("hF8", UNIT);
+  if (hi >= 0xe0 && hi <= 0xef) return Value.variant("hE0_EF", bitsProduct(4, hi - 0xe0));
+  if (hi >= 0xf0 && hi <= 0xf7) return Value.variant("hF0_F7", bitsProduct(3, hi - 0xf0));
+  if (hi === 0xf8) return Value.variant("hF8", UNIT);
   throw new Error(`Unsupported BMP private-use hi byte: 0x${hi.toString(16)}`);
 }
 
@@ -92,10 +92,10 @@ function decodeBmpPrivateHi(value) {
 }
 
 function encodePlane2To16(plane) {
-  if (plane >= 2 && plane <= 3) return new Variant("p02_03", bitsProduct(1, plane - 2));
-  if (plane >= 4 && plane <= 7) return new Variant("p04_07", bitsProduct(2, plane - 4));
-  if (plane >= 8 && plane <= 15) return new Variant("p08_0F", bitsProduct(3, plane - 8));
-  if (plane === 16) return new Variant("p10", UNIT);
+  if (plane >= 2 && plane <= 3) return Value.variant("p02_03", bitsProduct(1, plane - 2));
+  if (plane >= 4 && plane <= 7) return Value.variant("p04_07", bitsProduct(2, plane - 4));
+  if (plane >= 8 && plane <= 15) return Value.variant("p08_0F", bitsProduct(3, plane - 8));
+  if (plane === 16) return Value.variant("p10", UNIT);
   throw new Error(`Plane out of range for supplementary_planes2_16: ${plane}`);
 }
 
@@ -117,34 +117,34 @@ function codePointToUnicodeValue(cp) {
   }
 
   if (cp <= 0x7f) {
-    return new Variant("ascii", bitsProduct(7, cp));
+    return Value.variant("ascii", bitsProduct(7, cp));
   }
 
   if (cp <= 0x7ff) {
-    return new Variant("plane0", bitsProduct(11, cp));
+    return Value.variant("plane0", bitsProduct(11, cp));
   }
 
   if (cp <= 0xffff) {
     const hi = (cp >> 8) & 0xff;
     const lo = cp & 0xff;
     if (hi >= 0xe0 && hi <= 0xf8) {
-      return new Variant("bmp_private_use", new Product({ hi: encodeBmpPrivateHi(hi), lo: byteProduct(lo) }));
+      return Value.variant("bmp_private_use", Value.product({ hi: encodeBmpPrivateHi(hi), lo: byteProduct(lo) }));
     }
-    return new Variant("bmp_common", new Product({ hi: encodeBmpCommonHi(hi), lo: byteProduct(lo) }));
+    return Value.variant("bmp_common", Value.product({ hi: encodeBmpCommonHi(hi), lo: byteProduct(lo) }));
   }
 
   const mid = (cp >> 8) & 0xff;
   const lo = cp & 0xff;
 
   if (cp <= 0x1ffff) {
-    return new Variant("supplementary_plane1", new Product({
+    return Value.variant("supplementary_plane1", Value.product({
       mid: byteProduct(mid),
       lo: byteProduct(lo)
     }));
   }
 
   const plane = cp >> 16;
-  return new Variant("supplementary_planes2_16", new Product({
+  return Value.variant("supplementary_planes2_16", Value.product({
     plane: encodePlane2To16(plane),
     mid: byteProduct(mid),
     lo: byteProduct(lo)
@@ -181,11 +181,11 @@ function unicodeValueToCodePoint(value) {
 }
 
 function textToStringValue(text) {
-  let out = new Variant("nil", UNIT);
+  let out = Value.variant("nil", UNIT);
   const chars = Array.from(text);
   for (let i = chars.length - 1; i >= 0; i--) {
     const cp = chars[i].codePointAt(0);
-    out = new Variant("cons", new Product({
+    out = Value.variant("cons", Value.product({
       car: codePointToUnicodeValue(cp),
       cdr: out
     }));

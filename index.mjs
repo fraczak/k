@@ -1,5 +1,5 @@
 import { parse } from "./parser.mjs";
-import { Value, fromObject } from "./Value.mjs";
+import { fromObject, isValue } from "./Value.mjs";
 import { parseValue } from "./valueIO.mjs";
 import { compileTypes } from "./compiler.mjs";
 import run from "./run.mjs";
@@ -19,7 +19,7 @@ compile.doc = "Transforms k-script (string) into a function";
 
 function runScriptOnData(script, data, options = {}) {
   let parsedData;
-  if (data instanceof Value) {
+  if (isValue(data)) {
     parsedData = data;
   } else if (typeof data === "string") {
     parsedData = parseValue(data, null, null);

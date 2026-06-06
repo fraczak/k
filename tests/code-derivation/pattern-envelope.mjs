@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import k from "../../index.mjs";
-import { Product, Variant, mergePatterns, withPattern } from "../../Value.mjs";
+import { Value, mergePatterns, withPattern } from "../../Value.mjs";
 import { decodeWire, encodeToWire } from "../../codecs/runtime/prefix-codec.mjs";
 import run from "../../run.mjs";
 import codes from "../../codes.mjs";
@@ -17,16 +17,16 @@ const script = `
   {}|_|0|1|+ $int
 `;
 
-const result = k.compile(script)(new Product({}));
+const result = k.compile(script)(Value.product({}));
 assert.deepEqual(result.pattern, INT_PATTERN);
 
 const decoded = decodeWire(encodeToWire(result, result.pattern));
 assert.deepEqual(decoded.pattern, INT_PATTERN);
 
-const two = new Variant("+",
-  new Variant("1",
-    new Variant("0",
-      new Variant("_", new Product({}))
+const two = Value.variant("+",
+  Value.variant("1",
+    Value.variant("0",
+      Value.variant("_", Value.product({}))
     )
   )
 );
@@ -53,13 +53,13 @@ const wrappedFloatPattern = [
   ["closed-product", []],
   ["closed-union", [["inexact", 5]]]
 ];
-const wrappedFloat = new Product({
-  result: new Product({
-    sign: new Variant("+", new Product({})),
-    exponent: new Product({ 0: new Variant("1", new Product({})) }),
-    fraction: new Product({ 0: new Variant("0", new Product({})) })
+const wrappedFloat = Value.product({
+  result: Value.product({
+    sign: Value.variant("+", Value.product({})),
+    exponent: Value.product({ 0: Value.variant("1", Value.product({})) }),
+    fraction: Value.product({ 0: Value.variant("0", Value.product({})) })
   }),
-  flags: new Variant("inexact", new Product({}))
+  flags: Value.variant("inexact", Value.product({}))
 });
 const resultProjection = k.compile(".result")(withPattern(wrappedFloat, wrappedFloatPattern));
 assert.deepEqual(resultProjection.pattern, [

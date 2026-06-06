@@ -18,7 +18,7 @@ import {
   lineTerminatesSnippet
 } from "../repl.mjs";
 import { decodeObject, objectToFunction } from "../object.mjs";
-import { Product } from "../Value.mjs";
+import { Value } from "../Value.mjs";
 
 const state = createState();
 
@@ -123,7 +123,7 @@ assert(completions.includes(`:load --no-alias ${libPath}`));
 output = await evaluateInput(`:ko ${koPath} succ`, state);
 assert.equal(output[0], `saved ${koPath} (succ)`);
 const objectFn = objectToFunction(decodeObject(fs.readFileSync(koPath)));
-const objectResult = objectFn(new Product({}, [["closed-product", []]]));
+const objectResult = objectFn(Value.product({}, [["closed-product", []]]));
 assert.equal(objectResult.toJSON(), "succ");
 
 fs.writeFileSync(sourcePath, "$ nat = <{} zero, nat succ>;\nsucc = $nat |succ $nat;\ntwice = succ succ;\n");
@@ -145,7 +145,7 @@ assert.match(output[0], /^\$ bool = @/);
 const boolHash = codecState.typeAliases.bool;
 const valueModuleUrl = pathToFileURL(path.resolve("Value.mjs")).href;
 fs.writeFileSync(codecPath, `
-import { Product, Variant } from ${JSON.stringify(valueModuleUrl)};
+import { Value } from ${JSON.stringify(valueModuleUrl)};
 
 export const name = "yn";
 export const codes = [${JSON.stringify(boolHash)}];
@@ -153,7 +153,7 @@ export const codes = [${JSON.stringify(boolHash)}];
 export function parse(text) {
   const tag = text.trim();
   if (tag !== "true" && tag !== "false") throw new Error("expected true or false");
-  return new Variant(tag, new Product({}));
+  return Value.variant(tag, Value.product({}));
 }
 
 export function print(value) {

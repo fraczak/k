@@ -1,4 +1,4 @@
-import { Product, Variant } from "../../Value.mjs";
+import { isProduct, isVariant } from "../../Value.mjs";
 
 const nameRE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 
@@ -50,8 +50,8 @@ function propertyListToFilter(propertyList) {
 }
 
 function valueToK(v) {
-  if (v instanceof Variant) return `${valueToK(v.value)}|${pLabel(v.tag).trimStart()}`;
-  if (v instanceof Product) {
+  if (isVariant(v)) return `${valueToK(v.value)}|${pLabel(v.tag).trimStart()}`;
+  if (isProduct(v)) {
     const keys = Object.keys(v.product);
     if (keys.length === 0) return "{}";
     const fields = keys.map((k) => `${valueToK(v.product[k])}${pLabel(k)}`);

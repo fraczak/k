@@ -1,4 +1,4 @@
-import { Product, Variant, withPattern } from "../../Value.mjs";
+import { Value, withPattern, isProduct, isVariant } from "../../Value.mjs";
 import { refinePatternForValue, coerceValueForPattern, NODE_KIND } from "./codec.mjs";
 import { patternToPropertyList, propertyListToPattern } from "./pattern-json.mjs";
 import { textToStringValue, stringValueToText } from "./unicode-string.mjs";
@@ -33,7 +33,7 @@ const CORE_PATTERN_PROPERTY_LIST = [
 ];
 
 const CORE_PATTERN_PATTERN = propertyListToPattern(CORE_PATTERN_PROPERTY_LIST);
-const UNIT = new Product({});
+const UNIT = Value.product({});
 
 class BitWriter {
   constructor() {
@@ -135,7 +135,7 @@ function encodeNode(writer, value, pattern, patternNodeId) {
 
       case NODE_KIND.OPEN_PRODUCT:
       case NODE_KIND.CLOSED_PRODUCT: {
-        if (!(frame.value instanceof Product)) {
+        if (!isProduct(frame.value)) {
           throw new Error(`Expected Product for pattern node ${frame.patternNodeId}`);
         }
         const actual = Object.keys(frame.value.product).sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
@@ -152,7 +152,7 @@ function encodeNode(writer, value, pattern, patternNodeId) {
 
       case NODE_KIND.OPEN_UNION:
       case NODE_KIND.CLOSED_UNION: {
-        if (!(frame.value instanceof Variant)) {
+        if (!isVariant(frame.value)) {
           throw new Error(`Expected Variant for pattern node ${frame.patternNodeId}`);
         }
         const tagOrdinal = patternNode.edges.findIndex((edge) => edge.label === frame.value.tag);
@@ -194,7 +194,7 @@ function decodeNode(reader, pattern, patternNodeId) {
       case NODE_KIND.OPEN_PRODUCT:
       case NODE_KIND.CLOSED_PRODUCT: {
         const product = {};
-        frame.assign(new Product(product));
+        frame.assign(Value.product(product));
         for (let i = patternNode.edges.length - 1; i >= 0; i--) {
           const edge = patternNode.edges[i];
           stack.push({
@@ -218,7 +218,7 @@ function decodeNode(reader, pattern, patternNodeId) {
           throw new Error(`Choice ${tagOrdinal} is out of range for pattern node ${frame.patternNodeId}`);
         }
         const edge = patternNode.edges[tagOrdinal];
-        const variant = new Variant(edge.label, undefined);
+        const variant = Value.variant(edge.label, undefined);
         frame.assign(variant);
         stack.push({
           patternNodeId: edge.target,
@@ -250,7 +250,7 @@ function deriveClosedPatternFromValue(value) {
 
   function visit(node) {
     const nodeId = nodes.length;
-    if (node instanceof Product) {
+    if (isProduct(node)) {
       const placeholder = { kind: NODE_KIND.CLOSED_PRODUCT, edges: [] };
       nodes.push(placeholder);
       const labels = Object.keys(node.product).sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
@@ -261,7 +261,7 @@ function deriveClosedPatternFromValue(value) {
       }));
       return nodeId;
     }
-    if (node instanceof Variant) {
+    if (isVariant(node)) {
       const placeholder = { kind: NODE_KIND.OPEN_UNION, edges: [] };
       nodes.push(placeholder);
       placeholder.edges = [{
@@ -291,23 +291,23 @@ function deriveClosedPatternFromValue(value) {
 }
 
 function requireProduct(value, where) {
-  if (!(value instanceof Product)) {
+  if (!isProduct(value)) {
     throw new Error(`${where}: expected Product`);
   }
   return value.product;
 }
 
 function requireVariant(value, where) {
-  if (!(value instanceof Variant)) {
+  if (!isVariant(value)) {
     throw new Error(`${where}: expected Variant`);
   }
   return value;
 }
 
 function listToK(items) {
-  let result = new Variant("nil", UNIT);
+  let result = Value.variant("nil", UNIT);
   for (let i = items.length - 1; i >= 0; i--) {
-    result = new Variant("cons", new Product({
+    result = Value.variant("cons", Value.product({
       car: items[i],
       cdr: result
     }));
@@ -354,7 +354,7 @@ function integerToBits(value) {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`bits target must be a non-negative safe integer, got ${value}`);
   }
-  if (value === 0) return new Variant("_", UNIT);
+  if (value === 0) return Value.variant("_", UNIT);
 
   const bits = [];
   let n = value;
@@ -363,15 +363,15 @@ function integerToBits(value) {
     n = Math.floor(n / 2);
   }
 
-  let result = new Variant("_", UNIT);
+  let result = Value.variant("_", UNIT);
   for (let i = bits.length - 1; i >= 0; i--) {
-    result = new Variant(bits[i] ? "1" : "0", result);
+    result = Value.variant(bits[i] ? "1" : "0", result);
   }
   return result;
 }
 
 function edgeToK([label, target]) {
-  return new Product({
+  return Value.product({
     label: textToStringValue(label),
     target: integerToBits(target)
   });
@@ -395,9 +395,9 @@ function patternToKValue(propertyList) {
     }
     const [kind, edges] = node;
     if (kind === "any") {
-      return new Variant("any", UNIT);
+      return Value.variant("any", UNIT);
     }
-    return new Variant(kind, listToK(edges.map(edgeToK)));
+    return Value.variant(kind, listToK(edges.map(edgeToK)));
   }));
 }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { stdin, stdout, argv, exit } from "node:process";
-import { Product } from "../Value.mjs";
+import { Value, isProduct } from "../Value.mjs";
 import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 
@@ -28,15 +28,15 @@ function readAll(stream) {
 }
 
 function unitEncoding() {
-  return encodeToWire(new Product({}), UNIT_PATTERN);
+  return encodeToWire(Value.product({}), UNIT_PATTERN);
 }
 
 function parse() {
-  return new Product({});
+  return Value.product({});
 }
 
 function print(value) {
-  if (!(value instanceof Product) || Object.keys(value.product).length !== 0) {
+  if (!isProduct(value) || Object.keys(value.product).length !== 0) {
     throw new Error("Input is not a unit value");
   }
   return "{}";

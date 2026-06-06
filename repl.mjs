@@ -10,7 +10,7 @@ import { argv, exit, stdin, stdout } from "node:process";
 import { annotate, parse } from "./index.mjs";
 import run from "./run.mjs";
 import codes from "./codes.mjs";
-import { Product } from "./Value.mjs";
+import { Value } from "./Value.mjs";
 import { patterns2filters, prettyCode, prettyRel } from "./pretty.mjs";
 import {
   compileObject,
@@ -50,7 +50,7 @@ function cloneJSON(value) {
 }
 
 function emptyValue() {
-  return new Product({}, [["closed-product", []]]);
+  return Value.product({}, [["closed-product", []]]);
 }
 
 function createState() {

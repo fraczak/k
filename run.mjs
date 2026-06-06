@@ -1,5 +1,5 @@
 import assert from "assert";
-import { Product, Variant, edgeSubpattern, composePattern, withPattern } from "./Value.mjs"
+import { Value, edgeSubpattern, composePattern, withPattern, isProduct, isVariant } from "./Value.mjs"
 import { exportPatternGraph, intersectPropertyListPatterns } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 
@@ -261,14 +261,14 @@ function compiledExp(findCode, exp, typePatternGraph) {
             ` - product envelope: ${patternPreview(dynamicOutputPattern)}`
           );
         }
-        return new Product(result, pattern);
+        return Value.product(result, pattern);
       };
       break;
     }
     case "vid":
       fn = (value) => {
         if (value === undefined) return undefined;
-        return new Variant(exp.vid, value, composePattern("open-union", [[exp.vid, value.pattern]]));
+        return Value.variant(exp.vid, value, composePattern("open-union", [[exp.vid, value.pattern]]));
       };
       break;
     default:
@@ -375,13 +375,13 @@ function compiledConvergedExp(findCode, exp, typePatternGraph, options = {}) {
       break;
     case "dot":
       fn = (value) => {
-        if (value === undefined || !(value instanceof Product)) return undefined;
+        if (value === undefined || !isProduct(value)) return undefined;
         return Object.hasOwn(value.product, exp.dot) ? value.product[exp.dot] : undefined;
       };
       break;
     case "div":
       fn = (value) => {
-        if (value === undefined || !(value instanceof Variant) || value.tag !== exp.div) return undefined;
+        if (value === undefined || !isVariant(value) || value.tag !== exp.div) return undefined;
         return value.value;
       };
       break;
@@ -419,12 +419,12 @@ function compiledConvergedExp(findCode, exp, typePatternGraph, options = {}) {
           if (r === undefined) return undefined;
           result[labels[i]] = r;
         }
-        return new Product(result);
+        return Value.product(result);
       };
       break;
     }
     case "vid":
-      fn = (value) => value === undefined ? undefined : new Variant(exp.vid, value);
+      fn = (value) => value === undefined ? undefined : Value.variant(exp.vid, value);
       break;
     default:
       assert(false,`Unknown operation: '${exp.op}'`);
@@ -440,7 +440,7 @@ function verify(findCode, code, value) {
   code = findCode(code);
   switch (code.code) {
     case "product":
-      if (! (value instanceof Product)) return false;
+      if (!isProduct(value)) return false;
       else {
         const fields = Object.keys(value.product);
         if (fields.length !== Object.keys(code.product).length) return false;
@@ -449,7 +449,7 @@ function verify(findCode, code, value) {
         );
       }
     case "union":
-      if (! (value instanceof Product)) return false;
+      if (!isProduct(value)) return false;
       else {
         const fields = Object.keys(value.product);
         if (fields.length !== 1) return false;

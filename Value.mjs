@@ -16,9 +16,9 @@ function fromObject(obj) {
   const fields = getFields(obj);
   if (fields.length === 1) {
     const field = fields[0];
-    return new Variant(field, fromObject(obj[field]));
+    return Value.variant(field, fromObject(obj[field]));
   } 
-  return new Product(
+  return Value.product(
     fields.reduce( (result, field) => {
       result[field] = fromObject(obj[field]);
       return result;
@@ -26,17 +26,26 @@ function fromObject(obj) {
   );
 };
 
-class Value {
-  constructor(type, pattern = null) {
-    this.type = type;
-    this.pattern = pattern;
-  }
-  toString() {
-    return `${this.constructor.name}(type: ${this.type})`;
-  }
-  toJSON() {
-    return { type: this.type };
-  }
+function isObject(value) {
+  return value !== null && typeof value === "object";
+}
+
+function isProduct(value) {
+  return isObject(value) &&
+    value.type === "{}" &&
+    isObject(value.product) &&
+    !Array.isArray(value.product);
+}
+
+function isVariant(value) {
+  return isObject(value) &&
+    value.type === "<>" &&
+    typeof value.tag === "string" &&
+    Object.hasOwn(value, "value");
+}
+
+function isValue(value) {
+  return isProduct(value) || isVariant(value);
 }
 
 function toVector(m) {
@@ -147,46 +156,47 @@ function mergePatterns(declared, observed) {
 function withPattern(value, pattern) {
   if (!pattern) return value;
   if (value.pattern === pattern) return value;
-  if (value instanceof Product) return new Product(value.product, pattern);
-  if (value instanceof Variant) return new Variant(value.tag, value.value, pattern);
+  if (isProduct(value)) return Value.product(value.product, pattern);
+  if (isVariant(value)) return Value.variant(value.tag, value.value, pattern);
   return value;
 }
 
-class Product extends Value {
-  constructor(product, pattern = null) {
-    super("{}", pattern);
-    this.product = product;
+class Value {
+  constructor(fields) {
+    Object.assign(this, fields);
+  }
+
+  static product(product, pattern = null) {
+    return new Value({ type: "{}", pattern, product });
+  }
+
+  static variant(tag, value, pattern = null) {
+    return new Value({ type: "<>", pattern, tag, value });
   }
 
   toString() {
-    return `{${Object.entries(this.product).map(([k, v]) => `${JSON.stringify(k)}:${v.toString()}`).join(',')}}`;
+    if (isVariant(this)) {
+      // return `{${JSON.stringify(this.tag)}:${this.value.toString()}}`;
+      return `${this.value.toString()}|${pLabel(this.tag)}`;
+    }
+    if (isProduct(this)) {
+      return `{${Object.entries(this.product).map(([k, v]) => `${JSON.stringify(k)}:${v.toString()}`).join(',')}}`;
+    }
+    return String(this.type);
   }
 
   toJSON() {
+    if (isVariant(this)) {
+      if (isProduct(this.value) && Object.keys(this.value.product).length === 0) {
+        return this.tag;
+      }
+      return {[this.tag]: this.value.toJSON()};
+    }
+    if (!isProduct(this)) return { type: this.type };
     let vector = toVector(this.product);
     if (vector.length > 0) return vector;
     return this.product; 
   }
 }
-
-class Variant extends Value {
-  constructor(tag, value, pattern = null) {
-    super("<>", pattern);
-    this.tag = tag;
-    this.value = value;
-  }
-
-  toString() {
-    // return `{${JSON.stringify(this.tag)}:${this.value.toString()}}`;
-    return `${this.value.toString()}|${pLabel(this.tag)}`;
-  }
-
-  toJSON() {
-    if (this.value instanceof Product && Object.keys(this.value.product).length === 0) {
-      return this.tag;
-    }
-    return {[this.tag]: this.value.toJSON()};
-  }
-}
-export { Value, Product, Variant, fromObject, cloneSubpattern, edgeSubpattern, composePattern, mergePatterns, withPattern };
-export default { Value, Product, Variant, fromObject, cloneSubpattern, edgeSubpattern, composePattern, mergePatterns, withPattern };
+export { Value, fromObject, cloneSubpattern, edgeSubpattern, composePattern, mergePatterns, withPattern, isProduct, isVariant, isValue };
+export default { Value, fromObject, cloneSubpattern, edgeSubpattern, composePattern, mergePatterns, withPattern, isProduct, isVariant, isValue };

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import { createState, evaluateInput } from "../repl.mjs";
-import { Product } from "../Value.mjs";
+import { Value, isProduct } from "../Value.mjs";
 import codes from "../codes.mjs";
 import { parse as parseFloat64, print as printFloat64 } from "../codecs/ieee.mjs";
 import { singletonPatternToCodeHash, valueForCode } from "../repl-codecs.mjs";
@@ -21,7 +21,7 @@ function float64(text) {
 }
 
 function floatPair(x, y) {
-  return valueForCode(new Product({
+  return valueForCode(Value.product({
     x: float64(x),
     y: float64(y)
   }), floatPairHash, codes.find);
@@ -46,7 +46,7 @@ function assertFloatResult(value, expected, label) {
 
 async function assertOperation({ op, x, y, result, flags = null, projection = false }) {
   const bundle = await runOperation(op, x, y);
-  assert.ok(bundle instanceof Product, `${op} should return a result bundle`);
+  assert.ok(isProduct(bundle), `${op} should return a result bundle`);
   assert.deepEqual(Object.keys(bundle.product).sort(), ["flags", "result"]);
   assertFloatResult(bundle.product.result, result, `${op}(${x}, ${y}).result`);
   if (flags != null) {

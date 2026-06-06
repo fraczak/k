@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
-import { Product, Variant, composePattern, withPattern } from "./Value.mjs";
+import { Value, composePattern, withPattern, isProduct, isVariant } from "./Value.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import {
@@ -281,7 +281,7 @@ function executeInstruction(inst, registers, context) {
     }
     case "project_field": {
       const val = registers.get(inst.src);
-      if (!(val instanceof Product)) return undefined;
+      if (!isProduct(val)) return undefined;
       const fieldVal = val.product[inst.label];
       if (fieldVal === undefined) return undefined;
 
@@ -295,7 +295,7 @@ function executeInstruction(inst, registers, context) {
     }
     case "project_variant": {
       const val = registers.get(inst.src);
-      if (!(val instanceof Variant) || val.tag !== inst.tag) return undefined;
+      if (!isVariant(val) || val.tag !== inst.tag) return undefined;
 
       if (options.envelopeFree) {
         registers.set(inst.dest, val.value);
@@ -308,11 +308,11 @@ function executeInstruction(inst, registers, context) {
     case "make_variant": {
       const val = registers.get(inst.src);
       if (options.envelopeFree) {
-        registers.set(inst.dest, new Variant(inst.tag, val));
+        registers.set(inst.dest, Value.variant(inst.tag, val));
       } else {
         registers.set(
           inst.dest,
-          new Variant(inst.tag, val, composePattern("open-union", [[inst.tag, val.pattern]]))
+          Value.variant(inst.tag, val, composePattern("open-union", [[inst.tag, val.pattern]]))
         );
       }
       return { type: "continue" };
@@ -375,13 +375,13 @@ function executeInstruction(inst, registers, context) {
       }
       let productValue;
       if (options.envelopeFree) {
-        productValue = new Product(result);
+        productValue = Value.product(result);
       } else {
         const staticOutputPattern = inst.pattern;
         if (staticOutputPattern) {
-          productValue = new Product(result, staticOutputPattern);
+          productValue = Value.product(result, staticOutputPattern);
         } else {
-          productValue = new Product(result, composePattern("closed-product", patternEntries));
+          productValue = Value.product(result, composePattern("closed-product", patternEntries));
         }
       }
       registers.set(inst.dest, productValue);

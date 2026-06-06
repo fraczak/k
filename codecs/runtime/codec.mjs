@@ -2,7 +2,7 @@
  * K pattern graph runtime helpers.
  */
 
-import { Product, Variant } from "../../Value.mjs";
+import { Value, isProduct, isVariant } from "../../Value.mjs";
 import { TypePatternGraph } from "../../TypePatternGraph.mjs";
 import { getCompressed } from "../../typing.mjs";
 import { finalize as finalizeCodes } from "../../codes.mjs";
@@ -501,7 +501,7 @@ function refinePatternForValue(pattern, value) {
 
         case NODE_KIND.CLOSED_PRODUCT:
         case NODE_KIND.OPEN_PRODUCT: {
-          if (!(frame.currentValue instanceof Product)) {
+          if (!isProduct(frame.currentValue)) {
             throw new Error(`Expected Product for pattern node ${frame.patternNodeId}`);
           }
           const actualLabels = Object.keys(frame.currentValue.product).sort();
@@ -542,7 +542,7 @@ function refinePatternForValue(pattern, value) {
 
         case NODE_KIND.CLOSED_UNION:
         case NODE_KIND.OPEN_UNION: {
-          if (!(frame.currentValue instanceof Variant)) {
+          if (!isVariant(frame.currentValue)) {
             throw new Error(`Expected Variant for pattern node ${frame.patternNodeId}`);
           }
           const explicitTargets = new Map(patternNode.edges.map((edge) => [edge.label, edge.target]));
@@ -583,8 +583,8 @@ function refinePatternForValue(pattern, value) {
       return { kind: NODE_KIND.ANY, edges: [] };
     }
 
-    const allProducts = values.every((node) => node instanceof Product);
-    const allVariants = values.every((node) => node instanceof Variant);
+    const allProducts = values.every(isProduct);
+    const allVariants = values.every(isVariant);
     if (!allProducts && !allVariants) {
       throw new Error("Cannot refine pattern from mixed product/union values");
     }
@@ -642,7 +642,7 @@ function refinePatternForValue(pattern, value) {
       let labels = [...explicit.keys()].sort();
       if (values.length > 0) {
         const actual = sameSortedKeys(values, "product pattern", (node) => {
-          if (!(node instanceof Product)) throw new Error("Expected Product while refining product pattern");
+          if (!isProduct(node)) throw new Error("Expected Product while refining product pattern");
           return Object.keys(node.product);
         });
         if (baseNode.kind === NODE_KIND.CLOSED_PRODUCT) {
@@ -673,7 +673,7 @@ function refinePatternForValue(pattern, value) {
       let tags = [...explicit.keys()].sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
       if (values.length > 0) {
         const observed = [...new Set(values.map((node) => {
-          if (!(node instanceof Variant)) throw new Error("Expected Variant while refining union pattern");
+          if (!isVariant(node)) throw new Error("Expected Variant while refining union pattern");
           return node.tag;
         }))].sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
         if (baseNode.kind === NODE_KIND.CLOSED_UNION) {
@@ -764,16 +764,16 @@ function coerceValueForPattern(pattern, value) {
       case NODE_KIND.CLOSED_PRODUCT:
       case NODE_KIND.OPEN_PRODUCT: {
         let productValue = frame.currentValue;
-        if (frame.currentValue instanceof Variant) {
-          productValue = new Product({ [frame.currentValue.tag]: frame.currentValue.value });
+        if (isVariant(frame.currentValue)) {
+          productValue = Value.product({ [frame.currentValue.tag]: frame.currentValue.value });
         }
-        if (!(productValue instanceof Product)) {
+        if (!isProduct(productValue)) {
           throw new Error(`Expected Product for pattern node ${frame.patternNodeId}`);
         }
 
         const explicitTargets = new Map(patternNode.edges.map((edge) => [edge.label, edge.target]));
         const product = {};
-        frame.assign(new Product(product));
+        frame.assign(Value.product(product));
         const entries = Object.entries(productValue.product);
         for (let i = entries.length - 1; i >= 0; i--) {
           const [label, childValue] = entries[i];
@@ -800,11 +800,11 @@ function coerceValueForPattern(pattern, value) {
 
       case NODE_KIND.CLOSED_UNION:
       case NODE_KIND.OPEN_UNION: {
-        if (!(frame.currentValue instanceof Variant)) {
+        if (!isVariant(frame.currentValue)) {
           throw new Error(`Expected Variant for pattern node ${frame.patternNodeId}`);
         }
         const target = patternNode.edges.find((edge) => edge.label === frame.currentValue.tag)?.target;
-        const variant = new Variant(frame.currentValue.tag, undefined);
+        const variant = Value.variant(frame.currentValue.tag, undefined);
         frame.assign(variant);
         if (target == null) {
           variant.value = frame.currentValue.value;

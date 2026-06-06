@@ -1,6 +1,6 @@
 %{
 
-import { Product, Variant } from "./Value.mjs";
+import { Value } from "./Value.mjs";
 
 //--------------------------
 
@@ -87,19 +87,19 @@ input_with_eof
 exp
     : lc labelled rc                    { $$ = {value: $2.value, start: $1.start, end: $3.end}; }
     | lb exps rb                        { $$ = {value: $2.value, start: $1.start, end: $3.end}; }
-    | str            { $$ = {value: new Variant($1.value, new Product({})), start: $1.start, end: $1.end}; }
-    | name           { $$ = {value: new Variant($1.value, new Product({})), start: $1.start, end: $1.end}; }
+    | str            { $$ = {value: Value.variant($1.value, Value.product({})), start: $1.start, end: $1.end}; }
+    | name           { $$ = {value: Value.variant($1.value, Value.product({})), start: $1.start, end: $1.end}; }
     ;
 
 exps
-    : /* empty */                       { $$ = {value: new Product({})}; }
+    : /* empty */                       { $$ = {value: Value.product({})}; }
     | non_empty_exps                    {
                                           if ($1.list.length === 1) {
-                                            $$ = {value: new Variant('0', $1.list[0].value)};
+                                            $$ = {value: Value.variant('0', $1.list[0].value)};
                                           } else {
                                             const product = {};
                                             $1.list.forEach( (e, i) => product[i] = e.value );
-                                            $$ = {value: new Product(product)};
+                                            $$ = {value: Value.product(product)};
                                           };
                                         }
     ;
@@ -111,10 +111,10 @@ non_empty_exps
     ;
 
 labelled
-    : /* empty */                       { $$ = {value: new Product({})}; }
+    : /* empty */                       { $$ = {value: Value.product({})}; }
     | non_empty_labelled                {
                                           if ($1.list.length === 1) {
-                                            $$ = {value: new Variant($1.list[0].label, $1.list[0].value)};
+                                            $$ = {value: Value.variant($1.list[0].label, $1.list[0].value)};
                                           } else {
                                             const product = {};
                                             for (const {label, value} of $1.list) {
@@ -122,7 +122,7 @@ labelled
                                                 anError(@0,`Duplicate label '${label}'.`);
                                               product[label] = value;
                                             }
-                                            $$ = {value: new Product(product)};
+                                            $$ = {value: Value.product(product)};
                                           };
                                         }
     ;

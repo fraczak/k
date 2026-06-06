@@ -2,7 +2,7 @@ import assert from "node:assert";
 import k from "../index.mjs";
 import { lowerToKVM, executeKVM } from "../kvm.mjs";
 import codes from "../codes.mjs";
-import { fromObject, Product, Variant } from "../Value.mjs";
+import { fromObject } from "../Value.mjs";
 import run, { run_converged } from "../run.mjs";
 
 function runKVM(script, data, options = {}) {

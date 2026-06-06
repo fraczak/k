@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { parseValue } from '../../valueIO.mjs';
 import { encodeToWire, decodeWire } from '../../codecs/runtime/prefix-codec.mjs';
-import { Product, Variant } from '../../Value.mjs';
+import { isProduct, isVariant } from '../../Value.mjs';
 
 const value = parseValue('{a:{b:x,c:{}}}');
 const repeatedClosedValue = parseValue('{a:{m:{},n:{}},b:{m:{},n:{}}}');
@@ -27,9 +27,9 @@ assert.deepEqual(explicitProductWire.pattern, [
 ]);
 
 const decoded = explicitProductWire.value;
-assert(decoded instanceof Product);
-assert(decoded.product.a instanceof Product);
-assert(decoded.product.a.product.b instanceof Variant);
+assert(isProduct(decoded));
+assert(isProduct(decoded.product.a));
+assert(isVariant(decoded.product.a.product.b));
 assert.equal(decoded.product.a.product.b.tag, "x");
 
 const repeatedClosedWire = decodeWire(encodeToWire(repeatedClosedValue, null));

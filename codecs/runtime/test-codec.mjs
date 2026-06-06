@@ -6,7 +6,7 @@
 import { deriveClosedPattern } from './codec.mjs';
 import { encodeToWire, decodeWire } from './prefix-codec.mjs';
 import { patternToPropertyList } from './pattern-json.mjs';
-import { Product, Variant } from '../../Value.mjs';
+import { Value, isProduct, isVariant } from '../../Value.mjs';
 import hash from '../../hash.mjs';
 
 // Type repository
@@ -44,7 +44,7 @@ function resolveType(typeName) {
 
 // Test 1: Unit value
 console.log('\n=== Test 1: Unit ===');
-const unitValue = new Product({});
+const unitValue = Value.product({});
 console.log('Encoding unit:', unitValue.toString());
 
 const unitPattern = patternToPropertyList(deriveClosedPattern(unitTypeName, unitTypeDef, resolveType));
@@ -54,12 +54,12 @@ console.log('Hex:', unitEncoded.toString('hex'));
 
 const unitDecoded = decodeWire(unitEncoded);
 console.log('Decoded value:', unitDecoded.value.toString());
-console.log('Match:', unitDecoded.value instanceof Product && 
+console.log('Match:', isProduct(unitDecoded.value) &&
             Object.keys(unitDecoded.value.product).length === 0);
 
 // Test 2: Bool false
 console.log('\n=== Test 2: Bool (false) ===');
-const falseValue = new Variant('false', new Product({}));
+const falseValue = Value.variant('false', Value.product({}));
 console.log('Encoding false:', falseValue.toString());
 
 const boolPattern = patternToPropertyList(deriveClosedPattern(boolTypeName, boolTypeDef, resolveType));
@@ -69,12 +69,12 @@ console.log('Hex:', falseEncoded.toString('hex'));
 
 const falseDecoded = decodeWire(falseEncoded);
 console.log('Decoded value:', falseDecoded.value.toString());
-console.log('Match:', falseDecoded.value instanceof Variant && 
+console.log('Match:', isVariant(falseDecoded.value) &&
             falseDecoded.value.tag === 'false');
 
 // Test 3: Bool true
 console.log('\n=== Test 3: Bool (true) ===');
-const trueValue = new Variant('true', new Product({}));
+const trueValue = Value.variant('true', Value.product({}));
 console.log('Encoding true:', trueValue.toString());
 
 const trueEncoded = encodeToWire(trueValue, boolPattern);
@@ -83,7 +83,7 @@ console.log('Hex:', trueEncoded.toString('hex'));
 
 const trueDecoded = decodeWire(trueEncoded);
 console.log('Decoded value:', trueDecoded.value.toString());
-console.log('Match:', trueDecoded.value instanceof Variant && 
+console.log('Match:', isVariant(trueDecoded.value) &&
             trueDecoded.value.tag === 'true');
 
 console.log('\n=== All tests complete ===');

@@ -1,8 +1,8 @@
-import { Product, Variant } from "../Value.mjs";
+import { Value, isProduct, isVariant } from "../Value.mjs";
 import { STRING_PATTERN_PROPERTY_LIST, textToStringValue, stringValueToText } from "./string-codec.mjs";
 import { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";
 
-const UNIT = new Product({});
+const UNIT = Value.product({});
 const BOOL_PATTERN = [
   ["closed-union", [["false", 1], ["true", 1]]],
   ["closed-product", []]
@@ -13,7 +13,7 @@ const NULL_PATTERN = [
 ];
 
 function bitValue(bit) {
-  return new Variant(bit === 0 ? "0" : "1", UNIT);
+  return Value.variant(bit === 0 ? "0" : "1", UNIT);
 }
 
 function bitsProduct(width, value) {
@@ -22,7 +22,7 @@ function bitsProduct(width, value) {
   for (let i = width - 1; i >= 0; i--) {
     product[String(i)] = bitValue(Number((big >> BigInt(i)) & 1n));
   }
-  return new Product(product);
+  return Value.product(product);
 }
 
 function encodeNumberToValue(number) {
@@ -33,22 +33,22 @@ function encodeNumberToValue(number) {
   const exponent = Number((bits >> 52n) & 0x7ffn);
   const fraction = bits & ((1n << 52n) - 1n);
 
-  return new Product({
-    sign: new Variant(sign === 0 ? "+" : "-", UNIT),
+  return Value.product({
+    sign: Value.variant(sign === 0 ? "+" : "-", UNIT),
     exponent: bitsProduct(11, exponent),
     fraction: bitsProduct(52, fraction)
   });
 }
 
 function requireProduct(value, where) {
-  if (!(value instanceof Product)) {
+  if (!isProduct(value)) {
     throw new Error(`${where}: expected Product`);
   }
   return value.product;
 }
 
 function requireVariant(value, where) {
-  if (!(value instanceof Variant)) {
+  if (!isVariant(value)) {
     throw new Error(`${where}: expected Variant`);
   }
   return value;
@@ -88,10 +88,10 @@ function decodeValueToNumber(value) {
 
 function fromJsonValue(value) {
   if (value === null) {
-    return new Variant("null", UNIT);
+    return Value.variant("null", UNIT);
   }
   if (typeof value === "boolean") {
-    return new Variant(value ? "true" : "false", UNIT);
+    return Value.variant(value ? "true" : "false", UNIT);
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
@@ -103,7 +103,7 @@ function fromJsonValue(value) {
     return textToStringValue(value);
   }
   if (Array.isArray(value)) {
-    return new Product(
+    return Value.product(
       value.reduce((product, item, index) => {
         product[String(index)] = fromJsonValue(item);
         return product;
@@ -111,7 +111,7 @@ function fromJsonValue(value) {
     );
   }
   if (value && typeof value === "object") {
-    return new Product(
+    return Value.product(
       Object.keys(value).reduce((product, key) => {
         product[key] = fromJsonValue(value[key]);
         return product;
@@ -161,7 +161,7 @@ function patternFromJsonValue(value) {
 }
 
 function toJsonValue(value) {
-  if (value instanceof Variant) {
+  if (isVariant(value)) {
     if (value.tag === "null") {
       requireProduct(value.value, "json.null");
       return null;
@@ -184,8 +184,8 @@ function toJsonValue(value) {
   if (isArray) {
     return keys.map((key) => {
       const child = product[key];
-      if (child instanceof Variant) return toJsonValue(child);
-      if (child instanceof Product) {
+      if (isVariant(child)) return toJsonValue(child);
+      if (isProduct(child)) {
         try {
           return decodeValueToNumber(child);
         } catch {}

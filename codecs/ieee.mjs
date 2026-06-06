@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 import { stdin, stdout, argv, exit } from "node:process";
-import { Product, Variant } from "../Value.mjs";
+import { Value, isProduct, isVariant } from "../Value.mjs";
 import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 import { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";
-const UNIT = new Product({});
+const UNIT = Value.product({});
 const name = "ieee";
 const patterns = [FLOAT64_PATTERN];
 
@@ -17,7 +17,7 @@ function usage(stream = console.error) {
 }
 
 function bitValue(bit) {
-  return new Variant(bit === 0 ? "0" : "1", UNIT);
+  return Value.variant(bit === 0 ? "0" : "1", UNIT);
 }
 
 function bitsProduct(width, value) {
@@ -26,7 +26,7 @@ function bitsProduct(width, value) {
   for (let i = width - 1; i >= 0; i--) {
     product[String(i)] = bitValue(Number((big >> BigInt(i)) & 1n));
   }
-  return new Product(product);
+  return Value.product(product);
 }
 
 function encodeNumberToValue(number) {
@@ -37,22 +37,22 @@ function encodeNumberToValue(number) {
   const exponent = Number((bits >> 52n) & 0x7ffn);
   const fraction = bits & ((1n << 52n) - 1n);
 
-  return new Product({
-    sign: new Variant(sign === 0 ? "+" : "-", UNIT),
+  return Value.product({
+    sign: Value.variant(sign === 0 ? "+" : "-", UNIT),
     exponent: bitsProduct(11, exponent),
     fraction: bitsProduct(52, fraction)
   });
 }
 
 function requireProduct(value, where) {
-  if (!(value instanceof Product)) {
+  if (!isProduct(value)) {
     throw new Error(`${where}: expected Product`);
   }
   return value.product;
 }
 
 function requireVariant(value, where) {
-  if (!(value instanceof Variant)) {
+  if (!isVariant(value)) {
     throw new Error(`${where}: expected Variant`);
   }
   return value;

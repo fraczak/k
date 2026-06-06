@@ -3,7 +3,7 @@ import fs from "node:fs";
 import k from "../index.mjs";
 import { parseValue } from "../valueIO.mjs";
 import { decodeWire, encodeToWire, CORE_PATTERN_PROPERTY_LIST } from "../codecs/runtime/prefix-codec.mjs";
-import { Product, Variant } from "../Value.mjs";
+import { Value } from "../Value.mjs";
 import { exportPatternGraph } from "../codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
 import {
@@ -27,9 +27,9 @@ assert.deepEqual(decodedWire.pattern, [
 ]);
 assert.deepEqual(decodedWire.value.toJSON(), value.toJSON());
 
-const unicodeLabelValue = new Product({
-  "é": new Variant("🙂", new Product({})),
-  "𐐷": new Product({})
+const unicodeLabelValue = Value.product({
+  "é": Value.variant("🙂", Value.product({})),
+  "𐐷": Value.product({})
 });
 const unicodeWire = encodeToWire(unicodeLabelValue, null);
 const decodedUnicode = decodeWire(unicodeWire);
@@ -73,15 +73,15 @@ assert(object.meta[object.relAlias.__main__]?.origins?.some((origin) =>
 ));
 
 const objectFn = objectToFunction(object);
-const objectResult = objectFn(new Product({}));
+const objectResult = objectFn(Value.product({}));
 assert.deepEqual(objectResult.pattern, INT_PATTERN);
 assert.deepEqual(objectResult.toJSON(), { "+": { "1": { "0": "_" } } });
-const convergedObjectResult = runConvergedObject(object, new Product({}));
+const convergedObjectResult = runConvergedObject(object, Value.product({}));
 assert.deepEqual(convergedObjectResult.pattern, INT_PATTERN);
 assert.deepEqual(convergedObjectResult.toJSON(), objectResult.toJSON());
 
 const decompiledSource = decompileObjectBuffer(objectBuffer);
-const decompiledResult = k.compile(decompiledSource)(new Product({}));
+const decompiledResult = k.compile(decompiledSource)(Value.product({}));
 assert.deepEqual(decompiledResult.pattern, INT_PATTERN);
 assert.deepEqual(decompiledResult.toJSON(), objectResult.toJSON());
 assert.match(decompiledSource, /^----- codes -----$/m);
@@ -112,11 +112,11 @@ assert.equal(arithmeticsRoundTripSource, arithmeticsDecompiledSource);
 
 assert.throws(() => k.compile("@A = (); @A"), /Parse error/);
 assert.throws(() => k.compile("$ @A = {}; $@A"), /Parse error/);
-assert.deepEqual(k.compile("7jfi = ?X0; 7jfi")(new Product({})).toJSON(), {});
+assert.deepEqual(k.compile("7jfi = ?X0; 7jfi")(Value.product({})).toJSON(), {});
 
 const sccSource = decompileObjectBuffer(compileObjectBuffer("c = {}; b = c |x; a = b |y; a"));
 assert.match(sccSource, /----- rels -----\nPQgV = .+\n\naQAD = .+\n\nN9UH = /s);
-assert.deepEqual(k.compile(sccSource)(new Product({})).toJSON(), { y: "x" });
+assert.deepEqual(k.compile(sccSource)(Value.product({})).toJSON(), { y: "x" });
 
 const libraryBuffer = compileLibraryBuffer("$ nat = <{} zero, nat succ>;\nsucc = |succ;\n", { source: "defs-only.k" });
 assert.equal(libraryBuffer.subarray(0, 1).toString("utf8"), "{");
@@ -173,7 +173,7 @@ assert(derivedAliases.indexOf("other = @") < derivedAliases.indexOf("succ = @"))
     }));
     assert.equal(nonConverged.rels.__main__.typeDerivation.status, "not-converged");
     assert.throws(
-      () => runConvergedObject(nonConverged, new Product({ x: new Product({}) })),
+      () => runConvergedObject(nonConverged, Value.product({ x: Value.product({}) })),
       /type derivation is not-converged/
     );
   } finally {

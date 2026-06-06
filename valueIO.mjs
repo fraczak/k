@@ -9,7 +9,7 @@
  */
 
 import { parse as parseValueText } from "./valueParser.mjs";
-import { Value, fromObject } from "./Value.mjs";
+import { fromObject } from "./Value.mjs";
 
 /**
  * Parse a value from text with optional type information

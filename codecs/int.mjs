@@ -14,7 +14,7 @@
  */
 
 import { stdin, stdout, argv, exit } from "node:process";
-import { Product, Variant } from "../Value.mjs";
+import { Value, isVariant } from "../Value.mjs";
 import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 
@@ -47,9 +47,9 @@ function readAll(stream) {
 // Build bits Value (MSB outermost) from a non-negative BigInt.
 function buildBits(n) {
   const bitChars = n === 0n ? ["0"] : n.toString(2).split("");
-  let v = new Variant("_", new Product({}));
+  let v = Value.variant("_", Value.product({}));
   for (let i = bitChars.length - 1; i >= 0; i--) {
-    v = new Variant(bitChars[i], v);
+    v = Value.variant(bitChars[i], v);
   }
   return v;
 }
@@ -65,18 +65,18 @@ function parseIntStr(str) {
   }
   const n = BigInt(str);
   if (n === 0n) sign = "+"; // zero is always '+'
-  return new Variant(sign, buildBits(n));
+  return Value.variant(sign, buildBits(n));
 }
 
 // Walk a decoded int Value (Variant sign → bits) and return a decimal string.
 function printIntValue(value) {
-  if (!(value instanceof Variant) || (value.tag !== "+" && value.tag !== "-")) {
+  if (!isVariant(value) || (value.tag !== "+" && value.tag !== "-")) {
     throw new Error("Not a valid k int value");
   }
   const sign = value.tag;
   let bits = "";
   let node = value.value;
-  while (node instanceof Variant && node.tag !== "_") {
+  while (isVariant(node) && node.tag !== "_") {
     bits += node.tag;
     node = node.value;
   }
