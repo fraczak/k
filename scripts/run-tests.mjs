@@ -23,6 +23,7 @@ const tests = [
   ["tests/test-k-object.mjs", node, ["tests/test-k-object.mjs"]],
   ["tests/test-repl.mjs", node, ["tests/test-repl.mjs"]],
   ["tests/test-kvm.mjs", node, ["tests/test-kvm.mjs"]],
+  ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],
   ["tests/test-ieee-arithmetic.mjs", node, ["tests/test-ieee-arithmetic.mjs"]],
   ["tests/integration.sh", path.join(root, "tests/integration.sh"), []]
 ];
