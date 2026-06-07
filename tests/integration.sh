@@ -19,7 +19,9 @@ grep -q '"__main__"' "$TMP_DIR/stdin.kvm"
 ./objects/compile.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' "$TMP_DIR/export.ko"
 ./objects/decompile.mjs "$TMP_DIR/export.ko" | grep -q '^----- main -----$'
 node ./codecs/unit.mjs --parse | ./k.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' | node ./codecs/unit.mjs --print | grep -qx '{}'
+node ./codecs/unit.mjs --parse | ./kvm.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' | node ./codecs/unit.mjs --print | grep -qx '{}'
 node ./codecs/unit.mjs --parse | ./k.mjs "$TMP_DIR/export.ko" | node ./codecs/unit.mjs --print | grep -qx '{}'
+node ./codecs/unit.mjs --parse | ./kvm.mjs "$TMP_DIR/export.ko" | node ./codecs/unit.mjs --print | grep -qx '{}'
 if ./k.mjs --lib "$TMP_DIR/export.klib" --lib "$TMP_DIR/export.klib" '()' > "$TMP_DIR/two-lib.out" 2> "$TMP_DIR/two-lib.err"; then
   echo "expected repeated --lib to fail" >&2
   exit 1
@@ -56,6 +58,11 @@ if ./k.mjs -k Examples/byte.k > "$TMP_DIR/dash-k.out" 2> "$TMP_DIR/dash-k.err"; 
   exit 1
 fi
 grep -q -- '-k is no longer supported' "$TMP_DIR/dash-k.err"
+if ./kvm.mjs -k Examples/byte.k > "$TMP_DIR/dash-k-kvm.out" 2> "$TMP_DIR/dash-k-kvm.err"; then
+  echo "expected k-vm -k to fail" >&2
+  exit 1
+fi
+grep -q -- '-k is no longer supported' "$TMP_DIR/dash-k-kvm.err"
 printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./k.mjs Examples/byte.k |./codecs/utf8.mjs --print
 echo
 ./objects/compile.mjs Examples/ieee.k "$TMP_DIR/ieee.klib"

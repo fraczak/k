@@ -17,6 +17,42 @@ import { decodeObject, loadLibrary } from "./object.mjs";
 import codes from "./codes.mjs";
 import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
 
+function isFile(filePath) {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return false;
+    throw error;
+  }
+}
+
+function buildExportPreamble(exports, libraries) {
+  if (exports.length === 0) return "";
+  const aliasMap = {};
+  for (const lib of libraries) {
+    for (const [name, hash] of Object.entries(lib.relAlias || {})) {
+      if (name !== "__main__") aliasMap[name] = hash;
+    }
+    for (const [hash, entry] of Object.entries(lib.meta || {})) {
+      if (entry?.type !== "rel") continue;
+      for (const origin of entry?.origins || []) {
+        if (origin?.name && origin.name !== "__main__") {
+          aliasMap[origin.name] = hash;
+        }
+      }
+    }
+  }
+  const lines = [];
+  for (const spec of exports) {
+    const [libName, localName] = spec.includes(":") ? spec.split(":", 2) : [spec, spec];
+    const hash = aliasMap[libName];
+    if (!hash) throw new Error(`--export: '${libName}' not found in loaded libraries`);
+    const body = hash.startsWith("@") ? hash.slice(1) : hash;
+    lines.push(`${localName} = @${body};`);
+  }
+  return lines.join("\n") + "\n";
+}
+
 class KVMBuilder {
   constructor(typePatternGraph) {
     this.typePatternGraph = typePatternGraph;
@@ -428,9 +464,10 @@ export default {
 
 function usage() {
   const prog = argv[1] || "kvm.mjs";
-  console.error(`Usage: node ${prog} [ options ] ( k-expr | -k file ) [ input-file ]`);
+  console.error(`Usage: node ${prog} [ options ] ( k-expr | input-file ) [ input-file ]`);
   console.error("Options:");
   console.error("  --lib file          Load one .klib dependency before compiling.");
+  console.error("  --export spec       Export a library alias into scope. 'name' or 'libname:localname'. May be repeated.");
   console.error("  --envelope-free     Run the interpreter in envelope-free mode.");
   console.error("  -h, --help          Show this help.");
 }
@@ -444,6 +481,7 @@ async function main() {
 
   let envelopeFree = false;
   const libraries = [];
+  const exports = [];
 
   // Parse options
   while (args.length > 0) {
@@ -457,22 +495,44 @@ async function main() {
       if (libraries.length > 0) throw new Error("--lib may be specified at most once");
       const libBuffer = fs.readFileSync(libPath);
       libraries.push(loadLibrary(decodeObject(libBuffer)));
+    } else if (args[0] === "--export") {
+      args.shift();
+      const spec = args.shift();
+      if (!spec) throw new Error("--export requires a spec argument");
+      exports.push(spec);
+    } else if (args[0].startsWith("--")) {
+      throw new Error(`Unknown option: ${args[0]}`);
     } else {
       break;
     }
   }
 
-  let kScriptStr = (function (arg) {
+  const programInput = (function (arg) {
     if (arg == null) {
       throw new Error("Missing script argument");
     }
     if (arg === "-k") {
-      const fileArg = args.shift();
-      if (!fileArg) throw new Error("-k requires a file argument");
-      return fs.readFileSync(fileArg, "utf8");
-    } else {
-      return arg;
+      throw new Error("-k is no longer supported; pass the source/object file path directly");
     }
+    if (isFile(arg)) {
+      const buffer = fs.readFileSync(arg);
+      try {
+        const object = decodeObject(buffer);
+        if (object.main == null) {
+          throw new Error("Cannot run a .klib library without a main relation; load it with --lib.");
+        }
+        return { kind: "object", defs: { rels: object.rels }, main: object.main };
+      } catch (error) {
+        if (error.message === "Cannot run a .klib library without a main relation; load it with --lib.") {
+          throw error;
+        }
+        return {
+          kind: "source",
+          source: buildExportPreamble(exports, libraries) + buffer.toString("utf8")
+        };
+      }
+    }
+    return { kind: "source", source: buildExportPreamble(exports, libraries) + arg };
   })(args.shift());
 
   const inputStream = (function (arg) {
@@ -482,13 +542,20 @@ async function main() {
     return fs.createReadStream(arg);
   })(args.shift());
 
-  const defs = annotate(kScriptStr, { libraries });
-  const mainRel = defs.rels.__main__;
-  if (!mainRel) {
-    throw new Error("No main relation (__main__) defined in script");
+  if (args.length > 0) {
+    throw new Error(`Unexpected argument: ${args[0]}`);
   }
 
-  const kvmFunc = lowerToKVM(mainRel, "__main__");
+  const defs = programInput.kind === "object"
+    ? programInput.defs
+    : annotate(programInput.source, { libraries });
+  const mainRelName = programInput.kind === "object" ? programInput.main : "__main__";
+  const mainRel = defs.rels[mainRelName];
+  if (!mainRel) {
+    throw new Error(`No main relation (${mainRelName}) defined in script`);
+  }
+
+  const kvmFunc = lowerToKVM(mainRel, mainRelName);
 
   const buffer = [];
   inputStream.on("data", (data) => buffer.push(Buffer.isBuffer(data) ? data : Buffer.from(data)));

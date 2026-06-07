@@ -358,7 +358,7 @@ async function main() {
   const selected = selectedCases();
   const selectedBenchmarkModes = selectedModes();
   const samples = process.env.BENCHMARK_SAMPLES ? Number(process.env.BENCHMARK_SAMPLES) : 3;
-  const timeoutMs = process.env.BENCHMARK_TIMEOUT_MS ? Number(process.env.BENCHMARK_TIMEOUT_MS) : 10 * 60 * 1000;
+  const timeoutMs = process.env.BENCHMARK_TIMEOUT_MS ? Number(process.env.BENCHMARK_TIMEOUT_MS) : 2 * 60 * 1000;
   const requestedJobs = process.env.BENCHMARK_JOBS ? Number(process.env.BENCHMARK_JOBS) : os.availableParallelism();
   const concurrency = Math.max(1, Math.min(requestedJobs, os.availableParallelism(), selected.length * selectedBenchmarkModes.length));
 
