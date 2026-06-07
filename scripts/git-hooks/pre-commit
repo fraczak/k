@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+set -eu
+
+if [ "${SKIP_BENCHMARK:-}" = "1" ]; then
+  echo "Skipping benchmark because SKIP_BENCHMARK=1"
+  exit 0
+fi
+
+npm run benchmark
+git add benchmark-results.json
