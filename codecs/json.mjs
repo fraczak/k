@@ -5,6 +5,9 @@ import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { fromJsonValue, toJsonValue, patternFromJsonValue } from "./json-codec.mjs";
 
+const name = "json";
+const universal = true;
+
 function usage(stream = console.error) {
   stream(`Usage: ${argv[1]} --parse | --print`);
   stream("  --parse      Read JSON from stdin, write binary pattern+value stream.");
@@ -19,6 +22,14 @@ function readAll(stream) {
     stream.on("end", () => resolve(Buffer.concat(chunks)));
     stream.on("error", reject);
   });
+}
+
+function parse(text) {
+  return fromJsonValue(JSON.parse(text));
+}
+
+function print(value) {
+  return JSON.stringify(toJsonValue(value));
 }
 
 async function main() {
@@ -36,12 +47,13 @@ async function main() {
   const buf = await readAll(stdin);
 
   if (args[0] === "--parse") {
-    const json = JSON.parse(buf.toString("utf8"));
+    const text = buf.toString("utf8");
+    const json = JSON.parse(text);
     const value = fromJsonValue(json);
     stdout.write(encodeToWire(value, patternFromJsonValue(json)));
   } else {
     const { value } = decodeWire(buf);
-    stdout.write(`${JSON.stringify(toJsonValue(value))}\n`);
+    stdout.write(`${print(value)}\n`);
   }
 }
 
@@ -51,3 +63,5 @@ if (isMainEntrypoint(import.meta.url, argv[1])) {
     exit(1);
   });
 }
+
+export { name, universal, parse, print };

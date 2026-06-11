@@ -15,7 +15,8 @@ import {
   helpText,
   isMainEntrypoint,
   lineHasExplicitContinuation,
-  lineTerminatesSnippet
+  lineTerminatesSnippet,
+  promptForState
 } from "../repl.mjs";
 import { decodeObject, objectToFunction } from "../object.mjs";
 import { Value } from "../Value.mjs";
@@ -193,6 +194,36 @@ output = await evaluateInput(":input string utf8", utf8State);
 assert.equal(output[0], `input ${utf8State.typeAliases.string} using utf8: enter value text`);
 output = await evaluateInput("hello", utf8State);
 assert.match(output[0], /utf8: hello/);
+
+const jsonState = createState();
+output = await evaluateInput(":type bool = <{} true, {} false>", jsonState);
+assert.match(output[0], /^\$ bool = @/);
+output = await evaluateInput(":codec load ./codecs/json.mjs", jsonState);
+assert.equal(output[0], "loaded codec json for all types");
+output = await evaluateInput(":codec list", jsonState);
+assert.match(output[0], /^json all /);
+completions = completeInput(":input bool j", jsonState)[0];
+assert(completions.includes(":input bool json"));
+output = await evaluateInput(":input bool", jsonState);
+assert.equal(output[0], `input ${jsonState.typeAliases.bool}: enter value text`);
+assert.equal(promptForState(jsonState), "json> ");
+output = await evaluateInput("true", jsonState);
+assert.match(output[0], /\{\}\|true \?</);
+assert.match(output[0], /json: true/);
+assert.equal(promptForState(jsonState), "> ");
+output = await evaluateInput(":input <{}true,{}false>", jsonState);
+assert.equal(output[0], `input ${jsonState.typeAliases.bool}: enter value text`);
+assert.equal(promptForState(jsonState), "json> ");
+output = await evaluateInput("false", jsonState);
+assert.match(output[0], /\{\}\|false \?</);
+assert.match(output[0], /json: false/);
+assert.equal(promptForState(jsonState), "> ");
+output = await evaluateInput(":input {bool left, bool right} json", jsonState);
+assert.match(output[0], /^input @[^ ]+ using json: enter value text$/);
+assert.equal(promptForState(jsonState), "json> ");
+output = await evaluateInput('{"left":true,"right":false}', jsonState);
+assert.match(output[0], /json: \{"left":true,"right":false\}/);
+assert.equal(promptForState(jsonState), "> ");
 
 const replPath = fileURLToPath(new URL("../repl.mjs", import.meta.url));
 try {

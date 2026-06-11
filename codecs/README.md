@@ -79,6 +79,9 @@ notation for k values. That notation is documented in
 [`../DOCS/TEXTUAL_VALUES.md`](../DOCS/TEXTUAL_VALUES.md). It is a readable
 notation for k values, not a separate JSON container format.
 
+For the contributor-facing guide to writing a new external codec module, see
+[`../DOCS/CODECS.md`](../DOCS/CODECS.md).
+
 `k.mjs` is only the command-line adapter for that boundary. The operational
 runtime sees and preserves the pattern on the `Value` itself.
 

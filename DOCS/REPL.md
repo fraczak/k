@@ -47,7 +47,7 @@ complete.
 | `:rels` | List relation aliases |
 | `:codec load file` | Load an importable REPL codec module |
 | `:codec list` | List loaded REPL codecs |
-| `:input type [codec]` | Read the next line as codec input for a singleton type |
+| `:input type [codec]` | Read the next line as codec input for a type |
 | `:load [--no-alias] file` | Load `.k` source or `.klib` into the current state |
 | `:klib file` | Export the active relation closure as a `.klib` library |
 | `:ko file expr` | Export a `.ko` executable with `expr` as main |
@@ -139,7 +139,7 @@ Tab completion covers:
 Type aliases also complete in `$name` position inside raw k input.
 
 For codec commands, completion covers `:codec load`, `:codec list`, file paths
-after `:codec load`, singleton type names after `:input`, and loaded codec names
+after `:codec load`, type names after `:input`, and loaded codec names
 after the input type.
 
 ## Loading
@@ -158,8 +158,13 @@ unless `--no-alias` is used.
 
 ## Codecs
 
-REPL codecs are keyed by canonical singleton code hashes. Open filters are not
-used for codec dispatch.
+REPL codecs are usually keyed by canonical code hashes. Patterns are not used
+for codec dispatch. A codec may also export `universal = true` to make it
+available for any type selected by `:input`; the parsed value is still validated
+against the requested type before it enters the session.
+
+For a complete guide to writing a new codec module, see
+[`CODECS.md`](./CODECS.md).
 
 ### `:codec load file`
 
@@ -172,15 +177,18 @@ export function parse(text) { /* text -> Value */ }
 export function print(value) { /* Value -> text */ }
 ```
 
-A codec may export `patterns` instead of `codes`; each pattern must be a
-singleton closed property-list pattern, and its code hash is recalculated by the
-REPL.
+A codec may export `patterns` instead of `codes`; each pattern must be a closed
+property-list pattern that can be canonicalized to a code hash, and that hash is
+recalculated by the REPL. A universal codec exports `universal = true` instead
+of `codes` or `patterns`.
 
 ### `:input type [codec]`
 
-Resolves `type` to a canonical singleton code, selects the registered codec,
-and consumes the next line verbatim as codec input. The parsed value is validated
-against that code before becoming the current value.
+Resolves `type` to a canonical code hash, selects the registered codec, and
+consumes the next line verbatim as codec input. `type` may be a type alias, a
+canonical code hash, or an inline type expression such as
+`<{} true, {} false>`. The parsed value is validated against that type before
+becoming the current value.
 
 ## Export
 

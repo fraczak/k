@@ -7,11 +7,13 @@ import { deriveClosedPattern } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { finalize } from "./codes.mjs";
 
+const UNIVERSAL_CODE = "*";
+
 function isCanonicalCodeName(name) {
   return typeof name === "string" && name.startsWith("@");
 }
 
-function singletonPatternToCodeHash(pattern) {
+function closedPatternToCodeHash(pattern) {
   if (!Array.isArray(pattern) || pattern.length === 0) {
     return null;
   }
@@ -23,7 +25,7 @@ function singletonPatternToCodeHash(pattern) {
       return null;
     }
     if (!Array.isArray(edges)) {
-      throw new Error(`Invalid singleton pattern node ${i}`);
+      throw new Error(`Invalid closed pattern node ${i}`);
     }
 
     const code = kind === "closed-product" ? "product" : "union";
@@ -31,7 +33,7 @@ function singletonPatternToCodeHash(pattern) {
       code,
       [code]: Object.fromEntries(edges.map(([label, target]) => {
         if (!Number.isInteger(target) || target < 0 || target >= pattern.length) {
-          throw new Error(`Invalid singleton pattern edge target ${target}`);
+          throw new Error(`Invalid closed pattern edge target ${target}`);
         }
         return [label, `C${target}`];
       }))
@@ -64,17 +66,18 @@ function valueForCode(value, codeHash, findCode) {
 function normalizeCodecModule(mod, fallbackName) {
   const codec = mod.replCodec || mod.codec || mod.default || mod;
   const name = codec.name || mod.name || fallbackName;
+  const universal = codec.universal === true;
   const patterns = codec.patterns || (codec.pattern ? [codec.pattern] : null);
   const codes = codec.codes || codec.codeHashes || (codec.code ? [codec.code] : null) ||
     patterns?.map((pattern, index) => {
-      const codeHash = singletonPatternToCodeHash(pattern);
-      if (!codeHash) throw new Error(`Codec '${name}' pattern ${index} is not singleton`);
+      const codeHash = closedPatternToCodeHash(pattern);
+      if (!codeHash) throw new Error(`Codec '${name}' pattern ${index} must be a closed property-list pattern`);
       return codeHash;
     });
   if (!name || typeof name !== "string") {
     throw new Error("Codec module must export a string name");
   }
-  if (!Array.isArray(codes) || codes.length === 0) {
+  if (!universal && (!Array.isArray(codes) || codes.length === 0)) {
     throw new Error(`Codec '${name}' must export a non-empty codes array`);
   }
   if (codec.parse != null && typeof codec.parse !== "function") {
@@ -85,7 +88,8 @@ function normalizeCodecModule(mod, fallbackName) {
   }
   return {
     name,
-    codes,
+    codes: universal ? [UNIVERSAL_CODE] : codes,
+    universal,
     parse: codec.parse,
     print: codec.print
   };
@@ -100,13 +104,15 @@ function registerCodec(state, codec, source = null) {
   const registered = [];
   const store = codecStore(state);
   for (const codeHash of codec.codes) {
-    if (!isCanonicalCodeName(codeHash)) {
+    const universal = codeHash === UNIVERSAL_CODE;
+    if (!universal && !isCanonicalCodeName(codeHash)) {
       throw new Error(`Codec '${codec.name}' has non-canonical code '${codeHash}'`);
     }
     if (!store[codeHash]) store[codeHash] = [];
     const entry = {
       name: codec.name,
       source,
+      universal,
       parse: codec.parse,
       print: codec.print
     };
@@ -137,20 +143,27 @@ function listCodecs(state) {
     .flatMap(([codeHash, codecs]) => codecs.map((codec) => ({ codeHash, ...codec })))
     .sort((a, b) => a.name.localeCompare(b.name) || a.codeHash.localeCompare(b.codeHash));
   if (entries.length === 0) return "(none)";
-  return entries.map((entry) => `${entry.name} ${entry.codeHash}${entry.source ? ` (${entry.source})` : ""}`).join("\n");
+  return entries.map((entry) => `${entry.name} ${entry.codeHash === UNIVERSAL_CODE ? "all" : entry.codeHash}${entry.source ? ` (${entry.source})` : ""}`).join("\n");
 }
 
 function codecNames(state, codeHash = null) {
   const store = codecStore(state);
-  const codecs = codeHash ? (store[codeHash] || []) : Object.values(store).flat();
+  const codecs = codeHash
+    ? [...(store[codeHash] || []), ...(store[UNIVERSAL_CODE] || [])]
+    : Object.values(store).flat();
   return [...new Set(codecs.map((codec) => codec.name))].sort();
 }
 
 function resolveCodec(state, codeHash, codecName = null, capability = null) {
-  const matches = (codecStore(state)[codeHash] || []).filter((codec) =>
+  const store = codecStore(state);
+  const matchesCodec = (codec) =>
     (codecName == null || codec.name === codecName) &&
-    (capability == null || typeof codec[capability] === "function")
-  );
+    (capability == null || typeof codec[capability] === "function");
+  const exactMatches = (store[codeHash] || []).filter(matchesCodec);
+  const universalMatches = (store[UNIVERSAL_CODE] || []).filter(matchesCodec);
+  const matches = codecName == null && exactMatches.length > 0
+    ? exactMatches
+    : [...exactMatches, ...universalMatches];
   if (matches.length === 0) {
     const suffix = codecName ? ` named '${codecName}'` : "";
     throw new Error(`No ${capability || "usable"} codec${suffix} for ${codeHash}`);
@@ -168,6 +181,7 @@ export {
   loadCodecModule,
   registerCodec,
   resolveCodec,
-  singletonPatternToCodeHash,
+  closedPatternToCodeHash,
+  UNIVERSAL_CODE,
   valueForCode
 };

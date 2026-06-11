@@ -29,7 +29,8 @@ import {
   listCodecs,
   loadCodecModule,
   resolveCodec,
-  singletonPatternToCodeHash,
+  closedPatternToCodeHash,
+  UNIVERSAL_CODE,
   valueForCode
 } from "./repl-codecs.mjs";
 
@@ -43,6 +44,7 @@ const COMMAND_NAMES = [
 ];
 const CODEC_COMMAND_NAMES = ["load", "list"];
 const PATH_COMMANDS = new Set(["klib", "ko", "load"]);
+const INPUT_TYPE_NAME = "__input__";
 const initialCodes = codes.dump();
 
 function cloneJSON(value) {
@@ -323,14 +325,19 @@ function printValue(value, state = null) {
   const lines = [valueWithEnvelopeToK(value)];
   if (!state || value === undefined) return lines[0];
 
-  const codeHash = singletonPatternToCodeHash(value.pattern);
+  const codeHash = closedPatternToCodeHash(value.pattern);
   if (!codeHash) return lines[0];
 
-  for (const codec of state.codecs?.[codeHash] || []) {
+  const codecs = [
+    ...(state.codecs?.[codeHash] || []),
+    ...(state.codecs?.[UNIVERSAL_CODE] || [])
+  ];
+  for (const codec of codecs) {
     if (typeof codec.print !== "function") continue;
     try {
       lines.push(`${codec.name}: ${formatCodecOutput(codec.print(value, { codeHash, state }))}`);
     } catch (error) {
+      if (codec.universal) continue;
       lines.push(`${codec.name}: <error: ${error.message || String(error)}>`);
     }
   }
@@ -607,6 +614,40 @@ function resolveTypeHash(state, rawName) {
   const hash = state.typeAliases[bareName] || (token.startsWith("@") ? token : null);
   if (!hash || !(hash in state.codes)) throw new Error(`Unknown type '${rawName}'`);
   return hash;
+}
+
+function isSimpleTypeReference(rawType) {
+  return /^\$?[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/.test(rawType.trim());
+}
+
+function resolveTypeExpressionHash(state, rawType) {
+  restoreCodes(state);
+  const preamble = aliasPreamble(state, INPUT_TYPE_NAME);
+  const source = [
+    preamble,
+    ensureSemicolon(`$ ${INPUT_TYPE_NAME} = ${rawType.trim()}`),
+    "()"
+  ].filter(Boolean).join("\n");
+
+  try {
+    const annotated = annotate(source, { libraries: [stateLibrary(state)] });
+    const hash = annotated.representatives[INPUT_TYPE_NAME];
+    if (!hash) throw new Error(":input type expression did not produce a code hash");
+    state.codes = codes.dump();
+    return hash;
+  } catch (error) {
+    restoreCodes(state);
+    throw remapError(error, preambleLineCount(preamble));
+  }
+}
+
+function resolveInputTypeHash(state, rawType) {
+  try {
+    return resolveTypeHash(state, rawType);
+  } catch (error) {
+    if (isSimpleTypeReference(rawType)) throw error;
+  }
+  return resolveTypeExpressionHash(state, rawType);
 }
 
 function completeInputCommand(line, state, argStart, arg) {
@@ -900,7 +941,9 @@ async function loadCodec(input, state) {
       const filePath = rest.join(" ");
       if (!filePath) throw new Error(":codec load requires a file path");
       const registered = await loadCodecModule(state, expandHome(filePath));
-      return registered.map(({ name, codeHash }) => `loaded codec ${name} for ${codeHash}`);
+      return registered.map(({ name, codeHash }) =>
+        `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
+      );
     }
     case "list":
       if (rest.length > 0) throw new Error(":codec list does not accept arguments");
@@ -911,15 +954,28 @@ async function loadCodec(input, state) {
 }
 
 async function requestCodecInput(input, state) {
-  const parts = input.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0 || parts.length > 2) {
-    throw new Error(":input requires a singleton type and optional codec name");
+  const trimmed = input.trim();
+  if (!trimmed) {
+    throw new Error(":input requires a type and optional codec name");
   }
 
-  const codeHash = resolveTypeHash(state, parts[0]);
-  const codecName = parts[1] || null;
-  resolveCodec(state, codeHash, codecName, "parse");
-  state.pendingInput = { codeHash, codecName };
+  let codeHash;
+  let codecName = null;
+  try {
+    codeHash = resolveInputTypeHash(state, trimmed);
+  } catch (wholeError) {
+    const split = trimmed.match(/^(.*\S)\s+([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)$/);
+    if (!split) throw wholeError;
+    try {
+      codeHash = resolveInputTypeHash(state, split[1]);
+      codecName = split[2];
+    } catch (typeError) {
+      throw typeError;
+    }
+  }
+
+  const codec = resolveCodec(state, codeHash, codecName, "parse");
+  state.pendingInput = { codeHash, codecName, promptName: codec.name };
   return [`input ${codeHash}${codecName ? ` using ${codecName}` : ""}: enter value text`];
 }
 
@@ -1097,6 +1153,11 @@ function helpText() {
   ].join("\n");
 }
 
+function promptForState(state) {
+  const promptName = state.pendingInput?.promptName;
+  return promptName ? `${promptName}> ` : "> ";
+}
+
 function cliUsage() {
   console.log("Usage: k-repl");
   console.log("       k-repl -h");
@@ -1151,6 +1212,7 @@ function startRepl() {
       } catch (error) {
         console.error(error.message || String(error));
       }
+      rl.setPrompt(promptForState(state));
       if (!closed) rl.prompt();
       return;
     }
@@ -1223,6 +1285,7 @@ export {
   lineHasExplicitContinuation,
   lineTerminatesSnippet,
   printValue,
+  promptForState,
   propertyListToFilter,
   valueToK
 };

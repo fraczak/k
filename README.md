@@ -305,6 +305,7 @@ afterward. It stops immediately when a test fails. The suite covers:
 - [DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md) - textual boundary notation
 - [DOCS/PATTERNS.md](DOCS/PATTERNS.md) - pattern representation
 - [DOCS/OBJECT_FILE_AND_PATTERN.md](DOCS/OBJECT_FILE_AND_PATTERN.md) - object format
+- [DOCS/CODECS.md](DOCS/CODECS.md) - writing external codecs
 - [codecs/README.md](codecs/README.md) - binary codec internals
 - [objects/README.md](objects/README.md) - object/library tools
 - [DOCS/book.md](DOCS/book.md) - longer language reference

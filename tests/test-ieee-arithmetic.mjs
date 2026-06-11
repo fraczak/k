@@ -4,7 +4,7 @@ import { createState, evaluateInput } from "../repl.mjs";
 import { Value, isProduct } from "../Value.mjs";
 import codes from "../codes.mjs";
 import { parse as parseFloat64, print as printFloat64 } from "../codecs/ieee.mjs";
-import { singletonPatternToCodeHash, valueForCode } from "../repl-codecs.mjs";
+import { closedPatternToCodeHash, valueForCode } from "../repl-codecs.mjs";
 
 const state = createState();
 await evaluateInput(":load Examples/ieee.k", state);
@@ -40,7 +40,7 @@ async function runProjectedResult(op, x, y) {
 }
 
 function assertFloatResult(value, expected, label) {
-  assert.equal(singletonPatternToCodeHash(value.pattern), float64Hash, `${label}: result should keep float64 envelope`);
+  assert.equal(closedPatternToCodeHash(value.pattern), float64Hash, `${label}: result should keep float64 envelope`);
   assert.equal(printFloat64(value), expected, label);
 }
 
