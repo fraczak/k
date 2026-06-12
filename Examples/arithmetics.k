@@ -15,10 +15,10 @@ cdr = list? /cons .cdr;
 $ bits = < {} _, bits 0, bits 1 >;
 
 0b = {} | _;
-1_ = | 1;
-0_ = | 0;
+-- |1 = | 1;
+-- |0  = | 0;
 
-0 = 0b 0_;
+0 = 0b |0;
 succ = {inv x, 0b y} _inc;
 1 = 0 succ;
 2 = 1 succ;
@@ -39,12 +39,12 @@ empty? = {empty /yes if, () then} .then;
 concat = ${bits x, bits y} {.x inv x, .y y} concat_; 
 concat_ = ${bits x, bits y} 
   < 
-    {.x /0 x, .y 0_ y} concat_, 
-    {.x /1 x, .y 1_ y} concat_, 
+    {.x /0 x, .y |0  y} concat_, 
+    {.x /1 x, .y |1 y} concat_, 
     .y 
   >;
 inv = {()x, 0b r} _inv; 
-_inv = ${bits x, bits r} < {.x /0 x, .r 0_ r} _inv, {.x /1 x, .r 1_ r} _inv, .r >;
+_inv = ${bits x, bits r} < {.x /0 x, .r |0  r} _inv, {.x /1 x, .r |1 r} _inv, .r >;
 
 inOrder = ${bits x, bits y} {.x inv x, .y inv y, yes inOrder} inOrder_;
 inOrder_ = ${bits x, bits y, yes_no inOrder} 
@@ -70,8 +70,8 @@ _toBitList = <
 fromBitList =
 < 
   cdr <
-    {car /0 if, cdr fromBitList 0_ then} .then, 
-    {car /1 if, cdr fromBitList 1_ then} .then
+    {car /0 if, cdr fromBitList |0  then} .then, 
+    {car /1 if, cdr fromBitList |1 then} .then
   >, 
   0b
 > $bits;
@@ -99,9 +99,9 @@ inc = $int <
 >;
 
 _inc = ${bits x, bits y} <
-    {.x /0 x, .y 1_ y} concat_, 
-    {.x /1 x, .y 0_ y} _inc,
-    .y 1_
+    {.x /0 x, .y |1 y} concat_, 
+    {.x /1 x, .y |0  y} _inc,
+    .y |1
 >; 
 
 dec = $int <
@@ -111,8 +111,8 @@ dec = $int <
 > $int;
 
 _dec = ?{X x, X y, ...} <
-    {.x /1 x, .y 0_ y} concat_, 
-    {.x /0 x, .y 1_ y} _dec
+    {.x /1 x, .y |0  y} concat_, 
+    {.x /0 x, .y |1 y} _dec
 > ?X;
 
 $carry = <{} 0, {} 1>;
@@ -139,27 +139,30 @@ swap_sign = <
 minus = ${int x, int y}
   {.x x, .y swap_sign y} plus;
 
-_plus =
+_plus = {.x x, .y y, .c c, 0b r} _plus_;
+
+_plus_ =
   -- least significant bit first addition with carry
-  ${bits x, bits y, carry c}
+  ${bits x, bits y, carry c, bits r}
   <
-    {.x empty? if, .y empty? and, <.c/0 0, 1> then} .then,
-    {.x empty? if, .c/0 and, .y then} .then,
+    {.x empty? if, .y empty? and, .c/0 c, .r inv then} .then,
+    {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
+    {.x empty? if, .c/0 and, {.r x, .y r} _inv then} .then,
 
-    {.x y, .y empty? x, .c c} _plus,
+    {.x y, .y empty? x, .c c, .r r} _plus_,
     {<.c/0 0, 1> x, 
-              .y y, .x empty? c0 c} _plus,
+              .y y, .x empty? c0 c, .r r} _plus_,
 
-    {.x /0 x, .y /0 y, .c/0 c0 c} _plus 0_,
-    {.x /0 x, .y /0 y, .c/1 c0 c} _plus 1_,
+    {.x /0 x, .y /0 y, .c/0 c0 c, .r |0 r} _plus_,
+    {.x /0 x, .y /0 y, .c/1 c0 c, .r |1 r} _plus_,
 
-    {.x /0 x, .y /1 y, .c/0 c0 c} _plus 1_,
-    {.x /0 x, .y /1 y, .c/1 c1 c} _plus 0_,
-    {.x /1 x, .y /0 y, .c/0 c0 c} _plus 1_,
-    {.x /1 x, .y /0 y, .c/1 c1 c} _plus 0_,
+    {.x /0 x, .y /1 y, .c/0 c0 c, .r |1 r} _plus_,
+    {.x /0 x, .y /1 y, .c/1 c1 c, .r |0 r} _plus_,
+    {.x /1 x, .y /0 y, .c/0 c0 c, .r |1 r} _plus_,
+    {.x /1 x, .y /0 y, .c/1 c1 c, .r |0 r} _plus_,
 
-    {.x /1 x, .y /1 y, .c/0 c1 c} _plus 0_,
-    {.x /1 x, .y /1 y, .c/1 c1 c} _plus 1_
+    {.x /1 x, .y /1 y, .c/0 c1 c, .r |0 r} _plus_,
+    {.x /1 x, .y /1 y, .c/1 c1 c, .r |1 r} _plus_
   >
 ;
 
@@ -168,16 +171,16 @@ _minus =
   ${bits x, bits y, carry c}
   <
     {.x then, .y empty? if, .c/0 and} .then,
-    {.x/1 then, .y empty? if, .c/1 and} .then 0_,
-    {.x/0 x, .y empty? y, .c/1 c1 c} _minus 1_,
-    {.x/0 x, .y/0   y, .c/0 c0 c} _minus 0_,
-    {.x/0 x, .y/0   y, .c/1 c1 c} _minus 1_,  
-    {.x/0 x, .y/1   y, .c/0 c1 c} _minus 1_,
-    {.x/0 x, .y/1   y, .c/1 c1 c} _minus 0_,
-    {.x/1 x, .y/0   y, .c/0 c0 c} _minus 1_,
-    {.x/1 x, .y/0   y, .c/1 c0 c} _minus 0_,
-    {.x/1 x, .y/1   y, .c/0 c0 c} _minus 0_,
-    {.x/1 x, .y/1   y, .c/1 c1 c} _minus 1_
+    {.x/1 then, .y empty? if, .c/1 and} .then |0,
+    {.x/0 x, .y empty? y, .c/1 c1 c} _minus |1,
+    {.x/0 x, .y/0   y, .c/0 c0 c} _minus |0,
+    {.x/0 x, .y/0   y, .c/1 c1 c} _minus |1,  
+    {.x/0 x, .y/1   y, .c/0 c1 c} _minus |1,
+    {.x/0 x, .y/1   y, .c/1 c1 c} _minus |0,
+    {.x/1 x, .y/0   y, .c/0 c0 c} _minus |1,
+    {.x/1 x, .y/0   y, .c/1 c0 c} _minus |0,
+    {.x/1 x, .y/1   y, .c/0 c0 c} _minus |0,
+    {.x/1 x, .y/1   y, .c/1 c1 c} _minus |1
   >
 ;
 
@@ -210,12 +213,12 @@ _times =
   <
     { .y empty? if, .result then } .then,
     { 
-      .result 0_ result, 
+      .result |0  result, 
       ._x _x, 
       .y /0 y
     } _times,
     { 
-      {._x x, .result 0_ y, c0 c } _plus result, 
+      {._x x, .result |0  y, c0 c } _plus result, 
       ._x _x, 
       .y /1 y 
     } _times
@@ -234,7 +237,7 @@ mod =
     { 
       {  
         {.x int x, .y int y} minus /"+" x, 
-        .y inv 0_ inv y
+        .y inv |0  inv y
       } mod x, 
       .y y 
     } mod
@@ -278,7 +281,7 @@ x_times_2_to_k =
 
 _x_times_2_to_the_power_of_k = <
   {.k zero_int? if, ._x then} .then,
-  {._x 0_ _x, .k dec k} _x_times_2_to_the_power_of_k
+  {._x |0  _x, .k dec k} _x_times_2_to_the_power_of_k
 >
 ;
  
