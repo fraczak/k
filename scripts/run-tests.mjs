@@ -23,6 +23,7 @@ const tests = [
   ["tests/test-k-object.mjs", node, ["tests/test-k-object.mjs"]],
   ["tests/test-kir.mjs", node, ["tests/test-kir.mjs"]],
   ["tests/test-validate-object.mjs", node, ["tests/test-validate-object.mjs"]],
+  ["conformance/run.mjs", node, ["conformance/run.mjs"]],
   ["tests/test-repl.mjs", node, ["tests/test-repl.mjs"]],
   ["tests/test-kvm.mjs", node, ["tests/test-kvm.mjs"]],
   ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],

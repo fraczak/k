@@ -166,6 +166,13 @@ Inside a checkout:
 This command decodes the current object format, hydrates relation pattern
 graphs through the normal object loader, and exports KIR-P JSON.
 
+Use the conformance runner to compare source and object execution and validate
+KIR-P export for deterministic fixtures:
+
+```sh
+npm run conformance
+```
+
 ## Backend Path
 
 The intended backend pipeline remains:

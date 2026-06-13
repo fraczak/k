@@ -1,0 +1,8 @@
+{
+  "name": "product projection",
+  "program": "program.k",
+  "input": "input.kv",
+  "expected": "expected.kv",
+  "modes": ["source", "object", "kir"],
+  "tags": ["runtime", "projection", "product"]
+}
