@@ -191,6 +191,8 @@ program for backend inspection and execution experiments.
 | `k-compile` | Compile `.k` source to `.ko`, `.klib`, or `.kvm` output |
 | `k-decompile` | Decompile `.ko` or `.klib` back to k source |
 | `k-extract-aliases` | Recover metadata aliases as k source |
+| `k-inspect-object` | Inspect object sections or print the KIR-P backend view |
+| `k-kir` | Export the KIR-P JSON view from `.ko` or `.klib` |
 
 Installed binary names are `k-` plus the source basename without `.mjs`, except
 for `k.mjs` itself. Source names that already include `k-`, such as

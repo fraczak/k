@@ -21,6 +21,7 @@ const tests = [
   ["tests/test-structural-values.mjs", node, ["tests/test-structural-values.mjs"]],
   ["tests/test-deep-wire-value.mjs", node, ["tests/test-deep-wire-value.mjs"]],
   ["tests/test-k-object.mjs", node, ["tests/test-k-object.mjs"]],
+  ["tests/test-kir.mjs", node, ["tests/test-kir.mjs"]],
   ["tests/test-repl.mjs", node, ["tests/test-repl.mjs"]],
   ["tests/test-kvm.mjs", node, ["tests/test-kvm.mjs"]],
   ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],

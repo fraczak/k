@@ -14,6 +14,7 @@ import {
   evaluateInput,
   executeKVM,
   lowerToKVM,
+  objectToKIRP,
   parseFloat64,
   run,
   run_converged,
@@ -47,7 +48,8 @@ const cases = [
 const modes = [
   { name: "Native JS (Envelope-Aware)", kind: "native-aware" },
   { name: "Native JS (Envelope-Free)", kind: "native-free" },
-  { name: "kVM Interpreter (Env-Free)", kind: "kvm-free" }
+  { name: "kVM Interpreter (Env-Free)", kind: "kvm-free" },
+  { name: "KIR-P Export", kind: "kir-p" }
 ];
 
 function csvEnv(name, fallback) {
@@ -149,13 +151,69 @@ function prepareRelation(testCase, state) {
   const relDef = state.rels[hash];
   if (!relDef) throw new Error(`Relation hash '${hash}' not found`);
   return {
+    relHash: hash,
     relDef,
     kvmFunc: lowerToKVM(relDef, testCase.rel)
   };
 }
 
+function reachableRelations(rels, roots) {
+  const reachable = new Set();
+  const queue = [...roots];
+
+  function walkExp(exp) {
+    if (!exp) return;
+    switch (exp.op) {
+      case "ref":
+        if (exp.ref in rels && !reachable.has(exp.ref)) queue.push(exp.ref);
+        break;
+      case "comp":
+        exp.comp.forEach(walkExp);
+        break;
+      case "union":
+        exp.union.forEach(walkExp);
+        break;
+      case "product":
+        exp.product.forEach(({ exp: child }) => walkExp(child));
+        break;
+    }
+  }
+
+  while (queue.length > 0) {
+    const hash = queue.shift();
+    if (reachable.has(hash) || !(hash in rels)) continue;
+    reachable.add(hash);
+    walkExp(rels[hash].def);
+  }
+
+  return Object.fromEntries(
+    Object.entries(rels).filter(([hash]) => reachable.has(hash))
+  );
+}
+
+function prepareKIRObject(testCase, relation, state) {
+  const rels = reachableRelations(state.rels, [relation.relHash]);
+  const storedHashes = new Set([
+    ...Object.keys(state.codes),
+    ...Object.keys(rels)
+  ]);
+  return {
+    format: "k-object",
+    codes: state.codes,
+    rels,
+    relAlias: {
+      [testCase.rel]: relation.relHash
+    },
+    compileStats: { sccs: [], sccCount: 0 },
+    meta: Object.fromEntries(
+      Object.entries(state.meta || {}).filter(([hash]) => storedHashes.has(hash))
+    ),
+    main: relation.relHash
+  };
+}
+
 function runOnce(job, prepared) {
-  const { relDef, kvmFunc, inputVal, state } = prepared;
+  const { relDef, kvmFunc, inputVal, kirObject, state } = prepared;
   run.defs = state;
   run_converged.defs = state;
 
@@ -175,6 +233,10 @@ function runOnce(job, prepared) {
     });
   }
 
+  if (job.mode.kind === "kir-p") {
+    return objectToKIRP(kirObject);
+  }
+
   throw new Error(`Unknown benchmark mode '${job.mode.name}'`);
 }
 
@@ -184,7 +246,8 @@ async function workerMain() {
   const state = await prepareState(job.case.suite);
   const relation = prepareRelation(job.case, state);
   const inputVal = job.case.suite === "ieee" ? ieeeInput(job.case, state) : arithmeticInput(job.case);
-  const prepared = { ...relation, inputVal, state };
+  const kirObject = prepareKIRObject(job.case, relation, state);
+  const prepared = { ...relation, inputVal, kirObject, state };
   const setupMs = performance.now() - setupStartedAt;
 
   const samples = [];

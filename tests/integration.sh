@@ -10,6 +10,10 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 ./objects/compile.mjs 'x = |x; x x' "$TMP_DIR/inline.ko"
 ./objects/decompile.mjs "$TMP_DIR/inline.ko" | grep -q '^----- main -----$'
+./objects/inspect.mjs "$TMP_DIR/inline.ko" | grep -q '^format: k-object$'
+./objects/inspect.mjs --kir "$TMP_DIR/inline.ko" | grep -q '"format": "k-ir"'
+./kir.mjs --help | grep -q 'Export the KIR-P JSON view'
+./kir.mjs "$TMP_DIR/inline.ko" | grep -q '"format": "k-ir"'
 printf '()' | ./objects/compile.mjs > "$TMP_DIR/stdin.ko"
 ./objects/decompile.mjs "$TMP_DIR/stdin.ko" | grep -q '^----- main -----$'
 ./objects/compile.mjs --format kvm '()' | grep -q '"__main__"'

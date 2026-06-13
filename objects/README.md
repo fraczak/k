@@ -36,6 +36,18 @@ alias name and `compiledAt`.
 k-extract-aliases [object-file [k-file]]
 ```
 
+### `k-inspect-object`
+
+Inspects a `.ko` or `.klib`. By default it prints a compact object summary.
+With `--kir`, it prints the KIR-P JSON view used by backend experiments.
+
+```bash
+k-inspect-object [--summary | --kir] [object-file]
+```
+
+For scripts that only need the KIR-P JSON view, `k-kir [object-file]` is the
+direct exporter backed by `kir.mjs`.
+
 The installed names are `k-` plus the source basename without `.mjs`. Every
 installed object binary supports `-h` and `--help`.
 
@@ -50,9 +62,12 @@ installed object binary supports `-h` and `--help`.
 - Origin entries do not have `kind`; the metadata entry has `type: "code"` or
   `type: "rel"`.
 - Stored relation bodies do not include generated input/output boundary filters.
+- KIR-P is available as an inspection/export view; it does not change the
+  stored `.ko` or `.klib` payload.
 
 ## Further reading
 
 - [DOCS/OBJECT_FILE_AND_PATTERN.md](../DOCS/OBJECT_FILE_AND_PATTERN.md) — object file format and pattern encoding
+- [DOCS/KIR_V1.md](../DOCS/KIR_V1.md) — KIR-P inspection/export view for backends
 - [DOCS/TYPE_DERIVATION.md](../DOCS/TYPE_DERIVATION.md) — type derivation (what compilation skips when loading a `.ko`/`.klib`)
 - [DOCS/CONVERGENCE.md](../DOCS/CONVERGENCE.md) — convergence strategies for type inference

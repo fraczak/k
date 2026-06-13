@@ -11,7 +11,8 @@ const outputPath = path.resolve(root, process.argv[3] || "benchmark-results.html
 const rowOrder = [
   "Native JS (Envelope-Aware)",
   "Native JS (Envelope-Free)",
-  "kVM Interpreter (Env-Free)"
+  "kVM Interpreter (Env-Free)",
+  "KIR-P Export"
 ];
 
 const columnGroups = [

@@ -23,6 +23,8 @@
         "k-compile": "./objects/compile.mjs",
         "k-decompile": "./objects/decompile.mjs",
         "k-extract-aliases": "./objects/extract-aliases.mjs",
+        "k-inspect-object": "./objects/inspect.mjs",
+        "k-kir": "./kir.mjs",
         "k-ieee": "./codecs/ieee.mjs",
         "k-int": "./codecs/int.mjs",
         "k-json": "./codecs/json.mjs",
