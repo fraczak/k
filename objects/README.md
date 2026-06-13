@@ -48,6 +48,15 @@ k-inspect-object [--summary | --kir] [object-file]
 For scripts that only need the KIR-P JSON view, `k-kir [object-file]` is the
 direct exporter backed by `kir.mjs`.
 
+### `k-validate-object`
+
+Validates a `.ko` or `.klib` object and its derived KIR-P export view. With
+`--kir`, it validates an already exported KIR-P JSON file.
+
+```bash
+k-validate-object [--kir] [input-file]
+```
+
 The installed names are `k-` plus the source basename without `.mjs`. Every
 installed object binary supports `-h` and `--help`.
 

@@ -192,6 +192,7 @@ program for backend inspection and execution experiments.
 | `k-decompile` | Decompile `.ko` or `.klib` back to k source |
 | `k-extract-aliases` | Recover metadata aliases as k source |
 | `k-inspect-object` | Inspect object sections or print the KIR-P backend view |
+| `k-validate-object` | Validate `.ko`, `.klib`, or exported KIR-P JSON |
 | `k-kir` | Export the KIR-P JSON view from `.ko` or `.klib` |
 
 Installed binary names are `k-` plus the source basename without `.mjs`, except

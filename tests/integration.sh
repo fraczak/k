@@ -14,6 +14,9 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 ./objects/inspect.mjs --kir "$TMP_DIR/inline.ko" | grep -q '"format": "k-ir"'
 ./kir.mjs --help | grep -q 'Export the KIR-P JSON view'
 ./kir.mjs "$TMP_DIR/inline.ko" | grep -q '"format": "k-ir"'
+./objects/validate.mjs "$TMP_DIR/inline.ko" | grep -q '^OK object$'
+./kir.mjs "$TMP_DIR/inline.ko" > "$TMP_DIR/inline.kir.json"
+./objects/validate.mjs --kir "$TMP_DIR/inline.kir.json" | grep -q '^OK KIR-P$'
 printf '()' | ./objects/compile.mjs > "$TMP_DIR/stdin.ko"
 ./objects/decompile.mjs "$TMP_DIR/stdin.ko" | grep -q '^----- main -----$'
 ./objects/compile.mjs --format kvm '()' | grep -q '"__main__"'

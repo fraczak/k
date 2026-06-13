@@ -24,6 +24,7 @@
         "k-decompile": "./objects/decompile.mjs",
         "k-extract-aliases": "./objects/extract-aliases.mjs",
         "k-inspect-object": "./objects/inspect.mjs",
+        "k-validate-object": "./objects/validate.mjs",
         "k-kir": "./kir.mjs",
         "k-ieee": "./codecs/ieee.mjs",
         "k-int": "./codecs/int.mjs",
