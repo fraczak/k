@@ -4,7 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { argv, exit, stdin, stdout } from "node:process";
 import { fileURLToPath } from "node:url";
-import { decodeObject } from "./object.mjs";
+import { compileObject, decodeObject, hydrateObject } from "./object.mjs";
+import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
+import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
+import { propertyListToFilter } from "./codecs/runtime/show-value.mjs";
 
 const KIR_FORMAT = "k-ir";
 const KIR_VERSION = 1;
@@ -229,12 +232,88 @@ export function objectToKIRP(object) {
   };
 }
 
+function resolveRelation(object, relationName = null) {
+  const name = relationName || object.main;
+  if (!name) throw new Error("KIR-R retyping requires a relation name");
+  if (object.rels?.[name]) return { name, rel: object.rels[name] };
+
+  const alias = object.relAlias?.[name];
+  if (alias && object.rels?.[alias]) return { name: alias, rel: object.rels[alias] };
+  if (alias && object.rels?.[name]) return { name, rel: object.rels[name] };
+
+  throw new Error(`Relation '${name}' not found`);
+}
+
+function relationLibraryWithTarget(object, targetRel) {
+  const rels = { ...(object.rels || {}) };
+  for (const [alias, hash] of Object.entries(object.relAlias || {})) {
+    if (!(hash in rels) && alias in rels) rels[hash] = rels[alias];
+  }
+  rels.__kir_target__ = targetRel;
+  return {
+    format: "k-object",
+    codes: object.codes || {},
+    rels,
+    relAlias: {
+      ...(object.relAlias || {}),
+      __kir_target__: "__kir_target__"
+    },
+    compileStats: object.compileStats || {},
+    meta: object.meta || {},
+    main: null
+  };
+}
+
+function relationPatternPropertyList(rel, index) {
+  const patternId = rel.def?.patterns?.[index];
+  if (patternId == null) return null;
+  const root = rel.typePatternGraph.find(patternId);
+  return patternToPropertyList(exportPatternGraph(rel.typePatternGraph, root));
+}
+
+export function retypeObjectRelation(object, relationName, inputPattern, options = {}) {
+  if (object?.format !== "k-object") {
+    throw new Error("KIR-R retyping requires a k object");
+  }
+  if (!Array.isArray(inputPattern)) {
+    throw new Error("KIR-R retyping requires an input pattern property list");
+  }
+
+  const target = resolveRelation(object, relationName);
+  const source = `?${propertyListToFilter(inputPattern)} __kir_target__`;
+  const retypedObject = hydrateObject(compileObject(source, {
+    source: options.source || "<kir-r>",
+    libraries: [relationLibraryWithTarget(object, target.rel)]
+  }));
+  const kirp = objectToKIRP(retypedObject);
+  const entry = kirp.rels.__main__;
+  const retypedRel = retypedObject.rels.__main__;
+
+  return {
+    format: KIR_FORMAT,
+    version: KIR_VERSION,
+    layer: "KIR-R",
+    sourceFormat: object.format,
+    relation: relationName || object.main,
+    inputPattern: clone(inputPattern),
+    outputPattern: relationPatternPropertyList(retypedRel, 1),
+    callSites: [],
+    entry,
+    codes: kirp.codes,
+    rels: kirp.rels,
+    relAlias: kirp.relAlias,
+    compileStats: kirp.compileStats,
+    meta: kirp.meta
+  };
+}
+
 export { KIR_FORMAT, KIR_VERSION };
 
 export default {
   KIR_FORMAT,
   KIR_VERSION,
-  objectToKIRP
+  objectToKIRP,
+  retypeObjectRelation
 };
 
 function helpText() {
@@ -247,6 +326,8 @@ function helpText() {
     "  object-file    Input .ko or .klib file. Reads from stdin when omitted.",
     "",
     "Options:",
+    "  --retype rel           Export KIR-R for relation rel.",
+    "  --input-pattern json   Input pattern property-list JSON, or a file containing it.",
     "  -h, --help     Show this help.",
     "",
     "KIR-P is an inspection/export view; it does not change the stored object format."
@@ -276,8 +357,19 @@ async function main() {
     exit(0);
   }
 
+  let retypeRelation = null;
+  let inputPatternArg = null;
   while (args.length > 0 && args[0].startsWith("--")) {
-    throw new Error(`Unknown option: ${args[0]}`);
+    const option = args.shift();
+    if (option === "--retype") {
+      retypeRelation = args.shift();
+      if (!retypeRelation) throw new Error("--retype requires a relation name");
+    } else if (option === "--input-pattern") {
+      inputPatternArg = args.shift();
+      if (!inputPatternArg) throw new Error("--input-pattern requires JSON or a file path");
+    } else {
+      throw new Error(`Unknown option: ${option}`);
+    }
   }
 
   const inputPath = args.shift() || null;
@@ -286,7 +378,14 @@ async function main() {
   }
 
   const buffer = inputPath == null ? await readStdinBytes() : fs.readFileSync(inputPath);
-  stdout.write(JSON.stringify(objectToKIRP(decodeObject(buffer)), null, 2) + "\n");
+  const object = decodeObject(buffer);
+  if (retypeRelation != null) {
+    if (inputPatternArg == null) throw new Error("--retype requires --input-pattern");
+    const inputPatternText = fs.existsSync(inputPatternArg) ? fs.readFileSync(inputPatternArg, "utf8") : inputPatternArg;
+    stdout.write(JSON.stringify(retypeObjectRelation(object, retypeRelation, JSON.parse(inputPatternText)), null, 2) + "\n");
+  } else {
+    stdout.write(JSON.stringify(objectToKIRP(object), null, 2) + "\n");
+  }
 }
 
 if (isMainModule()) {

@@ -7,12 +7,14 @@ import { fileURLToPath } from "node:url";
 import k from "../index.mjs";
 import { parseValue } from "../valueIO.mjs";
 import { compileObjectBuffer, decodeObject, objectToFunction } from "../object.mjs";
-import { objectToKIRP } from "../kir.mjs";
-import { validateKIRP } from "../objects/validate.mjs";
+import { objectToKIRP, retypeObjectRelation } from "../kir.mjs";
+import { validateKIRP, validateKIRR } from "../objects/validate.mjs";
+import { exportPatternGraph } from "../codecs/runtime/codec.mjs";
+import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const conformanceRoot = path.join(root, "conformance");
-const DEFAULT_MODES = ["source", "object", "kir"];
+const DEFAULT_MODES = ["source", "object", "kir", "retyped"];
 
 function helpText() {
   return [
@@ -21,7 +23,7 @@ function helpText() {
     `Usage: ${argv[1]} [options] [fixture-dir ...]`,
     "",
     "Options:",
-    "  --mode list    Comma-separated modes: source, object, kir.",
+    "  --mode list    Comma-separated modes: source, object, kir, retyped.",
     "  -h, --help     Show this help.",
     "",
     "With no fixture dirs, every directory under conformance/ with a case.json is run."
@@ -83,10 +85,22 @@ function runKIR(fixture) {
   if (!kir.rels[kir.main]) throw new Error(`${fixture.name}/kir: main relation missing`);
 }
 
+function runRetyped(fixture) {
+  const object = decodeObject(compileObjectBuffer(fixture.program, {
+    source: path.relative(root, fixture.dir)
+  }));
+  const mainRel = object.rels[object.main];
+  const inputPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
+  const inputPattern = fixture.input.pattern || patternToPropertyList(exportPatternGraph(mainRel.typePatternGraph, inputPatternId));
+  const kirr = validateKIRR(retypeObjectRelation(object, object.main, inputPattern));
+  if (kirr.relation !== object.main) throw new Error(`${fixture.name}/retyped: relation mismatch`);
+}
+
 function runMode(mode, fixture) {
   if (mode === "source") return runSource(fixture);
   if (mode === "object") return runObject(fixture);
   if (mode === "kir") return runKIR(fixture);
+  if (mode === "retyped") return runRetyped(fixture);
   throw new Error(`Unknown conformance mode '${mode}'`);
 }
 

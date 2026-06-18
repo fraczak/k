@@ -3,6 +3,6 @@
   "program": "program.k",
   "input": "input.kv",
   "expected": "expected.kv",
-  "modes": ["source", "object", "kir"],
+  "modes": ["source", "object", "kir", "retyped"],
   "tags": ["runtime", "projection", "product"]
 }

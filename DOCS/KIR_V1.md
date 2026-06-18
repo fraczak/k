@@ -22,7 +22,6 @@ KIR v1 defines:
 
 KIR v1 does not define:
 
-- KIR-R retyping output;
 - KIR-M layout and ABI decisions;
 - LLVM, Wasm, C, or native runtime layout;
 - a new stored object format.
@@ -188,3 +187,25 @@ k source
 
 KIR-P is the shared semantic object contract. KIR-R and KIR-M are separate
 contracts and should not be encoded by overloading KIR-P fields.
+
+## KIR-R Prototype
+
+`retypeObjectRelation(object, relationName, inputPattern)` exports the first
+KIR-R shape. It re-runs existing type derivation as if the entry program were:
+
+```k
+?inputPattern relationName
+```
+
+The result records:
+
+- `layer: "KIR-R"`;
+- the target `relation`;
+- the concrete `inputPattern` property list;
+- the derived `outputPattern` property list;
+- the typed `entry` relation in KIR expression form;
+- `callSites`, currently an empty list.
+
+This is the safe baseline: it preserves envelope-aware execution semantics and
+uses KIR-R to make the specialized entry pattern explicit. Call-site instance
+splitting and KIR-M layout are later contracts.

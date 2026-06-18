@@ -344,17 +344,48 @@ export function validateKIRP(kir) {
   return kir;
 }
 
+export function validateKIRR(kir) {
+  assertObject(kir, "kir");
+  if (kir.format !== KIR_FORMAT) fail(`kir.format must be ${KIR_FORMAT}`);
+  if (kir.version !== KIR_VERSION) fail(`kir.version must be ${KIR_VERSION}`);
+  if (kir.layer !== "KIR-R") fail("kir.layer must be KIR-R");
+  assertString(kir.relation, "kir.relation");
+  assertArray(kir.inputPattern, "kir.inputPattern");
+  assertArray(kir.outputPattern, "kir.outputPattern");
+  assertArray(kir.callSites || [], "kir.callSites");
+  assertObject(kir.entry, "kir.entry");
+  assertObject(kir.codes || {}, "kir.codes");
+  assertObject(kir.rels || {}, "kir.rels");
+  assertObject(kir.relAlias || {}, "kir.relAlias");
+  assertObject(kir.compileStats || {}, "kir.compileStats");
+  assertObject(kir.meta || {}, "kir.meta");
+
+  const codeNames = new Set(Object.keys(kir.codes || {}));
+  const relNames = new Set(Object.keys(kir.rels || {}));
+  validateStatus(kir.entry.typeDerivation?.status || "unknown", "kir.entry.typeDerivation.status");
+  validateKIRPatternGraph(kir.entry.patternGraph, "kir.entry.patternGraph", codeNames);
+  const nodeCount = kir.entry.patternGraph.nodes.length;
+  for (const field of ["inputPattern", "outputPattern"]) {
+    if (kir.entry[field] == null) continue;
+    assertInteger(kir.entry[field], `kir.entry.${field}`);
+    if (kir.entry[field] < 0 || kir.entry[field] >= nodeCount) fail(`kir.entry.${field} is out of range`);
+  }
+  validateKIRExp(kir.entry.body, "kir.entry.body", nodeCount, relNames, codeNames);
+  return kir;
+}
+
 function helpText() {
   return [
-    "Validate a k .ko/.klib object or KIR-P JSON file.",
+    "Validate a k .ko/.klib object, KIR-P JSON file, or KIR-R JSON file.",
     "",
     `Usage: ${argv[1]} [options] [input-file]`,
     "",
     "Arguments:",
-    "  input-file     Input .ko/.klib file, or KIR-P JSON with --kir. Reads stdin when omitted.",
+    "  input-file     Input .ko/.klib file, or KIR JSON with --kir/--kir-r. Reads stdin when omitted.",
     "",
     "Options:",
     "  --kir          Validate input as KIR-P JSON instead of a k object.",
+    "  --kir-r        Validate input as KIR-R JSON instead of a k object.",
     "  -h, --help     Show this help.",
     "",
     "Object validation also validates the derived KIR-P export view."
@@ -385,6 +416,8 @@ async function main() {
     const option = args.shift();
     if (option === "--kir") {
       mode = "kir";
+    } else if (option === "--kir-r") {
+      mode = "kir-r";
     } else {
       throw new Error(`Unknown option: ${option}`);
     }
@@ -397,6 +430,11 @@ async function main() {
   if (mode === "kir") {
     validateKIRP(JSON.parse(input.toString("utf8")));
     stdout.write("OK KIR-P\n");
+    return;
+  }
+  if (mode === "kir-r") {
+    validateKIRR(JSON.parse(input.toString("utf8")));
+    stdout.write("OK KIR-R\n");
     return;
   }
 

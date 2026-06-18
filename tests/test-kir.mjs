@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import { compileLibraryBuffer, compileObjectBuffer, decodeObject } from "../object.mjs";
-import { objectToKIRP } from "../kir.mjs";
-import { objectToKIRP as backendObjectToKIRP } from "../backend-api.mjs";
+import { objectToKIRP, retypeObjectRelation } from "../kir.mjs";
+import { objectToKIRP as backendObjectToKIRP, retypeObjectRelation as backendRetypeObjectRelation } from "../backend-api.mjs";
+import { validateKIRR } from "../objects/validate.mjs";
 
 const object = decodeObject(compileObjectBuffer(`
   $ bit = < {} 0, {} 1 >;
@@ -25,6 +26,14 @@ assert(kir.rels.__main__.patternGraph.nodes.every((node, index) => node.id === i
 assert.deepEqual(new Set(kir.rels.__main__.patternGraph.nodes.map((node) => node.kind)).has("open-product"), true);
 assert.equal(kir.rels.__main__.body.op, "dot");
 assert.equal(kir.rels.__main__.body.label, "x");
+const retyped = validateKIRR(retypeObjectRelation(object, "__main__", [
+  ["closed-product", [["x", 1]]],
+  ["closed-product", []]
+]));
+assert.equal(retyped.layer, "KIR-R");
+assert.equal(retyped.relation, "__main__");
+assert.deepEqual(retyped.outputPattern, [["closed-product", []]]);
+assert.equal(backendRetypeObjectRelation(object, "__main__", [["open-product", []]]).layer, "KIR-R");
 
 const library = decodeObject(compileLibraryBuffer("succ = |succ;\n", { source: "kir-lib.k" }));
 const libraryKir = objectToKIRP(library);
