@@ -350,6 +350,7 @@ export function validateKIRR(kir) {
   if (kir.version !== KIR_VERSION) fail(`kir.version must be ${KIR_VERSION}`);
   if (kir.layer !== "KIR-R") fail("kir.layer must be KIR-R");
   assertString(kir.relation, "kir.relation");
+  assertString(kir.instanceKey, "kir.instanceKey");
   assertArray(kir.inputPattern, "kir.inputPattern");
   assertArray(kir.outputPattern, "kir.outputPattern");
   assertArray(kir.callSites || [], "kir.callSites");
@@ -362,6 +363,16 @@ export function validateKIRR(kir) {
 
   const codeNames = new Set(Object.keys(kir.codes || {}));
   const relNames = new Set(Object.keys(kir.rels || {}));
+  for (const [index, callSite] of (kir.callSites || []).entries()) {
+    assertObject(callSite, `kir.callSites[${index}]`);
+    assertString(callSite.caller, `kir.callSites[${index}].caller`);
+    assertString(callSite.callee, `kir.callSites[${index}].callee`);
+    assertArray(callSite.path || [], `kir.callSites[${index}].path`);
+    assertArray(callSite.inputPattern, `kir.callSites[${index}].inputPattern`);
+    assertArray(callSite.outputPattern, `kir.callSites[${index}].outputPattern`);
+    assertString(callSite.inputPatternHash, `kir.callSites[${index}].inputPatternHash`);
+    assertString(callSite.instanceKey, `kir.callSites[${index}].instanceKey`);
+  }
   validateStatus(kir.entry.typeDerivation?.status || "unknown", "kir.entry.typeDerivation.status");
   validateKIRPatternGraph(kir.entry.patternGraph, "kir.entry.patternGraph", codeNames);
   const nodeCount = kir.entry.patternGraph.nodes.length;

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { argv, exit, stdin, stdout } from "node:process";
@@ -265,10 +266,61 @@ function relationLibraryWithTarget(object, targetRel) {
 }
 
 function relationPatternPropertyList(rel, index) {
-  const patternId = rel.def?.patterns?.[index];
+  return expPatternPropertyList(rel, rel.def, index);
+}
+
+function expPatternPropertyList(rel, exp, index) {
+  const patternId = exp?.patterns?.[index];
   if (patternId == null) return null;
   const root = rel.typePatternGraph.find(patternId);
   return patternToPropertyList(exportPatternGraph(rel.typePatternGraph, root));
+}
+
+function patternHash(pattern) {
+  return crypto.createHash("sha256")
+    .update(JSON.stringify(stableObject(pattern)))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function relationInstanceKey(relation, inputPattern) {
+  return `${relation}@${patternHash(inputPattern)}`;
+}
+
+function collectCallSites(retypedObject) {
+  const callSites = [];
+
+  function visit(caller, rel, exp, path = []) {
+    if (!exp) return;
+    if (exp.op === "ref") {
+      const inputPattern = expPatternPropertyList(rel, exp, 0);
+      const outputPattern = expPatternPropertyList(rel, exp, 1);
+      callSites.push({
+        caller,
+        callee: exp.ref,
+        path,
+        inputPattern,
+        outputPattern,
+        inputPatternHash: patternHash(inputPattern),
+        instanceKey: relationInstanceKey(exp.ref, inputPattern)
+      });
+      return;
+    }
+
+    if (exp.op === "comp") {
+      exp.comp.forEach((child, index) => visit(caller, rel, child, [...path, "comp", index]));
+    } else if (exp.op === "union") {
+      exp.union.forEach((child, index) => visit(caller, rel, child, [...path, "union", index]));
+    } else if (exp.op === "product") {
+      exp.product.forEach(({ label, exp: child }) => visit(caller, rel, child, [...path, "product", label]));
+    }
+  }
+
+  for (const [name, rel] of Object.entries(retypedObject.rels || {})) {
+    visit(name, rel, rel.def);
+  }
+
+  return callSites;
 }
 
 export function retypeObjectRelation(object, relationName, inputPattern, options = {}) {
@@ -288,16 +340,19 @@ export function retypeObjectRelation(object, relationName, inputPattern, options
   const kirp = objectToKIRP(retypedObject);
   const entry = kirp.rels.__main__;
   const retypedRel = retypedObject.rels.__main__;
+  const entryInputPattern = relationPatternPropertyList(retypedRel, 0);
+  const relation = relationName || object.main;
 
   return {
     format: KIR_FORMAT,
     version: KIR_VERSION,
     layer: "KIR-R",
     sourceFormat: object.format,
-    relation: relationName || object.main,
+    relation,
+    instanceKey: relationInstanceKey(relation, entryInputPattern),
     inputPattern: clone(inputPattern),
     outputPattern: relationPatternPropertyList(retypedRel, 1),
-    callSites: [],
+    callSites: collectCallSites(retypedObject),
     entry,
     codes: kirp.codes,
     rels: kirp.rels,

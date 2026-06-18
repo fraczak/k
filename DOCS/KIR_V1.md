@@ -201,11 +201,13 @@ The result records:
 
 - `layer: "KIR-R"`;
 - the target `relation`;
+- `instanceKey`, built from the relation name and input-pattern hash;
 - the concrete `inputPattern` property list;
 - the derived `outputPattern` property list;
 - the typed `entry` relation in KIR expression form;
-- `callSites`, currently an empty list.
+- `callSites`, one entry per typed `ref` expression.
 
 This is the safe baseline: it preserves envelope-aware execution semantics and
 uses KIR-R to make the specialized entry pattern explicit. Call-site instance
-splitting and KIR-M layout are later contracts.
+splitting is represented by call-site `instanceKey` values; KIR-M layout is a
+later contract.

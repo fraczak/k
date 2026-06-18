@@ -6,7 +6,9 @@ import { validateKIRP, validateKIRR, validateObjectPayload } from "../objects/va
 const object = decodeObject(compileObjectBuffer("id = (); id", { source: "validate.k" }));
 assert.equal(validateObjectPayload(object), object);
 assert.equal(validateKIRP(objectToKIRP(object)).format, "k-ir");
-assert.equal(validateKIRR(retypeObjectRelation(object, "__main__", [["open-product", []]])).layer, "KIR-R");
+const retyped = validateKIRR(retypeObjectRelation(object, "__main__", [["open-product", []]]));
+assert.equal(retyped.layer, "KIR-R");
+assert.match(retyped.instanceKey, /^__main__@[0-9a-f]{16}$/);
 
 const library = decodeObject(compileLibraryBuffer("succ = |succ;\n", { source: "validate-lib.k" }));
 assert.equal(validateObjectPayload(library), library);
