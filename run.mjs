@@ -2,14 +2,9 @@ import assert from "assert";
 import { Value, edgeSubpattern, composePattern, withPattern, isProduct, isVariant } from "./Value.mjs"
 import { exportPatternGraph, intersectPropertyListPatterns } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
+import { jsIntrinsicFunctions } from "./intrinsics.mjs";
 
-const builtin = {
-  "_log!": (arg) => {
-    console.error(`_log!: ${arg}`);
-
-    return arg;
-  }
-};
+const builtin = jsIntrinsicFunctions;
 
 const codes = { };
 const staticPatternCache = new WeakMap();

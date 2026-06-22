@@ -10,3 +10,11 @@ export { parse as parseFloat64, print as printFloat64 } from "./codecs/ieee.mjs"
 export { valueForCode } from "./repl-codecs.mjs";
 export { default as codes } from "./codes.mjs";
 export { default as run, run_converged } from "./run.mjs";
+export {
+  intrinsicDefinitions,
+  jsIntrinsicFunctions,
+  getIntrinsic,
+  isIntrinsic,
+  isIdentityIntrinsic,
+  unsupportedIntrinsic
+} from "./intrinsics.mjs";

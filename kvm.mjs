@@ -8,14 +8,14 @@ import {
   constrainWithPattern,
   intersectPatterns,
   projectionPattern,
-  verify,
-  run
+  verify
 } from "./run.mjs";
 import { annotate } from "./index.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 import { decodeObject, loadLibrary } from "./object.mjs";
 import codes from "./codes.mjs";
 import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
+import { isIntrinsic, unsupportedIntrinsic } from "./intrinsics.mjs";
 
 function isFile(filePath) {
   try {
@@ -144,7 +144,7 @@ function compile(exp, inputReg, builder) {
     }
     case "ref": {
       const dest = builder.nextReg();
-      if (exp.ref.startsWith("_")) {
+      if (isIntrinsic(exp.ref)) {
         builder.emit({
           op: "call_intrinsic",
           dest,
@@ -377,25 +377,7 @@ function executeInstruction(inst, registers, context) {
       return { type: "continue" };
     }
     case "call_intrinsic": {
-      const val = registers.get(inst.src);
-      const builtinFunc = run.builtin[inst.symbol];
-      if (!builtinFunc) {
-        throw new Error(`Unknown builtin: '${inst.symbol}'`);
-      }
-      if (!options.envelopeFree && inst.pattern) {
-        try {
-          const constrained = constrainWithPattern(val, inst.pattern, inst.exp);
-          const res = builtinFunc(constrained);
-          registers.set(inst.dest, res);
-          return { type: "continue" };
-        } catch (err) {
-          throw err;
-        }
-      } else {
-        const res = builtinFunc(val);
-        registers.set(inst.dest, res);
-        return { type: "continue" };
-      }
+      throw unsupportedIntrinsic("kVM interpreter", inst.symbol);
     }
     case "product": {
       const val = registers.get(inst.src);

@@ -228,7 +228,7 @@ _times =
 
 mod =
   ${bits x, bits y}
-  _log!
+  -- _log!
   < 
     -- if y > x then (x mod y) = x 
     {.y x, .x y} GT .y,
@@ -445,7 +445,7 @@ ratToString =
 
 _rat! = $rat {
   () carryOn, 
-  ratToString _log! drop
+  ratToString drop
  } .carryOn;
 
 
