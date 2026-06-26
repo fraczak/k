@@ -160,4 +160,15 @@ console.log("==> Starting kVM Tests");
   console.log("Test 9 (KVM vs JS run equivalence & Peano addition): Passed");
 }
 
+// Test 10: Intrinsic handling is explicit, not based on identifier spelling
+{
+  const result = runKVM("_user = .a; _user", { a: {}, b: {} });
+  assert.deepEqual(toJSON(result), {});
+  assert.throws(
+    () => runKVM("_log!", { unit: {} }),
+    /kVM interpreter: unsupported intrinsic '_log!'/
+  );
+  console.log("Test 10 (Explicit intrinsics): Passed");
+}
+
 console.log("==> All kVM Tests Passed!");

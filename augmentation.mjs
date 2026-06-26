@@ -1,4 +1,5 @@
 import codes from "./codes.mjs";
+import { getIntrinsic } from "./intrinsics.mjs";
 
 const unitCode = codes.unitCode;
 
@@ -187,12 +188,13 @@ function augmentRef(rel,rootDef,rels) {
       });
     return;
   }
-  // it is built-in
-  switch (rel.ref) {
-    case "_log!":
-      rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
-      break;
-    default:
-      throw new Error(`No definition found for '${rel.ref}'`);  
+  const intrinsic = getIntrinsic(rel.ref);
+  if (intrinsic) {
+    if (intrinsic.type !== "identity") {
+      throw new Error(`No type rule found for intrinsic '${rel.ref}'`);
+    }
+    rel.patterns[0] = rel.patterns[1] = rootDef.typePatternGraph.addNewNode();
+    return;
   }
+  throw new Error(`No definition found for '${rel.ref}'`);  
 }

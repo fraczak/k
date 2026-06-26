@@ -7,16 +7,21 @@ CLI tools for compiling and inspecting k object files (`.ko`) and library files 
 ### `k-compile`
 
 Compiles `.k` source into an executable object file (`.ko`), library file
-(`.klib`), or kVM JSON (`.kvm`). Output format is inferred from the output
-extension, or from `--format`.
+(`.klib`), or specialized kVM backend artifact (`.kvm`). Output format is
+inferred from the output extension, or from `--format`.
 
 ```bash
-k-compile [--lib lib-file] [--format ko|klib|kvm] [source-snippet | input-file [output-file]]
+k-compile [--lib lib-file] [--format ko|klib|kvm] [--input-pattern json-or-file | --input-type type-script-or-file] [source-snippet | input-file [output-file]]
 ```
 
 Existing input paths are read as files. A non-existing input with `.k`, `.ko`,
 or `.klib` extension is reported as a missing file; otherwise it is compiled as
 inline k source, in the same style as `k.mjs`.
+
+`.kvm` is post-retyping backend input. Producing it requires a singleton input
+shape via `--input-pattern` or `--input-type`, so the artifact carries the
+concrete input pattern, derived output pattern, lowered kVM functions, and
+matching KIR-R payload. Open product/union and `any` patterns are rejected.
 
 ### `k-decompile`
 
@@ -73,6 +78,8 @@ installed object binary supports `-h` and `--help`.
 - Stored relation bodies do not include generated input/output boundary filters.
 - KIR-P is available as an inspection/export view; it does not change the
   stored `.ko` or `.klib` payload.
+- `.kvm` is not a canonical source/object format; it is a specialized backend
+  artifact produced after retyping for one singleton input pattern or type.
 
 ## Further reading
 

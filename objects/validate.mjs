@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { argv, exit, stdin, stdout } from "node:process";
 import { decodeObject } from "../object.mjs";
 import { KIR_FORMAT, KIR_VERSION, objectToKIRP } from "../kir.mjs";
+import { isIntrinsic } from "../intrinsics.mjs";
 
 const TYPE_DERIVATION_STATUSES = new Set(["converged", "not-converged", "unknown"]);
 const KIR_PATTERN_KINDS = new Set([
@@ -89,7 +90,7 @@ function validateObjectExp(exp, path, relNames, codeNames) {
       break;
     case "ref":
       assertString(exp.ref, `${path}.ref`);
-      if (!exp.ref.startsWith("_") && !relNames.has(exp.ref)) {
+      if (!isIntrinsic(exp.ref) && !relNames.has(exp.ref)) {
         fail(`${path}.ref references missing relation ${exp.ref}`);
       }
       break;
@@ -255,7 +256,7 @@ function validateKIRExp(exp, path, nodeCount, relNames, codeNames) {
       break;
     case "ref":
       assertString(exp.ref, `${path}.ref`);
-      if (!exp.ref.startsWith("_") && !relNames.has(exp.ref)) fail(`${path}.ref references missing relation ${exp.ref}`);
+      if (!isIntrinsic(exp.ref) && !relNames.has(exp.ref)) fail(`${path}.ref references missing relation ${exp.ref}`);
       break;
     case "comp":
     case "union":

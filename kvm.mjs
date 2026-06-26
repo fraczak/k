@@ -8,14 +8,20 @@ import {
   constrainWithPattern,
   intersectPatterns,
   projectionPattern,
-  verify,
-  run
+  verify
 } from "./run.mjs";
 import { annotate } from "./index.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 import { decodeObject, loadLibrary } from "./object.mjs";
 import codes from "./codes.mjs";
 import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
+import { isIntrinsic, unsupportedIntrinsic } from "./intrinsics.mjs";
+import { retypeObjectRelationForBackend } from "./kir.mjs";
+
+export const KVM_FORMAT = "k-vm";
+export const KVM_VERSION = 1;
+
+const KVM_SINGLETON_INPUT_KINDS = new Set(["closed-product", "closed-union", "type"]);
 
 function isFile(filePath) {
   try {
@@ -144,7 +150,7 @@ function compile(exp, inputReg, builder) {
     }
     case "ref": {
       const dest = builder.nextReg();
-      if (exp.ref.startsWith("_")) {
+      if (isIntrinsic(exp.ref)) {
         builder.emit({
           op: "call_intrinsic",
           dest,
@@ -257,6 +263,57 @@ export function lowerToKVM(relDef, name, options = {}) {
     outputPattern,
     isConverged: relDef.typeDerivation?.status === "converged",
     body: builder.instructions
+  };
+}
+
+function lowerObjectRelsToKVM(rels = {}) {
+  const kvmProgram = {};
+  for (const [name, relDef] of Object.entries(rels)) {
+    kvmProgram[name] = lowerToKVM(relDef, name);
+  }
+  return kvmProgram;
+}
+
+export function isSingletonKVMInputPattern(pattern) {
+  return Array.isArray(pattern)
+    && pattern.length > 0
+    && pattern.every((node) => Array.isArray(node) && KVM_SINGLETON_INPUT_KINDS.has(node[0]));
+}
+
+function assertSingletonKVMInputPattern(pattern) {
+  if (!isSingletonKVMInputPattern(pattern)) {
+    throw new Error(
+      ".kvm emission requires a singleton input pattern; use a closed product/union pattern or a type/code input pattern"
+    );
+  }
+}
+
+export function objectToKVMArtifact(object, relationName, inputPattern, options = {}) {
+  assertSingletonKVMInputPattern(inputPattern);
+  const { retypedObject, kirR } = retypeObjectRelationForBackend(
+    object,
+    relationName || object.main,
+    inputPattern,
+    options
+  );
+  const entry = retypedObject.main || "__main__";
+  const functions = lowerObjectRelsToKVM(retypedObject.rels);
+  const entryFunc = functions[entry];
+  if (!entryFunc) throw new Error(`Retyped kVM entry relation '${entry}' was not produced`);
+
+  return {
+    format: KVM_FORMAT,
+    version: KVM_VERSION,
+    layer: "KVM-R",
+    sourceFormat: object.format,
+    relation: kirR.relation,
+    instanceKey: kirR.instanceKey,
+    entry,
+    inputPattern: kirR.inputPattern,
+    outputPattern: kirR.outputPattern,
+    isConverged: entryFunc.isConverged,
+    functions,
+    kir: kirR
   };
 }
 
@@ -377,25 +434,7 @@ function executeInstruction(inst, registers, context) {
       return { type: "continue" };
     }
     case "call_intrinsic": {
-      const val = registers.get(inst.src);
-      const builtinFunc = run.builtin[inst.symbol];
-      if (!builtinFunc) {
-        throw new Error(`Unknown builtin: '${inst.symbol}'`);
-      }
-      if (!options.envelopeFree && inst.pattern) {
-        try {
-          const constrained = constrainWithPattern(val, inst.pattern, inst.exp);
-          const res = builtinFunc(constrained);
-          registers.set(inst.dest, res);
-          return { type: "continue" };
-        } catch (err) {
-          throw err;
-        }
-      } else {
-        const res = builtinFunc(val);
-        registers.set(inst.dest, res);
-        return { type: "continue" };
-      }
+      throw unsupportedIntrinsic("kVM interpreter", inst.symbol);
     }
     case "product": {
       const val = registers.get(inst.src);
@@ -458,8 +497,12 @@ export function executeKVM(kvmFunc, inputVal, context) {
 }
 
 export default {
+  KVM_FORMAT,
+  KVM_VERSION,
   lowerToKVM,
-  executeKVM
+  executeKVM,
+  isSingletonKVMInputPattern,
+  objectToKVMArtifact
 };
 
 function usage() {

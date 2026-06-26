@@ -323,7 +323,7 @@ function collectCallSites(retypedObject) {
   return callSites;
 }
 
-export function retypeObjectRelation(object, relationName, inputPattern, options = {}) {
+export function retypeObjectRelationForBackend(object, relationName, inputPattern, options = {}) {
   if (object?.format !== "k-object") {
     throw new Error("KIR-R retyping requires a k object");
   }
@@ -343,7 +343,7 @@ export function retypeObjectRelation(object, relationName, inputPattern, options
   const entryInputPattern = relationPatternPropertyList(retypedRel, 0);
   const relation = relationName || object.main;
 
-  return {
+  const kirR = {
     format: KIR_FORMAT,
     version: KIR_VERSION,
     layer: "KIR-R",
@@ -360,6 +360,16 @@ export function retypeObjectRelation(object, relationName, inputPattern, options
     compileStats: kirp.compileStats,
     meta: kirp.meta
   };
+
+  return {
+    relation,
+    retypedObject,
+    kirR
+  };
+}
+
+export function retypeObjectRelation(object, relationName, inputPattern, options = {}) {
+  return retypeObjectRelationForBackend(object, relationName, inputPattern, options).kirR;
 }
 
 export { KIR_FORMAT, KIR_VERSION };
@@ -368,7 +378,8 @@ export default {
   KIR_FORMAT,
   KIR_VERSION,
   objectToKIRP,
-  retypeObjectRelation
+  retypeObjectRelation,
+  retypeObjectRelationForBackend
 };
 
 function helpText() {

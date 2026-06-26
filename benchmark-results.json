@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-13T12:53:36.775Z",
+  "generatedAt": "2026-06-26T04:01:56.679Z",
   "node": "v22.22.2",
   "platform": "linux arm64",
   "cpuCount": 8,
@@ -12,18 +12,18 @@
       "mode": "KIR-P Export",
       "case": "ieee.add",
       "samples": [
-        61.094298999999864,
-        43.55931399999963,
-        27.3846709999998
+        71.2939180000003,
+        37.02117700000008,
+        27.641861000000063
       ],
-      "avgMs": 44.012761333333096,
-      "minMs": 27.3846709999998,
-      "maxMs": 61.094298999999864,
-      "setupMs": 3089.056545,
-      "maxRssMiB": 256.765625,
-      "heapUsedMiB": 144.0854949951172,
-      "heapDeltaMiB": 14.555137634277344,
-      "resultDigest": "1985546a29ad7be2",
+      "avgMs": 45.31898533333348,
+      "minMs": 27.641861000000063,
+      "maxMs": 71.2939180000003,
+      "setupMs": 2410.584097,
+      "maxRssMiB": 226.42578125,
+      "heapUsedMiB": 102.04212951660156,
+      "heapDeltaMiB": 0.13207244873046875,
+      "resultDigest": "8720331be87083f7",
       "resultBytes": 2205342
     },
     {
@@ -31,17 +31,17 @@
       "mode": "kVM Interpreter (Env-Free)",
       "case": "ieee.add",
       "samples": [
-        524.6497840000006,
-        12.46620299999995,
-        7.552504999999655
+        425.9662079999998,
+        11.206704000000173,
+        13.934681000000182
       ],
-      "avgMs": 181.55616400000008,
-      "minMs": 7.552504999999655,
-      "maxMs": 524.6497840000006,
-      "setupMs": 3217.904185,
-      "maxRssMiB": 263.21484375,
-      "heapUsedMiB": 147.39800262451172,
-      "heapDeltaMiB": 11.856407165527344,
+      "avgMs": 150.36919766666674,
+      "minMs": 11.206704000000173,
+      "maxMs": 425.9662079999998,
+      "setupMs": 2394.819986,
+      "maxRssMiB": 227.6484375,
+      "heapUsedMiB": 118.07672882080078,
+      "heapDeltaMiB": 14.850654602050781,
       "resultDigest": "d7b0ed6ef57dd554",
       "resultBytes": 316
     },
@@ -50,17 +50,17 @@
       "mode": "Native JS (Envelope-Aware)",
       "case": "ieee.add",
       "samples": [
-        430.51532,
-        89.1470159999999,
-        102.92739400000028
+        297.1570499999998,
+        65.881797,
+        68.0695209999999
       ],
-      "avgMs": 207.52991000000006,
-      "minMs": 89.1470159999999,
-      "maxMs": 430.51532,
-      "setupMs": 3180.048407,
-      "maxRssMiB": 250.03125,
-      "heapUsedMiB": 135.8619384765625,
-      "heapDeltaMiB": 7.431938171386719,
+      "avgMs": 143.70278933333324,
+      "minMs": 65.881797,
+      "maxMs": 297.1570499999998,
+      "setupMs": 2429.789191,
+      "maxRssMiB": 258.2734375,
+      "heapUsedMiB": 141.21536254882812,
+      "heapDeltaMiB": -1.6310272216796875,
       "resultDigest": "d7b0ed6ef57dd554",
       "resultBytes": 316
     },
@@ -69,17 +69,17 @@
       "mode": "Native JS (Envelope-Free)",
       "case": "ieee.add",
       "samples": [
-        25.335991999999806,
-        4.032275000000027,
-        3.0959360000001652
+        22.670575999999983,
+        4.613031999999748,
+        2.7746030000002975
       ],
-      "avgMs": 10.821401,
-      "minMs": 3.0959360000001652,
-      "maxMs": 25.335991999999806,
-      "setupMs": 3091.159059,
-      "maxRssMiB": 245.12890625,
-      "heapUsedMiB": 136.3012237548828,
-      "heapDeltaMiB": 8.372039794921875,
+      "avgMs": 10.019403666666676,
+      "minMs": 2.7746030000002975,
+      "maxMs": 22.670575999999983,
+      "setupMs": 2428.446931,
+      "maxRssMiB": 212.5625,
+      "heapUsedMiB": 98.24059295654297,
+      "heapDeltaMiB": 8.362197875976562,
       "resultDigest": "d7b0ed6ef57dd554",
       "resultBytes": 316
     },
@@ -88,18 +88,18 @@
       "mode": "KIR-P Export",
       "case": "ieee.div",
       "samples": [
-        119.96666800000003,
-        32.93341499999997,
-        28.393845000000056
+        64.64516299999968,
+        27.935488000000078,
+        23.11982900000021
       ],
-      "avgMs": 60.43130933333335,
-      "minMs": 28.393845000000056,
-      "maxMs": 119.96666800000003,
-      "setupMs": 3356.5788039999998,
-      "maxRssMiB": 270.41015625,
-      "heapUsedMiB": 151.12641143798828,
-      "heapDeltaMiB": 15.495269775390625,
-      "resultDigest": "085fe2c4e41dee4f",
+      "avgMs": 38.56682666666666,
+      "minMs": 23.11982900000021,
+      "maxMs": 64.64516299999968,
+      "setupMs": 2459.911444,
+      "maxRssMiB": 269.65625,
+      "heapUsedMiB": 145.61485290527344,
+      "heapDeltaMiB": 2.6288909912109375,
+      "resultDigest": "1125939fa08301aa",
       "resultBytes": 3122879
     },
     {
@@ -107,17 +107,17 @@
       "mode": "kVM Interpreter (Env-Free)",
       "case": "ieee.div",
       "samples": [
-        2194.7212389999995,
-        279.3556239999998,
-        279.0807880000002
+        1409.5292990000003,
+        244.75126499999988,
+        199.81719899999916
       ],
-      "avgMs": 917.7192169999998,
-      "minMs": 279.0807880000002,
-      "maxMs": 2194.7212389999995,
-      "setupMs": 3165.190605,
-      "maxRssMiB": 305.9140625,
-      "heapUsedMiB": 192.5821762084961,
-      "heapDeltaMiB": 53.975440979003906,
+      "avgMs": 618.0325876666665,
+      "minMs": 199.81719899999916,
+      "maxMs": 1409.5292990000003,
+      "setupMs": 2412.133941,
+      "maxRssMiB": 312.89453125,
+      "heapUsedMiB": 196.9021224975586,
+      "heapDeltaMiB": 58.236656188964844,
       "resultDigest": "238b6430f024764d",
       "resultBytes": 319
     },
@@ -126,17 +126,17 @@
       "mode": "Native JS (Envelope-Aware)",
       "case": "ieee.div",
       "samples": [
-        3082.07396,
-        2776.9277159999992,
-        3024.152721999999
+        2268.145469,
+        1957.0288200000005,
+        1943.1114720000005
       ],
-      "avgMs": 2961.0514659999994,
-      "minMs": 2776.9277159999992,
-      "maxMs": 3082.07396,
-      "setupMs": 3180.348117,
-      "maxRssMiB": 275.7265625,
-      "heapUsedMiB": 154.43726348876953,
-      "heapDeltaMiB": 27.31151580810547,
+      "avgMs": 2056.095253666667,
+      "minMs": 1943.1114720000005,
+      "maxMs": 2268.145469,
+      "setupMs": 2299.248563,
+      "maxRssMiB": 245.37109375,
+      "heapUsedMiB": 71.34148406982422,
+      "heapDeltaMiB": -28.6934814453125,
       "resultDigest": "238b6430f024764d",
       "resultBytes": 319
     },
@@ -145,17 +145,17 @@
       "mode": "Native JS (Envelope-Free)",
       "case": "ieee.div",
       "samples": [
-        128.02484300000015,
-        75.40797199999997,
-        74.37042400000018
+        97.04622500000005,
+        62.1203959999998,
+        82.9298759999997
       ],
-      "avgMs": 92.60107966666676,
-      "minMs": 74.37042400000018,
-      "maxMs": 128.02484300000015,
-      "setupMs": 3269.501633,
-      "maxRssMiB": 261.375,
-      "heapUsedMiB": 148.32653045654297,
-      "heapDeltaMiB": 17.184410095214844,
+      "avgMs": 80.69883233333319,
+      "minMs": 62.1203959999998,
+      "maxMs": 97.04622500000005,
+      "setupMs": 2468.552755,
+      "maxRssMiB": 255.81640625,
+      "heapUsedMiB": 148.34247589111328,
+      "heapDeltaMiB": 17.023460388183594,
       "resultDigest": "238b6430f024764d",
       "resultBytes": 319
     },
@@ -164,18 +164,18 @@
       "mode": "KIR-P Export",
       "case": "ieee.mul",
       "samples": [
-        93.04812399999992,
-        35.71405700000014,
-        27.919008000000304
+        60.880637000000206,
+        24.26542100000006,
+        28.6782860000003
       ],
-      "avgMs": 52.22706300000012,
-      "minMs": 27.919008000000304,
-      "maxMs": 93.04812399999992,
-      "setupMs": 3301.474375,
-      "maxRssMiB": 269.15625,
-      "heapUsedMiB": 142.3163299560547,
-      "heapDeltaMiB": -0.9333572387695312,
-      "resultDigest": "165a1e295fab98de",
+      "avgMs": 37.941448000000186,
+      "minMs": 24.26542100000006,
+      "maxMs": 60.880637000000206,
+      "setupMs": 2331.798334,
+      "maxRssMiB": 260.828125,
+      "heapUsedMiB": 141.28939819335938,
+      "heapDeltaMiB": 4.432342529296875,
+      "resultDigest": "42fe8f0b494a6f81",
       "resultBytes": 2767564
     },
     {
@@ -183,17 +183,17 @@
       "mode": "kVM Interpreter (Env-Free)",
       "case": "ieee.mul",
       "samples": [
-        1713.4369340000003,
-        261.116884,
-        265.8203310000008
+        1407.2723659999997,
+        176.9047040000005,
+        217.78828299999986
       ],
-      "avgMs": 746.7913830000003,
-      "minMs": 261.116884,
-      "maxMs": 1713.4369340000003,
-      "setupMs": 3108.6889189999997,
-      "maxRssMiB": 288.8203125,
-      "heapUsedMiB": 169.70628356933594,
-      "heapDeltaMiB": 32.46685028076172,
+      "avgMs": 600.6551176666667,
+      "minMs": 176.9047040000005,
+      "maxMs": 1407.2723659999997,
+      "setupMs": 2399.1134739999998,
+      "maxRssMiB": 294.71875,
+      "heapUsedMiB": 182.02406311035156,
+      "heapDeltaMiB": 52.052085876464844,
       "resultDigest": "4c83c565baa5bb08",
       "resultBytes": 316
     },
@@ -202,17 +202,17 @@
       "mode": "Native JS (Envelope-Aware)",
       "case": "ieee.mul",
       "samples": [
-        3267.4128699999997,
-        3107.5389940000005,
-        3383.4970129999983
+        2287.4217710000003,
+        1911.738585,
+        1893.2782460000008
       ],
-      "avgMs": 3252.816292333333,
-      "minMs": 3107.5389940000005,
-      "maxMs": 3383.4970129999983,
-      "setupMs": 3339.250278,
-      "maxRssMiB": 271.03515625,
-      "heapUsedMiB": 161.66756439208984,
-      "heapDeltaMiB": 19.07122802734375,
+      "avgMs": 2030.8128673333338,
+      "minMs": 1893.2782460000008,
+      "maxMs": 2287.4217710000003,
+      "setupMs": 2522.4376350000002,
+      "maxRssMiB": 272.4609375,
+      "heapUsedMiB": 164.15170288085938,
+      "heapDeltaMiB": 31.641036987304688,
       "resultDigest": "4c83c565baa5bb08",
       "resultBytes": 316
     },
@@ -221,17 +221,17 @@
       "mode": "Native JS (Envelope-Free)",
       "case": "ieee.mul",
       "samples": [
-        98.17573900000025,
-        74.24933999999985,
-        73.29791699999987
+        105.853204,
+        68.89215100000001,
+        59.3600849999998
       ],
-      "avgMs": 81.90766533333333,
-      "minMs": 73.29791699999987,
-      "maxMs": 98.17573900000025,
-      "setupMs": 3464.747272,
-      "maxRssMiB": 252.70703125,
-      "heapUsedMiB": 132.57289123535156,
-      "heapDeltaMiB": 3.5011367797851562,
+      "avgMs": 78.0351466666666,
+      "minMs": 59.3600849999998,
+      "maxMs": 105.853204,
+      "setupMs": 2457.262925,
+      "maxRssMiB": 248.86328125,
+      "heapUsedMiB": 137.8211212158203,
+      "heapDeltaMiB": 3.4766845703125,
       "resultDigest": "4c83c565baa5bb08",
       "resultBytes": 316
     },
@@ -240,18 +240,18 @@
       "mode": "KIR-P Export",
       "case": "ieee.sub",
       "samples": [
-        61.20921700000008,
-        25.474158999999872,
-        29.070264999999836
+        52.226451,
+        28.73341100000016,
+        26.78514700000005
       ],
-      "avgMs": 38.58454699999993,
-      "minMs": 25.474158999999872,
-      "maxMs": 61.20921700000008,
-      "setupMs": 3329.131965,
-      "maxRssMiB": 261.3203125,
-      "heapUsedMiB": 139.58253479003906,
-      "heapDeltaMiB": 11.353523254394531,
-      "resultDigest": "ccde6ed71e3ca0de",
+      "avgMs": 35.91500300000007,
+      "minMs": 26.78514700000005,
+      "maxMs": 52.226451,
+      "setupMs": 2379.8469219999997,
+      "maxRssMiB": 260.24609375,
+      "heapUsedMiB": 143.71685791015625,
+      "heapDeltaMiB": 17.70319366455078,
+      "resultDigest": "d5247ccfdfc104e2",
       "resultBytes": 2220130
     },
     {
@@ -259,17 +259,17 @@
       "mode": "kVM Interpreter (Env-Free)",
       "case": "ieee.sub",
       "samples": [
-        796.9821969999998,
-        48.2214270000004,
-        35.33292900000015
+        494.8889429999999,
+        35.32999900000004,
+        24.30925500000012
       ],
-      "avgMs": 293.51218433333344,
-      "minMs": 35.33292900000015,
-      "maxMs": 796.9821969999998,
-      "setupMs": 2935.844086,
-      "maxRssMiB": 258.78515625,
-      "heapUsedMiB": 143.17831420898438,
-      "heapDeltaMiB": 13.155029296875,
+      "avgMs": 184.84273233333337,
+      "minMs": 24.30925500000012,
+      "maxMs": 494.8889429999999,
+      "setupMs": 2400.2232320000003,
+      "maxRssMiB": 271.62890625,
+      "heapUsedMiB": 160.37963104248047,
+      "heapDeltaMiB": 24.37873077392578,
       "resultDigest": "5c7179ae0117965a",
       "resultBytes": 316
     },
@@ -278,17 +278,17 @@
       "mode": "Native JS (Envelope-Aware)",
       "case": "ieee.sub",
       "samples": [
-        660.5750509999998,
-        327.22346500000003,
-        330.0827329999993
+        478.67986999999994,
+        263.7170649999998,
+        255.72350900000038
       ],
-      "avgMs": 439.2937496666664,
-      "minMs": 327.22346500000003,
-      "maxMs": 660.5750509999998,
-      "setupMs": 3049.035086,
-      "maxRssMiB": 257.39453125,
-      "heapUsedMiB": 138.3327865600586,
-      "heapDeltaMiB": 6.772758483886719,
+      "avgMs": 332.70681466666673,
+      "minMs": 255.72350900000038,
+      "maxMs": 478.67986999999994,
+      "setupMs": 2510.5409250000002,
+      "maxRssMiB": 259.37109375,
+      "heapUsedMiB": 140.1587677001953,
+      "heapDeltaMiB": 10.739852905273438,
       "resultDigest": "5c7179ae0117965a",
       "resultBytes": 316
     },
@@ -297,17 +297,17 @@
       "mode": "Native JS (Envelope-Free)",
       "case": "ieee.sub",
       "samples": [
-        44.03056699999979,
-        10.519815999999992,
-        10.096771000000444
+        40.886121,
+        12.074168999999983,
+        8.812895000000026
       ],
-      "avgMs": 21.54905133333341,
-      "minMs": 10.096771000000444,
-      "maxMs": 44.03056699999979,
-      "setupMs": 3609.8791389999997,
-      "maxRssMiB": 247.09375,
-      "heapUsedMiB": 141.7324447631836,
-      "heapDeltaMiB": 9.561347961425781,
+      "avgMs": 20.591061666666672,
+      "minMs": 8.812895000000026,
+      "maxMs": 40.886121,
+      "setupMs": 2418.723613,
+      "maxRssMiB": 241.1015625,
+      "heapUsedMiB": 137.82179260253906,
+      "heapDeltaMiB": 9.4453125,
       "resultDigest": "5c7179ae0117965a",
       "resultBytes": 316
     },
@@ -316,18 +316,18 @@
       "mode": "KIR-P Export",
       "case": "int.factorial.101",
       "samples": [
-        12.61116299999992,
-        2.801142000000027,
-        5.067156999999952
+        17.162329,
+        1.024548999999979,
+        2.0644310000000132
       ],
-      "avgMs": 6.8264873333333,
-      "minMs": 2.801142000000027,
-      "maxMs": 12.61116299999992,
-      "setupMs": 283.320024,
-      "maxRssMiB": 134.8046875,
-      "heapUsedMiB": 24.48163604736328,
-      "heapDeltaMiB": -10.243339538574219,
-      "resultDigest": "73c8c0df2999a980",
+      "avgMs": 6.75043633333333,
+      "minMs": 1.024548999999979,
+      "maxMs": 17.162329,
+      "setupMs": 226.94509800000003,
+      "maxRssMiB": 134.90625,
+      "heapUsedMiB": 33.07435607910156,
+      "heapDeltaMiB": 4.5048980712890625,
+      "resultDigest": "e9be75e26787ff03",
       "resultBytes": 70629
     },
     {
@@ -335,17 +335,17 @@
       "mode": "kVM Interpreter (Env-Free)",
       "case": "int.factorial.101",
       "samples": [
-        1681.691777,
-        1546.615057,
-        1506.848266
+        1094.4232470000002,
+        1148.766296,
+        1058.8413289999999
       ],
-      "avgMs": 1578.3850333333332,
-      "minMs": 1506.848266,
-      "maxMs": 1681.691777,
-      "setupMs": 305.86887300000006,
-      "maxRssMiB": 147.6328125,
-      "heapUsedMiB": 50.11888885498047,
-      "heapDeltaMiB": 20.650054931640625,
+      "avgMs": 1100.6769573333333,
+      "minMs": 1058.8413289999999,
+      "maxMs": 1148.766296,
+      "setupMs": 310.426852,
+      "maxRssMiB": 148.71875,
+      "heapUsedMiB": 51.244140625,
+      "heapDeltaMiB": 21.331954956054688,
       "resultDigest": "c48039eab26792fd",
       "resultBytes": 3201
     },
@@ -354,17 +354,17 @@
       "mode": "Native JS (Envelope-Aware)",
       "case": "int.factorial.101",
       "samples": [
-        6792.49027,
-        5316.522655000001,
-        4859.478461000002
+        4563.287045,
+        4131.276502999999,
+        3751.110743000001
       ],
-      "avgMs": 5656.163795333334,
-      "minMs": 4859.478461000002,
-      "maxMs": 6792.49027,
-      "setupMs": 419.89000300000004,
-      "maxRssMiB": 188.4921875,
-      "heapUsedMiB": 39.3336181640625,
-      "heapDeltaMiB": 11.486793518066406,
+      "avgMs": 4148.558097,
+      "minMs": 3751.110743000001,
+      "maxMs": 4563.287045,
+      "setupMs": 270.131944,
+      "maxRssMiB": 180.61328125,
+      "heapUsedMiB": 61.40081787109375,
+      "heapDeltaMiB": 32.42955017089844,
       "resultDigest": "c48039eab26792fd",
       "resultBytes": 3201
     },
@@ -373,17 +373,17 @@
       "mode": "Native JS (Envelope-Free)",
       "case": "int.factorial.101",
       "samples": [
-        376.32918899999993,
-        356.430564,
-        388.5096820000001
+        283.0694510000001,
+        272.8577120000001,
+        272.958797
       ],
-      "avgMs": 373.7564783333334,
-      "minMs": 356.430564,
-      "maxMs": 388.5096820000001,
-      "setupMs": 286.06741600000004,
-      "maxRssMiB": 136.64453125,
-      "heapUsedMiB": 31.114463806152344,
-      "heapDeltaMiB": 2.3198013305664062,
+      "avgMs": 276.29532000000006,
+      "minMs": 272.8577120000001,
+      "maxMs": 283.0694510000001,
+      "setupMs": 327.2140539999999,
+      "maxRssMiB": 137.83203125,
+      "heapUsedMiB": 44.09650421142578,
+      "heapDeltaMiB": 17.16822052001953,
       "resultDigest": "c48039eab26792fd",
       "resultBytes": 3201
     },
@@ -392,18 +392,18 @@
       "mode": "KIR-P Export",
       "case": "int.factorial.1174",
       "samples": [
-        10.815608999999995,
-        1.0835490000000618,
-        1.0305479999999534
+        8.410349999999994,
+        1.4188429999999244,
+        0.9390489999999545
       ],
-      "avgMs": 4.309902000000004,
-      "minMs": 1.0305479999999534,
-      "maxMs": 10.815608999999995,
-      "setupMs": 220.46696299999996,
-      "maxRssMiB": 133.5390625,
-      "heapUsedMiB": 32.78717041015625,
-      "heapDeltaMiB": 4.4296417236328125,
-      "resultDigest": "4ff8836980fd9bac",
+      "avgMs": 3.5894139999999575,
+      "minMs": 0.9390489999999545,
+      "maxMs": 8.410349999999994,
+      "setupMs": 212.455288,
+      "maxRssMiB": 136.30078125,
+      "heapUsedMiB": 33.31597900390625,
+      "heapDeltaMiB": 4.6004638671875,
+      "resultDigest": "460e43567c9b9b30",
       "resultBytes": 70629
     },
     {
@@ -412,7 +412,7 @@
       "case": "int.factorial.1174",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:279:28)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:405:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:429:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:451:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:371:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:429:27)"
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:336:28)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:428:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)"
     },
     {
       "status": "failed",
@@ -420,7 +420,7 @@
       "case": "int.factorial.1174",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at visit (file:///home/wojtek/gits/K/k.kir/Value.mjs:68:17)\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:78:3)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:126:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:205:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:219:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:246:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)"
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at visit (file:///home/wojtek/gits/K/k.kir/Value.mjs:68:17)\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:78:3)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:121:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:200:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:214:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:241:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)"
     },
     {
       "status": "failed",
@@ -428,25 +428,25 @@
       "case": "int.factorial.1174",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:427:12)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:392:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:418:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:392:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:404:34)\n    at fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)"
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:422:12)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:413:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:399:34)\n    at fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)"
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "int.factorial.242",
       "samples": [
-        26.32095700000002,
-        4.946364000000017,
-        1.0877570000000105
+        13.215677000000028,
+        1.8996379999999817,
+        2.064555999999925
       ],
-      "avgMs": 10.785026000000016,
-      "minMs": 1.0877570000000105,
-      "maxMs": 26.32095700000002,
-      "setupMs": 383.93202799999995,
-      "maxRssMiB": 137.68359375,
-      "heapUsedMiB": 31.682708740234375,
-      "heapDeltaMiB": 4.481513977050781,
-      "resultDigest": "e6e64a89c3888352",
+      "avgMs": 5.726623666666645,
+      "minMs": 1.8996379999999817,
+      "maxMs": 13.215677000000028,
+      "setupMs": 317.89886399999995,
+      "maxRssMiB": 135.91015625,
+      "heapUsedMiB": 32.60755920410156,
+      "heapDeltaMiB": 4.5083770751953125,
+      "resultDigest": "c2bc6e0750676d6c",
       "resultBytes": 70629
     },
     {
@@ -455,7 +455,7 @@
       "case": "int.factorial.242",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:279:28)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:405:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:429:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:451:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:371:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:429:27)"
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:336:28)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:428:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)"
     },
     {
       "status": "failed",
@@ -463,7 +463,7 @@
       "case": "int.factorial.242",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at visit (file:///home/wojtek/gits/K/k.kir/Value.mjs:68:17)\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:78:3)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:126:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:205:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:219:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:246:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)"
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:63:25)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:121:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:200:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:214:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:241:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:214:27)"
     },
     {
       "status": "failed",
@@ -471,62 +471,51 @@
       "case": "int.factorial.242",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at Object.hasOwn (<anonymous>)\n    at Function.hasOwn (<anonymous>)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:379:23)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:392:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:418:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:392:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:345:23)"
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:409:12)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:399:34)\n    at fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:358:61)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)"
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "int.gcd.90d",
       "samples": [
-        19.67549800000006,
-        2.8005170000000135,
-        1.1420490000000427
+        8.469226999999933,
+        0.9515900000000101,
+        1.067841000000044
       ],
-      "avgMs": 7.872688000000039,
-      "minMs": 1.1420490000000427,
-      "maxMs": 19.67549800000006,
-      "setupMs": 271.12407299999995,
-      "maxRssMiB": 134.62109375,
-      "heapUsedMiB": 34.42695617675781,
-      "heapDeltaMiB": 5.034431457519531,
-      "resultDigest": "1ce0abf45a78a0c9",
+      "avgMs": 3.496219333333329,
+      "minMs": 0.9515900000000101,
+      "maxMs": 8.469226999999933,
+      "setupMs": 204.96669300000008,
+      "maxRssMiB": 130.1015625,
+      "heapUsedMiB": 34.04716491699219,
+      "heapDeltaMiB": 4.961799621582031,
+      "resultDigest": "988e37e1390409fe",
       "resultBytes": 85450
     },
     {
-      "status": "ok",
+      "status": "failed",
       "mode": "kVM Interpreter (Env-Free)",
       "case": "int.gcd.90d",
-      "samples": [
-        1942.1233239999997,
-        1828.8011559999995,
-        1825.0284249999995
-      ],
-      "avgMs": 1865.3176349999994,
-      "minMs": 1825.0284249999995,
-      "maxMs": 1942.1233239999997,
-      "setupMs": 355.19684799999993,
-      "maxRssMiB": 151.40234375,
-      "heapUsedMiB": 54.754852294921875,
-      "heapDeltaMiB": 27.228134155273438,
-      "resultDigest": "5d1377581b4f4558",
-      "resultBytes": 783
+      "code": 1,
+      "signal": null,
+      "stderr": "Error: kVM interpreter: unsupported intrinsic '_log!'\n    at unsupportedIntrinsic (file:///home/wojtek/gits/K/k.kir/intrinsics.mjs:31:10)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:437:13)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:428:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:444:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)"
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Aware)",
       "case": "int.gcd.90d",
       "samples": [
-        10963.931507,
-        8309.615308,
-        7767.351914999999
+        8227.973388,
+        6821.369068,
+        5990.7117610000005
       ],
-      "avgMs": 9013.63291,
-      "minMs": 7767.351914999999,
-      "maxMs": 10963.931507,
-      "setupMs": 368.78589200000005,
-      "maxRssMiB": 179.52734375,
-      "heapUsedMiB": 33.15961456298828,
-      "heapDeltaMiB": 4.081184387207031,
+      "avgMs": 7013.351405666667,
+      "minMs": 5990.7117610000005,
+      "maxMs": 8227.973388,
+      "setupMs": 240.995322,
+      "maxRssMiB": 191.1328125,
+      "heapUsedMiB": 25.51422119140625,
+      "heapDeltaMiB": -1.9092636108398438,
       "resultDigest": "5d1377581b4f4558",
       "resultBytes": 783
     },
@@ -535,17 +524,17 @@
       "mode": "Native JS (Envelope-Free)",
       "case": "int.gcd.90d",
       "samples": [
-        788.4588520000001,
-        590.2882789999999,
-        589.282189
+        439.43796899999995,
+        464.84877299999994,
+        481.4883480000001
       ],
-      "avgMs": 656.0097733333333,
-      "minMs": 589.282189,
-      "maxMs": 788.4588520000001,
-      "setupMs": 339.77987700000006,
-      "maxRssMiB": 147.0234375,
-      "heapUsedMiB": 41.518333435058594,
-      "heapDeltaMiB": 12.355712890625,
+      "avgMs": 461.92503000000005,
+      "minMs": 439.43796899999995,
+      "maxMs": 481.4883480000001,
+      "setupMs": 239.19714199999999,
+      "maxRssMiB": 144.3203125,
+      "heapUsedMiB": 54.988685607910156,
+      "heapDeltaMiB": 27.740333557128906,
       "resultDigest": "5d1377581b4f4558",
       "resultBytes": 783
     },
@@ -554,18 +543,18 @@
       "mode": "KIR-P Export",
       "case": "int.times.220d",
       "samples": [
-        15.956142,
-        2.1099719999999706,
-        3.393895999999927
+        8.173891000000026,
+        1.997555000000034,
+        1.6780540000000883
       ],
-      "avgMs": 7.1533366666666325,
-      "minMs": 2.1099719999999706,
-      "maxMs": 15.956142,
-      "setupMs": 400.21362999999997,
-      "maxRssMiB": 134.20703125,
-      "heapUsedMiB": 33.78050231933594,
-      "heapDeltaMiB": 4.154655456542969,
-      "resultDigest": "b70eca38d73df49c",
+      "avgMs": 3.9498333333333826,
+      "minMs": 1.6780540000000883,
+      "maxMs": 8.173891000000026,
+      "setupMs": 284.55508699999996,
+      "maxRssMiB": 132.6953125,
+      "heapUsedMiB": 34.24736785888672,
+      "heapDeltaMiB": 4.037803649902344,
+      "resultDigest": "bf5a40b8dc87fe12",
       "resultBytes": 64670
     },
     {
@@ -574,7 +563,7 @@
       "case": "int.times.220d",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at Map.set (<anonymous>)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:292:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:405:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:429:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:451:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:371:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:268:17)"
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:336:28)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:444:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:428:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)"
     },
     {
       "status": "failed",
@@ -582,26 +571,15 @@
       "case": "int.times.220d",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at visit (file:///home/wojtek/gits/K/k.kir/Value.mjs:68:17)\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:78:3)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:126:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:205:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:219:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:246:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:151:23)"
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at visit (file:///home/wojtek/gits/K/k.kir/Value.mjs:68:17)\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:78:3)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:121:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:200:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:214:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:241:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)"
     },
     {
-      "status": "ok",
+      "status": "failed",
       "mode": "Native JS (Envelope-Free)",
       "case": "int.times.220d",
-      "samples": [
-        1735.435947,
-        1766.961644,
-        1777.761754
-      ],
-      "avgMs": 1760.053115,
-      "minMs": 1735.435947,
-      "maxMs": 1777.761754,
-      "setupMs": 329.7012719999999,
-      "maxRssMiB": 176.859375,
-      "heapUsedMiB": 67.75201416015625,
-      "heapDeltaMiB": 38.17759704589844,
-      "resultDigest": "fe1d1bb07a950218",
-      "resultBytes": 8763
+      "code": 1,
+      "signal": null,
+      "stderr": "RangeError: Maximum call stack size exceeded\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:372:12)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:413:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:399:34)\n    at fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)"
     }
   ]
 }

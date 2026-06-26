@@ -145,7 +145,8 @@ Standalone helpers live in `objects/`:
 ```sh
 k-compile path/to/program.k path/to/program.ko
 k-compile path/to/library.k path/to/library.klib
-k-compile path/to/program.k path/to/program.kvm
+k-compile --input-pattern '[["closed-product",[]]]' path/to/program.k path/to/program.kvm
+k-compile --input-type '$ bit = <{} off, {} on>; $bit' path/to/program.k path/to/program.kvm
 k-decompile path/to/program.ko path/to/program.decompiled.k
 k-extract-aliases path/to/library.klib path/to/aliases.k
 ```

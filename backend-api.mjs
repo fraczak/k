@@ -1,13 +1,21 @@
 export { annotate } from "./index.mjs";
-export { lowerToKVM, executeKVM } from "./kvm.mjs";
+export { KVM_FORMAT, KVM_VERSION, lowerToKVM, executeKVM, objectToKVMArtifact } from "./kvm.mjs";
 export { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 export { exportPatternGraph, NODE_KIND } from "./codecs/runtime/codec.mjs";
 export { patternToPropertyList, propertyListToPattern } from "./codecs/runtime/pattern-json.mjs";
 export { Value, fromObject, isProduct, isVariant, isValue } from "./Value.mjs";
-export { KIR_FORMAT, KIR_VERSION, objectToKIRP, retypeObjectRelation } from "./kir.mjs";
+export { KIR_FORMAT, KIR_VERSION, objectToKIRP, retypeObjectRelation, retypeObjectRelationForBackend } from "./kir.mjs";
 export { decodeObject, loadLibrary } from "./object.mjs";
 export { createState, evaluateInput } from "./repl.mjs";
 export { parse as parseFloat64, print as printFloat64 } from "./codecs/ieee.mjs";
 export { valueForCode } from "./repl-codecs.mjs";
 export { default as codes } from "./codes.mjs";
 export { default as run, run_converged } from "./run.mjs";
+export {
+  intrinsicDefinitions,
+  jsIntrinsicFunctions,
+  getIntrinsic,
+  isIntrinsic,
+  isIdentityIntrinsic,
+  unsupportedIntrinsic
+} from "./intrinsics.mjs";

@@ -1,7 +1,11 @@
 import assert from "node:assert";
 import { compileLibraryBuffer, compileObjectBuffer, decodeObject } from "../object.mjs";
 import { objectToKIRP, retypeObjectRelation } from "../kir.mjs";
-import { objectToKIRP as backendObjectToKIRP, retypeObjectRelation as backendRetypeObjectRelation } from "../backend-api.mjs";
+import {
+  objectToKIRP as backendObjectToKIRP,
+  objectToKVMArtifact,
+  retypeObjectRelation as backendRetypeObjectRelation
+} from "../backend-api.mjs";
 import { validateKIRR } from "../objects/validate.mjs";
 
 const object = decodeObject(compileObjectBuffer(`
@@ -36,6 +40,24 @@ assert.match(retyped.instanceKey, /^__main__@[0-9a-f]{16}$/);
 assert.deepEqual(retyped.outputPattern, [["closed-product", []]]);
 assert.deepEqual(retyped.callSites.map((site) => site.callee), ["__kir_target__"]);
 assert.equal(backendRetypeObjectRelation(object, "__main__", [["open-product", []]]).layer, "KIR-R");
+assert.throws(
+  () => objectToKVMArtifact(object, "__main__", [["open-product", []]]),
+  /\.kvm emission requires a singleton input pattern/
+);
+const kvmArtifact = objectToKVMArtifact(object, "__main__", [
+  ["closed-product", [["x", 1]]],
+  ["closed-product", []]
+]);
+assert.equal(kvmArtifact.format, "k-vm");
+assert.equal(kvmArtifact.layer, "KVM-R");
+assert.equal(kvmArtifact.entry, "__main__");
+assert.deepEqual(kvmArtifact.inputPattern, [
+  ["closed-product", [["x", 1]]],
+  ["closed-product", []]
+]);
+assert.deepEqual(kvmArtifact.outputPattern, [["closed-product", []]]);
+assert.ok(kvmArtifact.functions.__main__);
+assert.equal(kvmArtifact.kir.layer, "KIR-R");
 
 const helperObject = decodeObject(compileObjectBuffer("pick = .x; {.a pick left, .b pick right}", { source: "kir-helper.k" }));
 const helperRetyped = validateKIRR(retypeObjectRelation(helperObject, "__main__", [

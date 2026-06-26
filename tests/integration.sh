@@ -20,11 +20,24 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 printf '[["open-product",[]]]' > "$TMP_DIR/input.pattern.json"
 ./kir.mjs --retype __main__ --input-pattern "$TMP_DIR/input.pattern.json" "$TMP_DIR/inline.ko" > "$TMP_DIR/inline.kir-r.json"
 ./objects/validate.mjs --kir-r "$TMP_DIR/inline.kir-r.json" | grep -q '^OK KIR-R$'
+printf '[["closed-product",[]]]' > "$TMP_DIR/unit.pattern.json"
 printf '()' | ./objects/compile.mjs > "$TMP_DIR/stdin.ko"
 ./objects/decompile.mjs "$TMP_DIR/stdin.ko" | grep -q '^----- main -----$'
-./objects/compile.mjs --format kvm '()' | grep -q '"__main__"'
-./objects/compile.mjs "$TMP_DIR/stdin.ko" "$TMP_DIR/stdin.kvm"
+./objects/compile.mjs --input-pattern "$TMP_DIR/unit.pattern.json" --format kvm '()' | grep -q '"format": "k-vm"'
+./objects/compile.mjs --input-pattern "$TMP_DIR/unit.pattern.json" "$TMP_DIR/stdin.ko" "$TMP_DIR/stdin.kvm"
 grep -q '"__main__"' "$TMP_DIR/stdin.kvm"
+./objects/compile.mjs --input-type '$ unit = {}; $unit' '()' "$TMP_DIR/stdin-type.kvm"
+grep -q '"format": "k-vm"' "$TMP_DIR/stdin-type.kvm"
+if ./objects/compile.mjs --input-pattern "$TMP_DIR/input.pattern.json" --format kvm '()' > "$TMP_DIR/open-pattern-kvm.out" 2> "$TMP_DIR/open-pattern-kvm.err"; then
+  echo "expected k-compile --format kvm with non-singleton input pattern to fail" >&2
+  exit 1
+fi
+grep -q -- '.kvm emission requires a singleton input pattern' "$TMP_DIR/open-pattern-kvm.err"
+if ./objects/compile.mjs --format kvm '()' > "$TMP_DIR/no-pattern-kvm.out" 2> "$TMP_DIR/no-pattern-kvm.err"; then
+  echo "expected k-compile --format kvm without --input-pattern to fail" >&2
+  exit 1
+fi
+grep -q -- '--input-pattern or --input-type is required when producing .kvm' "$TMP_DIR/no-pattern-kvm.err"
 ./objects/compile.mjs 'id = ();' "$TMP_DIR/export.klib"
 ./objects/compile.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' "$TMP_DIR/export.ko"
 ./objects/decompile.mjs "$TMP_DIR/export.ko" | grep -q '^----- main -----$'
