@@ -40,18 +40,19 @@ Alternative:
   but makes object behavior depend on the compiler version. Do not use this for
   KIR.
 
-### KIR-R: Retyped IR
+### Retyped KIR-P
 
-KIR-R is produced from `KIR-P + input envelope pattern`.
+Retyped KIR-P is produced from `KIR-P + input envelope pattern`.
 
-KIR-R must:
+Retyping must:
 
 - be equivalent to typing the entry expression `?P __main__`;
 - derive the output pattern for that invocation;
 - validate filters and pattern constraints before value execution;
 - preserve the same value-level partial function semantics;
-- support multiple pattern contexts for the same helper relation;
-- be cacheable by relation hash and input pattern hash.
+- support multiple pattern contexts for the same helper relation internally;
+- be cacheable by relation hash and input pattern hash without serializing that
+  cache key into KIR.
 
 Alternative:
 
@@ -61,8 +62,8 @@ Alternative:
 
 ### KIR-M: Backend IR
 
-KIR-M is produced from KIR-R after call-site pattern contexts, layout, and ABI
-decisions are fixed.
+KIR-M is produced from retyped KIR-P after call-site pattern contexts, layout,
+and ABI decisions are fixed.
 
 KIR-M should:
 
@@ -73,16 +74,19 @@ KIR-M should:
 - require converged type derivation for every compiled relation;
 - target LLVM, Wasm, C, or another backend.
 
-Alternative:
+Current baseline:
 
-- Compile KIR-P directly. This is useful for a correctness experiment, but it
-  recreates the polymorphic interpreter and is not the final performance path.
+- Lower KIR-P directly to kVM. This gives a single backend-facing contract for
+  both polymorphic and retyped relations. Later KIR-M layout work can specialize
+  the same KIR-P input further instead of adding another serialized relation
+  shape.
 
 Relationship to kVM:
 
 - [KVM_EXECUTION_MODEL.md](KVM_EXECUTION_MODEL.md) sketches kVM as the concrete
   execution contract for KIR-M.
-- KIR-R remains the retyping contract.
+- retyping remains a pass that emits ordinary KIR-P.
+- kVM lowering consumes KIR-P relation bodies directly.
 - kVM keeps product and union as structured regions so backends can choose
   sequential execution first, then safe parallel scheduling later.
 
@@ -244,9 +248,9 @@ Input:
 
 Output:
 
-- KIR-R relation;
+- retyped KIR-P relation;
 - output pattern;
-- call-site pattern summary.
+- compiler-local call-site worklist.
 
 Algorithm:
 
@@ -266,7 +270,7 @@ Alternative:
 Safe baseline:
 
 - keep current envelope-carrying execution;
-- use KIR-R only to derive the top-level output pattern;
+- use retyped KIR-P only to derive the top-level output pattern;
 - treat filters as already validated by retyping.
 
 Optimized mode:
@@ -290,7 +294,7 @@ f@P1
 f@P2
 ```
 
-KIR-R should model these as separate instances:
+The retyping cache should model these as separate instances:
 
 ```text
 relation hash + input pattern hash
@@ -313,9 +317,9 @@ relation-hash + input-pattern-hash
 
 Cache value:
 
-- KIR-R relation;
+- retyped KIR-P relation;
 - output pattern;
-- call-site pattern summary;
+- optional compiler-local call-site worklist;
 - optional backend artifact.
 
 Alternative:
@@ -436,12 +440,12 @@ Alternative:
 - `k-inspect-object`: print object sections, KIR-P, aliases, metadata, and
   pattern summaries.
 - `k-validate-object`: validate `.ko` and `.klib` schemas and references.
-- `k-retype-object`: precompute KIR-R for one relation and input pattern.
+- `k-retype-object`: precompute retyped KIR-P for one relation and input pattern.
 - Retyping heat counters in the JS runtime.
 - Pattern-hash backend artifact cache.
 - Optional binary executable object payload after KIR stabilizes.
 - Minimal C backend before LLVM.
-- Wasm KIR-R interpreter before native LLVM.
+- Wasm retyped-KIR interpreter before native LLVM.
 
 ## Implementation Order
 
@@ -452,8 +456,8 @@ Alternative:
 5. Add `objects/validate.mjs`.
 6. Add conformance fixture format and runner.
 7. Add entry retyping for `?P __main__`.
-8. Add a KIR-R JS evaluator or retyped execution wrapper.
-9. Compare KIR-R execution against `run.mjs`.
+8. Add a retyped-KIR JS evaluator or retyped execution wrapper.
+9. Compare retyped-KIR execution against `run.mjs`.
 10. Add call-site retyping for helper relations.
 11. Add retyping cache.
 12. Reject non-converged relations in LLVM/Wasm compilation.
@@ -462,6 +466,6 @@ Alternative:
 Rule:
 
 - KIR-P is the portable semantic contract.
-- KIR-R is the retyping contract.
+- retyping emits KIR-P and may use local cache keys/worklists.
 - KIR-M is backend material; kVM is the proposed concrete execution model for
   that material.

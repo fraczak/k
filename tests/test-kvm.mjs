@@ -1,17 +1,25 @@
 import assert from "node:assert";
 import k from "../index.mjs";
-import { lowerToKVM, executeKVM } from "../kvm.mjs";
+import { lowerKIRRelationToKVM, executeKVM } from "../kvm.mjs";
 import codes from "../codes.mjs";
 import { fromObject } from "../Value.mjs";
 import run, { run_converged } from "../run.mjs";
+import { compileObjectBuffer, decodeObject } from "../object.mjs";
+import { objectToKIRP } from "../kir.mjs";
 
 function runKVM(script, data, options = {}) {
-  const defs = k.annotate(script, {
+  const object = decodeObject(compileObjectBuffer(script, {
     convergence: { strategy: "auto" }
-  });
-  const mainRel = defs.rels.__main__;
-  const kvmFunc = lowerToKVM(mainRel, "__main__");
-  const context = { rels: defs.rels, findCode: codes.find, options };
+  }));
+  const kir = objectToKIRP(object);
+  const mainRel = kir.rels[kir.main];
+  const kvmFunc = lowerKIRRelationToKVM(mainRel, kir.main, { codes: kir.codes });
+  const context = {
+    rels: kir.rels,
+    codes: kir.codes,
+    findCode: (hash) => kir.codes[hash] || codes.find(hash),
+    options
+  };
   return executeKVM(kvmFunc, fromObject(data), context);
 }
 

@@ -3,12 +3,23 @@
     "version": "6.3.3",
     "description": "k — a language for composing first-order partial functions over algebraic data types (products and tagged unions); includes runtime, type derivation, REPL, and codec toolchain",
     "main": "index.mjs",
+    "workspaces": [
+        "backends/llvm",
+        "backends/wasm"
+    ],
     "scripts": {
         "prepare": "jiwson -m es6 parser.jison -o parser.mjs; jiwson -m es6 valueParser.jison -o valueParser.mjs; ",
         "test": "node scripts/run-tests.mjs",
+        "test:backends": "npm --prefix backends/llvm test && npm --prefix backends/wasm test",
+        "test:llvm": "npm --prefix backends/llvm test",
+        "test:wasm": "npm --prefix backends/wasm test",
         "conformance": "node conformance/run.mjs",
         "benchmark": "node scripts/benchmark.mjs",
         "benchmark:html": "node scripts/render-benchmark.mjs",
+        "perf:llvm:ieee": "npm --prefix backends/llvm run perf:ieee",
+        "perf:llvm:int": "npm --prefix backends/llvm run perf:int",
+        "perf:wasm:ieee": "npm --prefix backends/wasm run perf:ieee",
+        "perf:wasm:int": "npm --prefix backends/wasm run perf:int",
         "hooks:install": "git config core.hooksPath scripts/git-hooks",
         "perf:idempotency": "node scripts/benchmark-idempotency.mjs",
         "deps:graph": "node scripts/generate-dependency-graph.mjs"

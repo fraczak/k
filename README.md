@@ -199,12 +199,16 @@ Installed binary names are `k-` plus the source basename without `.mjs`, except
 for `k.mjs` itself. Source names that already include `k-`, such as
 `codecs/k-parse.mjs`, keep that name.
 
-## WebAssembly Backend
+## Backends
 
-The experimental WebAssembly backend lives in the separate
-[`fraczak/k-wasm`](https://github.com/fraczak/k-wasm) repository. Keeping the
-backend separate avoids adding its WABT dependency to the core runtime. External
-backends integrate with the compiler and binary codecs through
+Experimental backends live under [`backends/`](backends/) as npm workspaces:
+
+- [`backends/wasm`](backends/wasm/) lowers typed k programs through kVM into
+  WebAssembly artifacts.
+- [`backends/llvm`](backends/llvm/) lowers retyped KIR-P into LLVM IR and
+  native test executables.
+
+Both backends integrate with the compiler and binary codecs through
 [`backend-api.mjs`](backend-api.mjs).
 
 ## Node.js API
@@ -290,6 +294,8 @@ compose with `.result` when only the floating-point value is needed.
 ```bash
 npm run prepare   # regenerate parsers from .jison grammars
 npm test          # run the fail-fast full suite with per-test timings
+npm run test:wasm # run the WebAssembly backend tests
+npm run test:llvm # run the LLVM backend tests
 ```
 
 The test runner prints each test before execution and reports its elapsed time

@@ -1,14 +1,15 @@
 import assert from "node:assert";
 import { compileLibraryBuffer, compileObjectBuffer, decodeObject } from "../object.mjs";
 import { objectToKIRP, retypeObjectRelation } from "../kir.mjs";
-import { validateKIRP, validateKIRR, validateObjectPayload } from "../objects/validate.mjs";
+import { validateKIRP, validateObjectPayload } from "../objects/validate.mjs";
 
 const object = decodeObject(compileObjectBuffer("id = (); id", { source: "validate.k" }));
 assert.equal(validateObjectPayload(object), object);
 assert.equal(validateKIRP(objectToKIRP(object)).format, "k-ir");
-const retyped = validateKIRR(retypeObjectRelation(object, "__main__", [["open-product", []]]));
-assert.equal(retyped.layer, "KIR-R");
-assert.match(retyped.instanceKey, /^__main__@[0-9a-f]{16}$/);
+const retyped = validateKIRP(retypeObjectRelation(object, "__main__", [["open-product", []]]));
+assert.equal(retyped.layer, "KIR-P");
+assert.equal(retyped.kind, "executable");
+assert(!("instanceKey" in retyped));
 
 const library = decodeObject(compileLibraryBuffer("succ = |succ;\n", { source: "validate-lib.k" }));
 assert.equal(validateObjectPayload(library), library);

@@ -1,5 +1,5 @@
 export { annotate } from "./index.mjs";
-export { KVM_FORMAT, KVM_VERSION, lowerToKVM, executeKVM, objectToKVMArtifact } from "./kvm.mjs";
+export { KVM_FORMAT, KVM_VERSION, lowerKIRRelationToKVM, lowerKIRToKVM, lowerToKVM, executeKVM, objectToKVMArtifact } from "./kvm.mjs";
 export { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 export { exportPatternGraph, NODE_KIND } from "./codecs/runtime/codec.mjs";
 export { patternToPropertyList, propertyListToPattern } from "./codecs/runtime/pattern-json.mjs";

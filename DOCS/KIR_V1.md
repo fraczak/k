@@ -180,34 +180,35 @@ The intended backend pipeline remains:
 k source
   -> .ko / .klib object
   -> KIR-P
-  -> KIR-R retyped for an input envelope
+  -> retyped KIR-P for an input envelope
   -> KIR-M / kVM
   -> LLVM / Wasm / C / other backend
 ```
 
-KIR-P is the shared semantic object contract. KIR-R and KIR-M are separate
-contracts and should not be encoded by overloading KIR-P fields.
+KIR-P is the shared semantic object contract. Retyping produces another KIR-P
+object whose entry relation is specialized by an input envelope. KIR-M remains a
+separate backend contract and should not be encoded by overloading KIR-P fields.
+The current kVM lowerer consumes KIR-P relation bodies directly.
 
-## KIR-R Prototype
+## Retyping
 
-`retypeObjectRelation(object, relationName, inputPattern)` exports the first
-KIR-R shape. It re-runs existing type derivation as if the entry program were:
+`retypeObjectRelation(object, relationName, inputPattern)` exports retyped
+KIR-P. It re-runs existing type derivation as if the entry program were:
 
 ```k
 ?inputPattern relationName
 ```
 
-The result records:
+The result is a normal KIR-P executable object:
 
-- `layer: "KIR-R"`;
-- the target `relation`;
-- `instanceKey`, built from the relation name and input-pattern hash;
-- the concrete `inputPattern` property list;
-- the derived `outputPattern` property list;
-- the typed `entry` relation in KIR expression form;
-- `callSites`, one entry per typed `ref` expression.
+- `layer: "KIR-P"`;
+- `kind: "executable"`;
+- `main` naming the specialized entry relation;
+- relation `inputPattern` and `outputPattern` roots in the entry relation's
+  `patternGraph`;
+- ordinary KIR relation bodies in `rels`.
 
-This is the safe baseline: it preserves envelope-aware execution semantics and
-uses KIR-R to make the specialized entry pattern explicit. Call-site instance
-splitting is represented by call-site `instanceKey` values; KIR-M layout is a
-later contract.
+This is the safe baseline: it preserves envelope-aware execution semantics while
+making the specialized entry pattern explicit through ordinary KIR-P relation
+typing. Relation/input-pattern cache keys and call-site worklists are local
+compiler data; they are not part of the serialized KIR artifact.

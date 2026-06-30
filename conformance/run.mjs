@@ -8,7 +8,7 @@ import k from "../index.mjs";
 import { parseValue } from "../valueIO.mjs";
 import { compileObjectBuffer, decodeObject, objectToFunction } from "../object.mjs";
 import { objectToKIRP, retypeObjectRelation } from "../kir.mjs";
-import { validateKIRP, validateKIRR } from "../objects/validate.mjs";
+import { validateKIRP } from "../objects/validate.mjs";
 import { exportPatternGraph } from "../codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
 
@@ -92,8 +92,9 @@ function runRetyped(fixture) {
   const mainRel = object.rels[object.main];
   const inputPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
   const inputPattern = fixture.input.pattern || patternToPropertyList(exportPatternGraph(mainRel.typePatternGraph, inputPatternId));
-  const kirr = validateKIRR(retypeObjectRelation(object, object.main, inputPattern));
-  if (kirr.relation !== object.main) throw new Error(`${fixture.name}/retyped: relation mismatch`);
+  const kir = validateKIRP(retypeObjectRelation(object, object.main, inputPattern));
+  if (kir.kind !== "executable") throw new Error(`${fixture.name}/retyped: expected executable KIR`);
+  if (!kir.rels[kir.main]) throw new Error(`${fixture.name}/retyped: main relation missing`);
 }
 
 function runMode(mode, fixture) {

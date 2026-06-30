@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { argv, exit, stdin, stdout } from "node:process";
@@ -235,7 +234,7 @@ export function objectToKIRP(object) {
 
 function resolveRelation(object, relationName = null) {
   const name = relationName || object.main;
-  if (!name) throw new Error("KIR-R retyping requires a relation name");
+  if (!name) throw new Error("KIR retyping requires a relation name");
   if (object.rels?.[name]) return { name, rel: object.rels[name] };
 
   const alias = object.relAlias?.[name];
@@ -276,100 +275,37 @@ function expPatternPropertyList(rel, exp, index) {
   return patternToPropertyList(exportPatternGraph(rel.typePatternGraph, root));
 }
 
-function patternHash(pattern) {
-  return crypto.createHash("sha256")
-    .update(JSON.stringify(stableObject(pattern)))
-    .digest("hex")
-    .slice(0, 16);
-}
-
-function relationInstanceKey(relation, inputPattern) {
-  return `${relation}@${patternHash(inputPattern)}`;
-}
-
-function collectCallSites(retypedObject) {
-  const callSites = [];
-
-  function visit(caller, rel, exp, path = []) {
-    if (!exp) return;
-    if (exp.op === "ref") {
-      const inputPattern = expPatternPropertyList(rel, exp, 0);
-      const outputPattern = expPatternPropertyList(rel, exp, 1);
-      callSites.push({
-        caller,
-        callee: exp.ref,
-        path,
-        inputPattern,
-        outputPattern,
-        inputPatternHash: patternHash(inputPattern),
-        instanceKey: relationInstanceKey(exp.ref, inputPattern)
-      });
-      return;
-    }
-
-    if (exp.op === "comp") {
-      exp.comp.forEach((child, index) => visit(caller, rel, child, [...path, "comp", index]));
-    } else if (exp.op === "union") {
-      exp.union.forEach((child, index) => visit(caller, rel, child, [...path, "union", index]));
-    } else if (exp.op === "product") {
-      exp.product.forEach(({ label, exp: child }) => visit(caller, rel, child, [...path, "product", label]));
-    }
-  }
-
-  for (const [name, rel] of Object.entries(retypedObject.rels || {})) {
-    visit(name, rel, rel.def);
-  }
-
-  return callSites;
-}
-
 export function retypeObjectRelationForBackend(object, relationName, inputPattern, options = {}) {
   if (object?.format !== "k-object") {
-    throw new Error("KIR-R retyping requires a k object");
+    throw new Error("KIR retyping requires a k object");
   }
   if (!Array.isArray(inputPattern)) {
-    throw new Error("KIR-R retyping requires an input pattern property list");
+    throw new Error("KIR retyping requires an input pattern property list");
   }
 
   const target = resolveRelation(object, relationName);
   const source = `?${propertyListToFilter(inputPattern)} __kir_target__`;
   const retypedObject = hydrateObject(compileObject(source, {
-    source: options.source || "<kir-r>",
+    source: options.source || "<kir-retype>",
     libraries: [relationLibraryWithTarget(object, target.rel)]
   }));
-  const kirp = objectToKIRP(retypedObject);
-  const entry = kirp.rels.__main__;
-  const retypedRel = retypedObject.rels.__main__;
+  const kir = objectToKIRP(retypedObject);
+  const entryName = retypedObject.main || "__main__";
+  const retypedRel = retypedObject.rels[entryName];
   const entryInputPattern = relationPatternPropertyList(retypedRel, 0);
-  const relation = relationName || object.main;
-
-  const kirR = {
-    format: KIR_FORMAT,
-    version: KIR_VERSION,
-    layer: "KIR-R",
-    sourceFormat: object.format,
-    relation,
-    instanceKey: relationInstanceKey(relation, entryInputPattern),
-    inputPattern: clone(inputPattern),
-    outputPattern: relationPatternPropertyList(retypedRel, 1),
-    callSites: collectCallSites(retypedObject),
-    entry,
-    codes: kirp.codes,
-    rels: kirp.rels,
-    relAlias: kirp.relAlias,
-    compileStats: kirp.compileStats,
-    meta: kirp.meta
-  };
 
   return {
-    relation,
+    relation: relationName || object.main,
     retypedObject,
-    kirR
+    kir,
+    entryName,
+    inputPattern: entryInputPattern,
+    outputPattern: relationPatternPropertyList(retypedRel, 1)
   };
 }
 
 export function retypeObjectRelation(object, relationName, inputPattern, options = {}) {
-  return retypeObjectRelationForBackend(object, relationName, inputPattern, options).kirR;
+  return retypeObjectRelationForBackend(object, relationName, inputPattern, options).kir;
 }
 
 export { KIR_FORMAT, KIR_VERSION };
@@ -392,11 +328,11 @@ function helpText() {
     "  object-file    Input .ko or .klib file. Reads from stdin when omitted.",
     "",
     "Options:",
-    "  --retype rel           Export KIR-R for relation rel.",
+    "  --retype rel           Export retyped KIR-P for relation rel.",
     "  --input-pattern json   Input pattern property-list JSON, or a file containing it.",
     "  -h, --help     Show this help.",
     "",
-    "KIR-P is an inspection/export view; it does not change the stored object format."
+    "KIR-P is an inspection/export view; retyping also emits KIR-P."
   ].join("\n");
 }
 

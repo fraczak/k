@@ -18,8 +18,8 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 ./kir.mjs "$TMP_DIR/inline.ko" > "$TMP_DIR/inline.kir.json"
 ./objects/validate.mjs --kir "$TMP_DIR/inline.kir.json" | grep -q '^OK KIR-P$'
 printf '[["open-product",[]]]' > "$TMP_DIR/input.pattern.json"
-./kir.mjs --retype __main__ --input-pattern "$TMP_DIR/input.pattern.json" "$TMP_DIR/inline.ko" > "$TMP_DIR/inline.kir-r.json"
-./objects/validate.mjs --kir-r "$TMP_DIR/inline.kir-r.json" | grep -q '^OK KIR-R$'
+./kir.mjs --retype __main__ --input-pattern "$TMP_DIR/input.pattern.json" "$TMP_DIR/inline.ko" > "$TMP_DIR/inline.retyped.kir.json"
+./objects/validate.mjs --kir "$TMP_DIR/inline.retyped.kir.json" | grep -q '^OK KIR-P$'
 printf '[["closed-product",[]]]' > "$TMP_DIR/unit.pattern.json"
 printf '()' | ./objects/compile.mjs > "$TMP_DIR/stdin.ko"
 ./objects/decompile.mjs "$TMP_DIR/stdin.ko" | grep -q '^----- main -----$'

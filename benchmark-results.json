@@ -1,410 +1,659 @@
 {
-  "generatedAt": "2026-06-26T04:01:56.679Z",
+  "generatedAt": "2026-06-30T02:50:00.030Z",
   "node": "v22.22.2",
   "platform": "linux arm64",
   "cpuCount": 8,
   "samples": 3,
   "timeoutMs": 120000,
-  "parallelJobs": 8,
+  "parallelJobs": 1,
   "results": [
     {
       "status": "ok",
+      "mode": "k-llvm-jit",
+      "case": "ieee.add",
+      "samples": [
+        1.3456740000001446,
+        1.2718399999998837,
+        0.9609219999997549
+      ],
+      "avgMs": 1.1928119999999278,
+      "minMs": 0.9609219999997549,
+      "maxMs": 1.3456740000001446,
+      "setupMs": 2773.418172,
+      "warmupMs": 2.3167200000002595,
+      "maxRssMiB": 423.27734375,
+      "heapUsedMiB": 126.32197570800781,
+      "heapDeltaMiB": 8.247421264648438,
+      "resultDigest": "9fea5b11f3da8d36",
+      "resultBytes": 349
+    },
+    {
+      "status": "ok",
+      "mode": "k-wasm",
+      "case": "ieee.add",
+      "samples": [
+        0.5172939999997652,
+        0.3036259999998947,
+        0.27404299999989234
+      ],
+      "avgMs": 0.36498766666651744,
+      "minMs": 0.27404299999989234,
+      "maxMs": 0.5172939999997652,
+      "setupMs": 2441.242088,
+      "warmupMs": 27.264720000000125,
+      "maxRssMiB": 844.65625,
+      "heapUsedMiB": 66.50945281982422,
+      "heapDeltaMiB": 5.133399963378906,
+      "resultDigest": "9fea5b11f3da8d36",
+      "resultBytes": 349
+    },
+    {
+      "status": "ok",
       "mode": "KIR-P Export",
       "case": "ieee.add",
       "samples": [
-        71.2939180000003,
-        37.02117700000008,
-        27.641861000000063
+        56.96482699999979,
+        48.326492000000144,
+        51.74480100000028
       ],
-      "avgMs": 45.31898533333348,
-      "minMs": 27.641861000000063,
-      "maxMs": 71.2939180000003,
-      "setupMs": 2410.584097,
-      "maxRssMiB": 226.42578125,
-      "heapUsedMiB": 102.04212951660156,
-      "heapDeltaMiB": 0.13207244873046875,
-      "resultDigest": "8720331be87083f7",
-      "resultBytes": 2205342
+      "avgMs": 52.345373333333406,
+      "minMs": 48.326492000000144,
+      "maxMs": 56.96482699999979,
+      "setupMs": 2011.771515,
+      "warmupMs": 62.879565000000184,
+      "maxRssMiB": 343.3359375,
+      "heapUsedMiB": 229.12977600097656,
+      "heapDeltaMiB": 16.3548583984375,
+      "resultDigest": "840daff898d62bae",
+      "resultBytes": 1127651
     },
     {
       "status": "ok",
       "mode": "kVM Interpreter (Env-Free)",
       "case": "ieee.add",
       "samples": [
-        425.9662079999998,
-        11.206704000000173,
-        13.934681000000182
+        11.032056000000011,
+        4.941357999999809,
+        3.867520000000013
       ],
-      "avgMs": 150.36919766666674,
-      "minMs": 11.206704000000173,
-      "maxMs": 425.9662079999998,
-      "setupMs": 2394.819986,
-      "maxRssMiB": 227.6484375,
-      "heapUsedMiB": 118.07672882080078,
-      "heapDeltaMiB": 14.850654602050781,
-      "resultDigest": "d7b0ed6ef57dd554",
-      "resultBytes": 316
+      "avgMs": 6.6136446666666115,
+      "minMs": 3.867520000000013,
+      "maxMs": 11.032056000000011,
+      "setupMs": 1392.386406,
+      "warmupMs": 50.70350499999995,
+      "maxRssMiB": 271.1875,
+      "heapUsedMiB": 149.8876953125,
+      "heapDeltaMiB": -4.388450622558594,
+      "resultDigest": "9fea5b11f3da8d36",
+      "resultBytes": 349
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Aware)",
       "case": "ieee.add",
       "samples": [
-        297.1570499999998,
-        65.881797,
-        68.0695209999999
+        47.82269800000017,
+        45.82006299999989,
+        41.60370899999998
       ],
-      "avgMs": 143.70278933333324,
-      "minMs": 65.881797,
-      "maxMs": 297.1570499999998,
-      "setupMs": 2429.789191,
-      "maxRssMiB": 258.2734375,
-      "heapUsedMiB": 141.21536254882812,
-      "heapDeltaMiB": -1.6310272216796875,
-      "resultDigest": "d7b0ed6ef57dd554",
-      "resultBytes": 316
+      "avgMs": 45.082156666666684,
+      "minMs": 41.60370899999998,
+      "maxMs": 47.82269800000017,
+      "setupMs": 1388.152968,
+      "warmupMs": 142.08733800000005,
+      "maxRssMiB": 262.68359375,
+      "heapUsedMiB": 149.9988555908203,
+      "heapDeltaMiB": 0.6365127563476562,
+      "resultDigest": "9fea5b11f3da8d36",
+      "resultBytes": 349
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Free)",
       "case": "ieee.add",
       "samples": [
-        22.670575999999983,
-        4.613031999999748,
-        2.7746030000002975
+        2.6853879999998753,
+        3.3543919999999616,
+        1.5364660000000185
       ],
-      "avgMs": 10.019403666666676,
-      "minMs": 2.7746030000002975,
-      "maxMs": 22.670575999999983,
-      "setupMs": 2428.446931,
-      "maxRssMiB": 212.5625,
-      "heapUsedMiB": 98.24059295654297,
-      "heapDeltaMiB": 8.362197875976562,
-      "resultDigest": "d7b0ed6ef57dd554",
-      "resultBytes": 316
+      "avgMs": 2.525415333333285,
+      "minMs": 1.5364660000000185,
+      "maxMs": 3.3543919999999616,
+      "setupMs": 1425.690865,
+      "warmupMs": 5.315359999999828,
+      "maxRssMiB": 256.48828125,
+      "heapUsedMiB": 142.8135757446289,
+      "heapDeltaMiB": -3.0953216552734375,
+      "resultDigest": "9fea5b11f3da8d36",
+      "resultBytes": 349
+    },
+    {
+      "status": "ok",
+      "mode": "k-llvm-jit",
+      "case": "ieee.div",
+      "samples": [
+        8.972084999999879,
+        7.354036000000178,
+        7.741911999999957
+      ],
+      "avgMs": 8.022677666666672,
+      "minMs": 7.354036000000178,
+      "maxMs": 8.972084999999879,
+      "setupMs": 3297.2315719999997,
+      "warmupMs": 9.423961999999847,
+      "maxRssMiB": 568.328125,
+      "heapUsedMiB": 308.7895812988281,
+      "heapDeltaMiB": 8.716781616210938,
+      "resultDigest": "1219187a0259a27e",
+      "resultBytes": 365
+    },
+    {
+      "status": "ok",
+      "mode": "k-wasm",
+      "case": "ieee.div",
+      "samples": [
+        4.070269999999709,
+        4.620897000000241,
+        3.9411439999998947
+      ],
+      "avgMs": 4.210770333333282,
+      "minMs": 3.9411439999998947,
+      "maxMs": 4.620897000000241,
+      "setupMs": 2616.977141,
+      "warmupMs": 380.58895200000006,
+      "maxRssMiB": 5107.8984375,
+      "heapUsedMiB": 105.10274505615234,
+      "heapDeltaMiB": 5.280021667480469,
+      "resultDigest": "1219187a0259a27e",
+      "resultBytes": 365
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "ieee.div",
       "samples": [
-        64.64516299999968,
-        27.935488000000078,
-        23.11982900000021
+        45.84080300000005,
+        39.00947899999983,
+        31.236899999999878
       ],
-      "avgMs": 38.56682666666666,
-      "minMs": 23.11982900000021,
-      "maxMs": 64.64516299999968,
-      "setupMs": 2459.911444,
-      "maxRssMiB": 269.65625,
-      "heapUsedMiB": 145.61485290527344,
-      "heapDeltaMiB": 2.6288909912109375,
-      "resultDigest": "1125939fa08301aa",
-      "resultBytes": 3122879
+      "avgMs": 38.69572733333325,
+      "minMs": 31.236899999999878,
+      "maxMs": 45.84080300000005,
+      "setupMs": 2106.850944,
+      "warmupMs": 58.51661400000012,
+      "maxRssMiB": 352.3203125,
+      "heapUsedMiB": 69.61015319824219,
+      "heapDeltaMiB": -147.06317138671875,
+      "resultDigest": "3f1586a6dd8cc153",
+      "resultBytes": 2930227
     },
     {
       "status": "ok",
       "mode": "kVM Interpreter (Env-Free)",
       "case": "ieee.div",
       "samples": [
-        1409.5292990000003,
-        244.75126499999988,
-        199.81719899999916
+        140.07413099999985,
+        135.35756599999968,
+        135.9209850000002
       ],
-      "avgMs": 618.0325876666665,
-      "minMs": 199.81719899999916,
-      "maxMs": 1409.5292990000003,
-      "setupMs": 2412.133941,
-      "maxRssMiB": 312.89453125,
-      "heapUsedMiB": 196.9021224975586,
-      "heapDeltaMiB": 58.236656188964844,
-      "resultDigest": "238b6430f024764d",
-      "resultBytes": 319
+      "avgMs": 137.11756066666658,
+      "minMs": 135.35756599999968,
+      "maxMs": 140.07413099999985,
+      "setupMs": 1439.857076,
+      "warmupMs": 275.8998240000001,
+      "maxRssMiB": 314.51171875,
+      "heapUsedMiB": 191.96310424804688,
+      "heapDeltaMiB": 1.381561279296875,
+      "resultDigest": "1219187a0259a27e",
+      "resultBytes": 365
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Aware)",
       "case": "ieee.div",
       "samples": [
-        2268.145469,
-        1957.0288200000005,
-        1943.1114720000005
+        1716.3882800000001,
+        1699.3894050000008,
+        1719.5269179999996
       ],
-      "avgMs": 2056.095253666667,
-      "minMs": 1943.1114720000005,
-      "maxMs": 2268.145469,
-      "setupMs": 2299.248563,
-      "maxRssMiB": 245.37109375,
-      "heapUsedMiB": 71.34148406982422,
-      "heapDeltaMiB": -28.6934814453125,
-      "resultDigest": "238b6430f024764d",
-      "resultBytes": 319
+      "avgMs": 1711.768201,
+      "minMs": 1699.3894050000008,
+      "maxMs": 1719.5269179999996,
+      "setupMs": 1444.315458,
+      "warmupMs": 1841.6153700000002,
+      "maxRssMiB": 281.91796875,
+      "heapUsedMiB": 164.71941375732422,
+      "heapDeltaMiB": 13.993476867675781,
+      "resultDigest": "1219187a0259a27e",
+      "resultBytes": 365
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Free)",
       "case": "ieee.div",
       "samples": [
-        97.04622500000005,
-        62.1203959999998,
-        82.9298759999997
+        48.318190000000186,
+        50.198782000000165,
+        47.54256099999998
       ],
-      "avgMs": 80.69883233333319,
-      "minMs": 62.1203959999998,
-      "maxMs": 97.04622500000005,
-      "setupMs": 2468.552755,
-      "maxRssMiB": 255.81640625,
-      "heapUsedMiB": 148.34247589111328,
-      "heapDeltaMiB": 17.023460388183594,
-      "resultDigest": "238b6430f024764d",
-      "resultBytes": 319
+      "avgMs": 48.68651100000011,
+      "minMs": 47.54256099999998,
+      "maxMs": 50.198782000000165,
+      "setupMs": 1469.38601,
+      "warmupMs": 64.51176799999985,
+      "maxRssMiB": 259.93359375,
+      "heapUsedMiB": 145.37033081054688,
+      "heapDeltaMiB": -1.259521484375,
+      "resultDigest": "1219187a0259a27e",
+      "resultBytes": 365
+    },
+    {
+      "status": "ok",
+      "mode": "k-llvm-jit",
+      "case": "ieee.mul",
+      "samples": [
+        9.733091000000059,
+        10.156718000000183,
+        9.23088000000007
+      ],
+      "avgMs": 9.706896333333438,
+      "minMs": 9.23088000000007,
+      "maxMs": 10.156718000000183,
+      "setupMs": 3085.365028,
+      "warmupMs": 15.412076999999954,
+      "maxRssMiB": 541.6796875,
+      "heapUsedMiB": 116.61451721191406,
+      "heapDeltaMiB": -24.777488708496094,
+      "resultDigest": "edb716781b026683",
+      "resultBytes": 349
+    },
+    {
+      "status": "ok",
+      "mode": "k-wasm",
+      "case": "ieee.mul",
+      "samples": [
+        4.626024000000143,
+        3.8782270000001517,
+        2.997932000000219
+      ],
+      "avgMs": 3.834061000000171,
+      "minMs": 2.997932000000219,
+      "maxMs": 4.626024000000143,
+      "setupMs": 2476.8580580000003,
+      "warmupMs": 636.1991520000001,
+      "maxRssMiB": 5087.265625,
+      "heapUsedMiB": 89.40304565429688,
+      "heapDeltaMiB": 5.0595703125,
+      "resultDigest": "edb716781b026683",
+      "resultBytes": 349
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "ieee.mul",
       "samples": [
-        60.880637000000206,
-        24.26542100000006,
-        28.6782860000003
+        28.389392000000043,
+        32.333662000000004,
+        36.924851999999646
       ],
-      "avgMs": 37.941448000000186,
-      "minMs": 24.26542100000006,
-      "maxMs": 60.880637000000206,
-      "setupMs": 2331.798334,
-      "maxRssMiB": 260.828125,
-      "heapUsedMiB": 141.28939819335938,
-      "heapDeltaMiB": 4.432342529296875,
-      "resultDigest": "42fe8f0b494a6f81",
-      "resultBytes": 2767564
+      "avgMs": 32.5493019999999,
+      "minMs": 28.389392000000043,
+      "maxMs": 36.924851999999646,
+      "setupMs": 2068.960177,
+      "warmupMs": 45.23189400000001,
+      "maxRssMiB": 350.7734375,
+      "heapUsedMiB": 50.717498779296875,
+      "heapDeltaMiB": -167.0420913696289,
+      "resultDigest": "2107d377a1d81849",
+      "resultBytes": 2257252
     },
     {
       "status": "ok",
       "mode": "kVM Interpreter (Env-Free)",
       "case": "ieee.mul",
       "samples": [
-        1407.2723659999997,
-        176.9047040000005,
-        217.78828299999986
+        120.00389400000017,
+        110.35742899999991,
+        112.39914700000008
       ],
-      "avgMs": 600.6551176666667,
-      "minMs": 176.9047040000005,
-      "maxMs": 1407.2723659999997,
-      "setupMs": 2399.1134739999998,
-      "maxRssMiB": 294.71875,
-      "heapUsedMiB": 182.02406311035156,
-      "heapDeltaMiB": 52.052085876464844,
-      "resultDigest": "4c83c565baa5bb08",
-      "resultBytes": 316
+      "avgMs": 114.25349000000006,
+      "minMs": 110.35742899999991,
+      "maxMs": 120.00389400000017,
+      "setupMs": 1439.891603,
+      "warmupMs": 223.86337400000002,
+      "maxRssMiB": 301.703125,
+      "heapUsedMiB": 185.47338104248047,
+      "heapDeltaMiB": -4.196754455566406,
+      "resultDigest": "edb716781b026683",
+      "resultBytes": 349
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Aware)",
       "case": "ieee.mul",
       "samples": [
-        2287.4217710000003,
-        1911.738585,
-        1893.2782460000008
+        1538.6059309999996,
+        1595.3267580000002,
+        1542.1886999999997
       ],
-      "avgMs": 2030.8128673333338,
-      "minMs": 1893.2782460000008,
-      "maxMs": 2287.4217710000003,
-      "setupMs": 2522.4376350000002,
-      "maxRssMiB": 272.4609375,
-      "heapUsedMiB": 164.15170288085938,
-      "heapDeltaMiB": 31.641036987304688,
-      "resultDigest": "4c83c565baa5bb08",
-      "resultBytes": 316
+      "avgMs": 1558.7071296666666,
+      "minMs": 1538.6059309999996,
+      "maxMs": 1595.3267580000002,
+      "setupMs": 1460.6453740000002,
+      "warmupMs": 1788.3459359999997,
+      "maxRssMiB": 268.4453125,
+      "heapUsedMiB": 158.17493438720703,
+      "heapDeltaMiB": 18.372314453125,
+      "resultDigest": "edb716781b026683",
+      "resultBytes": 349
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Free)",
       "case": "ieee.mul",
       "samples": [
-        105.853204,
-        68.89215100000001,
-        59.3600849999998
+        44.83826699999986,
+        44.18205499999999,
+        44.17738799999984
       ],
-      "avgMs": 78.0351466666666,
-      "minMs": 59.3600849999998,
-      "maxMs": 105.853204,
-      "setupMs": 2457.262925,
-      "maxRssMiB": 248.86328125,
-      "heapUsedMiB": 137.8211212158203,
-      "heapDeltaMiB": 3.4766845703125,
-      "resultDigest": "4c83c565baa5bb08",
-      "resultBytes": 316
+      "avgMs": 44.39923666666656,
+      "minMs": 44.17738799999984,
+      "maxMs": 44.83826699999986,
+      "setupMs": 1430.9643489999999,
+      "warmupMs": 56.70478400000002,
+      "maxRssMiB": 261.03515625,
+      "heapUsedMiB": 143.45089721679688,
+      "heapDeltaMiB": 4.735260009765625,
+      "resultDigest": "edb716781b026683",
+      "resultBytes": 349
+    },
+    {
+      "status": "ok",
+      "mode": "k-llvm-jit",
+      "case": "ieee.sub",
+      "samples": [
+        2.134551999999985,
+        1.8617600000002312,
+        1.6522589999999582
+      ],
+      "avgMs": 1.8828570000000582,
+      "minMs": 1.6522589999999582,
+      "maxMs": 2.134551999999985,
+      "setupMs": 2612.6001549999996,
+      "warmupMs": 3.071140000000014,
+      "maxRssMiB": 429,
+      "heapUsedMiB": 129.5348892211914,
+      "heapDeltaMiB": 8.255439758300781,
+      "resultDigest": "6b609288ed7377d8",
+      "resultBytes": 349
+    },
+    {
+      "status": "ok",
+      "mode": "k-wasm",
+      "case": "ieee.sub",
+      "samples": [
+        1.1172559999999976,
+        0.6645869999997558,
+        0.5876699999998891
+      ],
+      "avgMs": 0.7898376666665475,
+      "minMs": 0.5876699999998891,
+      "maxMs": 1.1172559999999976,
+      "setupMs": 2368.039928,
+      "warmupMs": 30.7763630000004,
+      "maxRssMiB": 864.5546875,
+      "heapUsedMiB": 63.37462615966797,
+      "heapDeltaMiB": 5.063240051269531,
+      "resultDigest": "6b609288ed7377d8",
+      "resultBytes": 349
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "ieee.sub",
       "samples": [
-        52.226451,
-        28.73341100000016,
-        26.78514700000005
+        58.85437899999988,
+        51.525133000000096,
+        50.70521299999973
       ],
-      "avgMs": 35.91500300000007,
-      "minMs": 26.78514700000005,
-      "maxMs": 52.226451,
-      "setupMs": 2379.8469219999997,
-      "maxRssMiB": 260.24609375,
-      "heapUsedMiB": 143.71685791015625,
-      "heapDeltaMiB": 17.70319366455078,
-      "resultDigest": "d5247ccfdfc104e2",
-      "resultBytes": 2220130
+      "avgMs": 53.69490833333324,
+      "minMs": 50.70521299999973,
+      "maxMs": 58.85437899999988,
+      "setupMs": 2039.165569,
+      "warmupMs": 63.24619299999995,
+      "maxRssMiB": 341.51171875,
+      "heapUsedMiB": 222.66594696044922,
+      "heapDeltaMiB": 12.532722473144531,
+      "resultDigest": "de5fa1dea68057ae",
+      "resultBytes": 1140742
     },
     {
       "status": "ok",
       "mode": "kVM Interpreter (Env-Free)",
       "case": "ieee.sub",
       "samples": [
-        494.8889429999999,
-        35.32999900000004,
-        24.30925500000012
+        26.246716000000106,
+        18.880595000000085,
+        19.872516000000132
       ],
-      "avgMs": 184.84273233333337,
-      "minMs": 24.30925500000012,
-      "maxMs": 494.8889429999999,
-      "setupMs": 2400.2232320000003,
-      "maxRssMiB": 271.62890625,
-      "heapUsedMiB": 160.37963104248047,
-      "heapDeltaMiB": 24.37873077392578,
-      "resultDigest": "5c7179ae0117965a",
-      "resultBytes": 316
+      "avgMs": 21.666609000000108,
+      "minMs": 18.880595000000085,
+      "maxMs": 26.246716000000106,
+      "setupMs": 1474.732028,
+      "warmupMs": 68.22592600000007,
+      "maxRssMiB": 273.20703125,
+      "heapUsedMiB": 157.9229507446289,
+      "heapDeltaMiB": 6.8242340087890625,
+      "resultDigest": "6b609288ed7377d8",
+      "resultBytes": 349
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Aware)",
       "case": "ieee.sub",
       "samples": [
-        478.67986999999994,
-        263.7170649999998,
-        255.72350900000038
+        191.85875499999975,
+        176.05130000000008,
+        174.00524799999994
       ],
-      "avgMs": 332.70681466666673,
-      "minMs": 255.72350900000038,
-      "maxMs": 478.67986999999994,
-      "setupMs": 2510.5409250000002,
-      "maxRssMiB": 259.37109375,
-      "heapUsedMiB": 140.1587677001953,
-      "heapDeltaMiB": 10.739852905273438,
-      "resultDigest": "5c7179ae0117965a",
-      "resultBytes": 316
+      "avgMs": 180.63843433333327,
+      "minMs": 174.00524799999994,
+      "maxMs": 191.85875499999975,
+      "setupMs": 1492.968577,
+      "warmupMs": 345.48323400000004,
+      "maxRssMiB": 266.05859375,
+      "heapUsedMiB": 153.81411743164062,
+      "heapDeltaMiB": -1.4978256225585938,
+      "resultDigest": "6b609288ed7377d8",
+      "resultBytes": 349
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Free)",
       "case": "ieee.sub",
       "samples": [
-        40.886121,
-        12.074168999999983,
-        8.812895000000026
+        7.642914000000019,
+        10.776429000000007,
+        9.761340999999902
       ],
-      "avgMs": 20.591061666666672,
-      "minMs": 8.812895000000026,
-      "maxMs": 40.886121,
-      "setupMs": 2418.723613,
-      "maxRssMiB": 241.1015625,
-      "heapUsedMiB": 137.82179260253906,
-      "heapDeltaMiB": 9.4453125,
-      "resultDigest": "5c7179ae0117965a",
-      "resultBytes": 316
+      "avgMs": 9.39356133333331,
+      "minMs": 7.642914000000019,
+      "maxMs": 10.776429000000007,
+      "setupMs": 1452.429457,
+      "warmupMs": 16.87237600000003,
+      "maxRssMiB": 258.1484375,
+      "heapUsedMiB": 146.07919311523438,
+      "heapDeltaMiB": 9.641578674316406,
+      "resultDigest": "6b609288ed7377d8",
+      "resultBytes": 349
+    },
+    {
+      "status": "ok",
+      "mode": "k-llvm-jit",
+      "case": "int.factorial.101",
+      "samples": [
+        11.181595000000016,
+        7.774037000000021,
+        8.340664999999944
+      ],
+      "avgMs": 9.09876566666666,
+      "minMs": 7.774037000000021,
+      "maxMs": 11.181595000000016,
+      "setupMs": 779.016947,
+      "warmupMs": 10.664134999999987,
+      "maxRssMiB": 143.16015625,
+      "heapUsedMiB": 42.40625762939453,
+      "heapDeltaMiB": 1.69061279296875,
+      "resultDigest": "35a94ea08ebd0099",
+      "resultBytes": 147
+    },
+    {
+      "status": "ok",
+      "mode": "k-wasm",
+      "case": "int.factorial.101",
+      "samples": [
+        8.417789999999968,
+        8.313789999999983,
+        8.666667000000018
+      ],
+      "avgMs": 8.466082333333324,
+      "minMs": 8.313789999999983,
+      "maxMs": 8.666667000000018,
+      "setupMs": 203.880687,
+      "warmupMs": 14.052441999999985,
+      "maxRssMiB": 151.55078125,
+      "heapUsedMiB": 36.77684020996094,
+      "heapDeltaMiB": 3.947113037109375,
+      "resultDigest": "35a94ea08ebd0099",
+      "resultBytes": 147
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "int.factorial.101",
       "samples": [
-        17.162329,
-        1.024548999999979,
-        2.0644310000000132
+        3.1331409999999664,
+        2.2042190000000232,
+        1.9223010000000045
       ],
-      "avgMs": 6.75043633333333,
-      "minMs": 1.024548999999979,
-      "maxMs": 17.162329,
-      "setupMs": 226.94509800000003,
-      "maxRssMiB": 134.90625,
-      "heapUsedMiB": 33.07435607910156,
-      "heapDeltaMiB": 4.5048980712890625,
-      "resultDigest": "e9be75e26787ff03",
-      "resultBytes": 70629
+      "avgMs": 2.419886999999998,
+      "minMs": 1.9223010000000045,
+      "maxMs": 3.1331409999999664,
+      "setupMs": 158.231884,
+      "warmupMs": 3.4843079999999986,
+      "maxRssMiB": 134.54296875,
+      "heapUsedMiB": 30.775161743164062,
+      "heapDeltaMiB": -7.9964599609375,
+      "resultDigest": "8a5cbda83d6def1e",
+      "resultBytes": 50124
     },
     {
       "status": "ok",
       "mode": "kVM Interpreter (Env-Free)",
       "case": "int.factorial.101",
       "samples": [
-        1094.4232470000002,
-        1148.766296,
-        1058.8413289999999
+        950.7358119999999,
+        950.1475180000002,
+        933.1551869999998
       ],
-      "avgMs": 1100.6769573333333,
-      "minMs": 1058.8413289999999,
-      "maxMs": 1148.766296,
-      "setupMs": 310.426852,
-      "maxRssMiB": 148.71875,
-      "heapUsedMiB": 51.244140625,
-      "heapDeltaMiB": 21.331954956054688,
-      "resultDigest": "c48039eab26792fd",
-      "resultBytes": 3201
+      "avgMs": 944.6795056666666,
+      "minMs": 933.1551869999998,
+      "maxMs": 950.7358119999999,
+      "setupMs": 109.89315200000001,
+      "warmupMs": 971.9939559999999,
+      "maxRssMiB": 155.47265625,
+      "heapUsedMiB": 46.87116241455078,
+      "heapDeltaMiB": 6.101341247558594,
+      "resultDigest": "35a94ea08ebd0099",
+      "resultBytes": 147
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Aware)",
       "case": "int.factorial.101",
       "samples": [
-        4563.287045,
-        4131.276502999999,
-        3751.110743000001
+        3859.157935,
+        3903.5813149999994,
+        3989.295184999999
       ],
-      "avgMs": 4148.558097,
-      "minMs": 3751.110743000001,
-      "maxMs": 4563.287045,
-      "setupMs": 270.131944,
-      "maxRssMiB": 180.61328125,
-      "heapUsedMiB": 61.40081787109375,
-      "heapDeltaMiB": 32.42955017089844,
-      "resultDigest": "c48039eab26792fd",
-      "resultBytes": 3201
+      "avgMs": 3917.344811666666,
+      "minMs": 3859.157935,
+      "maxMs": 3989.295184999999,
+      "setupMs": 111.44615899999997,
+      "warmupMs": 3896.52999,
+      "maxRssMiB": 191.80078125,
+      "heapUsedMiB": 30.61871337890625,
+      "heapDeltaMiB": -4.190788269042969,
+      "resultDigest": "35a94ea08ebd0099",
+      "resultBytes": 147
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Free)",
       "case": "int.factorial.101",
       "samples": [
-        283.0694510000001,
-        272.8577120000001,
-        272.958797
+        231.42290200000002,
+        234.20687399999997,
+        234.08958099999995
       ],
-      "avgMs": 276.29532000000006,
-      "minMs": 272.8577120000001,
-      "maxMs": 283.0694510000001,
-      "setupMs": 327.2140539999999,
-      "maxRssMiB": 137.83203125,
-      "heapUsedMiB": 44.09650421142578,
-      "heapDeltaMiB": 17.16822052001953,
-      "resultDigest": "c48039eab26792fd",
-      "resultBytes": 3201
+      "avgMs": 233.23978566666665,
+      "minMs": 231.42290200000002,
+      "maxMs": 234.20687399999997,
+      "setupMs": 113.50262799999999,
+      "warmupMs": 238.25030999999996,
+      "maxRssMiB": 139.4296875,
+      "heapUsedMiB": 43.716758728027344,
+      "heapDeltaMiB": 16.692100524902344,
+      "resultDigest": "35a94ea08ebd0099",
+      "resultBytes": 147
+    },
+    {
+      "status": "failed",
+      "mode": "k-llvm-jit",
+      "case": "int.factorial.1174",
+      "code": 1,
+      "signal": null,
+      "stderr": ""
+    },
+    {
+      "status": "ok",
+      "mode": "k-wasm",
+      "case": "int.factorial.1174",
+      "samples": [
+        3252.3601070000004,
+        3162.9870530000007,
+        3193.9654929999997
+      ],
+      "avgMs": 3203.104217666667,
+      "minMs": 3162.9870530000007,
+      "maxMs": 3252.3601070000004,
+      "setupMs": 203.85147800000001,
+      "warmupMs": 8480.914614,
+      "maxRssMiB": 1588.40625,
+      "heapUsedMiB": 44.59532928466797,
+      "heapDeltaMiB": 27.29570770263672,
+      "resultDigest": "76f525c49495e0c3",
+      "resultBytes": 2585
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "int.factorial.1174",
       "samples": [
-        8.410349999999994,
-        1.4188429999999244,
-        0.9390489999999545
+        2.243094000000042,
+        2.9032639999999788,
+        2.175551999999982
       ],
-      "avgMs": 3.5894139999999575,
-      "minMs": 0.9390489999999545,
-      "maxMs": 8.410349999999994,
-      "setupMs": 212.455288,
-      "maxRssMiB": 136.30078125,
-      "heapUsedMiB": 33.31597900390625,
-      "heapDeltaMiB": 4.6004638671875,
-      "resultDigest": "460e43567c9b9b30",
-      "resultBytes": 70629
+      "avgMs": 2.4406366666666677,
+      "minMs": 2.175551999999982,
+      "maxMs": 2.9032639999999788,
+      "setupMs": 157.98663299999998,
+      "warmupMs": 3.776434999999992,
+      "maxRssMiB": 138.23046875,
+      "heapUsedMiB": 30.52734375,
+      "heapDeltaMiB": -8.089790344238281,
+      "resultDigest": "303019b98df4a4c8",
+      "resultBytes": 50124
     },
     {
       "status": "failed",
@@ -412,7 +661,7 @@
       "case": "int.factorial.1174",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:336:28)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:428:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)"
+      "stderr": ""
     },
     {
       "status": "failed",
@@ -420,7 +669,7 @@
       "case": "int.factorial.1174",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at visit (file:///home/wojtek/gits/K/k.kir/Value.mjs:68:17)\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:78:3)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:121:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:200:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:214:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:241:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)"
+      "stderr": ""
     },
     {
       "status": "failed",
@@ -428,26 +677,67 @@
       "case": "int.factorial.1174",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:422:12)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:413:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:399:34)\n    at fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)"
+      "stderr": ""
+    },
+    {
+      "status": "ok",
+      "mode": "k-llvm-jit",
+      "case": "int.factorial.242",
+      "samples": [
+        70.1584620000001,
+        73.42122700000004,
+        83.55644199999983
+      ],
+      "avgMs": 75.71204366666666,
+      "minMs": 70.1584620000001,
+      "maxMs": 83.55644199999983,
+      "setupMs": 805.310198,
+      "warmupMs": 76.73920099999987,
+      "maxRssMiB": 145.83203125,
+      "heapUsedMiB": 43.990211486816406,
+      "heapDeltaMiB": 3.6339874267578125,
+      "resultDigest": "f0dd00da1565c55e",
+      "resultBytes": 407
+    },
+    {
+      "status": "ok",
+      "mode": "k-wasm",
+      "case": "int.factorial.242",
+      "samples": [
+        77.18378700000005,
+        76.004906,
+        75.614779
+      ],
+      "avgMs": 76.26782400000002,
+      "minMs": 75.614779,
+      "maxMs": 77.18378700000005,
+      "setupMs": 196.677819,
+      "warmupMs": 96.97113200000001,
+      "maxRssMiB": 184.7421875,
+      "heapUsedMiB": 22.15064239501953,
+      "heapDeltaMiB": 9.527595520019531,
+      "resultDigest": "f0dd00da1565c55e",
+      "resultBytes": 407
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "int.factorial.242",
       "samples": [
-        13.215677000000028,
-        1.8996379999999817,
-        2.064555999999925
+        3.386183000000017,
+        2.0934259999999654,
+        1.9595089999999686
       ],
-      "avgMs": 5.726623666666645,
-      "minMs": 1.8996379999999817,
-      "maxMs": 13.215677000000028,
-      "setupMs": 317.89886399999995,
-      "maxRssMiB": 135.91015625,
-      "heapUsedMiB": 32.60755920410156,
-      "heapDeltaMiB": 4.5083770751953125,
-      "resultDigest": "c2bc6e0750676d6c",
-      "resultBytes": 70629
+      "avgMs": 2.4797059999999838,
+      "minMs": 1.9595089999999686,
+      "maxMs": 3.386183000000017,
+      "setupMs": 149.495801,
+      "warmupMs": 3.322723999999994,
+      "maxRssMiB": 136.875,
+      "heapUsedMiB": 31.04602813720703,
+      "heapDeltaMiB": -7.9579925537109375,
+      "resultDigest": "28faa3597fb38ce8",
+      "resultBytes": 50124
     },
     {
       "status": "failed",
@@ -455,7 +745,7 @@
       "case": "int.factorial.242",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:336:28)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:428:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)"
+      "stderr": ""
     },
     {
       "status": "failed",
@@ -463,7 +753,7 @@
       "case": "int.factorial.242",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:63:25)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:121:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:200:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:214:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:241:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:214:27)"
+      "stderr": ""
     },
     {
       "status": "failed",
@@ -471,26 +761,43 @@
       "case": "int.factorial.242",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:409:12)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:399:34)\n    at fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:358:61)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)"
+      "stderr": ""
+    },
+    {
+      "status": "failed",
+      "mode": "k-llvm-jit",
+      "case": "int.gcd.90d",
+      "code": 1,
+      "signal": null,
+      "stderr": ""
+    },
+    {
+      "status": "failed",
+      "mode": "k-wasm",
+      "case": "int.gcd.90d",
+      "code": 1,
+      "signal": null,
+      "stderr": ""
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "int.gcd.90d",
       "samples": [
-        8.469226999999933,
-        0.9515900000000101,
-        1.067841000000044
+        4.200729000000024,
+        2.614304000000004,
+        2.217552000000012
       ],
-      "avgMs": 3.496219333333329,
-      "minMs": 0.9515900000000101,
-      "maxMs": 8.469226999999933,
-      "setupMs": 204.96669300000008,
-      "maxRssMiB": 130.1015625,
-      "heapUsedMiB": 34.04716491699219,
-      "heapDeltaMiB": 4.961799621582031,
-      "resultDigest": "988e37e1390409fe",
-      "resultBytes": 85450
+      "avgMs": 3.01086166666668,
+      "minMs": 2.217552000000012,
+      "maxMs": 4.200729000000024,
+      "setupMs": 150.89472400000002,
+      "warmupMs": 3.409891000000016,
+      "maxRssMiB": 136.15234375,
+      "heapUsedMiB": 32.128196716308594,
+      "heapDeltaMiB": -7.7245025634765625,
+      "resultDigest": "89794beff9f54cb0",
+      "resultBytes": 60603
     },
     {
       "status": "failed",
@@ -498,64 +805,107 @@
       "case": "int.gcd.90d",
       "code": 1,
       "signal": null,
-      "stderr": "Error: kVM interpreter: unsupported intrinsic '_log!'\n    at unsupportedIntrinsic (file:///home/wojtek/gits/K/k.kir/intrinsics.mjs:31:10)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:437:13)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:428:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:444:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)"
+      "stderr": ""
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Aware)",
       "case": "int.gcd.90d",
       "samples": [
-        8227.973388,
-        6821.369068,
-        5990.7117610000005
+        6887.661093999999,
+        6854.732184999999,
+        6786.438191000001
       ],
-      "avgMs": 7013.351405666667,
-      "minMs": 5990.7117610000005,
-      "maxMs": 8227.973388,
-      "setupMs": 240.995322,
-      "maxRssMiB": 191.1328125,
-      "heapUsedMiB": 25.51422119140625,
-      "heapDeltaMiB": -1.9092636108398438,
-      "resultDigest": "5d1377581b4f4558",
-      "resultBytes": 783
+      "avgMs": 6842.943823333332,
+      "minMs": 6786.438191000001,
+      "maxMs": 6887.661093999999,
+      "setupMs": 108.81660499999998,
+      "warmupMs": 6861.671676999999,
+      "maxRssMiB": 185.66796875,
+      "heapUsedMiB": 42.676544189453125,
+      "heapDeltaMiB": -13.39178466796875,
+      "resultDigest": "77df8e16e23fa5e1",
+      "resultBytes": 40
     },
     {
       "status": "ok",
       "mode": "Native JS (Envelope-Free)",
       "case": "int.gcd.90d",
       "samples": [
-        439.43796899999995,
-        464.84877299999994,
-        481.4883480000001
+        352.67748400000005,
+        355.0223289999999,
+        348.53783899999985
       ],
-      "avgMs": 461.92503000000005,
-      "minMs": 439.43796899999995,
-      "maxMs": 481.4883480000001,
-      "setupMs": 239.19714199999999,
-      "maxRssMiB": 144.3203125,
-      "heapUsedMiB": 54.988685607910156,
-      "heapDeltaMiB": 27.740333557128906,
-      "resultDigest": "5d1377581b4f4558",
-      "resultBytes": 783
+      "avgMs": 352.07921733333325,
+      "minMs": 348.53783899999985,
+      "maxMs": 355.0223289999999,
+      "setupMs": 110.20261300000001,
+      "warmupMs": 353.929907,
+      "maxRssMiB": 148.32421875,
+      "heapUsedMiB": 52.360755920410156,
+      "heapDeltaMiB": 11.192489624023438,
+      "resultDigest": "77df8e16e23fa5e1",
+      "resultBytes": 40
+    },
+    {
+      "status": "ok",
+      "mode": "k-llvm-jit",
+      "case": "int.times.220d",
+      "samples": [
+        33.39749400000005,
+        32.87557400000014,
+        31.816861000000017
+      ],
+      "avgMs": 32.69664300000007,
+      "minMs": 31.816861000000017,
+      "maxMs": 33.39749400000005,
+      "setupMs": 779.574824,
+      "warmupMs": 37.3819289999999,
+      "maxRssMiB": 143.7734375,
+      "heapUsedMiB": 29.261581420898438,
+      "heapDeltaMiB": 3.290618896484375,
+      "resultDigest": "ef4df34668aecc4d",
+      "resultBytes": 378
+    },
+    {
+      "status": "ok",
+      "mode": "k-wasm",
+      "case": "int.times.220d",
+      "samples": [
+        44.681006000000025,
+        47.038725,
+        42.096284999999966
+      ],
+      "avgMs": 44.60533866666666,
+      "minMs": 42.096284999999966,
+      "maxMs": 47.038725,
+      "setupMs": 215.93595299999998,
+      "warmupMs": 50.15915799999999,
+      "maxRssMiB": 159.625,
+      "heapUsedMiB": 21.636741638183594,
+      "heapDeltaMiB": -18.62676239013672,
+      "resultDigest": "ef4df34668aecc4d",
+      "resultBytes": 378
     },
     {
       "status": "ok",
       "mode": "KIR-P Export",
       "case": "int.times.220d",
       "samples": [
-        8.173891000000026,
-        1.997555000000034,
-        1.6780540000000883
+        2.604637000000025,
+        1.909134999999992,
+        1.8017169999999965
       ],
-      "avgMs": 3.9498333333333826,
-      "minMs": 1.6780540000000883,
-      "maxMs": 8.173891000000026,
-      "setupMs": 284.55508699999996,
-      "maxRssMiB": 132.6953125,
-      "heapUsedMiB": 34.24736785888672,
-      "heapDeltaMiB": 4.037803649902344,
-      "resultDigest": "bf5a40b8dc87fe12",
-      "resultBytes": 64670
+      "avgMs": 2.1051630000000046,
+      "minMs": 1.8017169999999965,
+      "maxMs": 2.604637000000025,
+      "setupMs": 155.07678599999997,
+      "warmupMs": 3.7214759999999956,
+      "maxRssMiB": 137.734375,
+      "heapUsedMiB": 32.7532958984375,
+      "heapDeltaMiB": 5.796241760253906,
+      "resultDigest": "6173b38337a90c87",
+      "resultBytes": 44554
     },
     {
       "status": "failed",
@@ -563,7 +913,7 @@
       "case": "int.times.220d",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:336:28)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:444:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeKVM (file:///home/wojtek/gits/K/k.kir/kvm.mjs:490:18)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:428:19)\n    at executeBlock (file:///home/wojtek/gits/K/k.kir/kvm.mjs:325:17)\n    at executeInstruction (file:///home/wojtek/gits/K/k.kir/kvm.mjs:468:27)"
+      "stderr": ""
     },
     {
       "status": "failed",
@@ -571,15 +921,27 @@
       "case": "int.times.220d",
       "code": 1,
       "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at visit (file:///home/wojtek/gits/K/k.kir/Value.mjs:68:17)\n    at cloneSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:78:3)\n    at edgeSubpattern (file:///home/wojtek/gits/K/k.kir/Value.mjs:87:10)\n    at projectionPattern (file:///home/wojtek/gits/K/k.kir/run.mjs:121:32)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:200:52)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:214:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:241:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:146:23)"
+      "stderr": ""
     },
     {
-      "status": "failed",
+      "status": "ok",
       "mode": "Native JS (Envelope-Free)",
       "case": "int.times.220d",
-      "code": 1,
-      "signal": null,
-      "stderr": "RangeError: Maximum call stack size exceeded\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:372:12)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:413:32)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:387:27)\n    at Array.fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)\n    at Object.fn [as target] (file:///home/wojtek/gits/K/k.kir/run.mjs:399:34)\n    at fn (file:///home/wojtek/gits/K/k.kir/run.mjs:340:23)"
+      "samples": [
+        1158.218683,
+        1120.1621670000004,
+        1147.3063379999999
+      ],
+      "avgMs": 1141.8957293333335,
+      "minMs": 1120.1621670000004,
+      "maxMs": 1158.218683,
+      "setupMs": 118.74282,
+      "warmupMs": 1139.177467,
+      "maxRssMiB": 183.6328125,
+      "heapUsedMiB": 28.306060791015625,
+      "heapDeltaMiB": -14.282722473144531,
+      "resultDigest": "ef4df34668aecc4d",
+      "resultBytes": 378
     }
   ]
 }

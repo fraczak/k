@@ -6,7 +6,7 @@ import {
   objectToKVMArtifact,
   retypeObjectRelation as backendRetypeObjectRelation
 } from "../backend-api.mjs";
-import { validateKIRR } from "../objects/validate.mjs";
+import { validateKIRP } from "../objects/validate.mjs";
 
 const object = decodeObject(compileObjectBuffer(`
   $ bit = < {} 0, {} 1 >;
@@ -30,16 +30,18 @@ assert(kir.rels.__main__.patternGraph.nodes.every((node, index) => node.id === i
 assert.deepEqual(new Set(kir.rels.__main__.patternGraph.nodes.map((node) => node.kind)).has("open-product"), true);
 assert.equal(kir.rels.__main__.body.op, "dot");
 assert.equal(kir.rels.__main__.body.label, "x");
-const retyped = validateKIRR(retypeObjectRelation(object, "__main__", [
+const retyped = validateKIRP(retypeObjectRelation(object, "__main__", [
   ["closed-product", [["x", 1]]],
   ["closed-product", []]
 ]));
-assert.equal(retyped.layer, "KIR-R");
-assert.equal(retyped.relation, "__main__");
-assert.match(retyped.instanceKey, /^__main__@[0-9a-f]{16}$/);
-assert.deepEqual(retyped.outputPattern, [["closed-product", []]]);
-assert.deepEqual(retyped.callSites.map((site) => site.callee), ["__kir_target__"]);
-assert.equal(backendRetypeObjectRelation(object, "__main__", [["open-product", []]]).layer, "KIR-R");
+assert.equal(retyped.layer, "KIR-P");
+assert.equal(retyped.kind, "executable");
+assert.equal(retyped.main, "__main__");
+assert.equal(retyped.rels.__main__.body.op, "ref");
+assert.equal(retyped.rels.__main__.body.ref, "__kir_target__");
+assert(!("instanceKey" in retyped));
+assert(!("callSites" in retyped));
+assert.equal(backendRetypeObjectRelation(object, "__main__", [["open-product", []]]).layer, "KIR-P");
 assert.throws(
   () => objectToKVMArtifact(object, "__main__", [["open-product", []]]),
   /\.kvm emission requires a singleton input pattern/
@@ -49,7 +51,7 @@ const kvmArtifact = objectToKVMArtifact(object, "__main__", [
   ["closed-product", []]
 ]);
 assert.equal(kvmArtifact.format, "k-vm");
-assert.equal(kvmArtifact.layer, "KVM-R");
+assert.equal(kvmArtifact.layer, "KVM");
 assert.equal(kvmArtifact.entry, "__main__");
 assert.deepEqual(kvmArtifact.inputPattern, [
   ["closed-product", [["x", 1]]],
@@ -57,21 +59,22 @@ assert.deepEqual(kvmArtifact.inputPattern, [
 ]);
 assert.deepEqual(kvmArtifact.outputPattern, [["closed-product", []]]);
 assert.ok(kvmArtifact.functions.__main__);
-assert.equal(kvmArtifact.kir.layer, "KIR-R");
+assert.equal(kvmArtifact.kir.layer, "KIR-P");
+assert(!("instanceKey" in kvmArtifact));
 
 const helperObject = decodeObject(compileObjectBuffer("pick = .x; {.a pick left, .b pick right}", { source: "kir-helper.k" }));
-const helperRetyped = validateKIRR(retypeObjectRelation(helperObject, "__main__", [
+const helperRetyped = validateKIRP(retypeObjectRelation(helperObject, "__main__", [
   ["open-product", [["a", 1], ["b", 2]]],
   ["open-product", [["x", 3]]],
   ["open-product", [["x", 4]]],
   ["closed-product", []],
   ["closed-product", []]
 ]));
-const pickSites = helperRetyped.callSites.filter((site) => site.callee === "pick");
-assert.equal(pickSites.length, 2);
-assert.equal(new Set(pickSites.map((site) => site.path.join("."))).size, 2);
-assert.equal(new Set(pickSites.map((site) => site.instanceKey)).size, 1);
-assert(pickSites.every((site) => /^pick@[0-9a-f]{16}$/.test(site.instanceKey)));
+assert.equal(helperRetyped.layer, "KIR-P");
+assert.equal(helperRetyped.kind, "executable");
+assert.ok(helperRetyped.rels.pick);
+assert(!("instanceKey" in helperRetyped));
+assert(!("callSites" in helperRetyped));
 
 const library = decodeObject(compileLibraryBuffer("succ = |succ;\n", { source: "kir-lib.k" }));
 const libraryKir = objectToKIRP(library);

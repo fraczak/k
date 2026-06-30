@@ -1,0 +1,30 @@
+{
+  "name": "@fraczak/k-llvm",
+  "version": "0.1.0",
+  "description": "Experimental LLVM backend prototype for the k language",
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/run-tests.mjs",
+    "perf:ieee": "node tests/test-ieee-perf.mjs",
+    "perf:int": "node tests/test-int-perf.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fraczak/k.git",
+    "directory": "backends/llvm"
+  },
+  "author": "Wojciech Fraczak",
+  "license": "ISC",
+  "bin": {
+    "k-llvm-build": "bin/k-llvm-build.mjs",
+    "k-llvm-compile": "bin/k-llvm-compile.mjs",
+    "k-llvm-jit": "bin/k-llvm-jit.mjs",
+    "k-llvm-run": "bin/k-llvm-run.mjs"
+  },
+  "dependencies": {
+    "@fraczak/k": "file:../.."
+  },
+  "directories": {
+    "test": "tests"
+  }
+}

@@ -12,7 +12,9 @@ const rowOrder = [
   "Native JS (Envelope-Aware)",
   "Native JS (Envelope-Free)",
   "kVM Interpreter (Env-Free)",
-  "KIR-P Export"
+  "KIR-P Export",
+  "k-wasm",
+  "k-llvm-jit"
 ];
 
 const columnGroups = [
@@ -91,7 +93,7 @@ function cellFor(result, best) {
   const ratio = best ? result.avgMs / best.avgMs : NaN;
   return `
     <div class="time">${fmtMs(result.avgMs)} <span>${fmtRatio(ratio)}</span></div>
-    <div class="sub">rss ${fmtMiB(result.maxRssMiB)}</div>`;
+    <div class="sub">warmup ${fmtMs(result.warmupMs)} · rss ${fmtMiB(result.maxRssMiB)}</div>`;
 }
 
 function factorialCell(byCase, allResults) {
@@ -152,6 +154,7 @@ function buildDetails(results) {
         <td class="num">${fmtMs(result.avgMs)}</td>
         <td class="num">${fmtMs(result.minMs)}</td>
         <td class="num">${fmtMs(result.maxMs)}</td>
+        <td class="num">${fmtMs(result.warmupMs)}</td>
         <td class="num">${fmtMiB(result.maxRssMiB)}</td>
         <td class="hash">${escapeHtml(result.resultDigest || "")}</td>
       </tr>`)
@@ -168,7 +171,7 @@ function render(doc) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>k Benchmark Results</title>
+  <title>k Backend Benchmark Results</title>
   <style>
     :root {
       color-scheme: light;
@@ -202,7 +205,7 @@ function render(doc) {
       font-size: 14px;
     }
     main {
-      max-width: 1320px;
+      max-width: 1480px;
       margin: 0 auto;
       padding: 24px 32px 40px;
     }
@@ -238,7 +241,7 @@ function render(doc) {
       font-weight: 700;
     }
     .matrix {
-      min-width: 980px;
+      min-width: 1120px;
     }
     .matrix .group {
       text-align: center;
@@ -254,7 +257,7 @@ function render(doc) {
       margin-top: 2px;
     }
     .row-head {
-      width: 230px;
+      width: 250px;
       color: var(--ink);
       font-weight: 800;
       background: #fbfcfe;
@@ -303,7 +306,7 @@ function render(doc) {
 </head>
 <body>
   <header>
-    <h1>k Benchmark Results</h1>
+    <h1>k Backend Benchmark Results</h1>
     <div class="meta">
       <span>Generated: ${escapeHtml(generatedAt)}</span>
       <span>Node: ${escapeHtml(doc.node || "unknown")}</span>
@@ -327,7 +330,7 @@ function render(doc) {
       <div class="panel">
         <table>
           <thead>
-            <tr><th>Case</th><th>Mode</th><th>Status</th><th>Avg</th><th>Min</th><th>Max</th><th>Max RSS</th><th>Digest</th></tr>
+            <tr><th>Case</th><th>Mode</th><th>Status</th><th>Avg</th><th>Min</th><th>Max</th><th>Warmup</th><th>Max RSS</th><th>Digest</th></tr>
           </thead>
           <tbody>${buildDetails(results)}</tbody>
         </table>

@@ -2,26 +2,29 @@
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import { Value, composePattern, withPattern, isProduct, isVariant } from "./Value.mjs";
-import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
-import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import {
   constrainWithPattern,
-  intersectPatterns,
   projectionPattern,
   verify
 } from "./run.mjs";
-import { annotate } from "./index.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
-import { decodeObject, loadLibrary } from "./object.mjs";
+import { compileObjectBuffer, decodeObject, loadLibrary } from "./object.mjs";
 import codes from "./codes.mjs";
 import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
 import { isIntrinsic, unsupportedIntrinsic } from "./intrinsics.mjs";
-import { retypeObjectRelationForBackend } from "./kir.mjs";
+import { objectToKIRP, retypeObjectRelationForBackend } from "./kir.mjs";
 
 export const KVM_FORMAT = "k-vm";
 export const KVM_VERSION = 1;
 
 const KVM_SINGLETON_INPUT_KINDS = new Set(["closed-product", "closed-union", "type"]);
+const KIR_PATTERN_KIND_TO_PROPERTY_LIST_KIND = Object.freeze({
+  any: "any",
+  "open-product": "open-product",
+  "closed-product": "closed-product",
+  "open-union": "open-union",
+  "closed-union": "closed-union"
+});
 
 function isFile(filePath) {
   try {
@@ -59,9 +62,85 @@ function buildExportPreamble(exports, libraries) {
   return lines.join("\n") + "\n";
 }
 
+function kirFindCode(kir) {
+  return (hash) => kir.codes?.[hash] || codes.find(hash);
+}
+
+function kirTypePatternKind(node, codesTable = {}) {
+  const code = codesTable[node.code];
+  if (code?.code === "product") return "closed-product";
+  if (code?.code === "union") return "closed-union";
+  throw new Error(`KIR type pattern ${node.code || "<missing>"} is missing a product/union code definition`);
+}
+
+function kirPatternToPropertyList(patternGraph, codesTable, rootId) {
+  if (rootId == null) return null;
+  const nodes = patternGraph?.nodes || [];
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const ordered = [];
+  const idToIndex = new Map();
+
+  function visit(nodeId) {
+    if (idToIndex.has(nodeId)) return;
+    const node = nodeById.get(nodeId);
+    if (!node) throw new Error(`KIR pattern graph references missing node ${nodeId}`);
+
+    idToIndex.set(nodeId, ordered.length);
+    ordered.push(node);
+    for (const edge of [...(node.edges || [])].sort((a, b) => a.label.localeCompare(b.label) || a.target - b.target)) {
+      visit(edge.target);
+    }
+  }
+
+  visit(rootId);
+
+  return ordered.map((node) => {
+    const kind = node.kind === "type"
+      ? kirTypePatternKind(node, codesTable)
+      : KIR_PATTERN_KIND_TO_PROPERTY_LIST_KIND[node.kind];
+    if (!kind) throw new Error(`Unsupported KIR pattern kind: ${node.kind}`);
+    const edges = [...(node.edges || [])]
+      .sort((a, b) => a.label.localeCompare(b.label) || a.target - b.target)
+      .map((edge) => [edge.label, idToIndex.get(edge.target)]);
+    return [kind, edges];
+  });
+}
+
+function isKIRRelation(relDef) {
+  return relDef?.patternGraph && relDef?.body;
+}
+
+function objectRelationToKIRRelation(relDef, name, options = {}) {
+  const kir = objectToKIRP({
+    format: "k-object",
+    codes: options.codes || {},
+    rels: { [name]: relDef },
+    relAlias: {},
+    compileStats: {},
+    meta: {},
+    main: name
+  });
+  const relation = kir.rels[name];
+  const codesTable = { ...codesFromTypePatternGraph(relDef.typePatternGraph, relation), ...(options.codes || {}) };
+  return { relation, codesTable };
+}
+
+function codesFromTypePatternGraph(typePatternGraph, kirRelation) {
+  if (!typePatternGraph || typeof typePatternGraph.findCode !== "function") return {};
+  const result = {};
+  for (const node of kirRelation.patternGraph?.nodes || []) {
+    if (node.kind !== "type" || !node.code || result[node.code]) continue;
+    const code = typePatternGraph.findCode(node.code);
+    if (code) result[node.code] = code;
+  }
+  return result;
+}
+
 class KVMBuilder {
-  constructor(typePatternGraph) {
-    this.typePatternGraph = typePatternGraph;
+  constructor(patternGraph, codesTable = {}) {
+    this.patternGraph = patternGraph;
+    this.codes = codesTable;
+    this.patternCache = new Map();
     this.regCount = 0;
     this.instructions = [];
   }
@@ -75,13 +154,20 @@ class KVMBuilder {
   }
 
   getStaticPattern(exp, index) {
-    if (!this.typePatternGraph || !exp.patterns) return null;
-    const patternId = this.typePatternGraph.find(exp.patterns[index]);
-    return patternToPropertyList(exportPatternGraph(this.typePatternGraph, patternId));
+    if (!this.patternGraph || !exp.patterns) return null;
+    return this.getPattern(exp.patterns[index]);
+  }
+
+  getPattern(patternId) {
+    if (patternId == null) return null;
+    if (!this.patternCache.has(patternId)) {
+      this.patternCache.set(patternId, kirPatternToPropertyList(this.patternGraph, this.codes, patternId));
+    }
+    return this.patternCache.get(patternId);
   }
 }
 
-function compile(exp, inputReg, builder) {
+function compileKIRExp(exp, inputReg, builder) {
   switch (exp.op) {
     case "identity": {
       const dest = builder.nextReg();
@@ -120,7 +206,7 @@ function compile(exp, inputReg, builder) {
         op: "project_field",
         dest,
         src: inputReg,
-        label: exp.dot,
+        label: exp.label,
         pattern: builder.getStaticPattern(exp, 1),
         exp
       });
@@ -132,7 +218,7 @@ function compile(exp, inputReg, builder) {
         op: "project_variant",
         dest,
         src: inputReg,
-        tag: exp.div,
+        tag: exp.tag,
         pattern: builder.getStaticPattern(exp, 1),
         exp
       });
@@ -143,7 +229,7 @@ function compile(exp, inputReg, builder) {
       builder.emit({
         op: "make_variant",
         dest,
-        tag: exp.vid,
+        tag: exp.tag,
         src: inputReg
       });
       return dest;
@@ -178,18 +264,18 @@ function compile(exp, inputReg, builder) {
         builder.emit({ op: "guard_pattern", dest: guarded, src: currentReg, pattern: compInputPattern, exp });
         currentReg = guarded;
       }
-      for (const subExp of exp.comp) {
-        currentReg = compile(subExp, currentReg, builder);
+      for (const subExp of exp.items) {
+        currentReg = compileKIRExp(subExp, currentReg, builder);
       }
       return currentReg;
     }
     case "product": {
       const dest = builder.nextReg();
       const branches = [];
-      for (const { label, exp: fieldExp } of exp.product) {
-        const branchBuilder = new KVMBuilder(builder.typePatternGraph);
+      for (const { label, expr: fieldExp } of exp.fields) {
+        const branchBuilder = new KVMBuilder(builder.patternGraph, builder.codes);
         const branchInput = "%in";
-        const branchOutput = compile(fieldExp, branchInput, branchBuilder);
+        const branchOutput = compileKIRExp(fieldExp, branchInput, branchBuilder);
         branchBuilder.emit({ op: "return", src: branchOutput });
         branches.push({
           label,
@@ -209,10 +295,10 @@ function compile(exp, inputReg, builder) {
     case "union": {
       const dest = builder.nextReg();
       const branches = [];
-      for (const branchExp of exp.union) {
-        const branchBuilder = new KVMBuilder(builder.typePatternGraph);
+      for (const branchExp of exp.items) {
+        const branchBuilder = new KVMBuilder(builder.patternGraph, builder.codes);
         const branchInput = "%in";
-        const branchOutput = compile(branchExp, branchInput, branchBuilder);
+        const branchOutput = compileKIRExp(branchExp, branchInput, branchBuilder);
         branchBuilder.emit({ op: "return", src: branchOutput });
         branches.push({
           body: branchBuilder.instructions
@@ -228,30 +314,29 @@ function compile(exp, inputReg, builder) {
       return dest;
     }
     default:
-      throw new Error(`Unsupported AST operation: ${exp.op}`);
+      throw new Error(`Unsupported KIR operation: ${exp.op}`);
   }
 }
 
-export function lowerToKVM(relDef, name, options = {}) {
-  const typePatternGraph = relDef.typePatternGraph || null;
-  const builder = new KVMBuilder(typePatternGraph);
+export function lowerKIRRelationToKVM(kirRel, name, options = {}) {
+  const builder = new KVMBuilder(kirRel.patternGraph, options.codes || {});
   const inputReg = "%in";
 
   let currentReg = inputReg;
-  const inputPattern = builder.getStaticPattern(relDef.def, 0);
+  const inputPattern = builder.getPattern(kirRel.inputPattern);
   if (inputPattern) {
     const guarded = builder.nextReg();
-    builder.emit({ op: "guard_pattern", dest: guarded, src: currentReg, pattern: inputPattern, exp: relDef.def });
+    builder.emit({ op: "guard_pattern", dest: guarded, src: currentReg, pattern: inputPattern, exp: kirRel.body });
     currentReg = guarded;
   }
 
-  const bodyOutput = compile(relDef.def, currentReg, builder);
+  const bodyOutput = compileKIRExp(kirRel.body, currentReg, builder);
 
   let finalReg = bodyOutput;
-  const outputPattern = builder.getStaticPattern(relDef.def, 1);
+  const outputPattern = builder.getPattern(kirRel.outputPattern);
   if (outputPattern) {
     const guarded = builder.nextReg();
-    builder.emit({ op: "guard_pattern", dest: guarded, src: finalReg, pattern: outputPattern, exp: relDef.def });
+    builder.emit({ op: "guard_pattern", dest: guarded, src: finalReg, pattern: outputPattern, exp: kirRel.body });
     finalReg = guarded;
   }
 
@@ -261,17 +346,28 @@ export function lowerToKVM(relDef, name, options = {}) {
     name,
     inputPattern,
     outputPattern,
-    isConverged: relDef.typeDerivation?.status === "converged",
+    isConverged: kirRel.typeDerivation?.status === "converged",
     body: builder.instructions
   };
 }
 
-function lowerObjectRelsToKVM(rels = {}) {
+export function lowerKIRToKVM(kir) {
+  if (kir?.format !== "k-ir" || kir.layer !== "KIR-P") {
+    throw new Error("kVM lowering requires a KIR-P object");
+  }
   const kvmProgram = {};
-  for (const [name, relDef] of Object.entries(rels)) {
-    kvmProgram[name] = lowerToKVM(relDef, name);
+  for (const [name, relDef] of Object.entries(kir.rels || {})) {
+    kvmProgram[name] = lowerKIRRelationToKVM(relDef, name, { codes: kir.codes || {} });
   }
   return kvmProgram;
+}
+
+export function lowerToKVM(relDef, name, options = {}) {
+  if (isKIRRelation(relDef)) {
+    return lowerKIRRelationToKVM(relDef, name, options);
+  }
+  const { relation, codesTable } = objectRelationToKIRRelation(relDef, name, options);
+  return lowerKIRRelationToKVM(relation, name, { ...options, codes: codesTable });
 }
 
 export function isSingletonKVMInputPattern(pattern) {
@@ -290,30 +386,29 @@ function assertSingletonKVMInputPattern(pattern) {
 
 export function objectToKVMArtifact(object, relationName, inputPattern, options = {}) {
   assertSingletonKVMInputPattern(inputPattern);
-  const { retypedObject, kirR } = retypeObjectRelationForBackend(
+  const { relation, kir, entryName } = retypeObjectRelationForBackend(
     object,
     relationName || object.main,
     inputPattern,
     options
   );
-  const entry = retypedObject.main || "__main__";
-  const functions = lowerObjectRelsToKVM(retypedObject.rels);
+  const entry = entryName;
+  const functions = lowerKIRToKVM(kir);
   const entryFunc = functions[entry];
   if (!entryFunc) throw new Error(`Retyped kVM entry relation '${entry}' was not produced`);
 
   return {
     format: KVM_FORMAT,
     version: KVM_VERSION,
-    layer: "KVM-R",
+    layer: "KVM",
     sourceFormat: object.format,
-    relation: kirR.relation,
-    instanceKey: kirR.instanceKey,
+    relation,
     entry,
-    inputPattern: kirR.inputPattern,
-    outputPattern: kirR.outputPattern,
+    inputPattern: entryFunc.inputPattern,
+    outputPattern: entryFunc.outputPattern,
     isConverged: entryFunc.isConverged,
     functions,
-    kir: kirR
+    kir
   };
 }
 
@@ -423,7 +518,7 @@ function executeInstruction(inst, registers, context) {
         console.log(`[Trace] Calling ${inst.func} with:`, val ? val.toString() : "null");
       }
       if (!relDef._kvmFunc) {
-        relDef._kvmFunc = lowerToKVM(relDef, inst.func);
+        relDef._kvmFunc = lowerToKVM(relDef, inst.func, { codes: context.codes || {} });
       }
       const res = executeKVM(relDef._kvmFunc, val, context);
       if (options.trace) {
@@ -500,6 +595,8 @@ export default {
   KVM_FORMAT,
   KVM_VERSION,
   lowerToKVM,
+  lowerKIRRelationToKVM,
+  lowerKIRToKVM,
   executeKVM,
   isSingletonKVMInputPattern,
   objectToKVMArtifact
@@ -564,7 +661,7 @@ async function main() {
         if (object.main == null) {
           throw new Error("Cannot run a .klib library without a main relation; load it with --lib.");
         }
-        return { kind: "object", defs: { rels: object.rels }, main: object.main };
+        return { kind: "object", object };
       } catch (error) {
         if (error.message === "Cannot run a .klib library without a main relation; load it with --lib.") {
           throw error;
@@ -589,16 +686,17 @@ async function main() {
     throw new Error(`Unexpected argument: ${args[0]}`);
   }
 
-  const defs = programInput.kind === "object"
-    ? programInput.defs
-    : annotate(programInput.source, { libraries });
-  const mainRelName = programInput.kind === "object" ? programInput.main : "__main__";
-  const mainRel = defs.rels[mainRelName];
+  const object = programInput.kind === "object"
+    ? programInput.object
+    : decodeObject(compileObjectBuffer(programInput.source, { libraries }));
+  const kir = objectToKIRP(object);
+  const mainRelName = kir.main;
+  const mainRel = kir.rels[mainRelName];
   if (!mainRel) {
     throw new Error(`No main relation (${mainRelName}) defined in script`);
   }
 
-  const kvmFunc = lowerToKVM(mainRel, mainRelName);
+  const kvmFunc = lowerKIRRelationToKVM(mainRel, mainRelName, { codes: kir.codes });
 
   const buffer = [];
   inputStream.on("data", (data) => buffer.push(Buffer.isBuffer(data) ? data : Buffer.from(data)));
@@ -607,8 +705,9 @@ async function main() {
       const inputBuffer = Buffer.concat(buffer);
       const { pattern: inputPattern, value } = decodeWire(inputBuffer);
       const context = {
-        rels: defs.rels,
-        findCode: codes.find,
+        rels: kir.rels,
+        codes: kir.codes,
+        findCode: kirFindCode(kir),
         options: {
           envelopeFree
         }

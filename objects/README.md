@@ -21,7 +21,8 @@ inline k source, in the same style as `k.mjs`.
 `.kvm` is post-retyping backend input. Producing it requires a singleton input
 shape via `--input-pattern` or `--input-type`, so the artifact carries the
 concrete input pattern, derived output pattern, lowered kVM functions, and
-matching KIR-R payload. Open product/union and `any` patterns are rejected.
+matching retyped KIR-P payload. Open product/union and `any` patterns are
+rejected. The kVM functions are lowered from that retyped KIR-P payload.
 
 ### `k-decompile`
 

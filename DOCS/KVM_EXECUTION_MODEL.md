@@ -13,23 +13,25 @@ rules for partial failure, products, unions, calls, and safe scheduling.
 The current design already points at three layers:
 
 - KIR-P: portable, polymorphic object IR.
-- KIR-R: KIR-P retyped for a concrete input envelope pattern.
+- retyped KIR-P: KIR-P specialized for a concrete input envelope pattern.
 - KIR-M: backend material after layout and ABI decisions.
 
-kVM should make KIR-M concrete.
+kVM makes KIR-M concrete by lowering KIR-P relation bodies into executable kVM
+functions.
 
 ```text
 k source
   -> AST
   -> type derivation
   -> KIR-P object relation
-  -> KIR-R relation instance for an input pattern
+  -> retyped KIR-P relation instance for an input pattern
   -> kVM function
   -> LLVM / Wasm / C / JS kVM interpreter
 ```
 
-KIR-P remains the portable semantic object format.  KIR-R remains the retyping
-contract.  kVM is the executable middle form consumed by code generators.
+KIR-P remains the portable semantic object format. Retyping emits ordinary KIR-P
+for a concrete input envelope. The kVM lowerer consumes KIR-P and emits the
+executable middle form consumed by code generators.
 
 ## Design Center
 
@@ -235,7 +237,7 @@ failure that an earlier unresolved branch could have prevented.  If the
 contract is only result equivalence for terminating computations, product
 fail-fast and broader cancellation are valid optimizations.
 
-## Lowering From KIR-R
+## Lowering From Retyped KIR-P
 
 Suggested lowering rules:
 
@@ -400,7 +402,7 @@ only after `f` has failed.
 
 1. Keep KIR-P as the current object-level relation format.
 2. Define a JSON kVM schema for specialized relation instances.
-3. Lower current relation ops to kVM in envelope-aware mode.
+3. Lower KIR-P relation ops to kVM in envelope-aware mode.
 4. Add a sequential JS kVM interpreter and compare it against `run.mjs`.
 5. Lower retyped/converged relation instances to envelope-free kVM.
 6. Add kVM validation and conformance fixtures.
