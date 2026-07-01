@@ -1,19 +1,20 @@
 # KIR v1
 
-KIR v1 is the first backend-facing JSON view of compiled k objects. It is an
-inspection and export contract, not a replacement for the current `.ko` and
-`.klib` containers.
+KIR v1 is the first backend-facing artifact contract for compiled k objects. It
+is an inspection and export contract, not a replacement for the current `.ko`
+and `.klib` containers.
 
 The first layer is **KIR-P**, the portable polymorphic relation format. KIR-P
 keeps the same pattern-carrying semantics as current object execution, but
 normalizes names and graph IDs so backends can consume object contents without
-depending on parser-shaped fields or `TypePatternGraph` internals.
+depending on parser-shaped fields, current object storage, or
+`TypePatternGraph` internals.
 
 ## Scope
 
 KIR v1 defines:
 
-- a JSON-safe view over current `.ko` and `.klib` payloads;
+- a serialization-ready contract over current `.ko` and `.klib` payloads;
 - relation input and output pattern roots;
 - a closed expression opcode vocabulary;
 - dense per-relation pattern graph IDs;
@@ -24,9 +25,12 @@ KIR v1 does not define:
 
 - KIR-M layout and ABI decisions;
 - LLVM, Wasm, C, or native runtime layout;
-- a new stored object format.
+- a new stored object format;
+- a required physical encoding.
 
 ## Top-Level Shape
+
+The current textual export uses this field shape:
 
 ```json
 {
@@ -103,7 +107,7 @@ Valid `kind` values:
 - `closed-union`
 - `type`
 
-Type nodes carry a code hash:
+Type nodes carry a type-code hash:
 
 ```json
 { "id": 2, "kind": "type", "code": "@..." }
@@ -148,7 +152,7 @@ Rules:
 
 ## Current Tooling
 
-Use `k-inspect-object --kir` to print the KIR-P view:
+Use `k-inspect-object --kir` to print the current KIR-P export:
 
 ```sh
 k-compile program.k program.ko
@@ -163,7 +167,8 @@ Inside a checkout:
 ```
 
 This command decodes the current object format, hydrates relation pattern
-graphs through the normal object loader, and exports KIR-P JSON.
+graphs through the normal object loader, and emits the current KIR-P textual
+encoding.
 
 Use the conformance runner to compare source and object execution and validate
 KIR-P export for deterministic fixtures:
@@ -180,20 +185,22 @@ The intended backend pipeline remains:
 k source
   -> .ko / .klib object
   -> KIR-P
-  -> retyped KIR-P for an input envelope
+  -> envelope-specialized KIR-P for an input envelope
   -> KIR-M / kVM
   -> LLVM / Wasm / C / other backend
 ```
 
-KIR-P is the shared semantic object contract. Retyping produces another KIR-P
+KIR-P is the shared semantic object contract. Envelope Specialization produces another KIR-P
 object whose entry relation is specialized by an input envelope. KIR-M remains a
 separate backend contract and should not be encoded by overloading KIR-P fields.
 The current kVM lowerer consumes KIR-P relation bodies directly.
 
-## Retyping
+## Envelope Specialization
 
-`retypeObjectRelation(object, relationName, inputPattern)` exports retyped
-KIR-P. It re-runs existing type derivation as if the entry program were:
+The current API `retypeObjectRelation(object, relationName, inputPattern)`
+exports envelope-specialized KIR-P. The `retype...` spelling is legacy/current
+implementation naming; new public names should use envelope specialization. The
+pass re-runs existing type derivation as if the entry program were:
 
 ```k
 ?inputPattern relationName

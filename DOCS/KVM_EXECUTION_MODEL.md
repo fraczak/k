@@ -13,7 +13,7 @@ rules for partial failure, products, unions, calls, and safe scheduling.
 The current design already points at three layers:
 
 - KIR-P: portable, polymorphic object IR.
-- retyped KIR-P: KIR-P specialized for a concrete input envelope pattern.
+- envelope-specialized KIR-P: KIR-P specialized for a concrete input envelope pattern.
 - KIR-M: backend material after layout and ABI decisions.
 
 kVM makes KIR-M concrete by lowering KIR-P relation bodies into executable kVM
@@ -24,12 +24,12 @@ k source
   -> AST
   -> type derivation
   -> KIR-P object relation
-  -> retyped KIR-P relation instance for an input pattern
+  -> envelope-specialized KIR-P relation instance for an input pattern
   -> kVM function
   -> LLVM / Wasm / C / JS kVM interpreter
 ```
 
-KIR-P remains the portable semantic object format. Retyping emits ordinary KIR-P
+KIR-P remains the portable semantic object format. Envelope Specialization emits ordinary KIR-P
 for a concrete input envelope. The kVM lowerer consumes KIR-P and emits the
 executable middle form consumed by code generators.
 
@@ -81,7 +81,7 @@ There are two valid execution modes:
 
 - **Envelope-aware mode**: each `KRef` may carry a runtime pattern, matching the
   current interpreter and codec model.
-- **Envelope-free mode**: retyping has proven the input and output patterns for
+- **Envelope-free mode**: envelope specialization has proven the input and output patterns for
   every call site, so inner operations use static layouts and attach the derived
   output pattern only at the boundary.
 
@@ -137,7 +137,7 @@ return          %value                     -> ok(%value)
 Composition is ordinary control flow: run the next instruction only after the
 previous one has returned `ok`.
 
-Filters lower either to `guard_pattern` or disappear after retyping proves that
+Filters lower either to `guard_pattern` or disappear after envelope specialization proves that
 the guard is redundant.  Type/code expressions lower to guards.  Variant
 introduction lowers to `make_variant`.  Product construction lowers to a
 product region plus `make_product`.
@@ -237,7 +237,7 @@ failure that an earlier unresolved branch could have prevented.  If the
 contract is only result equivalence for terminating computations, product
 fail-fast and broader cancellation are valid optimizations.
 
-## Lowering From Retyped KIR-P
+## Lowering From Envelope-Specialized KIR-P
 
 Suggested lowering rules:
 
@@ -261,7 +261,7 @@ instructions.  Debug metadata may retain source labels.
 ## Layout Tables
 
 kVM should not hard-code one memory layout.  It should refer to layout tables
-generated from retyped patterns and canonical codes.
+generated from envelope-specialized patterns and canonical codes.
 
 Useful tables:
 
@@ -387,8 +387,8 @@ only after `f` has failed.
 
 ## Open Questions
 
-- Should kVM be serialized as JSON first, or as a compact binary section inside
-  `.ko` only after the schema stabilizes?
+- Should the first persisted kVM encoding be textual for inspection, compact
+  binary for embedding, or both?
 - Should product fail-fast be the only release behavior, or should there be a
   standard diagnostic mode that collects all failed fields?
 - How should effectful debug intrinsics be represented so they cannot silently
@@ -401,10 +401,10 @@ only after `f` has failed.
 ## Implementation Order
 
 1. Keep KIR-P as the current object-level relation format.
-2. Define a JSON kVM schema for specialized relation instances.
+2. Define a kVM artifact schema for specialized relation instances.
 3. Lower KIR-P relation ops to kVM in envelope-aware mode.
 4. Add a sequential JS kVM interpreter and compare it against `run.mjs`.
-5. Lower retyped/converged relation instances to envelope-free kVM.
+5. Lower envelope-specialized and converged relation instances to envelope-free kVM.
 6. Add kVM validation and conformance fixtures.
 7. Add a minimal C or Wasm backend for sequential kVM.
 8. Add LLVM lowering.

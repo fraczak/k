@@ -163,7 +163,7 @@ Set `WASM_RESET=0` to reproduce retained-arena growth and
 - the exported `rel___main__` entry point
 - a WebAssembly custom section named `k.metadata`
 
-The custom section stores JSON metadata needed by the host runner:
+The custom section stores runner metadata:
 
 | Field | Meaning |
 | --- | --- |
@@ -225,7 +225,7 @@ result of `0` means that the k relation was undefined for that input.
 - The artifact is a WebAssembly module, not a native executable. It still needs
   a host runner that understands k binary streams and the `k.metadata` section.
 - `k-wasm-run` currently targets Node.js. A browser runner can use the same
-  artifact format but has not been added yet.
+  artifact contract but has not been added yet.
 - `.klib` files are compile-time dependencies, not standalone WebAssembly
   inputs. Load them with `--lib` and compile source, `.ko`, or `.kvm` input with
   a main relation.

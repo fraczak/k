@@ -7,12 +7,12 @@ backend bridge from the root `@fraczak/k` package and starts from compiled
 `.ko` objects:
 
 ```text
-.k source -> .ko -> retyped KIR-P -> LLVM IR prototype
+.k source -> .ko -> envelope-specialized KIR-P -> LLVM IR prototype
 ```
 
 The first milestone is not performance. It is a stable backend pipeline that
-can load an object, retype it through KIR-P, and produce an inspectable LLVM
-module.
+can load an object, specialize it through KIR-P, and produce an inspectable
+LLVM module.
 
 ## Quick Start
 
@@ -26,8 +26,8 @@ node ../../objects/compile.mjs '()' /tmp/id.ko
 node ./bin/k-llvm-compile.mjs --input-pattern '[["open-product",[]]]' /tmp/id.ko /tmp/id.ll
 ```
 
-The generated `.ll` embeds the retyped KIR-P JSON as module data and exposes
-the first runtime ABI slice:
+The generated `.ll` embeds the envelope-specialized KIR-P contract as module
+data and exposes the first runtime ABI slice:
 
 ```llvm
 %k_result = type { i32, ptr }
@@ -52,7 +52,8 @@ k-llvm-run [options] object.ko [input.kv]
 
 Options:
 
-- `--retype rel`: relation to specialize; defaults to the object's `main`.
+- `--retype rel`: current option spelling for the relation to
+  envelope-specialize; defaults to the object's `main`.
 - `--input-pattern json-or-file`: KIR property-list input pattern; required
   for `k-llvm-build`.
 - `--expect value-or-file`: for `k-llvm-run`, compare the output value against
@@ -98,8 +99,8 @@ set `LLVM_PIPELINE=1` to measure parallel request pipelining or
 
 Current output:
 
-- KIR-P retyping through `@fraczak/k/backend-api.mjs`;
-- textual LLVM IR with embedded retyped KIR-P JSON;
+- KIR-P envelope specialization through `@fraczak/k/backend-api.mjs`;
+- textual LLVM IR with embedded envelope-specialized KIR-P metadata;
 - boxed runtime ABI declarations;
 - identity, filter/code erasure, product projection/construction, and variant
   construction/projection lowerings as `@k_main(k_rt*, k_value*) -> k_result`;
