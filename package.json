@@ -20,7 +20,6 @@
         "perf:llvm:int": "npm --prefix backends/llvm run perf:int",
         "perf:wasm:ieee": "npm --prefix backends/wasm run perf:ieee",
         "perf:wasm:int": "npm --prefix backends/wasm run perf:int",
-        "hooks:install": "git config core.hooksPath scripts/git-hooks",
         "perf:idempotency": "node scripts/benchmark-idempotency.mjs",
         "deps:graph": "node scripts/generate-dependency-graph.mjs"
     },
