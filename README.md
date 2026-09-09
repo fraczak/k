@@ -149,13 +149,13 @@ k-print   # binary pattern+value stream -> textual value
 
 k programs can be compiled into:
 
-- `.klib`: plain JSON library objects
+- `.klib`: library objects
 - `.ko`: executable binary object containers
-- `.kvm`: JSON kVM programs
+- `.kvm`: specialized kVM backend artifacts
 
 Object and library files keep canonical code/relation definitions, aliases,
-metadata, and type-derivation status. The `.kvm` output is a lowered JSON
-program for backend inspection and execution experiments.
+metadata, and type-derivation status. The `.kvm` output is a lowered backend
+artifact for inspection and execution experiments.
 
 ## CLI Tour
 
@@ -191,17 +191,24 @@ program for backend inspection and execution experiments.
 | `k-compile` | Compile `.k` source to `.ko`, `.klib`, or `.kvm` output |
 | `k-decompile` | Decompile `.ko` or `.klib` back to k source |
 | `k-extract-aliases` | Recover metadata aliases as k source |
+| `k-inspect-object` | Inspect object sections or print the KIR-P backend export |
+| `k-validate-object` | Validate `.ko`, `.klib`, or exported KIR-P artifacts |
+| `k-kir` | Export KIR-P from `.ko` or `.klib` |
 
 Installed binary names are `k-` plus the source basename without `.mjs`, except
 for `k.mjs` itself. Source names that already include `k-`, such as
 `codecs/k-parse.mjs`, keep that name.
 
-## WebAssembly Backend
+## Backends
 
-The experimental WebAssembly backend lives in the separate
-[`fraczak/k-wasm`](https://github.com/fraczak/k-wasm) repository. Keeping the
-backend separate avoids adding its WABT dependency to the core runtime. External
-backends integrate with the compiler and binary codecs through
+Experimental backends live under [`backends/`](backends/) as npm workspaces:
+
+- [`backends/wasm`](backends/wasm/) lowers typed k programs through kVM into
+  WebAssembly artifacts.
+- [`backends/llvm`](backends/llvm/) lowers envelope-specialized KIR-P into LLVM IR and
+  native test executables.
+
+Both backends integrate with the compiler and binary codecs through
 [`backend-api.mjs`](backend-api.mjs).
 
 ## Node.js API
@@ -287,6 +294,8 @@ compose with `.result` when only the floating-point value is needed.
 ```bash
 npm run prepare   # regenerate parsers from .jison grammars
 npm test          # run the fail-fast full suite with per-test timings
+npm run test:wasm # run the WebAssembly backend tests
+npm run test:llvm # run the LLVM backend tests
 ```
 
 The test runner prints each test before execution and reports its elapsed time
@@ -301,6 +310,7 @@ afterward. It stops immediately when a test fails. The suite covers:
 
 ## Further Reading
 
+- [DOCS/DICTIONARY.md](DOCS/DICTIONARY.md) - concept names and terminology
 - [DOCS/REPL.md](DOCS/REPL.md) - interactive interpreter details
 - [DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md) - textual boundary notation
 - [DOCS/PATTERNS.md](DOCS/PATTERNS.md) - pattern representation

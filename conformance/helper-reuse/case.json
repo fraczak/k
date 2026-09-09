@@ -1,0 +1,8 @@
+{
+  "name": "helper reuse",
+  "program": "program.k",
+  "input": "input.kv",
+  "expected": "expected.kv",
+  "modes": ["source", "object", "kir", "retyped"],
+  "tags": ["runtime", "retyping", "call-sites"]
+}

@@ -1,4 +1,4 @@
-# KIR: k Intermediate Representation, Retyping, and Conformance
+# KIR: k Intermediate Representation, Envelope Specialization, and Conformance
 
 The document defines an object IR and conformance platform for LLVM and
 WebAssembly backends.
@@ -6,9 +6,9 @@ WebAssembly backends.
 ## Goals
 
 - Define a portable polymorphic object IR.
-- Define retyping for concrete input envelope patterns.
+- Define envelope specialization for concrete input envelope patterns.
 - Define conformance fixtures for interpreter, object execution,
-  retyped execution, and future backends.
+  envelope-specialized execution, and future backends.
 - Keep `.ko` and `.klib` inspectable.
 - Record type-derivation convergence per relation.
 
@@ -32,7 +32,7 @@ KIR-P must:
 - preserve filters and pattern operations;
 - store relation input and output patterns;
 - be the canonical `.ko` / `.klib` relation format;
-- be the reference for retyping and backend tests.
+- be the reference for envelope specialization and backend tests.
 
 Alternative:
 
@@ -40,29 +40,31 @@ Alternative:
   but makes object behavior depend on the compiler version. Do not use this for
   KIR.
 
-### KIR-R: Retyped IR
+### Envelope-Specialized KIR-P
 
-KIR-R is produced from `KIR-P + input envelope pattern`.
+Envelope-Specialized KIR-P is produced from `KIR-P + input envelope pattern`.
 
-KIR-R must:
+Envelope Specialization must:
 
 - be equivalent to typing the entry expression `?P __main__`;
 - derive the output pattern for that invocation;
 - validate filters and pattern constraints before value execution;
 - preserve the same value-level partial function semantics;
-- support multiple pattern contexts for the same helper relation;
-- be cacheable by relation hash and input pattern hash.
+- support multiple pattern contexts for the same helper relation internally;
+- be cacheable by relation hash and input pattern hash without serializing that
+  cache key into KIR.
 
 Alternative:
 
 - Re-run full source compilation for each input pattern. This is acceptable for
   the first prototype, but the public API should still be
-  `retype(rel, inputPattern)`.
+  `specializeEnvelope(partialFunction, inputEnvelope)`. Current implementation identifiers
+  may still use `retype...` until they are renamed.
 
 ### KIR-M: Backend IR
 
-KIR-M is produced from KIR-R after call-site pattern contexts, layout, and ABI
-decisions are fixed.
+KIR-M is produced from envelope-specialized KIR-P after call-site pattern contexts, layout,
+and ABI decisions are fixed.
 
 KIR-M should:
 
@@ -73,16 +75,19 @@ KIR-M should:
 - require converged type derivation for every compiled relation;
 - target LLVM, Wasm, C, or another backend.
 
-Alternative:
+Current baseline:
 
-- Compile KIR-P directly. This is useful for a correctness experiment, but it
-  recreates the polymorphic interpreter and is not the final performance path.
+- Lower KIR-P directly to kVM. This gives a single backend-facing contract for
+  both polymorphic and envelope-specialized relations. Later KIR-M layout work can specialize
+  the same KIR-P input further instead of adding another serialized relation
+  shape.
 
 Relationship to kVM:
 
 - [KVM_EXECUTION_MODEL.md](KVM_EXECUTION_MODEL.md) sketches kVM as the concrete
   execution contract for KIR-M.
-- KIR-R remains the retyping contract.
+- envelope specialization remains a pass that emits ordinary KIR-P.
+- kVM lowering consumes KIR-P relation bodies directly.
 - kVM keeps product and union as structured regions so backends can choose
   sequential execution first, then safe parallel scheduling later.
 
@@ -124,7 +129,7 @@ Implementation:
 
 Alternative:
 
-- Change the stored object JSON immediately. This is less code, but risks
+- Change the stored object payload immediately. This is less code, but risks
   mixing backend contracts with current JS evaluator internals.
 
 ### Step 1a: Record Type-Derivation Status
@@ -231,9 +236,9 @@ Alternative:
 
 - Store union-find state as debug metadata. Do not use it as backend input.
 
-## Retyping
+## Envelope Specialization
 
-### Step 5: Add `retype(rel, inputPattern)`
+### Step 5: Add Envelope Specialization
 
 Input:
 
@@ -244,9 +249,9 @@ Input:
 
 Output:
 
-- KIR-R relation;
+- envelope-specialized KIR-P relation;
 - output pattern;
-- call-site pattern summary.
+- compiler-local call-site worklist.
 
 Algorithm:
 
@@ -261,13 +266,13 @@ Alternative:
 - Implement this inside `run.mjs` first. This may be useful for bootstrapping,
   but the final API should be separate from the evaluator.
 
-### Step 6: Execution After Retyping
+### Step 6: Execution After Envelope Specialization
 
 Safe baseline:
 
 - keep current envelope-carrying execution;
-- use KIR-R only to derive the top-level output pattern;
-- treat filters as already validated by retyping.
+- use envelope-specialized KIR-P only to derive the top-level output pattern;
+- treat filters as already validated by envelope specialization.
 
 Optimized mode:
 
@@ -281,7 +286,7 @@ Alternative:
 - Never remove envelopes in the JS evaluator. This is simplest and remains the
   reference path. Envelope-free execution can be left to KIR-M.
 
-### Step 7: Call-Site Retyping
+### Step 7: Call-Site Envelope Specialization
 
 One relation may be called under multiple patterns:
 
@@ -290,7 +295,7 @@ f@P1
 f@P2
 ```
 
-KIR-R should model these as separate instances:
+The envelope specialization cache should model these as separate instances:
 
 ```text
 relation hash + input pattern hash
@@ -303,7 +308,7 @@ Alternative:
 - Use one annotation per relation. This is easier, but too coarse for precise
   output patterns and unsafe for envelope-free execution.
 
-### Step 8: Cache Retyping Results
+### Step 8: Cache Envelope Specialization Results
 
 Cache key:
 
@@ -313,15 +318,15 @@ relation-hash + input-pattern-hash
 
 Cache value:
 
-- KIR-R relation;
+- envelope-specialized KIR-P relation;
 - output pattern;
-- call-site pattern summary;
+- optional compiler-local call-site worklist;
 - optional backend artifact.
 
 Alternative:
 
-- Cache by pattern JSON first. Replace with pattern hashes once pattern hashing
-  is stable.
+- Cache by a stable pattern encoding first. Replace with pattern hashes once
+  pattern hashing is stable.
 
 ## Conformance
 
@@ -345,7 +350,7 @@ Example:
   "program": "program.k",
   "input": "input.kv",
   "expected": "expected.kv",
-  "modes": ["source", "object", "retyped"],
+  "modes": ["source", "object", "envelope-specialized"],
   "tags": ["runtime", "projection"]
 }
 ```
@@ -362,7 +367,7 @@ Modes:
 
 - `source`: compile source and run the JS evaluator;
 - `object`: compile `.ko`, load it, and run object evaluation;
-- `retyped`: retype using the input wire pattern and run the retyped evaluator;
+- `envelope-specialized`: specialize using the input wire pattern and run the envelope-specialized evaluator;
 - future `wasm` / `llvm`: run backend artifacts.
 
 Comparison:
@@ -413,12 +418,12 @@ Codecs:
 - Unicode labels;
 - explicit pattern vs derived witness pattern.
 
-Retyping:
+Envelope Specialization:
 
 - output pattern derived from `?P __main__`;
 - helper called under two different patterns;
-- recursive helper retyping convergence;
-- retyping cache reuse.
+- recursive helper envelope specialization convergence;
+- envelope specialization cache reuse.
 
 Backend eligibility:
 
@@ -436,32 +441,32 @@ Alternative:
 - `k-inspect-object`: print object sections, KIR-P, aliases, metadata, and
   pattern summaries.
 - `k-validate-object`: validate `.ko` and `.klib` schemas and references.
-- `k-retype-object`: precompute KIR-R for one relation and input pattern.
-- Retyping heat counters in the JS runtime.
+- `k-specialize-envelope`: precompute envelope-specialized KIR-P for one relation and input pattern.
+- Envelope Specialization heat counters in the JS runtime.
 - Pattern-hash backend artifact cache.
 - Optional binary executable object payload after KIR stabilizes.
 - Minimal C backend before LLVM.
-- Wasm KIR-R interpreter before native LLVM.
+- Wasm envelope-specialized KIR interpreter before native LLVM.
 
 ## Implementation Order
 
 1. Write `DOCS/KIR_V1.md`.
-2. Treat current `.ko` / `.klib` storage as the initial KIR-P input format.
+2. Treat current `.ko` / `.klib` storage as the initial KIR-P input artifact.
 3. Add `kir.mjs` to export KIR-P from current objects.
 4. Add `objects/inspect.mjs --kir`.
 5. Add `objects/validate.mjs`.
 6. Add conformance fixture format and runner.
-7. Add entry retyping for `?P __main__`.
-8. Add a KIR-R JS evaluator or retyped execution wrapper.
-9. Compare KIR-R execution against `run.mjs`.
-10. Add call-site retyping for helper relations.
-11. Add retyping cache.
+7. Add entry envelope specialization for `?P __main__`.
+8. Add an envelope-specialized KIR JS evaluator or envelope-specialized execution wrapper.
+9. Compare envelope-specialized KIR execution against `run.mjs`.
+10. Add call-site envelope specialization for helper relations.
+11. Add envelope specialization cache.
 12. Reject non-converged relations in LLVM/Wasm compilation.
 13. Prototype a small C or Wasm backend through kVM.
 
 Rule:
 
 - KIR-P is the portable semantic contract.
-- KIR-R is the retyping contract.
+- envelope specialization emits KIR-P and may use local cache keys/worklists.
 - KIR-M is backend material; kVM is the proposed concrete execution model for
   that material.
