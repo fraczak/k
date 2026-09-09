@@ -9,4 +9,9 @@ DOCS/dependency-graph.md
 .DS_Store
 .idea/
 k_compiler/
-
+*.ll
+*.bc
+*.o
+*.out
+*.wasm
+debug_full.wat
