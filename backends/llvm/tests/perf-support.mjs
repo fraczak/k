@@ -75,7 +75,9 @@ export function makeCacheDir(prefix) {
     fs.mkdirSync(process.env.K_LLVM_CACHE_DIR, { recursive: true });
     return process.env.K_LLVM_CACHE_DIR;
   }
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const defaultDir = path.join(os.tmpdir(), prefix ? `${prefix}cache` : "k-llvm-perf-cache");
+  fs.mkdirSync(defaultDir, { recursive: true });
+  return defaultDir;
 }
 
 export function prepareRelation(state, relationName, { source = null, sourceLabel = "<benchmark>" } = {}) {

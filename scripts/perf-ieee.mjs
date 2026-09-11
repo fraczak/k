@@ -1,0 +1,433 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import wabtFactory from "wabt";
+
+import {
+  codes,
+  createState,
+  decodeWire,
+  evaluateInput,
+  executeKVM,
+  exportPatternGraph,
+  parseFloat64,
+  patternToPropertyList,
+  propertyListToPattern,
+  run,
+  run_converged,
+  valueForCode,
+  Value
+} from "@fraczak/k/backend-api.mjs";
+
+import {
+  csvEnv,
+  formatTiming,
+  createLLVMRunner,
+  llvmLaneName,
+  makeCacheDir,
+  parseNonNegativeIntEnv,
+  parsePositiveIntEnv,
+  prepareRelation,
+  printCompileFailures,
+  runExecutable,
+  runTimedIterations,
+  shouldStrictFail,
+  toPlainObject,
+  tryCompileCase,
+  wireInput
+} from "../backends/llvm/tests/perf-support.mjs";
+
+import {
+  cleanName,
+  instantiateWasmModule,
+  readArenaValue,
+  writeValueToArena
+} from "../backends/wasm/tests/perf-support.mjs";
+
+// Backend selection
+const backendsEnv = process.env.BACKENDS?.toLowerCase();
+const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";
+const wasmOnly = process.env.WASM_ONLY === "1" || backendsEnv === "wasm";
+
+const runLLVM = !wasmOnly;
+const runWasm = !llvmOnly;
+const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1");
+
+const ops = ["add", "sub", "mul", "div"];
+const values = csvEnv("VALUES", "0.5,-4,0,Infinity,-Infinity,NaN");
+const iterations = parsePositiveIntEnv("ITERATIONS", 3);
+
+// LLVM options
+const llvmWarmupIterations = parseNonNegativeIntEnv("LLVM_WARMUP_ITERATIONS", 1);
+const llvmRuntimeMode = process.env.K_LLVM_IEEE_RUNTIME_MODE || "compact";
+
+function getClangOptLevels() {
+  for (const arg of process.argv.slice(2)) {
+    if (arg.startsWith("--opt=") || arg.startsWith("--opts=")) {
+      return arg.split("=")[1].split(",").map(s => s.trim()).filter(Boolean);
+    }
+  }
+  const optIdx = process.argv.findIndex(arg => arg === "--opt" || arg === "--opts");
+  if (optIdx !== -1 && process.argv[optIdx + 1]) {
+    return process.argv[optIdx + 1].split(",").map(s => s.trim()).filter(Boolean);
+  }
+  const directFlags = [];
+  for (const flag of ["--O0", "--O1", "--O2", "--O3"]) {
+    if (process.argv.includes(flag)) {
+      directFlags.push(`-${flag.slice(2)}`);
+    }
+  }
+  if (directFlags.length > 0) return directFlags;
+  if (process.argv.includes("--full") || process.env.PERF_FULL === "1") {
+    return ["-O0", "-O1", "-O2"];
+  }
+  if (process.env.LLVM_OPTS) {
+    return csvEnv("LLVM_OPTS", "");
+  }
+  if (process.env.K_LLVM_IEEE_CLANG_OPT) {
+    return csvEnv("K_LLVM_IEEE_CLANG_OPT", "");
+  }
+  return ["-O1"];
+}
+
+const llvmOptLevels = getClangOptLevels();
+const cacheDir = makeCacheDir("k-llvm-ieee-perf-");
+
+// Wasm options
+const wasmWarmupIterations = parseNonNegativeIntEnv("WASM_WARMUP_ITERATIONS", 10);
+const wasmReset = process.env.WASM_RESET !== "0";
+
+console.log("==> Initializing state and loading @fraczak/k/Examples/ieee.k");
+const state = createState();
+const ieeePath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/ieee.k"));
+await evaluateInput(`:load ${ieeePath}`, state);
+
+function generatePerfK(values) {
+  const paramFields = values.map((_, i) => `  float64 p${i}`).join(",\n");
+  const lines = [
+    `$params = {\n${paramFields}\n};`
+  ];
+  for (const op of ops) {
+    lines.push(`perf_${op} =`);
+    lines.push("  {");
+    const cases = [];
+    for (let i = 0; i < values.length; i++) {
+      for (let j = 0; j < values.length; j++) {
+        cases.push(`    {.p${i} x, .p${j} y} ${op} r_${i}_${j}`);
+      }
+    }
+    lines.push(cases.join(",\n"));
+    lines.push("  };");
+  }
+  lines.push("perf_ieee = ?params");
+  lines.push("  {");
+  lines.push("    perf_add add,");
+  lines.push("    perf_sub sub,");
+  lines.push("    perf_mul mul,");
+  lines.push("    perf_div div");
+  lines.push("  };");
+  return lines.join("\n");
+}
+
+const perfKSource = generatePerfK(values);
+await evaluateInput(perfKSource, state);
+
+const ieeeRaw = fs.readFileSync(ieeePath, "utf8");
+// Exclude trailing unassigned expression and comment block to ensure clean parse
+const ieeeBase = ieeeRaw.split("\n").slice(0, 15584).join("\n");
+const fullSource = `${ieeeBase}\n${perfKSource}\nperf_ieee`;
+
+console.log("==> Preparing relation perf_ieee");
+const relation = prepareRelation(state, "perf_ieee", {
+  source: fullSource,
+  sourceLabel: "@fraczak/k/Examples/ieee.k#perf_ieee"
+});
+codes.load(state.codes);
+
+const float64Hash = state.typeAliases.float64;
+function float64(text) {
+  return valueForCode(parseFloat64(text), float64Hash, codes.find);
+}
+
+const paramsObj = {};
+for (let i = 0; i < values.length; i++) {
+  paramsObj[`p${i}`] = float64(values[i]);
+}
+const rawProduct = Value.product(paramsObj);
+const inputVal = valueForCode(rawProduct, state.typeAliases.params, codes.find);
+const { inputWire, inputPattern } = wireInput(inputVal);
+
+console.log("==> Computing expected results via Native JS");
+run_converged.defs = state;
+run.defs = state;
+const expected = run_converged(codes.find, relation.relDef.def, inputVal, relation.relDef.typePatternGraph);
+assert.ok(expected !== undefined, "Failed to compute expected results for perf_ieee");
+const totalOps = ops.length * values.length * values.length;
+
+// Setup LLVM
+const llvmCasesByOpt = new Map();
+if (runLLVM) {
+  for (const opt of llvmOptLevels) {
+    console.log(`==> Compiling LLVM executable (${opt})...`);
+    const llvm = tryCompileCase({
+      object: relation.object,
+      relationName: relation.relationName,
+      relHash: relation.relHash,
+      inputPattern,
+      cacheDir,
+      sourceLabel: "@fraczak/k/Examples/ieee.k#perf_ieee",
+      runtimeMode: llvmRuntimeMode,
+      clangOpt: opt
+    });
+    const singleCase = [{
+      op: "perf_ieee",
+      label: "params",
+      inputVal,
+      inputWire,
+      inputPattern,
+      expected,
+      llvm
+    }];
+    llvmCasesByOpt.set(opt, singleCase);
+    printCompileFailures(singleCase);
+  }
+  codes.load(state.codes);
+}
+
+// Setup Wasm
+let wasmExports = null;
+let wasmPtrIn = null;
+let wasmOutputPattern = null;
+let wasmOutputPatternPropertyList = null;
+let wasmFuncName = null;
+
+if (runWasm) {
+  console.log("==> Compiling WebAssembly module...");
+  const wabtInstance = await wabtFactory();
+  const wasmModule = await instantiateWasmModule([state.relAliases.perf_ieee], state, wabtInstance);
+  wasmExports = wasmModule.exports;
+
+  const relDef = relation.relDef;
+  const graph = relDef.typePatternGraph;
+
+  const inputPatternNodeId = graph.find(relDef.def.patterns[0]);
+  const inputPat = propertyListToPattern(patternToPropertyList(exportPatternGraph(graph, inputPatternNodeId)));
+
+  const outputPatternNodeId = graph.find(relDef.def.patterns[1]);
+  wasmOutputPatternPropertyList = patternToPropertyList(exportPatternGraph(graph, outputPatternNodeId));
+  wasmOutputPattern = propertyListToPattern(wasmOutputPatternPropertyList);
+
+  wasmPtrIn = writeValueToArena(wasmExports, inputVal, inputPat, 0);
+  wasmFuncName = cleanName(state.relAliases.perf_ieee);
+}
+
+function printBenchmarkDescription() {
+  const lanes = [];
+  if (runBaselines) {
+    lanes.push("Native JS (Envelope-Aware)");
+    lanes.push("Native JS (Envelope-Free)");
+    lanes.push("kVM Interpreter (Env-Free)");
+  }
+  if (runLLVM) {
+    for (const opt of llvmOptLevels) {
+      const mode = llvmLaneName().replace(/^LLVM Executable\\s*\\((.*)\\)$/, "$1");
+      lanes.push(llvmOptLevels.length > 1 ? `LLVM ${opt} (${mode})` : llvmLaneName());
+    }
+  }
+  if (runWasm) lanes.push("WebAssembly");
+
+  console.log("==> Benchmark description");
+  console.log("    source: @fraczak/k/Examples/ieee.k#perf_ieee (single program)");
+  console.log(`    operations: ${ops.join(", ")}`);
+  console.log(`    values: ${values.join(", ")}`);
+  console.log(`    evaluation: 1 program call evaluating all ${totalOps} operations`);
+  if (runLLVM) {
+    console.log(`    llvm warmup iterations: ${llvmWarmupIterations}`);
+    console.log(`    llvm runtime mode: ${llvmRuntimeMode}`);
+    console.log(`    llvm clang opts: ${llvmOptLevels.join(", ")}`);
+    console.log(`    llvm cache dir: ${cacheDir}`);
+  }
+  if (runWasm) {
+    console.log(`    wasm warmup iterations: ${wasmWarmupIterations}`);
+    console.log(`    wasm arena reset: ${wasmReset ? "yes" : "no"}`);
+  }
+  console.log(`    iterations: ${iterations}`);
+  console.log(`    benchmark lanes: ${lanes.join("; ")}`);
+  console.log("    conformance: all outputs are compared to native expected values");
+}
+
+printBenchmarkDescription();
+console.log(`==> Running IEEE Performance Test (1 program call / iteration, Iterations: ${iterations})...`);
+
+// 1. Common baseline lanes (only run once!)
+let nativeAwareResult = null;
+let nativeFreeResult = null;
+let kvmFreeResult = null;
+
+if (runBaselines) {
+  console.log("==> Running Native JS (Envelope-Aware)...");
+  nativeAwareResult = runTimedIterations(iterations, () => {
+    const res = run(codes.find, relation.relDef.def, inputVal, relation.relDef.typePatternGraph);
+    if (res === undefined) throw new Error("Native JS (Envelope-Aware) returned undefined");
+  });
+
+  console.log("==> Running Native JS (Envelope-Free)...");
+  nativeFreeResult = runTimedIterations(iterations, () => {
+    const res = run_converged(codes.find, relation.relDef.def, inputVal, relation.relDef.typePatternGraph);
+    if (res === undefined) throw new Error("Native JS (Envelope-Free) returned undefined");
+  });
+
+  console.log("==> Running kVM Interpreter (Env-Free)...");
+  const contextFree = {
+    rels: state.rels,
+    findCode: codes.find,
+    options: { envelopeFree: true }
+  };
+  kvmFreeResult = runTimedIterations(iterations, () => {
+    const res = executeKVM(relation.kvmFunc, inputVal, contextFree);
+    if (res === undefined) throw new Error("kVM Interpreter returned undefined");
+  });
+}
+
+// 2. LLVM lanes
+const llvmResults = new Map();
+if (runLLVM) {
+  for (const opt of llvmOptLevels) {
+    const casesForOpt = llvmCasesByOpt.get(opt);
+    const llvmRunner = createLLVMRunner(casesForOpt);
+    try {
+      if (llvmWarmupIterations > 0) {
+        console.log(`==> Warming LLVM (${opt}) executable (${llvmWarmupIterations} iterations)...`);
+        await llvmRunner.run(llvmWarmupIterations);
+      }
+      console.log(`==> Running LLVM (${opt}) (${iterations} iterations)...`);
+      const result = await llvmRunner.run(iterations);
+      llvmResults.set(opt, result);
+    } finally {
+      llvmRunner.close();
+    }
+  }
+}
+
+// 3. Wasm lane
+let wasmResult = null;
+if (runWasm) {
+  if (wasmWarmupIterations > 0) {
+    console.log(`==> Warming WebAssembly (${wasmWarmupIterations} iterations)...`);
+    for (let i = 0; i < wasmWarmupIterations; i++) {
+      const mark = wasmReset ? wasmExports.arena_mark() : 0;
+      const res = wasmExports[wasmFuncName](wasmPtrIn);
+      assert.ok(res[1] === 1);
+      if (wasmReset) wasmExports.arena_reset(mark);
+    }
+  }
+
+  console.log(`==> Running WebAssembly (${iterations} iterations)...`);
+  wasmResult = runTimedIterations(iterations, () => {
+    const mark = wasmReset ? wasmExports.arena_mark() : 0;
+    const res = wasmExports[wasmFuncName](wasmPtrIn);
+    assert.ok(res[1] === 1);
+    if (wasmReset) wasmExports.arena_reset(mark);
+  });
+}
+
+console.log("\n=================== IEEE BENCHMARK RESULTS ===================");
+console.log(`Program calls per iteration: 1 (${totalOps} IEEE operations evaluated inside)`);
+console.log(`Total requested program calls: ${iterations} (${iterations * totalOps} equivalent IEEE operations)`);
+console.log("--------------------------------------------------------------");
+let laneIndex = 1;
+if (runBaselines) {
+  console.log(`${laneIndex++}. Native JS (Envelope-Aware):   ${formatTiming(nativeAwareResult)}`);
+  console.log(`${laneIndex++}. Native JS (Envelope-Free):    ${formatTiming(nativeFreeResult)}`);
+  console.log(`${laneIndex++}. kVM Interpreter (Env-Free):   ${formatTiming(kvmFreeResult)}`);
+}
+if (runLLVM) {
+  for (const opt of llvmOptLevels) {
+    const title = llvmOptLevels.length > 1
+      ? `LLVM ${opt} (${llvmLaneName().replace(/^LLVM Executable\\s*\\((.*)\\)$/, "$1")})`
+      : llvmLaneName();
+    console.log(`${laneIndex++}. ${title.padEnd(29)} ${formatTiming(llvmResults.get(opt))}`);
+  }
+}
+if (runWasm) {
+  console.log(`${laneIndex++}. ${"WebAssembly".padEnd(29)} ${formatTiming(wasmResult)}`);
+}
+console.log("==============================================================\n");
+
+// Conformance Validation
+let kvmOk = false;
+if (runBaselines) {
+  const contextFree = {
+    rels: state.rels,
+    findCode: codes.find,
+    options: { envelopeFree: true }
+  };
+  const kvmActual = executeKVM(relation.kvmFunc, inputVal, contextFree);
+  assert.deepEqual(toPlainObject(kvmActual), toPlainObject(expected));
+  kvmOk = true;
+}
+
+if (runLLVM) {
+  for (const opt of llvmOptLevels) {
+    const casesForOpt = llvmCasesByOpt.get(opt);
+    const tc = casesForOpt[0];
+    if (tc.llvm.status !== "ok") {
+      tc.llvmConformance = "compile-failed";
+    } else {
+      try {
+        const outputWire = await runExecutable(tc.llvm.exePath, tc.inputWire);
+        const actual = decodeWire(outputWire).value;
+        assert.deepEqual(toPlainObject(actual), toPlainObject(expected));
+        tc.llvmConformance = "ok";
+      } catch (error) {
+        tc.llvmConformance = "failed";
+        tc.llvm.error = error.stack || error.message || String(error);
+        console.log(`LLVM (${opt}) conformance failure:`);
+        console.log(tc.llvm.error.split("\n").slice(0, 8).join("\n"));
+      }
+    }
+  }
+}
+
+let wasmOk = false;
+if (runWasm) {
+  try {
+    const mark = wasmReset ? wasmExports.arena_mark() : 0;
+    const res = wasmExports[wasmFuncName](wasmPtrIn);
+    assert.ok(res[1] === 1, `Wasm function ${wasmFuncName} execution failed`);
+    const actual = readArenaValue(
+      wasmExports,
+      res[0],
+      wasmOutputPattern,
+      0,
+      wasmOutputPatternPropertyList
+    );
+    if (wasmReset) wasmExports.arena_reset(mark);
+    assert.deepEqual(toPlainObject(actual), toPlainObject(expected));
+    wasmOk = true;
+  } catch (error) {
+    console.log("Wasm conformance failure:", error);
+  }
+}
+
+const validationSummary = [];
+if (runBaselines && kvmOk) validationSummary.push(`kVM (all ${totalOps} ops)`);
+if (runLLVM) {
+  for (const opt of llvmOptLevels) {
+    const casesForOpt = llvmCasesByOpt.get(opt);
+    const tc = casesForOpt[0];
+    validationSummary.push(`LLVM ${opt} (${tc.llvmConformance === "ok" ? `all ${totalOps} ops` : tc.llvmConformance})`);
+  }
+}
+if (runWasm) {
+  validationSummary.push(`Wasm (${wasmOk ? `all ${totalOps} ops` : "failed"})`);
+}
+
+console.log(`Conformance validation: ${validationSummary.join(", ")} match expected values.`);
+if (runLLVM) {
+  for (const opt of llvmOptLevels) {
+    const casesForOpt = llvmCasesByOpt.get(opt);
+    if (shouldStrictFail(casesForOpt)) process.exitCode = 1;
+  }
+}
+if (runWasm && !wasmOk) process.exitCode = 1;

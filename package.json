@@ -16,10 +16,9 @@
         "conformance": "node conformance/run.mjs",
         "benchmark": "node scripts/benchmark.mjs",
         "benchmark:html": "node scripts/render-benchmark.mjs",
-        "perf:llvm:ieee": "node backends/llvm/tests/test-ieee-perf.mjs",
-        "perf:llvm:int": "node backends/llvm/tests/test-int-perf.mjs",
-        "perf:wasm:ieee": "node backends/wasm/tests/test-ieee-perf.mjs",
-        "perf:wasm:int": "node backends/wasm/tests/test-int-perf.mjs",
+        "perf:ieee": "node scripts/perf-ieee.mjs",
+        "perf:ieee:full": "node scripts/perf-ieee.mjs --full",
+        "perf:int": "node scripts/perf-int.mjs",
         "perf:idempotency": "node scripts/benchmark-idempotency.mjs",
         "deps:graph": "node scripts/generate-dependency-graph.mjs"
     },
