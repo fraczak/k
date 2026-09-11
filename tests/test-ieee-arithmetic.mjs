@@ -69,6 +69,10 @@ const cases = [
   { op: "mul", x: "-2", y: "4", result: "-8", flags: "none" },
   { op: "mul", x: "Infinity", y: "0", result: "NaN", flags: "invalid" },
   { op: "div", x: "1", y: "2", result: "0.5" },
+  { op: "div", x: "9", y: "3", result: "3", flags: "none", projection: true },
+  { op: "div", x: "10", y: "2", result: "5", flags: "none" },
+  { op: "div", x: "1", y: "3", result: "0.3333333333333333", flags: "inexact" },
+  { op: "div", x: "-6", y: "2", result: "-3", flags: "none" },
   { op: "div", x: "1", y: "0", result: "Infinity", flags: "div_by_zero" },
   { op: "div", x: "0", y: "0", result: "NaN", flags: "invalid" }
 ];

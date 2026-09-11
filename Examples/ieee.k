@@ -10017,7 +10017,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     {.rem0 x, .div0 y} sig112_sub sub55
   }
   {
-    {.sub55.carry sel, .sub55.sum a, .rem0 b} mux_sig112 rem1,
+    {.sub55.carry sel, .rem0 a, .sub55.sum b} mux_sig112 rem1,
     (.div0 sig112_shift_right1) div1,
     .sub55.carry b55
   }
@@ -10029,7 +10029,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
   }
   {
     .b55 b55,
-    {.sub54.carry sel, .sub54.sum a, .rem1 b} mux_sig112 rem2,
+    {.sub54.carry sel, .rem1 a, .sub54.sum b} mux_sig112 rem2,
     (.div1 sig112_shift_right1) div2,
     .sub54.carry b54
   }
@@ -10043,7 +10043,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
   {
     .b55 b55,
     .b54 b54,
-    {.sub53.carry sel, .sub53.sum a, .rem2 b} mux_sig112 rem3,
+    {.sub53.carry sel, .rem2 a, .sub53.sum b} mux_sig112 rem3,
     (.div2 sig112_shift_right1) div3,
     .sub53.carry b53
   }
@@ -10059,7 +10059,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b55 b55,
     .b54 b54,
     .b53 b53,
-    {.sub52.carry sel, .sub52.sum a, .rem3 b} mux_sig112 rem4,
+    {.sub52.carry sel, .rem3 a, .sub52.sum b} mux_sig112 rem4,
     (.div3 sig112_shift_right1) div4,
     .sub52.carry b52
   }
@@ -10077,7 +10077,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b54 b54,
     .b53 b53,
     .b52 b52,
-    {.sub51.carry sel, .sub51.sum a, .rem4 b} mux_sig112 rem5,
+    {.sub51.carry sel, .rem4 a, .sub51.sum b} mux_sig112 rem5,
     (.div4 sig112_shift_right1) div5,
     .sub51.carry b51
   }
@@ -10097,7 +10097,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b53 b53,
     .b52 b52,
     .b51 b51,
-    {.sub50.carry sel, .sub50.sum a, .rem5 b} mux_sig112 rem6,
+    {.sub50.carry sel, .rem5 a, .sub50.sum b} mux_sig112 rem6,
     (.div5 sig112_shift_right1) div6,
     .sub50.carry b50
   }
@@ -10119,7 +10119,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b52 b52,
     .b51 b51,
     .b50 b50,
-    {.sub49.carry sel, .sub49.sum a, .rem6 b} mux_sig112 rem7,
+    {.sub49.carry sel, .rem6 a, .sub49.sum b} mux_sig112 rem7,
     (.div6 sig112_shift_right1) div7,
     .sub49.carry b49
   }
@@ -10143,7 +10143,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b51 b51,
     .b50 b50,
     .b49 b49,
-    {.sub48.carry sel, .sub48.sum a, .rem7 b} mux_sig112 rem8,
+    {.sub48.carry sel, .rem7 a, .sub48.sum b} mux_sig112 rem8,
     (.div7 sig112_shift_right1) div8,
     .sub48.carry b48
   }
@@ -10169,7 +10169,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b50 b50,
     .b49 b49,
     .b48 b48,
-    {.sub47.carry sel, .sub47.sum a, .rem8 b} mux_sig112 rem9,
+    {.sub47.carry sel, .rem8 a, .sub47.sum b} mux_sig112 rem9,
     (.div8 sig112_shift_right1) div9,
     .sub47.carry b47
   }
@@ -10197,7 +10197,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b49 b49,
     .b48 b48,
     .b47 b47,
-    {.sub46.carry sel, .sub46.sum a, .rem9 b} mux_sig112 rem10,
+    {.sub46.carry sel, .rem9 a, .sub46.sum b} mux_sig112 rem10,
     (.div9 sig112_shift_right1) div10,
     .sub46.carry b46
   }
@@ -10227,7 +10227,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b48 b48,
     .b47 b47,
     .b46 b46,
-    {.sub45.carry sel, .sub45.sum a, .rem10 b} mux_sig112 rem11,
+    {.sub45.carry sel, .rem10 a, .sub45.sum b} mux_sig112 rem11,
     (.div10 sig112_shift_right1) div11,
     .sub45.carry b45
   }
@@ -10259,7 +10259,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b47 b47,
     .b46 b46,
     .b45 b45,
-    {.sub44.carry sel, .sub44.sum a, .rem11 b} mux_sig112 rem12,
+    {.sub44.carry sel, .rem11 a, .sub44.sum b} mux_sig112 rem12,
     (.div11 sig112_shift_right1) div12,
     .sub44.carry b44
   }
@@ -10293,7 +10293,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b46 b46,
     .b45 b45,
     .b44 b44,
-    {.sub43.carry sel, .sub43.sum a, .rem12 b} mux_sig112 rem13,
+    {.sub43.carry sel, .rem12 a, .sub43.sum b} mux_sig112 rem13,
     (.div12 sig112_shift_right1) div13,
     .sub43.carry b43
   }
@@ -10329,7 +10329,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b45 b45,
     .b44 b44,
     .b43 b43,
-    {.sub42.carry sel, .sub42.sum a, .rem13 b} mux_sig112 rem14,
+    {.sub42.carry sel, .rem13 a, .sub42.sum b} mux_sig112 rem14,
     (.div13 sig112_shift_right1) div14,
     .sub42.carry b42
   }
@@ -10367,7 +10367,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b44 b44,
     .b43 b43,
     .b42 b42,
-    {.sub41.carry sel, .sub41.sum a, .rem14 b} mux_sig112 rem15,
+    {.sub41.carry sel, .rem14 a, .sub41.sum b} mux_sig112 rem15,
     (.div14 sig112_shift_right1) div15,
     .sub41.carry b41
   }
@@ -10407,7 +10407,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b43 b43,
     .b42 b42,
     .b41 b41,
-    {.sub40.carry sel, .sub40.sum a, .rem15 b} mux_sig112 rem16,
+    {.sub40.carry sel, .rem15 a, .sub40.sum b} mux_sig112 rem16,
     (.div15 sig112_shift_right1) div16,
     .sub40.carry b40
   }
@@ -10449,7 +10449,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b42 b42,
     .b41 b41,
     .b40 b40,
-    {.sub39.carry sel, .sub39.sum a, .rem16 b} mux_sig112 rem17,
+    {.sub39.carry sel, .rem16 a, .sub39.sum b} mux_sig112 rem17,
     (.div16 sig112_shift_right1) div17,
     .sub39.carry b39
   }
@@ -10493,7 +10493,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b41 b41,
     .b40 b40,
     .b39 b39,
-    {.sub38.carry sel, .sub38.sum a, .rem17 b} mux_sig112 rem18,
+    {.sub38.carry sel, .rem17 a, .sub38.sum b} mux_sig112 rem18,
     (.div17 sig112_shift_right1) div18,
     .sub38.carry b38
   }
@@ -10539,7 +10539,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b40 b40,
     .b39 b39,
     .b38 b38,
-    {.sub37.carry sel, .sub37.sum a, .rem18 b} mux_sig112 rem19,
+    {.sub37.carry sel, .rem18 a, .sub37.sum b} mux_sig112 rem19,
     (.div18 sig112_shift_right1) div19,
     .sub37.carry b37
   }
@@ -10587,7 +10587,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b39 b39,
     .b38 b38,
     .b37 b37,
-    {.sub36.carry sel, .sub36.sum a, .rem19 b} mux_sig112 rem20,
+    {.sub36.carry sel, .rem19 a, .sub36.sum b} mux_sig112 rem20,
     (.div19 sig112_shift_right1) div20,
     .sub36.carry b36
   }
@@ -10637,7 +10637,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b38 b38,
     .b37 b37,
     .b36 b36,
-    {.sub35.carry sel, .sub35.sum a, .rem20 b} mux_sig112 rem21,
+    {.sub35.carry sel, .rem20 a, .sub35.sum b} mux_sig112 rem21,
     (.div20 sig112_shift_right1) div21,
     .sub35.carry b35
   }
@@ -10689,7 +10689,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b37 b37,
     .b36 b36,
     .b35 b35,
-    {.sub34.carry sel, .sub34.sum a, .rem21 b} mux_sig112 rem22,
+    {.sub34.carry sel, .rem21 a, .sub34.sum b} mux_sig112 rem22,
     (.div21 sig112_shift_right1) div22,
     .sub34.carry b34
   }
@@ -10743,7 +10743,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b36 b36,
     .b35 b35,
     .b34 b34,
-    {.sub33.carry sel, .sub33.sum a, .rem22 b} mux_sig112 rem23,
+    {.sub33.carry sel, .rem22 a, .sub33.sum b} mux_sig112 rem23,
     (.div22 sig112_shift_right1) div23,
     .sub33.carry b33
   }
@@ -10799,7 +10799,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b35 b35,
     .b34 b34,
     .b33 b33,
-    {.sub32.carry sel, .sub32.sum a, .rem23 b} mux_sig112 rem24,
+    {.sub32.carry sel, .rem23 a, .sub32.sum b} mux_sig112 rem24,
     (.div23 sig112_shift_right1) div24,
     .sub32.carry b32
   }
@@ -10857,7 +10857,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b34 b34,
     .b33 b33,
     .b32 b32,
-    {.sub31.carry sel, .sub31.sum a, .rem24 b} mux_sig112 rem25,
+    {.sub31.carry sel, .rem24 a, .sub31.sum b} mux_sig112 rem25,
     (.div24 sig112_shift_right1) div25,
     .sub31.carry b31
   }
@@ -10917,7 +10917,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b33 b33,
     .b32 b32,
     .b31 b31,
-    {.sub30.carry sel, .sub30.sum a, .rem25 b} mux_sig112 rem26,
+    {.sub30.carry sel, .rem25 a, .sub30.sum b} mux_sig112 rem26,
     (.div25 sig112_shift_right1) div26,
     .sub30.carry b30
   }
@@ -10979,7 +10979,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b32 b32,
     .b31 b31,
     .b30 b30,
-    {.sub29.carry sel, .sub29.sum a, .rem26 b} mux_sig112 rem27,
+    {.sub29.carry sel, .rem26 a, .sub29.sum b} mux_sig112 rem27,
     (.div26 sig112_shift_right1) div27,
     .sub29.carry b29
   }
@@ -11043,7 +11043,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b31 b31,
     .b30 b30,
     .b29 b29,
-    {.sub28.carry sel, .sub28.sum a, .rem27 b} mux_sig112 rem28,
+    {.sub28.carry sel, .rem27 a, .sub28.sum b} mux_sig112 rem28,
     (.div27 sig112_shift_right1) div28,
     .sub28.carry b28
   }
@@ -11109,7 +11109,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b30 b30,
     .b29 b29,
     .b28 b28,
-    {.sub27.carry sel, .sub27.sum a, .rem28 b} mux_sig112 rem29,
+    {.sub27.carry sel, .rem28 a, .sub27.sum b} mux_sig112 rem29,
     (.div28 sig112_shift_right1) div29,
     .sub27.carry b27
   }
@@ -11177,7 +11177,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b29 b29,
     .b28 b28,
     .b27 b27,
-    {.sub26.carry sel, .sub26.sum a, .rem29 b} mux_sig112 rem30,
+    {.sub26.carry sel, .rem29 a, .sub26.sum b} mux_sig112 rem30,
     (.div29 sig112_shift_right1) div30,
     .sub26.carry b26
   }
@@ -11247,7 +11247,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b28 b28,
     .b27 b27,
     .b26 b26,
-    {.sub25.carry sel, .sub25.sum a, .rem30 b} mux_sig112 rem31,
+    {.sub25.carry sel, .rem30 a, .sub25.sum b} mux_sig112 rem31,
     (.div30 sig112_shift_right1) div31,
     .sub25.carry b25
   }
@@ -11319,7 +11319,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b27 b27,
     .b26 b26,
     .b25 b25,
-    {.sub24.carry sel, .sub24.sum a, .rem31 b} mux_sig112 rem32,
+    {.sub24.carry sel, .rem31 a, .sub24.sum b} mux_sig112 rem32,
     (.div31 sig112_shift_right1) div32,
     .sub24.carry b24
   }
@@ -11393,7 +11393,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b26 b26,
     .b25 b25,
     .b24 b24,
-    {.sub23.carry sel, .sub23.sum a, .rem32 b} mux_sig112 rem33,
+    {.sub23.carry sel, .rem32 a, .sub23.sum b} mux_sig112 rem33,
     (.div32 sig112_shift_right1) div33,
     .sub23.carry b23
   }
@@ -11469,7 +11469,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b25 b25,
     .b24 b24,
     .b23 b23,
-    {.sub22.carry sel, .sub22.sum a, .rem33 b} mux_sig112 rem34,
+    {.sub22.carry sel, .rem33 a, .sub22.sum b} mux_sig112 rem34,
     (.div33 sig112_shift_right1) div34,
     .sub22.carry b22
   }
@@ -11547,7 +11547,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b24 b24,
     .b23 b23,
     .b22 b22,
-    {.sub21.carry sel, .sub21.sum a, .rem34 b} mux_sig112 rem35,
+    {.sub21.carry sel, .rem34 a, .sub21.sum b} mux_sig112 rem35,
     (.div34 sig112_shift_right1) div35,
     .sub21.carry b21
   }
@@ -11627,7 +11627,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b23 b23,
     .b22 b22,
     .b21 b21,
-    {.sub20.carry sel, .sub20.sum a, .rem35 b} mux_sig112 rem36,
+    {.sub20.carry sel, .rem35 a, .sub20.sum b} mux_sig112 rem36,
     (.div35 sig112_shift_right1) div36,
     .sub20.carry b20
   }
@@ -11709,7 +11709,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b22 b22,
     .b21 b21,
     .b20 b20,
-    {.sub19.carry sel, .sub19.sum a, .rem36 b} mux_sig112 rem37,
+    {.sub19.carry sel, .rem36 a, .sub19.sum b} mux_sig112 rem37,
     (.div36 sig112_shift_right1) div37,
     .sub19.carry b19
   }
@@ -11793,7 +11793,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b21 b21,
     .b20 b20,
     .b19 b19,
-    {.sub18.carry sel, .sub18.sum a, .rem37 b} mux_sig112 rem38,
+    {.sub18.carry sel, .rem37 a, .sub18.sum b} mux_sig112 rem38,
     (.div37 sig112_shift_right1) div38,
     .sub18.carry b18
   }
@@ -11879,7 +11879,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b20 b20,
     .b19 b19,
     .b18 b18,
-    {.sub17.carry sel, .sub17.sum a, .rem38 b} mux_sig112 rem39,
+    {.sub17.carry sel, .rem38 a, .sub17.sum b} mux_sig112 rem39,
     (.div38 sig112_shift_right1) div39,
     .sub17.carry b17
   }
@@ -11967,7 +11967,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b19 b19,
     .b18 b18,
     .b17 b17,
-    {.sub16.carry sel, .sub16.sum a, .rem39 b} mux_sig112 rem40,
+    {.sub16.carry sel, .rem39 a, .sub16.sum b} mux_sig112 rem40,
     (.div39 sig112_shift_right1) div40,
     .sub16.carry b16
   }
@@ -12057,7 +12057,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b18 b18,
     .b17 b17,
     .b16 b16,
-    {.sub15.carry sel, .sub15.sum a, .rem40 b} mux_sig112 rem41,
+    {.sub15.carry sel, .rem40 a, .sub15.sum b} mux_sig112 rem41,
     (.div40 sig112_shift_right1) div41,
     .sub15.carry b15
   }
@@ -12149,7 +12149,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b17 b17,
     .b16 b16,
     .b15 b15,
-    {.sub14.carry sel, .sub14.sum a, .rem41 b} mux_sig112 rem42,
+    {.sub14.carry sel, .rem41 a, .sub14.sum b} mux_sig112 rem42,
     (.div41 sig112_shift_right1) div42,
     .sub14.carry b14
   }
@@ -12243,7 +12243,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b16 b16,
     .b15 b15,
     .b14 b14,
-    {.sub13.carry sel, .sub13.sum a, .rem42 b} mux_sig112 rem43,
+    {.sub13.carry sel, .rem42 a, .sub13.sum b} mux_sig112 rem43,
     (.div42 sig112_shift_right1) div43,
     .sub13.carry b13
   }
@@ -12339,7 +12339,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b15 b15,
     .b14 b14,
     .b13 b13,
-    {.sub12.carry sel, .sub12.sum a, .rem43 b} mux_sig112 rem44,
+    {.sub12.carry sel, .rem43 a, .sub12.sum b} mux_sig112 rem44,
     (.div43 sig112_shift_right1) div44,
     .sub12.carry b12
   }
@@ -12437,7 +12437,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b14 b14,
     .b13 b13,
     .b12 b12,
-    {.sub11.carry sel, .sub11.sum a, .rem44 b} mux_sig112 rem45,
+    {.sub11.carry sel, .rem44 a, .sub11.sum b} mux_sig112 rem45,
     (.div44 sig112_shift_right1) div45,
     .sub11.carry b11
   }
@@ -12537,7 +12537,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b13 b13,
     .b12 b12,
     .b11 b11,
-    {.sub10.carry sel, .sub10.sum a, .rem45 b} mux_sig112 rem46,
+    {.sub10.carry sel, .rem45 a, .sub10.sum b} mux_sig112 rem46,
     (.div45 sig112_shift_right1) div46,
     .sub10.carry b10
   }
@@ -12639,7 +12639,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b12 b12,
     .b11 b11,
     .b10 b10,
-    {.sub9.carry sel, .sub9.sum a, .rem46 b} mux_sig112 rem47,
+    {.sub9.carry sel, .rem46 a, .sub9.sum b} mux_sig112 rem47,
     (.div46 sig112_shift_right1) div47,
     .sub9.carry b9
   }
@@ -12743,7 +12743,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b11 b11,
     .b10 b10,
     .b9 b9,
-    {.sub8.carry sel, .sub8.sum a, .rem47 b} mux_sig112 rem48,
+    {.sub8.carry sel, .rem47 a, .sub8.sum b} mux_sig112 rem48,
     (.div47 sig112_shift_right1) div48,
     .sub8.carry b8
   }
@@ -12849,7 +12849,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b10 b10,
     .b9 b9,
     .b8 b8,
-    {.sub7.carry sel, .sub7.sum a, .rem48 b} mux_sig112 rem49,
+    {.sub7.carry sel, .rem48 a, .sub7.sum b} mux_sig112 rem49,
     (.div48 sig112_shift_right1) div49,
     .sub7.carry b7
   }
@@ -12957,7 +12957,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b9 b9,
     .b8 b8,
     .b7 b7,
-    {.sub6.carry sel, .sub6.sum a, .rem49 b} mux_sig112 rem50,
+    {.sub6.carry sel, .rem49 a, .sub6.sum b} mux_sig112 rem50,
     (.div49 sig112_shift_right1) div50,
     .sub6.carry b6
   }
@@ -13067,7 +13067,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b8 b8,
     .b7 b7,
     .b6 b6,
-    {.sub5.carry sel, .sub5.sum a, .rem50 b} mux_sig112 rem51,
+    {.sub5.carry sel, .rem50 a, .sub5.sum b} mux_sig112 rem51,
     (.div50 sig112_shift_right1) div51,
     .sub5.carry b5
   }
@@ -13179,7 +13179,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b7 b7,
     .b6 b6,
     .b5 b5,
-    {.sub4.carry sel, .sub4.sum a, .rem51 b} mux_sig112 rem52,
+    {.sub4.carry sel, .rem51 a, .sub4.sum b} mux_sig112 rem52,
     (.div51 sig112_shift_right1) div52,
     .sub4.carry b4
   }
@@ -13293,7 +13293,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b6 b6,
     .b5 b5,
     .b4 b4,
-    {.sub3.carry sel, .sub3.sum a, .rem52 b} mux_sig112 rem53,
+    {.sub3.carry sel, .rem52 a, .sub3.sum b} mux_sig112 rem53,
     (.div52 sig112_shift_right1) div53,
     .sub3.carry b3
   }
@@ -13409,7 +13409,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b5 b5,
     .b4 b4,
     .b3 b3,
-    {.sub2.carry sel, .sub2.sum a, .rem53 b} mux_sig112 rem54,
+    {.sub2.carry sel, .rem53 a, .sub2.sum b} mux_sig112 rem54,
     (.div53 sig112_shift_right1) div54,
     .sub2.carry b2
   }
@@ -13527,7 +13527,7 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .b4 b4,
     .b3 b3,
     .b2 b2,
-    {.sub1.carry sel, .sub1.sum a, .rem54 b} mux_sig112 rem55,
+    {.sub1.carry sel, .rem54 a, .sub1.sum b} mux_sig112 rem55,
     .sub1.carry b1
   }
   {
@@ -15444,30 +15444,21 @@ float64_div_finite = $float_pair
   }
   {
     .sign_out sign_out,
-    .sigx sigx,
-    .sigy sigy,
     .exp_pre exp_pre,
-    {.sigx x, .sigy y} sig56_ge_bit ge_bit,
-    (.sigx shift_left_sig56_1) sigx_sh,
-    (.exp_pre exp11_dec) exp_dec
+    {.sigx x, .sigy y} sig56_div_unsigned quot
   }
   {
     .sign_out sign_out,
-    .sigy sigy,
-    .sigx sigx,
-    .sigx_sh sigx_sh,
-    .ge_bit ge_bit,
     .exp_pre exp_pre,
-    .exp_dec exp_dec,
-    {.ge_bit sel, .sigx a, .sigx_sh b} mux_sig56 sigx_adj,
-    {.ge_bit sel, .exp_dec a, .exp_pre b} mux_exp11 exp_adj
+    .quot quot,
+    .quot .55 msb55,
+    (.exp_pre exp11_dec) exp_dec,
+    (.quot shift_left_sig56_1) quot_sh
   }
   {
     .sign_out sign_out,
-    .sigy sigy,
-    .sigx_adj sigx_adj,
-    .exp_adj exp_adj,
-    {.sigx_adj x, .sigy y} sig56_div_unsigned sig_pre
+    {.msb55 sel, .exp_dec a, .exp_pre b} mux_exp11 exp_adj,
+    {.msb55 sel, .quot_sh a, .quot b} mux_sig56 sig_pre
   }
   {
     .sign_out sign_out,
