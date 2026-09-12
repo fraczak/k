@@ -13,25 +13,32 @@ rules for partial failure, products, unions, calls, and safe scheduling.
 The current design already points at three layers:
 
 - KIR-P: portable, polymorphic object IR.
-- envelope-specialized KIR-P: KIR-P specialized for a concrete input envelope pattern.
-- KIR-M: backend material after layout and ABI decisions.
+- Polymorphic kVM Template: unspecialized kVM instruction streams with principal pattern signatures.
+- Envelope-Specialized kVM: kVM functions instantiated for a concrete input envelope, with dead branches pruned and redundant guards eliminated.
+- Target Lowering: direct emission from specialized kVM to WebAssembly or native machine code.
 
-kVM makes KIR-M concrete by lowering KIR-P relation bodies into executable kVM
-functions.
+kVM bridges high-level relational expressions and concrete execution targets:
 
 ```text
+[AOT Compilation Phase]
 k source
   -> AST
-  -> type derivation
-  -> KIR-P object relation
-  -> envelope-specialized KIR-P relation instance for an input pattern
-  -> kVM function
-  -> LLVM / Wasm / C / JS kVM interpreter
+  -> principal type derivation
+  -> polymorphic KIR-P object relations
+  -> polymorphic kVM template (.kvm)
+
+[Request / JIT Phase: Enveloped Value V = (v, Pv) arrives]
+  kVM template + input envelope Pv
+  -> boundary type compatibility check (validates Pv against Pin; raises Type Error on contradiction)
+  -> fast kVM specialization (specializeKVM: guard folding, dead branch pruning, output pattern derivation)
+  -> specialized kVM function
+  -> Tier 0: direct interpretation in kVM runtime (< 1 ms cold start)
+  -> Tier 1: single-pass lowering to WebAssembly (kvm2wasm) or native machine code (~17 ms peak speed)
 ```
 
-KIR-P remains the portable semantic object format. Envelope Specialization emits ordinary KIR-P
-for a concrete input envelope. The kVM lowerer consumes KIR-P and emits the
-executable middle form consumed by code generators.
+KIR-P remains the portable semantic object format. The kVM lowerer compiles KIR-P into
+polymorphic kVM templates ahead of time. When concrete input envelopes arrive at runtime,
+`specializeKVM` instantiates and optimizes the kVM instruction stream in microseconds.
 
 ## Design Center
 
@@ -257,6 +264,34 @@ Suggested lowering rules:
 
 The lowerer should preserve labels and tags as table ids, not strings in hot
 instructions.  Debug metadata may retain source labels.
+
+## Polymorphic kVM and JIT Specialization
+
+A `polymorphic kVM function` is an instruction stream derived from a polymorphic
+KIR-P relation before a concrete input envelope is known. Its input and output
+patterns contain pattern variables (open products, open unions, or type
+variables).
+
+### Specialization Contract (`specializeKVM`)
+
+When an `input enveloped value` $(v, P_V)$ arrives at runtime, `specializeKVM`:
+
+1. **Validates Type Compatibility**:
+   Checks whether $P_V$ conforms to the function's principal input pattern.
+   If $P_V$ is disjoint or contradicts the input pattern, execution immediately
+   signals a **Type Error** (never partial failure) without compiling.
+2. **Substitutes Pattern Variables**:
+   Binds the open pattern variables of the principal input pattern to the concrete
+   subpatterns carried in $P_V$, deriving the concrete output envelope $P_D$.
+3. **Optimizes Guards and Eliminates Dead Code**:
+   - `guard_pattern` instructions proven satisfied by $P_V$ are rewritten to `id`
+     or erased.
+   - `guard_pattern` instructions proven unsatisfiable by $P_V$ are rewritten to `fail`.
+   - In `union` regions, branches that unconditionally fail are pruned. If an
+     earlier branch is proven to always succeed, later branches are discarded.
+4. **Binds Concrete Layouts**:
+   Product field labels and variant tags are mapped to concrete memory offsets
+   matching $P_V$, enabling envelope-free execution in lower tiers.
 
 ## Layout Tables
 

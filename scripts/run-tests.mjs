@@ -26,6 +26,7 @@ const tests = [
   ["conformance/run.mjs", node, ["conformance/run.mjs"]],
   ["tests/test-repl.mjs", node, ["tests/test-repl.mjs"]],
   ["tests/test-kvm.mjs", node, ["tests/test-kvm.mjs"]],
+  ["tests/test-kvm-polymorphic.mjs", node, ["tests/test-kvm-polymorphic.mjs"]],
   ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],
   ["tests/test-ieee-arithmetic.mjs", node, ["tests/test-ieee-arithmetic.mjs"]],
   ["tests/integration.sh", path.join(root, "tests/integration.sh"), []]

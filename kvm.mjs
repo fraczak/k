@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
-import { Value, composePattern, withPattern, isProduct, isVariant } from "./Value.mjs";
+import { Value, composePattern, withPattern, isProduct, isVariant, edgeSubpattern, isValue } from "./Value.mjs";
 import {
   constrainWithPattern,
   projectionPattern,
   verify
 } from "./run.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
+import { intersectPropertyListPatterns } from "./codecs/runtime/codec.mjs";
 import { compileObjectBuffer, decodeObject, loadLibrary } from "./object.mjs";
 import codes from "./codes.mjs";
 import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
@@ -385,6 +386,30 @@ function assertSingletonKVMInputPattern(pattern) {
 }
 
 export function objectToKVMArtifact(object, relationName, inputPattern, options = {}) {
+  if (!inputPattern) {
+    const kir = objectToKIRP(object);
+    const entry = relationName || kir.main || object.main;
+    const functions = lowerKIRToKVM(kir);
+    const entryFunc = functions[entry];
+    if (!entryFunc) throw new Error(`kVM entry relation '${entry}' was not produced`);
+
+    return {
+      format: KVM_FORMAT,
+      version: KVM_VERSION,
+      layer: "KVM-P",
+      isPolymorphic: true,
+      sourceFormat: object.format,
+      relation: entry,
+      entry,
+      inputPattern: entryFunc.inputPattern,
+      outputPattern: entryFunc.outputPattern,
+      isConverged: entryFunc.isConverged,
+      functions,
+      codes: kir.codes || {},
+      kir
+    };
+  }
+
   assertSingletonKVMInputPattern(inputPattern);
   const { relation, kir, entryName } = retypeObjectRelationForBackend(
     object,
@@ -410,6 +435,290 @@ export function objectToKVMArtifact(object, relationName, inputPattern, options 
     functions,
     kir
   };
+}
+
+export function checkEnvelopeCompatibility(targetPattern, inputPattern) {
+  if (!targetPattern || targetPattern.length === 0) return inputPattern;
+  if (!inputPattern || inputPattern.length === 0) return targetPattern;
+
+  const [targetKind, targetEdges] = targetPattern[0];
+  const [inputKind, inputEdges] = inputPattern[0];
+
+  if (targetKind === "any") {
+    return inputPattern;
+  }
+
+  if (targetKind === "open-product" || targetKind === "closed-product") {
+    if (inputKind !== "open-product" && inputKind !== "closed-product") {
+      throw new TypeError(`Type Error: expected product envelope, got ${inputKind}`);
+    }
+    const inputLabels = new Set(inputEdges.map(([label]) => label));
+    const missing = targetEdges.filter(([label]) => !inputLabels.has(label));
+    if (missing.length > 0) {
+      throw new TypeError(`Type Error: input product missing required fields: ${missing.map(([l]) => l).join(", ")}`);
+    }
+    if (targetKind === "closed-product" && inputKind === "closed-product") {
+      if (inputEdges.length !== targetEdges.length) {
+        throw new TypeError(`Type Error: closed product field mismatch`);
+      }
+    }
+    return inputPattern;
+  }
+
+  if (targetKind === "open-union" || targetKind === "closed-union") {
+    if (inputKind !== "open-union" && inputKind !== "closed-union") {
+      throw new TypeError(`Type Error: expected union envelope, got ${inputKind}`);
+    }
+    const targetTags = new Set(targetEdges.map(([tag]) => tag));
+    const unhandled = inputEdges.filter(([tag]) => !targetTags.has(tag));
+    if (unhandled.length > 0) {
+      throw new TypeError(`Type Error: unhandled variant tags: ${unhandled.map(([t]) => t).join(", ")}`);
+    }
+    return inputPattern;
+  }
+
+  try {
+    return intersectPropertyListPatterns(targetPattern, inputPattern);
+  } catch (err) {
+    throw new TypeError(`Type Error: input envelope does not match function's input pattern: ${err.message}`);
+  }
+}
+
+export function specializeKVM(artifactOrFunc, inputEnvelope, options = {}) {
+  let inputPattern = inputEnvelope;
+  if (inputEnvelope && isValue(inputEnvelope)) {
+    inputPattern = inputEnvelope.pattern;
+  }
+  if (inputPattern && !Array.isArray(inputPattern) && typeof inputPattern.toPropertyList === "function") {
+    inputPattern = inputPattern.toPropertyList();
+  }
+  if (!Array.isArray(inputPattern) || inputPattern.length === 0) {
+    throw new Error("specializeKVM requires a valid input envelope pattern property list");
+  }
+
+  const isArtifact = artifactOrFunc && typeof artifactOrFunc === "object" && artifactOrFunc.format === KVM_FORMAT;
+  const targetFunc = isArtifact ? artifactOrFunc.functions[artifactOrFunc.entry] : artifactOrFunc;
+  if (!targetFunc || !Array.isArray(targetFunc.body)) {
+    throw new Error("specializeKVM requires a valid kVM function or artifact");
+  }
+
+  // 1. Boundary Type Check & Pattern Intersection
+  let specializedInputPattern;
+  if (targetFunc.inputPattern) {
+    specializedInputPattern = checkEnvelopeCompatibility(targetFunc.inputPattern, inputPattern);
+  } else {
+    specializedInputPattern = inputPattern;
+  }
+
+  function specializeInstructionList(instructions, initialEnv) {
+    const regPatterns = new Map(initialEnv);
+    const specialized = [];
+
+    for (const inst of instructions) {
+      switch (inst.op) {
+        case "id": {
+          const srcPattern = regPatterns.get(inst.src);
+          if (srcPattern) regPatterns.set(inst.dest, srcPattern);
+          specialized.push({ ...inst });
+          break;
+        }
+        case "fail": {
+          specialized.push({ ...inst });
+          break;
+        }
+        case "project_field": {
+          const srcPattern = regPatterns.get(inst.src);
+          let fieldPattern = null;
+          if (srcPattern) {
+            fieldPattern = edgeSubpattern(srcPattern, inst.label);
+            if (fieldPattern) regPatterns.set(inst.dest, fieldPattern);
+          }
+          specialized.push({
+            ...inst,
+            pattern: fieldPattern || inst.pattern
+          });
+          break;
+        }
+        case "project_variant": {
+          const srcPattern = regPatterns.get(inst.src);
+          let variantPattern = null;
+          if (srcPattern) {
+            variantPattern = edgeSubpattern(srcPattern, inst.tag);
+            if (variantPattern) regPatterns.set(inst.dest, variantPattern);
+          }
+          specialized.push({
+            ...inst,
+            pattern: variantPattern || inst.pattern
+          });
+          break;
+        }
+        case "make_variant": {
+          const srcPattern = regPatterns.get(inst.src);
+          if (srcPattern) {
+            const vp = composePattern("closed-union", [[inst.tag, srcPattern]]);
+            regPatterns.set(inst.dest, vp);
+          }
+          specialized.push({ ...inst });
+          break;
+        }
+        case "guard_pattern": {
+          const srcPattern = regPatterns.get(inst.src);
+          if (srcPattern && inst.pattern) {
+            try {
+              const intersected = checkEnvelopeCompatibility(inst.pattern, srcPattern);
+              if (JSON.stringify(intersected) === JSON.stringify(srcPattern)) {
+                // Redundant guard: pattern is already satisfied
+                specialized.push({ op: "id", dest: inst.dest, src: inst.src });
+                regPatterns.set(inst.dest, srcPattern);
+                break;
+              } else {
+                regPatterns.set(inst.dest, intersected);
+                specialized.push({ ...inst, pattern: intersected });
+                break;
+              }
+            } catch {
+              // Disjoint guard: can never succeed
+              specialized.push({ op: "fail", dest: inst.dest });
+              break;
+            }
+          }
+          specialized.push({ ...inst });
+          break;
+        }
+        case "guard_code": {
+          const srcPattern = regPatterns.get(inst.src);
+          if (srcPattern) regPatterns.set(inst.dest, srcPattern);
+          specialized.push({ ...inst });
+          break;
+        }
+        case "product": {
+          const srcPattern = regPatterns.get(inst.src);
+          const specializedBranches = [];
+          const fieldEntries = [];
+
+          for (const branch of inst.branches) {
+            const branchEnv = new Map(regPatterns);
+            branchEnv.set("%in", srcPattern);
+            const { body: branchBody, returnPattern } = specializeInstructionList(branch.body, branchEnv);
+            specializedBranches.push({
+              label: branch.label,
+              body: branchBody
+            });
+            if (returnPattern) {
+              fieldEntries.push([branch.label, returnPattern]);
+            }
+          }
+
+          let productPattern = null;
+          if (fieldEntries.length === inst.branches.length) {
+            productPattern = composePattern("closed-product", fieldEntries);
+            regPatterns.set(inst.dest, productPattern);
+          }
+
+          specialized.push({
+            ...inst,
+            branches: specializedBranches,
+            pattern: productPattern || inst.pattern
+          });
+          break;
+        }
+        case "union": {
+          const srcPattern = regPatterns.get(inst.src);
+          const specializedBranches = [];
+          let unionResultPattern = null;
+
+          for (let i = 0; i < inst.branches.length; i++) {
+            const branch = inst.branches[i];
+            const branchEnv = new Map(regPatterns);
+            branchEnv.set("%in", srcPattern);
+
+            // Dead branch check: if branch begins with project_variant for tag not in srcPattern
+            const firstInst = branch.body?.[0];
+            if (firstInst?.op === "project_variant" && srcPattern) {
+              const tagPattern = edgeSubpattern(srcPattern, firstInst.tag);
+              if (srcPattern[0]?.[0]?.endsWith("union") && !tagPattern) {
+                continue;
+              }
+            }
+
+            const { body: branchBody, returnPattern } = specializeInstructionList(branch.body, branchEnv);
+            if (branchBody.length > 0 && branchBody[0].op === "fail") {
+              continue;
+            }
+
+            specializedBranches.push({
+              label: branch.label,
+              body: branchBody
+            });
+
+            if (returnPattern && !unionResultPattern) {
+              unionResultPattern = returnPattern;
+            }
+          }
+
+          if (unionResultPattern) {
+            regPatterns.set(inst.dest, unionResultPattern);
+          }
+
+          specialized.push({
+            ...inst,
+            branches: specializedBranches
+          });
+          break;
+        }
+        case "call": {
+          specialized.push({ ...inst });
+          break;
+        }
+        case "call_intrinsic": {
+          specialized.push({ ...inst });
+          break;
+        }
+        case "return": {
+          const retPattern = regPatterns.get(inst.src);
+          specialized.push({ ...inst });
+          return { body: specialized, returnPattern: retPattern };
+        }
+        default:
+          specialized.push({ ...inst });
+      }
+    }
+    return { body: specialized, returnPattern: regPatterns.get("%out") };
+  }
+
+  const { body: specializedBody, returnPattern } = specializeInstructionList(
+    targetFunc.body,
+    new Map([["%in", specializedInputPattern]])
+  );
+
+  const derivedOutputPattern = returnPattern || targetFunc.outputPattern;
+
+  const specializedFunc = {
+    name: `${targetFunc.name}__spec`,
+    inputPattern: specializedInputPattern,
+    outputPattern: derivedOutputPattern,
+    isConverged: true,
+    isSpecialized: true,
+    body: specializedBody
+  };
+
+  if (isArtifact) {
+    return {
+      ...artifactOrFunc,
+      layer: "KVM-M",
+      isPolymorphic: false,
+      isSpecialized: true,
+      inputPattern: specializedInputPattern,
+      outputPattern: derivedOutputPattern,
+      functions: {
+        ...artifactOrFunc.functions,
+        [specializedFunc.name]: specializedFunc
+      },
+      entry: specializedFunc.name
+    };
+  }
+
+  return specializedFunc;
 }
 
 function executeBlock(instructions, inputVal, context) {
@@ -599,7 +908,8 @@ export default {
   lowerKIRToKVM,
   executeKVM,
   isSingletonKVMInputPattern,
-  objectToKVMArtifact
+  objectToKVMArtifact,
+  specializeKVM
 };
 
 function usage() {
