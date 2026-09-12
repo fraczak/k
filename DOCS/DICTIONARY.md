@@ -322,8 +322,38 @@ its input.
 
 In high-level execution this is represented as absence of an output value. In
 lower-level execution contracts it may be represented explicitly as a failed
-result. It is distinct from malformed artifacts, system failures, and host
-exceptions.
+result. It is distinct from a `type error`, malformed artifacts, system
+failures, and host exceptions.
+
+### Type Error
+
+A `type error` is a semantic contradiction indicating that the type pattern of a
+value or expression does not conform to the expected input pattern of the
+partial function to which it is applied.
+
+A type error is fundamentally distinct from `partial failure`:
+
+- `Partial failure` is a normal, valid semantic outcome representing mathematical
+  undefinedness for an input value that nonetheless conforms to the expected
+  input pattern (for example, failing a condition in an inner branch, which in
+  an ordered union allows subsequent branches to be evaluated).
+- A `type error` represents a type-system contradiction or boundary contract
+  violation. It is not an ordinary execution result and cannot be recovered by
+  branching constructs like ordered union.
+
+A type error can occur at two distinct stages:
+
+1. **Compilation time (Type Derivation)**: Triggered during
+   `pattern-signature-derivation` when an expression's type pattern cannot be
+   unified with, or does not satisfy, the required input pattern of a function
+   it is passed to (such as disjoint types or unsatisfiable pattern guards).
+   This causes compilation or type derivation to fail with a diagnostic.
+2. **Runtime (Evaluation Boundary)**: Triggered when an `enveloped value` carries
+   an `input envelope` that does not match or conform to the expected input
+   pattern of the function being executed (for example, passing an incompatible
+   envelope to an entry partial function or target executable). At runtime, a
+   type error halts execution with a fatal diagnostic or error code (such as exit
+   status 5 in compiled targets) rather than producing partial failure.
 
 ### Intrinsic
 
@@ -811,8 +841,9 @@ Contract:
 - Intersect input envelopes with static input patterns.
 - Propagate subpatterns through projections.
 - Build output envelopes for product and variant construction.
-- Return partial failure when the partial function is undefined for the input.
-- Throw diagnostics only for malformed artifacts or type-envelope contradictions.
+- Return partial failure when the partial function is undefined for a conforming input.
+- Signal a type error when an input envelope contradicts the static input pattern constraint.
+- Throw diagnostics only for malformed artifacts or fatal system errors.
 
 Independent tests:
 
@@ -820,8 +851,8 @@ Independent tests:
 - Projection returns the correct child with the correct sub-envelope.
 - Product construction builds the expected output tree and envelope.
 - Ordered union tries later branches only after earlier partial failure.
-- Pattern guard failure is reported as undefinedness or a type-envelope error
-  according to the reference semantics.
+- Input envelope mismatch triggers a type error rather than partial failure.
+- Pattern guard failure on a conforming value is reported as partial failure.
 
 #### Input-Envelope Extraction (`input-envelope-extraction`)
 
@@ -948,15 +979,15 @@ Outputs:
 Contract:
 
 - Execute the lowered execution model.
-- Validate the input envelope against the artifact input pattern.
+- Validate the input envelope against the artifact input pattern, signaling a runtime type error on mismatch.
 - Return output values under the artifact output pattern.
-- Preserve partial failure as an ordinary execution result.
+- Preserve partial failure as an ordinary execution result when undefined for a conforming input.
 - Match reference evaluation for the specialized artifact.
 
 Independent tests:
 
 - Lowered evaluation matches reference evaluation on conformance fixtures.
-- Input envelope mismatch fails before producing output.
+- Input envelope mismatch aborts with a runtime type error before producing output.
 - Recursive or repeated calls preserve deterministic results.
 - Partial failure matches reference undefinedness.
 
@@ -999,16 +1030,17 @@ Outputs:
 Contract:
 
 - Run the target artifact for a specialized partial function.
-- Validate or decode the input envelope at the boundary.
+- Validate or decode the input envelope at the boundary, triggering a runtime type error on mismatch.
 - Emit the compiled output envelope with the output value.
 - Preserve partial failure according to the target execution contract.
 
 Independent tests:
 
 - Target execution matches reference output on supported fixtures.
+- Input envelope mismatch triggers a runtime type error (e.g. exit code 5) rather than partial failure.
 - Wire output includes the expected output envelope.
 - Persistent and one-shot runners produce the same results.
-- Partial failure is distinguishable from process or system failure.
+- Partial failure is distinguishable from process, system, or type-error failure.
 
 #### Wire Decoding (`wire-decoding`)
 
