@@ -12,6 +12,7 @@ import { lowerToWasm } from "../backends/wasm/src/kvm2wasm.mjs";
 import wabtFactory from "wabt";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -220,4 +221,58 @@ console.log("==> Starting Polymorphic kVM & Specialization Tests");
   console.log("Test 6 (Direct Lowering to WebAssembly): Passed");
 }
 
+// Test 7: CLI Compilation to Polymorphic .kvm without --input-pattern
+{
+  const compileScript = path.join(__dirname, "../objects/compile.mjs");
+  const res = spawnSync(process.execPath, [compileScript, "--format", "kvm", "Examples/arithmetics.k"], {
+    cwd: path.join(__dirname, ".."),
+    encoding: "utf8"
+  });
+  assert.equal(res.status, 0, `CLI compile failed: ${res.stderr}`);
+  const kvm = JSON.parse(res.stdout);
+  assert.equal(kvm.format, "k-vm");
+  assert.equal(kvm.layer, "KVM-P");
+  assert.equal(kvm.isPolymorphic, true);
+  assert.ok(kvm.functions["__main__"]);
+  console.log("Test 7 (CLI Compilation to Polymorphic .kvm): Passed");
+}
+
+// Test 8: CLI Compilation with --lib and explicit --export (no auto-export)
+{
+  const compileScript = path.join(__dirname, "../objects/compile.mjs");
+  // Fails without explicit --export
+  const failRes = spawnSync(process.execPath, [
+    compileScript,
+    "--lib", "Examples/arithmetics.k",
+    "{succ int x,int y}+"
+  ], {
+    cwd: path.join(__dirname, ".."),
+    encoding: "utf8"
+  });
+  assert.notEqual(failRes.status, 0, "Should fail without explicit --export");
+
+  // Succeeds with explicit --export
+  const successRes = spawnSync(process.execPath, [
+    compileScript,
+    "--lib", "Examples/arithmetics.k",
+    "--export", "plus:+",
+    "--export", "succ",
+    "--export", "int",
+    "--format", "kvm",
+    "{succ int x,int y}+"
+  ], {
+    cwd: path.join(__dirname, ".."),
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024
+  });
+  assert.equal(successRes.status, 0, `CLI compile with --export failed: ${successRes.stderr}`);
+  const kvm = JSON.parse(successRes.stdout);
+  assert.equal(kvm.format, "k-vm");
+  assert.equal(kvm.layer, "KVM-P");
+  assert.equal(kvm.isPolymorphic, true);
+  assert.ok(kvm.functions["__main__"]);
+  console.log("Test 8 (CLI Compilation with --lib and explicit --export): Passed");
+}
+
 console.log("==> All Polymorphic kVM Tests Passed Successfully!");
+

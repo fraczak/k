@@ -153,13 +153,13 @@ node ./bin/k-wasm-run.mjs "$TMP_DIR/ok-ko.wasm" "$TMP_DIR/unit.kv" |
   node "$K_ROOT/codecs/k-print.mjs" |
   grep -qx '"ok"'
 
-node "$K_ROOT/objects/compile.mjs" --input-type '?{}' "$TMP_DIR/ok.k" "$TMP_DIR/ok.kvm"
+node "$K_ROOT/objects/compile.mjs" "$TMP_DIR/ok.k" "$TMP_DIR/ok.kvm"
 node ./bin/k-wasm-compile.mjs "$TMP_DIR/ok.kvm" "$TMP_DIR/ok-kvm.wasm"
 node ./bin/k-wasm-run.mjs "$TMP_DIR/ok-kvm.wasm" "$TMP_DIR/unit.kv" |
   node "$K_ROOT/codecs/k-print.mjs" |
   grep -qx '"ok"'
 
-node "$K_ROOT/objects/compile.mjs" --format kvm --input-type '?{<{} a> x, <{} b> y}' 'make_prod = { .x x, .y y }; proj_y = make_prod .y; proj_y' > "$TMP_DIR/project.kvm"
+node "$K_ROOT/objects/compile.mjs" --format kvm 'make_prod = { .x x, .y y }; proj_y = make_prod .y; proj_y' > "$TMP_DIR/project.kvm"
 node ./bin/k-wasm-compile.mjs "$TMP_DIR/project.kvm" "$TMP_DIR/project.wasm"
 printf '{"x":{"a":{}},"y":{"b":{}}}\n' |
   node "$K_ROOT/codecs/k-parse.mjs" |

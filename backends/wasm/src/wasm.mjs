@@ -12,7 +12,8 @@ import {
   NODE_KIND,
   patternToPropertyList,
   propertyListToPattern,
-  Value
+  Value,
+  specializeKVM
 } from "@fraczak/k/backend-api.mjs";
 import { intersectPropertyListPatterns } from "@fraczak/k/codecs/runtime/codec.mjs";
 import { propertyListToFilter } from "@fraczak/k/codecs/runtime/show-value.mjs";
@@ -458,13 +459,16 @@ async function compileWasmArtifactFromDefs(
   return appendCustomSection(await compileWat(fullWat), METADATA_SECTION, JSON.stringify(metadata));
 }
 
-function normalizeKVMInput(kvmInput, { entry = "__main__", typingMode = "generic" } = {}) {
+function normalizeKVMInput(kvmInput, { entry = "__main__", typingMode = "generic", inputEnvelopePattern = null } = {}) {
   if (kvmInput?.format === "k-vm") {
+    if (kvmInput.layer === "KVM-P" && inputEnvelopePattern) {
+      kvmInput = specializeKVM(kvmInput, inputEnvelopePattern);
+    }
     const program = kvmInput.functions;
     if (!program || typeof program !== "object" || Array.isArray(program)) {
       throw new Error("Expected .kvm artifact to contain a functions object");
     }
-    if (kvmInput.layer != null && kvmInput.layer !== "KVM") {
+    if (kvmInput.layer != null && kvmInput.layer !== "KVM" && kvmInput.layer !== "KVM-P") {
       throw new Error(`Unsupported .kvm artifact layer '${kvmInput.layer}'`);
     }
     return {

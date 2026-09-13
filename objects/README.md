@@ -7,22 +7,23 @@ CLI tools for compiling and inspecting k object files (`.ko`) and library files 
 ### `k-compile`
 
 Compiles `.k` source into an executable object file (`.ko`), library file
-(`.klib`), or specialized kVM backend artifact (`.kvm`). Output format is
+(`.klib`), or polymorphic kVM backend artifact (`.kvm`). Output format is
 inferred from the output extension, or from `--format`.
 
 ```bash
-k-compile [--lib lib-file] [--format ko|klib|kvm] [--input-pattern json-or-file | --input-type type-script-or-file] [source-snippet | input-file [output-file]]
+k-compile [--lib lib-file] [--export spec]... [--format ko|klib|kvm] [source-snippet | input-file [output-file]]
 ```
 
 Existing input paths are read as files. A non-existing input with `.k`, `.ko`,
 or `.klib` extension is reported as a missing file; otherwise it is compiled as
 inline k source, in the same style as `k.mjs`.
 
-`.kvm` is post-envelope specialization backend input. Producing it requires a singleton input
-shape via `--input-pattern` or `--input-type`, so the artifact carries the
-concrete input pattern, derived output pattern, lowered kVM functions, and
-matching envelope-specialized KIR-P payload. Open product/union and `any` patterns are
-rejected. The kVM functions are lowered from that envelope-specialized KIR-P payload.
+`.kvm` is a polymorphic kVM template artifact (`layer: "KVM-P"`). It carries the
+relational function definitions, their principal input/output pattern graphs, and
+lowered kVM instruction streams ready for runtime specialization when enveloped
+values arrive. Specialization occurs when functions are invoked on concrete values,
+eliminating the need for ahead-of-time input pattern or input type flags. Names from
+a `--lib` dependency can be imported into the entry scope using `--export (oldname:)?newname`.
 
 ### `k-decompile`
 
@@ -79,8 +80,9 @@ installed object binary supports `-h` and `--help`.
 - Stored relation bodies do not include generated input/output boundary filters.
 - KIR-P is available as an inspection/export contract; it does not change the
   stored `.ko` or `.klib` payload.
-- `.kvm` is not a canonical source/object format; it is a specialized backend
-  artifact produced after envelope specialization for one singleton input pattern or type.
+- `.kvm` is not a canonical source/object format; it is a polymorphic backend
+  template artifact (`layer: "KVM-P"`), lowered from KIR-P for runtime execution
+  and JIT specialization.
 
 ## Further reading
 

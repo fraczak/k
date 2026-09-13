@@ -5,14 +5,12 @@ import path from "node:path";
 import { argv, exit, stdin, stdout } from "node:process";
 import {
   compileObjectBuffer,
+  compileLibrary,
   compileLibraryBuffer,
   decodeObject,
   loadLibrary
 } from "../object.mjs";
 import { objectToKVMArtifact } from "../kvm.mjs";
-import { annotate } from "../index.mjs";
-import { exportPatternGraph } from "../codecs/runtime/codec.mjs";
-import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
 
 function helpText() {
   return [
@@ -27,32 +25,25 @@ function helpText() {
     "  output-file     Output path (.ko, .klib, or .kvm). Writes to stdout when omitted.",
     "",
     "Options:",
-    "  --lib file       Load one .klib dependency before compiling.",
+    "  --lib file       Load one .klib or .k library dependency before compiling.",
     "  --export spec    Export a library alias into the source scope. May be repeated.",
     "                   spec is 'name' or 'libname:localname'.",
     "  --format fmt     Output format: ko, klib, or kvm. Overrides extension detection.",
-    "  --retype rel     Relation to specialize when producing .kvm. Defaults to object main.",
-    "  --input-pattern value",
-    "                   Input pattern property-list JSON, or a file containing it. Required for .kvm.",
-    "  --input-type value",
-    "                   Input type/pattern k script, or a file containing it. Alternative to --input-pattern.",
     "  -h, --help       Show this help.",
     "",
     "Existing input paths are read as files. A non-existing input with .k, .ko,",
     "or .klib extension is reported as a missing file; otherwise it is compiled",
     "as inline k source.",
     "",
-    ".kvm is a post-retyping backend artifact. It is produced by specializing",
-    "a .ko or source program against --input-pattern or --input-type, then lowering to kVM.",
-    ".kvm emission requires a singleton input pattern; open patterns are rejected.",
+    ".kvm is a polymorphic kVM template artifact (layer: KVM-P).",
     "A .klib input can only be copied to .klib output.",
     "",
     "Examples:",
     `  ${argv[1]} 'x = |x; x x'`,
     `  ${argv[1]} program.k program.ko`,
     `  ${argv[1]} program.k program.klib`,
-    `  ${argv[1]} --input-pattern '[["closed-product",[]]]' program.k program.kvm`,
-    `  ${argv[1]} --input-type '$ byte = <{} z, byte s>; $byte' program.ko program.kvm`,
+    `  ${argv[1]} program.k program.kvm`,
+    `  ${argv[1]} --lib Examples/arithmetics.k --export plus:+ --export succ --export int '{succ int x,int y}+' a.kvm`,
     `  ${argv[1]} --lib core.klib --export add --export mul:times program.k program.ko`
   ].join("\n");
 }
@@ -112,29 +103,6 @@ function resolveInput(inputArg) {
   };
 }
 
-function readMaybeFile(text) {
-  return fs.existsSync(text) ? fs.readFileSync(text, "utf8") : text;
-}
-
-function readInputPattern(inputPatternArg) {
-  if (inputPatternArg == null) return null;
-  return JSON.parse(readMaybeFile(inputPatternArg));
-}
-
-function readInputType(inputTypeArg) {
-  if (inputTypeArg == null) return null;
-  const annotated = annotate(readMaybeFile(inputTypeArg));
-  const mainRel = annotated.rels.__main__;
-  if (!mainRel || !mainRel.typePatternGraph) {
-    throw new Error("Could not resolve input type relation");
-  }
-  if (mainRel.def.op !== "filter" && mainRel.def.op !== "code") {
-    throw new Error("--input-type script must end with a filter or type expression");
-  }
-  const rootPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
-  return patternToPropertyList(exportPatternGraph(mainRel.typePatternGraph, rootPatternId));
-}
-
 function buildExportPreamble(exports, libraries) {
   if (exports.length === 0) return "";
   // Build a combined alias map from all libraries: name -> @hash
@@ -163,8 +131,8 @@ function buildExportPreamble(exports, libraries) {
   return lines.join("\n") + "\n";
 }
 
-function objectToKVM(object, relation, inputPattern) {
-  return JSON.stringify(objectToKVMArtifact(object, relation, inputPattern), null, 2) + "\n";
+function objectToKVM(object) {
+  return JSON.stringify(objectToKVMArtifact(object), null, 2) + "\n";
 }
 
 try {
@@ -177,9 +145,6 @@ try {
   const libraries = [];
   let format = null;
   const exports = [];
-  let retypeRelation = null;
-  let inputPatternArg = null;
-  let inputTypeArg = null;
 
   while (args.length > 0) {
     if (args[0] === "--") {
@@ -191,7 +156,12 @@ try {
       const libPath = args.shift();
       if (!libPath) throw new Error("--lib requires a file argument");
       if (libraries.length > 0) throw new Error("--lib may be specified at most once");
-      libraries.push(loadLibrary(decodeObject(fs.readFileSync(libPath))));
+      const ext = path.extname(libPath).toLowerCase();
+      if (ext === ".k") {
+        libraries.push(loadLibrary(compileLibrary(fs.readFileSync(libPath, "utf8"), { source: libPath })));
+      } else {
+        libraries.push(loadLibrary(decodeObject(fs.readFileSync(libPath))));
+      }
     } else if (args[0] === "--export") {
       args.shift();
       const spec = args.shift();
@@ -202,18 +172,6 @@ try {
       format = args.shift();
       if (!["ko", "klib", "kvm"].includes(format))
         throw new Error(`Unknown format: ${format}. Use ko, klib, or kvm.`);
-    } else if (args[0] === "--retype") {
-      args.shift();
-      retypeRelation = args.shift();
-      if (!retypeRelation) throw new Error("--retype requires a relation name");
-    } else if (args[0] === "--input-pattern") {
-      args.shift();
-      inputPatternArg = args.shift();
-      if (!inputPatternArg) throw new Error("--input-pattern requires JSON or a file path");
-    } else if (args[0] === "--input-type") {
-      args.shift();
-      inputTypeArg = args.shift();
-      if (!inputTypeArg) throw new Error("--input-type requires a k type/pattern script or file path");
     } else if (args[0].startsWith("--")) {
       throw new Error(`Unknown option: ${args[0]}`);
     } else {
@@ -230,13 +188,6 @@ try {
   const outputFormat = format || inferFormat(outputPath);
   const input = resolveInput(inputArg);
   const inputType = input.type;
-  if (inputPatternArg != null && inputTypeArg != null) {
-    throw new Error("--input-pattern and --input-type are mutually exclusive");
-  }
-  const inputPattern = inputTypeArg != null ? readInputType(inputTypeArg) : readInputPattern(inputPatternArg);
-  if (outputFormat === "kvm" && inputPattern == null) {
-    throw new Error("--input-pattern or --input-type is required when producing .kvm");
-  }
 
   let output;
 
@@ -251,7 +202,7 @@ try {
       if (inputType === "klib") {
         throw new Error("Cannot produce .kvm from .klib alone; use a .ko or .k input.");
       }
-      output = objectToKVM(object, retypeRelation, inputPattern);
+      output = objectToKVM(object);
     } else if (outputFormat === "ko") {
       if (inputType === "ko") {
         // already a .ko, just copy
@@ -283,7 +234,7 @@ try {
       output = compileLibraryBuffer(source, opts);
     } else if (outputFormat === "kvm") {
       const object = decodeObject(compileObjectBuffer(source, opts));
-      output = objectToKVM(object, retypeRelation, inputPattern);
+      output = objectToKVM(object);
     }
   }
 
