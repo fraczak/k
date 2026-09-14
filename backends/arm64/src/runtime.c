@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #define ARENA_CAPACITY (64 * 1024 * 1024)
 
@@ -129,6 +130,10 @@ static void flat_map_put(void *flat_ptr, k_value *val) {
     flat_map[flat_map_count].val = val;
     flat_map_count++;
   }
+}
+
+static void flat_map_reset(void) {
+  flat_map_count = 0;
 }
 
 static k_value *flat_map_get(void *flat_ptr) {
@@ -333,8 +338,199 @@ static int pattern_has_any(const k_pattern *pattern) {
   return 0;
 }
 
+static int read_exact(FILE *fp, unsigned char *buf, size_t count) {
+  size_t offset = 0;
+  while (offset < count) {
+    size_t n = fread(buf + offset, 1, count - offset, fp);
+    if (n == 0) {
+      if (feof(fp) && offset == 0) return 0;
+      return -1;
+    }
+    offset += n;
+  }
+  return 1;
+}
+
+static int write_frame(k_wire_prefix *prefix, const k_pattern *pattern, k_value *value) {
+  if (!value) return 0;
+  size_t length = 0;
+  unsigned char *payload = k_encode_wire_as_with_prefix(prefix, (k_pattern *)pattern, value, &length);
+  if (!payload || length > UINT32_MAX) {
+    free(payload);
+    return 0;
+  }
+  unsigned char header[4] = {
+    (unsigned char)((length >> 24) & 0xff),
+    (unsigned char)((length >> 16) & 0xff),
+    (unsigned char)((length >> 8) & 0xff),
+    (unsigned char)(length & 0xff)
+  };
+  int ok = (fwrite(header, 1, 4, stdout) == 4 && fwrite(payload, 1, length, stdout) == length && fflush(stdout) == 0);
+  free(payload);
+  return ok;
+}
+
+static int run_server(void *arena_mem) {
+  k_rt *rt = k_rt_new();
+  if (!rt) return 1;
+  k_wire_prefix input_prefix = k_wire_prefix_for_pattern(&compiled_input_pattern);
+  k_wire_prefix output_prefix = k_wire_prefix_for_pattern(&compiled_output_pattern);
+  if (!input_prefix.ok || !output_prefix.ok) {
+    k_wire_prefix_free(input_prefix);
+    k_wire_prefix_free(output_prefix);
+    k_rt_free(rt);
+    return 8;
+  }
+  for (;;) {
+    unsigned char header[4];
+    int header_status = read_exact(stdin, header, 4);
+    if (header_status == 0) {
+      k_wire_prefix_free(input_prefix);
+      k_wire_prefix_free(output_prefix);
+      k_rt_free(rt);
+      return 0;
+    }
+    if (header_status < 0) {
+      k_wire_prefix_free(input_prefix);
+      k_wire_prefix_free(output_prefix);
+      k_rt_free(rt);
+      return 6;
+    }
+    uint32_t length = ((uint32_t)header[0] << 24) | ((uint32_t)header[1] << 16) | ((uint32_t)header[2] << 8) | (uint32_t)header[3];
+    unsigned char *payload = malloc(length == 0 ? 1 : length);
+    if (!payload) {
+      k_wire_prefix_free(input_prefix);
+      k_wire_prefix_free(output_prefix);
+      k_rt_free(rt);
+      return 7;
+    }
+    int payload_status = read_exact(stdin, payload, length);
+    if (payload_status != 1) {
+      free(payload);
+      k_wire_prefix_free(input_prefix);
+      k_wire_prefix_free(output_prefix);
+      k_rt_free(rt);
+      return 6;
+    }
+
+    flat_map_reset();
+    void *arena_bump = arena_mem;
+    k_value *in_val = k_decode_wire_value_with_prefix(payload, length, &input_prefix, &compiled_input_pattern, rt);
+    if (!in_val) {
+      k_wire_input envelope = k_decode_wire_envelope(payload, length, rt);
+      if (envelope.value) {
+        in_val = envelope.value;
+      }
+    }
+    free(payload);
+    if (!in_val) {
+      k_rt_reset(rt);
+      k_wire_prefix_free(input_prefix);
+      k_wire_prefix_free(output_prefix);
+      k_rt_free(rt);
+      return 2;
+    }
+
+    void *flat_in = k_value_to_flat(in_val, &arena_bump, 0, &compiled_input_pattern);
+    k_arm64_res_t res = invoke_entry(flat_in, &arena_bump);
+    if (res.status != 0) {
+      k_rt_reset(rt);
+      k_wire_prefix_free(input_prefix);
+      k_wire_prefix_free(output_prefix);
+      k_rt_free(rt);
+      return 3;
+    }
+
+    k_value *out_val = flat_to_k_value(rt, res.val, 0, &compiled_output_pattern);
+    int ok = write_frame(&output_prefix, &compiled_output_pattern, out_val);
+    k_rt_reset(rt);
+    if (!ok) {
+      k_wire_prefix_free(input_prefix);
+      k_wire_prefix_free(output_prefix);
+      k_rt_free(rt);
+      return 4;
+    }
+  }
+}
+
+static uint64_t monotonic_ns(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+  return ((uint64_t)ts.tv_sec * 1000000000ull) + (uint64_t)ts.tv_nsec;
+}
+
+static int parse_size_arg(const char *text, size_t *out) {
+  if (text == NULL || *text == 0) return 0;
+  size_t value = 0;
+  for (const char *p = text; *p != 0; p++) {
+    if (*p < '0' || *p > '9') return 0;
+    size_t digit = (size_t)(*p - '0');
+    if (value > (((size_t)-1) - digit) / 10) return 0;
+    value = value * 10 + digit;
+  }
+  if (value == 0) return 0;
+  *out = value;
+  return 1;
+}
+
+static int run_bench_main(void *arena_mem, const char *count_text) {
+  size_t count = 0;
+  if (!parse_size_arg(count_text, &count)) return 9;
+  k_rt *rt = k_rt_new();
+  if (!rt) return 1;
+  k_wire_input input = k_read_wire_envelope(stdin, rt);
+  if (!input.value || !input.pattern) {
+    k_wire_input_free(input);
+    k_rt_free(rt);
+    return 2;
+  }
+  if (!k_pattern_equal(input.pattern, &compiled_input_pattern)) {
+    k_wire_input_free(input);
+    k_rt_free(rt);
+    return 5;
+  }
+  void *arena_bump = arena_mem;
+  void *flat_in = k_value_to_flat(input.value, &arena_bump, 0, &compiled_input_pattern);
+  void *arena_mark = arena_bump;
+
+  uint64_t started_at = monotonic_ns();
+  for (size_t i = 0; i < count; i++) {
+    arena_bump = arena_mark;
+    k_arm64_res_t result = invoke_entry(flat_in, &arena_bump);
+    if (result.status != 0) {
+      k_wire_input_free(input);
+      k_rt_free(rt);
+      return 3;
+    }
+  }
+  uint64_t ended_at = monotonic_ns();
+  uint64_t elapsed = ended_at >= started_at ? ended_at - started_at : 0;
+  fprintf(stderr, "K_ARM64_BENCH_MAIN calls=%zu total_ns=%llu per_call_ns=%.2f\n",
+    count, (unsigned long long)elapsed, count == 0 ? 0.0 : (double)elapsed / (double)count);
+  k_wire_input_free(input);
+  k_rt_free(rt);
+  return 0;
+}
+
 int main(int argc, char **argv) {
   init_tag_registry();
+
+  if (argc == 2 && strcmp(argv[1], "--server") == 0) {
+    void *arena_mem = malloc(ARENA_CAPACITY);
+    if (!arena_mem) return 1;
+    int rc = run_server(arena_mem);
+    free(arena_mem);
+    return rc;
+  }
+
+  if (argc == 3 && strcmp(argv[1], "--bench-main") == 0) {
+    void *arena_mem = malloc(ARENA_CAPACITY);
+    if (!arena_mem) return 1;
+    int rc = run_bench_main(arena_mem, argv[2]);
+    free(arena_mem);
+    return rc;
+  }
+
   int json_mode = 0;
   const char *input_file = NULL;
 

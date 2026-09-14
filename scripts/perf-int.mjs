@@ -22,6 +22,8 @@ import {
   csvEnv,
   formatTiming,
   createLLVMRunner,
+  createARM64Runner,
+  arm64LaneName,
   llvmLaneName,
   makeCacheDir,
   parseNonNegativeIntEnv,
@@ -219,7 +221,7 @@ function printBenchmarkDescription() {
   }
   if (runLLVM) lanes.push(llvmLaneName());
   if (runWasm) lanes.push("WebAssembly");
-  if (runARM64) lanes.push(`Linux ARM64 (${arm64OptLevel})`);
+  if (runARM64) lanes.push(arm64LaneName(arm64OptLevel));
 
   console.log("==> Benchmark description");
   console.log("    source: @fraczak/k/Examples/arithmetics.k");
@@ -239,6 +241,7 @@ function printBenchmarkDescription() {
     console.log(`    arm64-ready cases: ${testSuite.filter(tc => tc.arm64?.status === "ok").length}`);
     console.log(`    arm64 warmup iterations: ${arm64WarmupIterations}`);
     console.log(`    arm64 opt level: ${arm64OptLevel}`);
+    console.log(`    arm64 runner mode: ${process.env.ARM64_SPAWN_PER_CALL === "1" ? "spawn per call" : "persistent"}`);
   }
   console.log(`    iterations: ${iterations}`);
   console.log(`    benchmark lanes: ${lanes.join("; ")}`);
@@ -306,21 +309,18 @@ let arm64Result = null;
 if (runARM64) {
   const arm64Cases = testSuite.filter(tc => tc.arm64?.status === "ok");
   if (arm64Cases.length === testSuite.length) {
-    if (arm64WarmupIterations > 0) {
-      console.log(`==> Warming Linux ARM64 (${arm64WarmupIterations} iterations)...`);
-      for (let i = 0; i < arm64WarmupIterations; i++) {
-        for (const tc of arm64Cases) {
-          await runExecutable(tc.arm64.exePath, tc.inputWire);
-        }
+    const arm64Runner = createARM64Runner(testSuite);
+    try {
+      if (arm64WarmupIterations > 0) {
+        console.log(`==> Warming Linux ARM64 (${arm64WarmupIterations} iterations)...`);
+        await arm64Runner.run(arm64WarmupIterations);
       }
-    }
 
-    console.log(`==> Running Linux ARM64 (${iterations} iterations)...`);
-    arm64Result = await runTimedIterationsAsync(iterations, async () => {
-      for (const tc of arm64Cases) {
-        await runExecutable(tc.arm64.exePath, tc.inputWire);
-      }
-    });
+      console.log(`==> Running Linux ARM64 (${iterations} iterations)...`);
+      arm64Result = await arm64Runner.run(iterations);
+    } finally {
+      arm64Runner.close();
+    }
   }
 }
 
@@ -342,7 +342,7 @@ if (runWasm) {
 }
 if (runARM64) {
   const timingStr = arm64Result ? formatTiming(arm64Result) : "compile failed";
-  console.log(`${laneIndex++}. ${`Linux ARM64 (${arm64OptLevel})`.padEnd(29)} ${timingStr}`);
+  console.log(`${laneIndex++}. ${arm64LaneName(arm64OptLevel).padEnd(29)} ${timingStr}`);
 }
 console.log("=================================================================\n");
 
