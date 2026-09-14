@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import wabtFactory from "wabt";
 
@@ -31,6 +32,7 @@ import {
   printCompileFailures,
   runExecutable,
   runTimedIterations,
+  runTimedIterationsAsync,
   shouldStrictFail,
   toPlainObject,
   tryCompileCase,
@@ -44,18 +46,27 @@ import {
   writeValueToArena
 } from "../backends/wasm/tests/perf-support.mjs";
 
+import { compileARM64ArtifactFromObject } from "../backends/arm64/src/arm64.mjs";
+
 // Backend selection
 const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";
 const wasmOnly = process.env.WASM_ONLY === "1" || backendsEnv === "wasm";
+const arm64Only = process.env.ARM64_ONLY === "1" || backendsEnv === "arm64";
 
-const runLLVM = !wasmOnly;
-const runWasm = !llvmOnly;
-const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1");
+const isArm64Host = process.arch === "arm64" && process.platform === "linux";
+const runARM64 = !wasmOnly && !llvmOnly && (isArm64Host || arm64Only);
+const runLLVM = !wasmOnly && !arm64Only;
+const runWasm = !llvmOnly && !arm64Only;
+const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1") && (process.env.ARM64_ONLY !== "1");
 
 const ops = ["add", "sub", "mul", "div"];
 const values = csvEnv("VALUES", "0.5,-4,0,Infinity,-Infinity,NaN");
 const iterations = parsePositiveIntEnv("ITERATIONS", 3);
+
+// ARM64 options
+const arm64WarmupIterations = parseNonNegativeIntEnv("ARM64_WARMUP_ITERATIONS", 1);
+const arm64OptLevel = process.env.ARM64_OPT || "-O2";
 
 // LLVM options
 const llvmWarmupIterations = parseNonNegativeIntEnv("LLVM_WARMUP_ITERATIONS", 1);
@@ -221,6 +232,26 @@ if (runWasm) {
   wasmFuncName = cleanName(state.relAliases.perf_ieee);
 }
 
+// Setup ARM64
+let arm64ExePath = null;
+let arm64CompileError = null;
+
+if (runARM64) {
+  console.log(`==> Compiling Linux ARM64 executable (${arm64OptLevel})...`);
+  try {
+    arm64ExePath = path.join(cacheDir, "perf_ieee_arm64");
+    compileARM64ArtifactFromObject(relation.object, {
+      entry: "__main__",
+      outputPath: arm64ExePath,
+      optLevel: arm64OptLevel
+    });
+  } catch (error) {
+    arm64CompileError = error.stack || error.message || String(error);
+    console.log("Linux ARM64 compilation failed:");
+    console.log(arm64CompileError.split("\n").slice(0, 8).join("\n"));
+  }
+}
+
 function printBenchmarkDescription() {
   const lanes = [];
   if (runBaselines) {
@@ -235,6 +266,7 @@ function printBenchmarkDescription() {
     }
   }
   if (runWasm) lanes.push("WebAssembly");
+  if (runARM64) lanes.push(`Linux ARM64 (${arm64OptLevel})`);
 
   console.log("==> Benchmark description");
   console.log("    source: @fraczak/k/Examples/ieee.k#perf_ieee (single program)");
@@ -250,6 +282,10 @@ function printBenchmarkDescription() {
   if (runWasm) {
     console.log(`    wasm warmup iterations: ${wasmWarmupIterations}`);
     console.log(`    wasm arena reset: ${wasmReset ? "yes" : "no"}`);
+  }
+  if (runARM64) {
+    console.log(`    arm64 warmup iterations: ${arm64WarmupIterations}`);
+    console.log(`    arm64 opt level: ${arm64OptLevel}`);
   }
   console.log(`    iterations: ${iterations}`);
   console.log(`    benchmark lanes: ${lanes.join("; ")}`);
@@ -331,6 +367,22 @@ if (runWasm) {
   });
 }
 
+// 4. Linux ARM64 lane
+let arm64Result = null;
+if (runARM64 && arm64ExePath) {
+  if (arm64WarmupIterations > 0) {
+    console.log(`==> Warming Linux ARM64 (${arm64WarmupIterations} iterations)...`);
+    for (let i = 0; i < arm64WarmupIterations; i++) {
+      await runExecutable(arm64ExePath, inputWire);
+    }
+  }
+
+  console.log(`==> Running Linux ARM64 (${iterations} iterations)...`);
+  arm64Result = await runTimedIterationsAsync(iterations, async () => {
+    await runExecutable(arm64ExePath, inputWire);
+  });
+}
+
 console.log("\n=================== IEEE BENCHMARK RESULTS ===================");
 console.log(`Program calls per iteration: 1 (${totalOps} IEEE operations evaluated inside)`);
 console.log(`Total requested program calls: ${iterations} (${iterations * totalOps} equivalent IEEE operations)`);
@@ -351,6 +403,10 @@ if (runLLVM) {
 }
 if (runWasm) {
   console.log(`${laneIndex++}. ${"WebAssembly".padEnd(29)} ${formatTiming(wasmResult)}`);
+}
+if (runARM64) {
+  const timingStr = arm64Result ? formatTiming(arm64Result) : "compile failed";
+  console.log(`${laneIndex++}. ${`Linux ARM64 (${arm64OptLevel})`.padEnd(29)} ${timingStr}`);
 }
 console.log("==============================================================\n");
 
@@ -410,6 +466,22 @@ if (runWasm) {
   }
 }
 
+let arm64Ok = false;
+if (runARM64) {
+  if (!arm64ExePath) {
+    console.log("Linux ARM64 conformance failure: executable was not compiled");
+  } else {
+    try {
+      const outputWire = await runExecutable(arm64ExePath, inputWire);
+      const actual = decodeWire(outputWire).value;
+      assert.deepEqual(toPlainObject(actual), toPlainObject(expected));
+      arm64Ok = true;
+    } catch (error) {
+      console.log("Linux ARM64 conformance failure:", error.message || error);
+    }
+  }
+}
+
 const validationSummary = [];
 if (runBaselines && kvmOk) validationSummary.push(`kVM (all ${totalOps} ops)`);
 if (runLLVM) {
@@ -422,6 +494,9 @@ if (runLLVM) {
 if (runWasm) {
   validationSummary.push(`Wasm (${wasmOk ? `all ${totalOps} ops` : "failed"})`);
 }
+if (runARM64) {
+  validationSummary.push(`Linux ARM64 (${arm64Ok ? `all ${totalOps} ops` : "failed"})`);
+}
 
 console.log(`Conformance validation: ${validationSummary.join(", ")} match expected values.`);
 if (runLLVM) {
@@ -431,3 +506,4 @@ if (runLLVM) {
   }
 }
 if (runWasm && !wasmOk) process.exitCode = 1;
+if (runARM64 && !arm64Ok) process.exitCode = 1;

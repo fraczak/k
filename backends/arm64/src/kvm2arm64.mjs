@@ -143,6 +143,7 @@ export function lowerToARM64(relDef, name, options = {}) {
       return inputPropertyList[0][1];
     }
 
+    const mappedSrc = mappedReg(inst.src, inputMap);
     const inputPropertyList = getPattern(inst.src, inputMap);
     const inputRoot = inputPropertyList?.[0];
     if (Array.isArray(inputRoot) && Array.isArray(inputRoot[1])) {
@@ -150,8 +151,8 @@ export function lowerToARM64(relDef, name, options = {}) {
         return inputRoot[1];
       }
     }
-    // Fallback: check function's inputPattern
-    if (Array.isArray(kvmFunc.inputPattern?.[0]?.[1])) {
+    // Fallback: check function's inputPattern only if inst.src represents the input argument
+    if (mappedSrc === "in" && Array.isArray(kvmFunc.inputPattern?.[0]?.[1])) {
       return kvmFunc.inputPattern[0][1];
     }
     throw new Error(`ARM64 compiler: cannot infer product edges for field '${inst.label}'`);
@@ -291,15 +292,52 @@ export function lowerToARM64(relDef, name, options = {}) {
     return regOffsets.get(clean);
   };
 
+  const ldrReg = (reg, rName, scratch = "x12") => {
+    const off = regOffset(rName);
+    if (off <= 32760) {
+      return `ldr   ${reg}, [sp, #${off}]`;
+    }
+    return `movz  ${scratch}, #${off & 0xffff}\n    movk  ${scratch}, #${(off >>> 16) & 0xffff}, lsl #16\n    ldr   ${reg}, [sp, ${scratch}]`;
+  };
+
+  const strReg = (reg, rName, scratch = "x12") => {
+    const off = regOffset(rName);
+    if (off <= 32760) {
+      return `str   ${reg}, [sp, #${off}]`;
+    }
+    return `movz  ${scratch}, #${off & 0xffff}\n    movk  ${scratch}, #${(off >>> 16) & 0xffff}, lsl #16\n    str   ${reg}, [sp, ${scratch}]`;
+  };
+
+  const allocStack = (scratch = "x9") => {
+    if (frameSize <= 4095) {
+      return `    sub   sp, sp, #${frameSize}`;
+    }
+    return `    movz  ${scratch}, #${frameSize & 0xffff}\n    movk  ${scratch}, #${(frameSize >>> 16) & 0xffff}, lsl #16\n    sub   sp, sp, ${scratch}`;
+  };
+
+  const freeStack = (scratch = "x9") => {
+    if (frameSize <= 4095) {
+      return `    add   sp, sp, #${frameSize}`;
+    }
+    return `    movz  ${scratch}, #${frameSize & 0xffff}\n    movk  ${scratch}, #${(frameSize >>> 16) & 0xffff}, lsl #16\n    add   sp, sp, ${scratch}`;
+  };
+
+  const addArenaBump = (size, scratch = "x10") => {
+    if (size <= 4095) {
+      return `    add   x19, x19, #${size}`;
+    }
+    return `    movz  ${scratch}, #${size & 0xffff}\n    movk  ${scratch}, #${(size >>> 16) & 0xffff}, lsl #16\n    add   x19, x19, ${scratch}`;
+  };
+
   function initInputProductLocals() {
     const lines = [];
     for (const field of inputProductFields) {
       const fieldIndex = inputProductEdges.findIndex(([label]) => label === field.label);
       lines.push(`    // cache input field ${field.label} in ${field.local}`);
-      lines.push(`    ldr   x9, [sp, #${regOffset("in")}]`);
+      lines.push(`    ${ldrReg("x9", "in")}`);
       lines.push(`    cbz   x9, ${funcFailLabel}`);
       lines.push(`    ldr   x10, [x9, #${8 + 8 * fieldIndex}]`);
-      lines.push(`    str   x10, [sp, #${regOffset(field.local)}]`);
+      lines.push(`    ${strReg("x10", field.local)}`);
     }
     return lines.join("\n");
   }
@@ -309,7 +347,7 @@ export function lowerToARM64(relDef, name, options = {}) {
     const totalSize = (8 + 8 * N + 15) & ~15;
     lines.push(`    // materialize cached input product into ${dest}`);
     lines.push(`    mov   x9, x19`);
-    lines.push(`    add   x19, x19, #${totalSize}`);
+    lines.push(addArenaBump(totalSize));
     lines.push(`    movz  w10, #${totalSize}`);
     lines.push(`    movk  w10, #0x0001, lsl #16`);
     lines.push(`    str   w10, [x9, #0]`);
@@ -317,10 +355,10 @@ export function lowerToARM64(relDef, name, options = {}) {
     lines.push(`    str   w10, [x9, #4]`);
     for (const field of inputProductFields) {
       const offsetVal = 8 + 8 * field.index;
-      lines.push(`    ldr   x11, [sp, #${regOffset(field.local)}]`);
+      lines.push(`    ${ldrReg("x11", field.local)}`);
       lines.push(`    str   x11, [x9, #${offsetVal}]`);
     }
-    lines.push(`    str   x9, [sp, #${regOffset(dest)}]`);
+    lines.push(`    ${strReg("x9", dest)}`);
   }
 
   function compileInstructions(
@@ -342,8 +380,8 @@ export function lowerToARM64(relDef, name, options = {}) {
           const rawSrc = cleanReg(inst.src);
           const src = inputMap[rawSrc] || rawSrc;
           lines.push(`    // id/guard: ${dest} = ${src}`);
-          lines.push(`    ldr   x9, [sp, #${regOffset(src)}]`);
-          lines.push(`    str   x9, [sp, #${regOffset(dest)}]`);
+          lines.push(`    ${ldrReg("x9", src)}`);
+          lines.push(`    ${strReg("x9", dest)}`);
           setPattern(dest, inst.pattern || getPattern(inst.src, inputMap));
           if (inputAliases.has(src)) {
             inputAliases.add(dest);
@@ -372,12 +410,12 @@ export function lowerToARM64(relDef, name, options = {}) {
           }
           lines.push(`    // return: ${valueSrc}`);
           if (returnTarget) {
-            lines.push(`    ldr   x9, [sp, #${regOffset(valueSrc)}]`);
-            lines.push(`    str   x9, [sp, #${regOffset(returnTarget)}]`);
+            lines.push(`    ${ldrReg("x9", valueSrc)}`);
+            lines.push(`    ${strReg("x9", returnTarget)}`);
             setPattern(returnTarget, getPattern(inst.src, inputMap));
           } else {
             lines.push(`    mov   x0, #0`);
-            lines.push(`    ldr   x1, [sp, #${regOffset(valueSrc)}]`);
+            lines.push(`    ${ldrReg("x1", valueSrc)}`);
             lines.push(`    b     ${funcEpilogueLabel}`);
           }
           break;
@@ -390,8 +428,8 @@ export function lowerToARM64(relDef, name, options = {}) {
 
           if (inputField) {
             lines.push(`    // project cached input field ${inst.label} from ${inputField.local} to ${dest}`);
-            lines.push(`    ldr   x9, [sp, #${regOffset(inputField.local)}]`);
-            lines.push(`    str   x9, [sp, #${regOffset(dest)}]`);
+            lines.push(`    ${ldrReg("x9", inputField.local)}`);
+            lines.push(`    ${strReg("x9", dest)}`);
             setPattern(dest, inst.pattern);
             break;
           }
@@ -404,10 +442,10 @@ export function lowerToARM64(relDef, name, options = {}) {
 
           const currentFail = failTarget || funcFailLabel;
           lines.push(`    // project_field ${inst.label} (index ${fieldIndex}) from ${src} to ${dest}`);
-          lines.push(`    ldr   x9, [sp, #${regOffset(src)}]`);
+          lines.push(`    ${ldrReg("x9", src)}`);
           lines.push(`    cbz   x9, ${currentFail}`);
           lines.push(`    ldr   x10, [x9, #${8 + 8 * fieldIndex}]`);
-          lines.push(`    str   x10, [sp, #${regOffset(dest)}]`);
+          lines.push(`    ${strReg("x10", dest)}`);
           setPattern(dest, inst.pattern);
           break;
         }
@@ -451,8 +489,8 @@ export function lowerToARM64(relDef, name, options = {}) {
               const branch = sortedBranches[i];
               const fieldTmp = `${dest}_f${i}`;
               const inputField = inputProductFieldByLabel.get(branch.label);
-              lines.push(`    ldr   x9, [sp, #${regOffset(fieldTmp)}]`);
-              lines.push(`    str   x9, [sp, #${regOffset(inputField.local)}]`);
+              lines.push(`    ${ldrReg("x9", fieldTmp)}`);
+              lines.push(`    ${strReg("x9", inputField.local)}`);
             }
             lines.push(`    b     ${tailLoopLabel}`);
             index = insts.length;
@@ -478,7 +516,7 @@ export function lowerToARM64(relDef, name, options = {}) {
           const totalSize = (8 + 8 * N + 15) & ~15;
           lines.push(`    // allocate product ${dest} (size ${totalSize} bytes)`);
           lines.push(`    mov   x9, x19`);
-          lines.push(`    add   x19, x19, #${totalSize}`);
+          lines.push(addArenaBump(totalSize));
           lines.push(`    movz  w10, #${totalSize}`);
           lines.push(`    movk  w10, #0x0001, lsl #16`);
           lines.push(`    str   w10, [x9, #0]`);
@@ -488,11 +526,16 @@ export function lowerToARM64(relDef, name, options = {}) {
           for (let i = 0; i < N; i++) {
             const offsetVal = 8 + 8 * i;
             const fieldTmp = `${dest}_f${i}`;
-            lines.push(`    ldr   x11, [sp, #${regOffset(fieldTmp)}]`);
+            lines.push(`    ${ldrReg("x11", fieldTmp)}`);
             lines.push(`    str   x11, [x9, #${offsetVal}]`);
           }
-          lines.push(`    str   x9, [sp, #${regOffset(dest)}]`);
-          setPattern(dest, inst.pattern);
+          lines.push(`    ${strReg("x9", dest)}`);
+          if (inst.pattern) {
+            setPattern(dest, inst.pattern);
+          } else {
+            const productEdges = sortedBranches.map((branch, i) => [branch.label || String(i), i + 1]);
+            setPattern(dest, [["closed-product", productEdges]]);
+          }
           break;
         }
         case "make_variant": {
@@ -509,9 +552,9 @@ export function lowerToARM64(relDef, name, options = {}) {
           lines.push(`    str   w10, [x9, #0]`);
           lines.push(`    mov   w10, #${tagId}`);
           lines.push(`    str   w10, [x9, #4]`);
-          lines.push(`    ldr   x11, [sp, #${regOffset(src)}]`);
+          lines.push(`    ${ldrReg("x11", src)}`);
           lines.push(`    str   x11, [x9, #8]`);
-          lines.push(`    str   x9, [sp, #${regOffset(dest)}]`);
+          lines.push(`    ${strReg("x9", dest)}`);
           setPattern(dest, inst.pattern);
           break;
         }
@@ -523,13 +566,13 @@ export function lowerToARM64(relDef, name, options = {}) {
           const currentFail = failTarget || funcFailLabel;
 
           lines.push(`    // project_variant ${inst.tag} (tagId ${tagId}) from ${src} to ${dest}`);
-          lines.push(`    ldr   x9, [sp, #${regOffset(src)}]`);
+          lines.push(`    ${ldrReg("x9", src)}`);
           lines.push(`    cbz   x9, ${currentFail}`);
           lines.push(`    ldr   w10, [x9, #4]`);
           lines.push(`    cmp   w10, #${tagId}`);
           lines.push(`    b.ne  ${currentFail}`);
           lines.push(`    ldr   x11, [x9, #8]`);
-          lines.push(`    str   x11, [sp, #${regOffset(dest)}]`);
+          lines.push(`    ${strReg("x11", dest)}`);
           setPattern(dest, inst.pattern);
           break;
         }
@@ -547,7 +590,7 @@ export function lowerToARM64(relDef, name, options = {}) {
 
           lines.push(`    // union choice for ${dest} (${N} branches)`);
           lines.push(`    // save arena bump mark`);
-          lines.push(`    str   x19, [sp, #${regOffset(arenaMark)}]`);
+          lines.push(`    ${strReg("x19", arenaMark)}`);
 
           for (let i = 0; i < N; i++) {
             const branch = inst.branches[i];
@@ -569,7 +612,7 @@ export function lowerToARM64(relDef, name, options = {}) {
             if (!isLast) {
               lines.push(`${branchFail}:`);
               lines.push(`    // branch ${i} failed: rewind arena`);
-              lines.push(`    ldr   x19, [sp, #${regOffset(arenaMark)}]`);
+              lines.push(`    ${ldrReg("x19", arenaMark)}`);
             }
           }
 
@@ -590,8 +633,8 @@ export function lowerToARM64(relDef, name, options = {}) {
             if (callSrc !== src) {
               materializeInputProduct(lines, callSrc);
             }
-            lines.push(`    ldr   x9, [sp, #${regOffset(callSrc)}]`);
-            lines.push(`    str   x9, [sp, #${regOffset("in")}]`);
+            lines.push(`    ${ldrReg("x9", callSrc)}`);
+            lines.push(`    ${strReg("x9", "in")}`);
             if (inputProductFields.length > 0) {
               lines.push(initInputProductLocals());
             }
@@ -603,11 +646,16 @@ export function lowerToARM64(relDef, name, options = {}) {
 
           const currentFail = failTarget || funcFailLabel;
           lines.push(`    // call ${inst.func}`);
-          lines.push(`    ldr   x0, [sp, #${regOffset(callSrc)}]`);
+          if (callSrc !== src) {
+            materializeInputProduct(lines, callSrc);
+          }
+          lines.push(`    ${ldrReg("x0", callSrc)}`);
           lines.push(`    bl    ${inst.func}`);
           lines.push(`    cbnz  x0, ${currentFail}`);
-          lines.push(`    str   x1, [sp, #${regOffset(dest)}]`);
-          setPattern(dest, inst.pattern);
+          lines.push(`    ${strReg("x1", dest)}`);
+          const targetFunc = options.kvmProgram?.[inst.func];
+          const callOutputPattern = inst.pattern || targetFunc?.outputPattern;
+          setPattern(dest, callOutputPattern);
           break;
         }
         default:
@@ -623,10 +671,10 @@ export function lowerToARM64(relDef, name, options = {}) {
     `    .p2align 3`,
     `${name}:`,
     `    // Function Prologue`,
-    `    sub   sp, sp, #${frameSize}`,
+    allocStack(),
     `    stp   x29, x30, [sp, #0]`,
     `    mov   x29, sp`,
-    `    str   x0, [sp, #${regOffset("in")}]`,
+    `    ${strReg("x0", "in")}`,
     inputProductFields.length > 0 ? initInputProductLocals() : "",
     `${tailLoopLabel}:`,
     compileInstructions(kvmFunc.body),
@@ -636,7 +684,7 @@ export function lowerToARM64(relDef, name, options = {}) {
     `    b     ${funcEpilogueLabel}`,
     `${funcEpilogueLabel}:`,
     `    ldp   x29, x30, [sp, #0]`,
-    `    add   sp, sp, #${frameSize}`,
+    freeStack(),
     `    ret`,
     `    .size ${name}, .-${name}`
   ].filter(line => line !== "").join("\n");
@@ -771,7 +819,10 @@ export function emitPatternC(name, pattern) {
   const lines = [];
   for (let nodeIndex = 0; nodeIndex < pattern.length; nodeIndex++) {
     const node = pattern[nodeIndex];
-    const [, edges] = node;
+    const [, rawEdges] = node;
+    const edges = Array.isArray(rawEdges)
+      ? [...rawEdges].sort((a, b) => Buffer.compare(Buffer.from(String(a[0]), "utf8"), Buffer.from(String(b[0]), "utf8")))
+      : [];
     for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
       const edge = edges[edgeIndex];
       const [label] = edge;
