@@ -677,8 +677,8 @@ static void bw_write_bits(bit_writer *writer, unsigned value, int width) {
 }
 
 static void bw_flush(bit_writer *writer) {
-  if (writer->bit_count > 0) {
-    while (writer->bit_count != 0) bw_write_bit(writer, 0);
+  if (writer->ok && writer->bit_count > 0) {
+    while (writer->ok && writer->bit_count != 0) bw_write_bit(writer, 0);
   }
 }
 

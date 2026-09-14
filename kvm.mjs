@@ -611,6 +611,8 @@ export function specializeKVM(artifactOrFunc, inputEnvelope, options = {}) {
 
           let productPattern = null;
           if (fieldEntries.length === inst.branches.length) {
+            fieldEntries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+            specializedBranches.sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
             productPattern = composePattern("closed-product", fieldEntries);
             regPatterns.set(inst.dest, productPattern);
           }
