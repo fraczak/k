@@ -889,6 +889,13 @@ function executeInstruction(inst, registers, context) {
 
 export function executeKVM(kvmFunc, inputVal, context) {
   const options = context.options || {};
+  if (context.profile) {
+    let name = kvmFunc.name || "anon";
+    if (context.hashToName && context.hashToName.has(name)) {
+      name = context.hashToName.get(name);
+    }
+    context.profile[name] = (context.profile[name] || 0) + 1;
+  }
   if (options.requireConverged && !kvmFunc.isConverged) {
     throw new Error(`Cannot run '${kvmFunc.name}' without envelopes: type derivation is not converged`);
   }

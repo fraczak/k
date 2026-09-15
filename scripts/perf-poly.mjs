@@ -6,10 +6,9 @@ import wabtFactory from "wabt";
 
 import {
   codes,
-  createState,
   decodeWire,
   encodeToWire,
-  evaluateInput,
+  executeKVM,
   exportPatternGraph,
   patternToPropertyList,
   propertyListToPattern,
@@ -18,6 +17,7 @@ import {
   valueForCode,
   Value
 } from "@fraczak/k/backend-api.mjs";
+import { compileLibrary, loadLibrary } from "@fraczak/k/object.mjs";
 import { parse as parseIntValue } from "@fraczak/k/codecs/int.mjs";
 
 import {
@@ -50,6 +50,8 @@ import {
   cleanName,
   instantiateWasmModule,
   readArenaValue,
+  readWasmProfile,
+  resetWasmProfile,
   writeValueToArena
 } from "../backends/wasm/tests/perf-support.mjs";
 
@@ -73,6 +75,7 @@ const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
 const listLength = parsePositiveIntEnv("LIST_LENGTH", 40);
 const iterations = parsePositiveIntEnv("ITERATIONS", 3);
 const runTrace = process.argv.includes("--trace") || process.env.TRACE === "1" || process.env.K_TRACE === "1";
+const runProfile = runTrace || process.argv.includes("--profile") || process.env.K_PROFILE === "1" || process.env.PROFILE === "1";
 
 // ARM64 options
 const arm64WarmupIterations = parseNonNegativeIntEnv("ARM64_WARMUP_ITERATIONS", 1);
@@ -86,15 +89,57 @@ const cacheDir = makeCacheDir("k-poly-perf-");
 const wasmWarmupIterations = parseNonNegativeIntEnv("WASM_WARMUP_ITERATIONS", 3);
 const wasmReset = process.env.WASM_RESET !== "0";
 
-console.log("==> Initializing state and loading @fraczak/k/Examples/arithmetics.k & poly.k");
-const state = createState();
-const arithmeticsPath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/arithmetics.k"));
-const polyPath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/poly.k"));
-await evaluateInput(`:load ${arithmeticsPath}`, state);
-await evaluateInput(`:load ${polyPath}`, state);
 
+console.log("==> Loading @fraczak/k/Examples/arithmetics.k as library");
+const arithmeticsPath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/arithmetics.k"));
+const arithmeticsSource = fs.readFileSync(arithmeticsPath, "utf8");
+const arithmeticsLib = loadLibrary(compileLibrary(arithmeticsSource, { source: arithmeticsPath }));
+
+console.log("==> Compiling @fraczak/k/Examples/poly.k with explicit library exports");
+const polyPath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/poly.k"));
+const polySource = fs.readFileSync(polyPath, "utf8");
+
+function buildExportPreamble(exports, libraries) {
+  const aliasMap = {};
+  for (const lib of libraries) {
+    for (const [name, hash] of Object.entries(lib.relAlias || {})) {
+      if (name !== "__main__") aliasMap[name] = hash;
+    }
+  }
+  const lines = [];
+  for (const spec of exports) {
+    const [libName, localName] = spec.includes(":") ? spec.split(":", 2) : [spec, spec];
+    const hash = aliasMap[libName];
+    if (!hash) throw new Error(`--export: '${libName}' not found in loaded libraries`);
+    const body = hash.startsWith("@") ? hash.slice(1) : hash;
+    lines.push(`${localName} = @${body};`);
+  }
+  return lines.join("\n") + "\n";
+}
+
+const neededExports = ["0", "int", "inc", "dec", "nat", "zero_int?", "nil", "cons", "car", "cdr"];
+const exportPreamble = buildExportPreamble(neededExports, [arithmeticsLib]);
+const polyLib = loadLibrary(compileLibrary(exportPreamble + polySource, {
+  source: polyPath,
+  libraries: [arithmeticsLib]
+}));
+
+const state = {
+  codes: { ...arithmeticsLib.codes, ...polyLib.codes },
+  rels: { ...arithmeticsLib.rels, ...polyLib.rels },
+  typeAliases: {},
+  relAliases: { ...polyLib.relAlias },
+  meta: { ...arithmeticsLib.meta, ...polyLib.meta }
+};
+for (const [hash, entry] of Object.entries(arithmeticsLib.meta)) {
+  if (entry.type === "code") {
+    for (const origin of entry.origins || []) {
+      if (origin.name) state.typeAliases[origin.name] = hash;
+    }
+  }
+}
 for (const op of ops) {
-  await evaluateInput(`${benchNames[op]} = ${op};`, state);
+  state.relAliases[benchNames[op]] = polyLib.relAlias[op];
 }
 
 function intValue(text) {
@@ -114,16 +159,9 @@ function makeList(elements) {
 
 console.log("==> Preparing relations");
 const relations = {};
-const arithmeticsSource = fs.readFileSync(arithmeticsPath, "utf8").replace(/\s*\(\)\s*$/, "\n");
-const polySource = fs.readFileSync(polyPath, "utf8");
-const combinedLibrarySource = `${arithmeticsSource}\n${polySource}`;
-
 for (const op of ops) {
   const name = benchNames[op];
-  relations[op] = prepareRelation(state, name, {
-    source: `${combinedLibrarySource}\n${name} = ${op};\n${name}`,
-    sourceLabel: `@fraczak/k/Examples/poly.k#${name}`
-  });
+  relations[op] = prepareRelation(state, name);
 }
 codes.load(state.codes);
 
@@ -189,12 +227,14 @@ if (runLLVM) {
 
 // Setup Wasm
 let wasmExports = null;
+let wasmProfileFunctions = [];
 if (runWasm) {
   console.log("==> Compiling WebAssembly module...");
   const wabtInstance = await wabtFactory();
   const opHashes = ops.map(op => state.relAliases[benchNames[op]]);
-  const wasmModule = await instantiateWasmModule(opHashes, state, wabtInstance);
+  const wasmModule = await instantiateWasmModule(opHashes, state, wabtInstance, { profile: runProfile });
   wasmExports = wasmModule.exports;
+  wasmProfileFunctions = wasmModule.profileFunctions || [];
 
   for (const tc of testSuite) {
     tc.wasmPtrIn = writeValueToArena(wasmExports, tc.inputVal, propertyListToPattern(tc.inputPattern), 0);
@@ -210,11 +250,12 @@ if (runARM64) {
     try {
       const exePath = path.join(cacheDir, `perf_poly_arm64_${tc.op}`);
       compileARM64ArtifactFromObject(relation.object, {
-        entry: "__main__",
+        entry: relation.relationName,
         inputPattern: tc.inputPattern,
         outputPattern: tc.outputPattern,
         outputPath: exePath,
-        optLevel: arm64OptLevel
+        optLevel: arm64OptLevel,
+        profile: runProfile
       });
       tc.arm64 = { status: "ok", exePath };
       arm64Exes.set(tc.op, tc.arm64);
@@ -488,6 +529,22 @@ if (runTrace && process.exitCode !== 1) {
     return avg;
   };
 
+  const kvmHashToName = new Map();
+  for (const [alias, h] of Object.entries(state.relAliases)) {
+    const current = kvmHashToName.get(h);
+    if (!current) {
+      kvmHashToName.set(h, alias);
+    } else {
+      const currentIsBench = current.startsWith("bench_");
+      const aliasIsBench = alias.startsWith("bench_");
+      if (currentIsBench && !aliasIsBench) {
+        kvmHashToName.set(h, alias);
+      } else if (currentIsBench === aliasIsBench && alias.length < current.length) {
+        kvmHashToName.set(h, alias);
+      }
+    }
+  }
+
   const phaseResults = [];
 
   for (const tc of testSuite) {
@@ -499,11 +556,26 @@ if (runTrace && process.exitCode !== 1) {
       const server = arm64Servers.get(op);
       for (let i = 0; i < 3; i++) await server.requestWithTrace(tc.inputWire);
       const samples = [];
+      let arm64Profile = null;
       for (let i = 0; i < sampleReps; i++) {
         const res = await server.requestWithTrace(tc.inputWire);
-        if (res.trace) samples.push(res.trace);
+        if (res.trace) {
+          samples.push(res.trace);
+          if (res.trace.profile) arm64Profile = res.trace.profile;
+        }
       }
       opData.arm64 = averageTrace(samples);
+      if (arm64Profile) {
+        if (arm64Profile.__main__ !== undefined) {
+          if (arm64Profile[op] !== undefined) {
+            arm64Profile[benchNames[op]] = arm64Profile.__main__;
+          } else {
+            arm64Profile[op] = arm64Profile.__main__;
+          }
+          delete arm64Profile.__main__;
+        }
+        opData.arm64Profile = arm64Profile;
+      }
     }
 
     // 2. LLVM
@@ -548,6 +620,21 @@ if (runTrace && process.exitCode !== 1) {
         }
       }
       opData.wasm = averageTrace(samples);
+
+      if (runProfile && wasmProfileFunctions.length > 0) {
+        resetWasmProfile(wasmExports, wasmProfileFunctions);
+        const mark = wasmReset ? wasmExports.arena_mark() : 0;
+        wasmExports[funcName](tc.wasmPtrIn);
+        const wProf = readWasmProfile(wasmExports, wasmProfileFunctions);
+        if (wasmReset) wasmExports.arena_reset(mark);
+        if (wProf) {
+          if (wProf[benchNames[op]] !== undefined && wProf[op] === undefined) {
+            wProf[op] = wProf[benchNames[op]];
+            delete wProf[benchNames[op]];
+          }
+          opData.wasmProfile = wProf;
+        }
+      }
     }
 
     // 4. kVM
@@ -573,6 +660,23 @@ if (runTrace && process.exitCode !== 1) {
         }
       }
       opData.kvm = averageTrace(samples);
+
+      if (runProfile) {
+        const kProf = {};
+        executeKVM(relations[op].kvmFunc, tc.inputVal, {
+          rels: state.rels,
+          codes: state.codes,
+          findCode: codes.find,
+          profile: kProf,
+          hashToName: kvmHashToName,
+          options: { envelopeFree: true }
+        });
+        if (kProf[benchNames[op]] !== undefined && kProf[op] === undefined) {
+          kProf[op] = kProf[benchNames[op]];
+          delete kProf[benchNames[op]];
+        }
+        opData.kvmProfile = kProf;
+      }
     }
 
     phaseResults.push(opData);
@@ -613,6 +717,48 @@ if (runTrace && process.exitCode !== 1) {
       const kvmCol = formatUs(item.kvm?.[phase.key]);
       console.log(`${pName} | ${arm64Col}  | ${llvmCol}  | ${wasmCol}  | ${kvmCol}`);
     }
+
+    const hasProfile = item.arm64Profile || item.wasmProfile || item.kvmProfile;
+    if (hasProfile) {
+      const allFuncs = new Set([
+        ...Object.keys(item.arm64Profile || {}),
+        ...Object.keys(item.wasmProfile || {}),
+        ...Object.keys(item.kvmProfile || {})
+      ]);
+
+      const sortedFuncs = Array.from(allFuncs).sort((a, b) => {
+        const bName = benchNames[item.op];
+        if (a === bName) return -1;
+        if (b === bName) return 1;
+        if (a === item.op) return -1;
+        if (b === item.op) return 1;
+        return a.localeCompare(b);
+      });
+
+      console.log(`\n  Function Call Profile: ${item.op}`);
+      console.log("  Function Name            | Linux ARM64 Calls | WebAssembly Calls | kVM Interp Calls");
+      console.log("  -------------------------+-------------------+-------------------+------------------");
+      let arm64Total = 0, wasmTotal = 0, kvmTotal = 0;
+      for (const fn of sortedFuncs) {
+        const aCount = item.arm64Profile?.[fn] ?? 0;
+        const wCount = item.wasmProfile?.[fn] ?? 0;
+        const kCount = item.kvmProfile?.[fn] ?? 0;
+        arm64Total += aCount;
+        wasmTotal += wCount;
+        kvmTotal += kCount;
+        const fnCol = fn.padEnd(24);
+        const aStr = (aCount > 0 ? String(aCount) : "-").padStart(17);
+        const wStr = (wCount > 0 ? String(wCount) : "-").padStart(17);
+        const kStr = (kCount > 0 ? String(kCount) : "-").padStart(16);
+        console.log(`  ${fnCol} | ${aStr} | ${wStr} | ${kStr}`);
+      }
+      console.log("  -------------------------+-------------------+-------------------+------------------");
+      const totCol = "Total Calls".padEnd(24);
+      const aTotStr = String(arm64Total).padStart(17);
+      const wTotStr = String(wasmTotal).padStart(17);
+      const kTotStr = String(kvmTotal).padStart(16);
+      console.log(`  ${totCol} | ${aTotStr} | ${wTotStr} | ${kTotStr}`);
+    }
   }
 
   console.log(`\n=== AVERAGE ACROSS ALL ${phaseResults.length} OPERATIONS ===`);
@@ -633,6 +779,25 @@ if (runTrace && process.exitCode !== 1) {
     const wasmCol = formatUs(avg("wasm"));
     const kvmCol = formatUs(avg("kvm"));
     console.log(`${pName} | ${arm64Col}  | ${llvmCol}  | ${wasmCol}  | ${kvmCol}`);
+  }
+
+  if (phaseResults.some(r => r.arm64Profile || r.wasmProfile || r.kvmProfile)) {
+    console.log("\n=== FUNCTION CALL COUNT SUMMARY ACROSS ALL OPERATIONS ===");
+    console.log("Operation (Case)         | Linux ARM64 Calls | WebAssembly Calls | kVM Interp Calls");
+    console.log("-------------------------+-------------------+-------------------+------------------");
+    let arm64Grand = 0, wasmGrand = 0, kvmGrand = 0;
+    for (const r of phaseResults) {
+      const aSum = Object.values(r.arm64Profile || {}).reduce((a, b) => a + b, 0);
+      const wSum = Object.values(r.wasmProfile || {}).reduce((a, b) => a + b, 0);
+      const kSum = Object.values(r.kvmProfile || {}).reduce((a, b) => a + b, 0);
+      arm64Grand += aSum;
+      wasmGrand += wSum;
+      kvmGrand += kSum;
+      const opCol = `${r.op} (${r.label})`.slice(0, 24).padEnd(24);
+      console.log(`${opCol} | ${String(aSum).padStart(17)} | ${String(wSum).padStart(17)} | ${String(kSum).padStart(16)}`);
+    }
+    console.log("-------------------------+-------------------+-------------------+------------------");
+    console.log(`${"Total Calls".padEnd(24)} | ${String(arm64Grand).padStart(17)} | ${String(wasmGrand).padStart(17)} | ${String(kvmGrand).padStart(16)}`);
   }
   console.log("=====================================================================\n");
 }

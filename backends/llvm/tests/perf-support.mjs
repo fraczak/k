@@ -97,11 +97,40 @@ export function prepareRelation(state, relationName, { source = null, sourceLabe
   };
 }
 
+function stripRuntimeCaches(exp) {
+  if (!exp || typeof exp !== "object") return exp;
+  const { _compiledRun, _compiledConvergedRun, ...rest } = exp;
+  switch (rest.op) {
+    case "comp":
+      return { ...rest, comp: rest.comp.map(stripRuntimeCaches) };
+    case "union":
+      return { ...rest, union: rest.union.map(stripRuntimeCaches) };
+    case "product":
+      return {
+        ...rest,
+        product: rest.product.map(({ label, exp: child }) => ({
+          label,
+          exp: stripRuntimeCaches(child)
+        }))
+      };
+    default:
+      return rest;
+  }
+}
+
 function prepareKObject(state, relationName, relHash) {
+  const cleanRels = {};
+  for (const [hash, rel] of Object.entries(state.rels)) {
+    const { _compiledRunRel, ...relRest } = rel;
+    cleanRels[hash] = {
+      ...relRest,
+      def: stripRuntimeCaches(rel.def)
+    };
+  }
   return {
     format: "k-object",
     codes: state.codes,
-    rels: state.rels,
+    rels: cleanRels,
     relAlias: {
       [relationName]: relHash
     },
@@ -239,10 +268,21 @@ export function runExecutableWithTrace(exePath, inputWire) {
         return;
       }
       let trace = null;
+      let currentProfile = null;
       for (const line of errText.split("\n")) {
-        if (line.trim().startsWith("K_TRACE_PHASES ")) {
-          trace = parseTraceLine(line);
-          break;
+        const trimmed = line.trim();
+        if (trimmed === "K_PROFILE_BEGIN") {
+          currentProfile = {};
+        } else if (trimmed.startsWith("K_FUNC_CALL ") && currentProfile) {
+          const match = trimmed.match(/^K_FUNC_CALL name=(\S+) count=(\d+)$/);
+          if (match) currentProfile[match[1]] = Number(match[2]);
+        } else if (trimmed === "K_PROFILE_END") {
+          // Completed profile block
+        } else if (trimmed.startsWith("K_TRACE_PHASES ")) {
+          trace = parseTraceLine(trimmed);
+          if (trace && currentProfile) {
+            trace.profile = currentProfile;
+          }
         }
       }
       resolve({
@@ -269,6 +309,8 @@ export class PersistentExecutable {
     this.traces = [];
     this.waitingForTrace = [];
     this.closed = false;
+    this.currentProfile = null;
+    this.lastProfile = null;
 
     this.child.stdout.on("data", chunk => {
       this.buffer = Buffer.concat([this.buffer, chunk]);
@@ -281,9 +323,21 @@ export class PersistentExecutable {
       while ((idx = this.stderrRemainder.indexOf("\n")) !== -1) {
         const line = this.stderrRemainder.slice(0, idx).trim();
         this.stderrRemainder = this.stderrRemainder.slice(idx + 1);
-        if (line.startsWith("K_TRACE_PHASES ")) {
+        if (line === "K_PROFILE_BEGIN") {
+          this.currentProfile = {};
+        } else if (line.startsWith("K_FUNC_CALL ") && this.currentProfile) {
+          const match = line.match(/^K_FUNC_CALL name=(\S+) count=(\d+)$/);
+          if (match) this.currentProfile[match[1]] = Number(match[2]);
+        } else if (line === "K_PROFILE_END") {
+          this.lastProfile = this.currentProfile;
+          this.currentProfile = null;
+        } else if (line.startsWith("K_TRACE_PHASES ")) {
           const parsed = parseTraceLine(line);
           if (parsed) {
+            if (this.lastProfile) {
+              parsed.profile = this.lastProfile;
+              this.lastProfile = null;
+            }
             if (this.waitingForTrace.length > 0) {
               const item = this.waitingForTrace.shift();
               item.resolve({ payload: item.payload, trace: parsed });

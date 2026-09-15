@@ -77,12 +77,14 @@ export function compileARM64ArtifactFromKVM(kvmInput, options = {}) {
   const outputPattern = options.outputPattern || entryFunc.outputPattern || [];
 
   resetTagIds();
-  const { assembly, entryName } = compileKVMModuleToARM64(entry, functions, {
+  const profile = Boolean(options.profile ?? (process.env.K_PROFILE === "1" || process.env.PROFILE === "1"));
+  const { assembly, entryName, profileFunctions } = compileKVMModuleToARM64(entry, functions, {
     inputPattern,
-    outputPattern
+    outputPattern,
+    profile
   });
   const tags = getTagEntries();
-  const metadataC = emitMetadataC(tags, inputPattern, outputPattern);
+  const metadataC = emitMetadataC(tags, inputPattern, outputPattern, profileFunctions);
 
   if (options.emit === "assembly" || options.assembly) {
     return {

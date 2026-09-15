@@ -44,10 +44,33 @@ function cleanInsts(insts) {
   }
 }
 
-export function compileMultiModule(mainHashes, state) {
+export function findAliasForHash(hash, state) {
+  if (!state?.relAliases) return hash;
+  let best = null;
+  for (const [alias, h] of Object.entries(state.relAliases)) {
+    if (h === hash) {
+      if (!best) {
+        best = alias;
+      } else {
+        const bestIsBench = best.startsWith("bench_");
+        const currentIsBench = alias.startsWith("bench_");
+        if (bestIsBench && !currentIsBench) {
+          best = alias;
+        } else if (bestIsBench === currentIsBench && alias.length < best.length) {
+          best = alias;
+        }
+      }
+    }
+  }
+  return best || hash;
+}
+
+export function compileMultiModule(mainHashes, state, options = {}) {
   const compiled = new Set();
   const queue = [...mainHashes];
   const wats = [];
+  const profileGlobals = [];
+  const profileFunctions = [];
 
   while (queue.length > 0) {
     const hash = queue.shift();
@@ -65,10 +88,19 @@ export function compileMultiModule(mainHashes, state) {
 
     kvmFunc.name = cleanName(hash);
     cleanInsts(kvmFunc.body);
-    wats.push(lowerToWasm(kvmFunc, kvmFunc.name));
+    if (options.profile) {
+      const alias = findAliasForHash(hash, state);
+      profileFunctions.push({ name: alias, symbolName: kvmFunc.name, hash });
+      profileGlobals.push(`  (global $prof_${kvmFunc.name} (export "prof_${kvmFunc.name}") (mut i64) (i64.const 0))`);
+    }
+    wats.push(lowerToWasm(kvmFunc, kvmFunc.name, options));
   }
 
-  return wats.join("\n\n");
+  const globalsText = profileGlobals.length > 0 ? profileGlobals.join("\n") + "\n\n" : "";
+  return {
+    wat: globalsText + wats.join("\n\n"),
+    profileFunctions
+  };
 }
 
 export function compileWat(watText, wabtInstance) {
@@ -90,14 +122,42 @@ export function compileWat(watText, wabtInstance) {
   }).buffer;
 }
 
-export async function instantiateWasmModule(mainHashes, state, wabtInstance) {
+export async function instantiateWasmModule(mainHashes, state, wabtInstance, options = {}) {
   const runtimeWat = loadRuntimeWat();
-  const wats = compileMultiModule(mainHashes, state);
+  const compiled = compileMultiModule(mainHashes, state, options);
+  const wats = typeof compiled === "string" ? compiled : compiled.wat;
+  const profileFunctions = typeof compiled === "string" ? [] : (compiled.profileFunctions || []);
   const fullWat = runtimeWat.trim().slice(0, -1) + "\n" + wats + "\n)";
   const binary = compileWat(fullWat, wabtInstance);
   const module = await WebAssembly.compile(binary);
   const instance = await WebAssembly.instantiate(module);
-  return { instance, exports: instance.exports, module };
+  return { instance, exports: instance.exports, module, profileFunctions };
+}
+
+export function readWasmProfile(wasmExports, profileFunctions, reset = true) {
+  if (!wasmExports || !profileFunctions || profileFunctions.length === 0) return null;
+  const result = {};
+  for (const f of profileFunctions) {
+    const g = wasmExports[`prof_${f.symbolName}`];
+    if (g) {
+      const val = Number(g.value);
+      if (val > 0) {
+        result[f.name] = val;
+      }
+      if (reset) {
+        g.value = 0n;
+      }
+    }
+  }
+  return result;
+}
+
+export function resetWasmProfile(wasmExports, profileFunctions) {
+  if (!wasmExports || !profileFunctions) return;
+  for (const f of profileFunctions) {
+    const g = wasmExports[`prof_${f.symbolName}`];
+    if (g) g.value = 0n;
+  }
 }
 
 export function readArenaValue(exports, ptr, pattern, patternNodeId, patternPropertyList) {

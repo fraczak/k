@@ -53,6 +53,29 @@ extern const size_t k_arm64_tag_count;
 extern k_pattern compiled_input_pattern;
 extern k_pattern compiled_output_pattern;
 
+typedef struct {
+  const char *name;
+  uint64_t *counter;
+} k_profile_entry_t;
+
+extern const k_profile_entry_t k_profile_entries[];
+extern const size_t k_profile_entry_count;
+
+static void dump_profile_counts(void) {
+  if (k_profile_entry_count == 0) return;
+  fprintf(stderr, "K_PROFILE_BEGIN\n");
+  for (size_t i = 0; i < k_profile_entry_count; i++) {
+    if (k_profile_entries[i].counter && *k_profile_entries[i].counter > 0) {
+      fprintf(stderr, "K_FUNC_CALL name=%s count=%llu\n",
+        k_profile_entries[i].name,
+        (unsigned long long)(*k_profile_entries[i].counter));
+      *k_profile_entries[i].counter = 0;
+    }
+  }
+  fprintf(stderr, "K_PROFILE_END\n");
+  fflush(stderr);
+}
+
 #ifndef ENTRY_NAME
 #define ENTRY_NAME rel___main__
 #endif
@@ -487,6 +510,7 @@ static int run_server(void *arena_mem) {
     free(out_payload);
     if (tracing) {
       t7 = monotonic_ns();
+      dump_profile_counts();
       fprintf(stderr, "K_TRACE_PHASES backend=arm64 ipc_read_ns=%llu decode_ns=%llu flat_in_ns=%llu eval_ns=%llu flat_out_ns=%llu encode_ns=%llu ipc_write_ns=%llu total_ns=%llu\n",
         (unsigned long long)(t1 >= t0 ? t1 - t0 : 0),
         (unsigned long long)(t2 >= t1 ? t2 - t1 : 0),
@@ -497,6 +521,8 @@ static int run_server(void *arena_mem) {
         (unsigned long long)(t7 >= write_start ? t7 - write_start : 0),
         (unsigned long long)(t7 >= t0 ? t7 - t0 : 0));
       fflush(stderr);
+    } else {
+      dump_profile_counts();
     }
     k_rt_reset(rt);
     if (!ok) {
@@ -671,6 +697,7 @@ int main(int argc, char **argv) {
 
   if (tracing) {
     t5 = monotonic_ns();
+    dump_profile_counts();
     fprintf(stderr, "K_TRACE_PHASES backend=arm64 ipc_read_ns=%llu decode_ns=0 flat_in_ns=%llu eval_ns=%llu flat_out_ns=%llu encode_ns=%llu ipc_write_ns=0 total_ns=%llu\n",
       (unsigned long long)(t1 >= t0 ? t1 - t0 : 0),
       (unsigned long long)(t2 >= t1 ? t2 - t1 : 0),
@@ -679,6 +706,8 @@ int main(int argc, char **argv) {
       (unsigned long long)(t5 >= t4 ? t5 - t4 : 0),
       (unsigned long long)(t5 >= t0 ? t5 - t0 : 0));
     fflush(stderr);
+  } else {
+    dump_profile_counts();
   }
 
   k_wire_input_free(input);

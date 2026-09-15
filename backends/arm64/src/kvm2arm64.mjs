@@ -677,6 +677,13 @@ export function lowerToARM64(relDef, name, options = {}) {
     `    ${strReg("x0", "in")}`,
     inputProductFields.length > 0 ? initInputProductLocals() : "",
     `${tailLoopLabel}:`,
+    options.profile ? [
+      `    adrp  x9, k_prof_${name}`,
+      `    add   x9, x9, :lo12:k_prof_${name}`,
+      `    ldr   x10, [x9]`,
+      `    add   x10, x10, #1`,
+      `    str   x10, [x9]`
+    ].join("\n") : "",
     compileInstructions(kvmFunc.body),
     `${funcFailLabel}:`,
     `    mov   x0, #1`,
@@ -765,6 +772,7 @@ export function compileKVMModuleToARM64(mainRelName, kvmProgram, options = {}) {
   const compiled = new Set();
   const queue = [mainRelName];
   const asms = [];
+  const profileFunctions = [];
   const nameMap = cleanFunctionNameMap(Object.keys(kvmProgram));
   const cleanKVMProgram = Object.fromEntries(
     Object.entries(kvmProgram).map(([name, kvmFunc]) => [nameMap.get(name), kvmFunc])
@@ -785,19 +793,33 @@ export function compileKVMModuleToARM64(mainRelName, kvmProgram, options = {}) {
     const kvmFunc = cloneKVMFunction(originalFunc);
     kvmFunc.name = nameMap.get(name);
     cleanCallNames(kvmFunc.body, nameMap);
+    if (options.profile) {
+      profileFunctions.push({ originalName: name, symbolName: kvmFunc.name });
+    }
     asms.push(lowerToARM64(kvmFunc, kvmFunc.name, { ...options, kvmProgram: cleanKVMProgram }));
   }
 
   const entrySymbol = nameMap.get(mainRelName);
+
+  const profileDataSection = options.profile && profileFunctions.length > 0
+    ? [
+        "    .data",
+        "    .p2align 3",
+        ...profileFunctions.map(f => `    .global k_prof_${f.symbolName}\nk_prof_${f.symbolName}:\n    .quad 0`),
+        "    .text"
+      ].join("\n")
+    : "";
 
   return {
     assembly: [
       "    .arch armv8-a",
       "    .text",
       asms.join("\n\n"),
+      profileDataSection,
       ""
-    ].join("\n"),
-    entryName: entrySymbol
+    ].filter(Boolean).join("\n"),
+    entryName: entrySymbol,
+    profileFunctions
   };
 }
 
@@ -850,7 +872,7 @@ export function emitPatternC(name, pattern) {
   return lines.join("\n");
 }
 
-export function emitMetadataC(tags, inputPattern, outputPattern) {
+export function emitMetadataC(tags, inputPattern, outputPattern, profileFunctions = []) {
   let metaC = `#include "krt.h"\n#include <stddef.h>\n#include <stdint.h>\n\n`;
   metaC += `typedef struct { const char *name; size_t length; uint32_t id; } k_arm64_tag_t;\n`;
   metaC += `const k_arm64_tag_t k_arm64_tags[] = {\n`;
@@ -862,5 +884,23 @@ export function emitMetadataC(tags, inputPattern, outputPattern) {
   metaC += `const size_t k_arm64_tag_count = ${tags.length};\n\n`;
   metaC += emitPatternC("compiled_input_pattern", inputPattern) + "\n\n";
   metaC += emitPatternC("compiled_output_pattern", outputPattern) + "\n\n";
+
+  metaC += `typedef struct { const char *name; uint64_t *counter; } k_profile_entry_t;\n`;
+  if (profileFunctions && profileFunctions.length > 0) {
+    for (const f of profileFunctions) {
+      metaC += `extern uint64_t k_prof_${f.symbolName};\n`;
+    }
+    metaC += `const k_profile_entry_t k_profile_entries[] = {\n`;
+    for (const f of profileFunctions) {
+      const escaped = JSON.stringify(f.originalName).slice(1, -1);
+      metaC += `  { "${escaped}", &k_prof_${f.symbolName} },\n`;
+    }
+    metaC += `};\n`;
+    metaC += `const size_t k_profile_entry_count = ${profileFunctions.length};\n`;
+  } else {
+    metaC += `const k_profile_entry_t k_profile_entries[1] = { { NULL, NULL } };\n`;
+    metaC += `const size_t k_profile_entry_count = 0;\n`;
+  }
+
   return metaC;
 }

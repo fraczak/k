@@ -634,11 +634,15 @@ export function lowerToWasm(relDef, name, options = {}) {
     .map(r => `    (local $${r} i32)`)
     .join("\n");
 
+  const profWat = options.profile
+    ? `      global.get $prof_${name}\n      i64.const 1\n      i64.add\n      global.set $prof_${name}\n`
+    : "";
+
   const wat = `(func $${name} (export "${name}") (param $in i32) (result i32 i32)
 ${localDecls}
 ${inputProductLocalInit}
     (loop ${tailLoopLabel}
-${bodyWat}
+${profWat}${bodyWat}
     )
     unreachable
   )`;
