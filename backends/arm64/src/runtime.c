@@ -351,6 +351,22 @@ static int read_exact(FILE *fp, unsigned char *buf, size_t count) {
   return 1;
 }
 
+static uint64_t monotonic_ns(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+  return ((uint64_t)ts.tv_sec * 1000000000ull) + (uint64_t)ts.tv_nsec;
+}
+
+static int is_trace_enabled(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *e1 = getenv("K_TRACE");
+    const char *e2 = getenv("TRACE");
+    cached = ((e1 && *e1 && strcmp(e1, "0") != 0) || (e2 && *e2 && strcmp(e2, "0") != 0)) ? 1 : 0;
+  }
+  return cached;
+}
+
 static int write_frame(k_wire_prefix *prefix, const k_pattern *pattern, k_value *value) {
   if (!value) return 0;
   size_t length = 0;
@@ -382,6 +398,10 @@ static int run_server(void *arena_mem) {
     return 8;
   }
   for (;;) {
+    uint64_t t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0;
+    int tracing = is_trace_enabled();
+    if (tracing) t0 = monotonic_ns();
+
     unsigned char header[4];
     int header_status = read_exact(stdin, header, 4);
     if (header_status == 0) {
@@ -412,6 +432,7 @@ static int run_server(void *arena_mem) {
       k_rt_free(rt);
       return 6;
     }
+    if (tracing) t1 = monotonic_ns();
 
     flat_map_reset();
     void *arena_bump = arena_mem;
@@ -430,9 +451,13 @@ static int run_server(void *arena_mem) {
       k_rt_free(rt);
       return 2;
     }
+    if (tracing) t2 = monotonic_ns();
 
     void *flat_in = k_value_to_flat(in_val, &arena_bump, 0, &compiled_input_pattern);
+    if (tracing) t3 = monotonic_ns();
+
     k_arm64_res_t res = invoke_entry(flat_in, &arena_bump);
+    if (tracing) t4 = monotonic_ns();
     if (res.status != 0) {
       k_rt_reset(rt);
       k_wire_prefix_free(input_prefix);
@@ -442,7 +467,37 @@ static int run_server(void *arena_mem) {
     }
 
     k_value *out_val = flat_to_k_value(rt, res.val, 0, &compiled_output_pattern);
-    int ok = write_frame(&output_prefix, &compiled_output_pattern, out_val);
+    if (tracing) t5 = monotonic_ns();
+
+    size_t out_len = 0;
+    unsigned char *out_payload = k_encode_wire_as_with_prefix(&output_prefix, (k_pattern *)&compiled_output_pattern, out_val, &out_len);
+    if (tracing) t6 = monotonic_ns();
+
+    int ok = 0;
+    uint64_t write_start = t6;
+    if (out_payload && out_len <= UINT32_MAX) {
+      unsigned char out_header[4] = {
+        (unsigned char)((out_len >> 24) & 0xff),
+        (unsigned char)((out_len >> 16) & 0xff),
+        (unsigned char)((out_len >> 8) & 0xff),
+        (unsigned char)(out_len & 0xff)
+      };
+      ok = (fwrite(out_header, 1, 4, stdout) == 4 && fwrite(out_payload, 1, out_len, stdout) == out_len && fflush(stdout) == 0);
+    }
+    free(out_payload);
+    if (tracing) {
+      t7 = monotonic_ns();
+      fprintf(stderr, "K_TRACE_PHASES backend=arm64 ipc_read_ns=%llu decode_ns=%llu flat_in_ns=%llu eval_ns=%llu flat_out_ns=%llu encode_ns=%llu ipc_write_ns=%llu total_ns=%llu\n",
+        (unsigned long long)(t1 >= t0 ? t1 - t0 : 0),
+        (unsigned long long)(t2 >= t1 ? t2 - t1 : 0),
+        (unsigned long long)(t3 >= t2 ? t3 - t2 : 0),
+        (unsigned long long)(t4 >= t3 ? t4 - t3 : 0),
+        (unsigned long long)(t5 >= t4 ? t5 - t4 : 0),
+        (unsigned long long)(t6 >= t5 ? t6 - t5 : 0),
+        (unsigned long long)(t7 >= write_start ? t7 - write_start : 0),
+        (unsigned long long)(t7 >= t0 ? t7 - t0 : 0));
+      fflush(stderr);
+    }
     k_rt_reset(rt);
     if (!ok) {
       k_wire_prefix_free(input_prefix);
@@ -451,12 +506,6 @@ static int run_server(void *arena_mem) {
       return 4;
     }
   }
-}
-
-static uint64_t monotonic_ns(void) {
-  struct timespec ts;
-  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
-  return ((uint64_t)ts.tv_sec * 1000000000ull) + (uint64_t)ts.tv_nsec;
 }
 
 static int parse_size_arg(const char *text, size_t *out) {
@@ -575,6 +624,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  uint64_t t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0;
+  int tracing = is_trace_enabled();
+  if (tracing) t0 = monotonic_ns();
+
   k_wire_input input = k_read_wire_envelope(in_fp, rt);
   if (in_fp != stdin) fclose(in_fp);
   if (!input.value) {
@@ -582,10 +635,13 @@ int main(int argc, char **argv) {
     free(arena_mem);
     return 2;
   }
+  if (tracing) t1 = monotonic_ns();
 
   void *flat_in = k_value_to_flat(input.value, &arena_bump, 0, &compiled_input_pattern);
+  if (tracing) t2 = monotonic_ns();
 
   k_arm64_res_t res = invoke_entry(flat_in, &arena_bump);
+  if (tracing) t3 = monotonic_ns();
   if (res.status != 0) {
     // Partial failure
     k_wire_input_free(input);
@@ -595,6 +651,7 @@ int main(int argc, char **argv) {
   }
 
   k_value *out_val = flat_to_k_value(rt, res.val, 0, &compiled_output_pattern);
+  if (tracing) t4 = monotonic_ns();
   if (!out_val) {
     k_wire_input_free(input);
     k_rt_free(rt);
@@ -609,6 +666,19 @@ int main(int argc, char **argv) {
     k_write_wire_as(stdout, &compiled_output_pattern, out_val);
   } else {
     k_write_wire(stdout, out_val);
+  }
+  fflush(stdout);
+
+  if (tracing) {
+    t5 = monotonic_ns();
+    fprintf(stderr, "K_TRACE_PHASES backend=arm64 ipc_read_ns=%llu decode_ns=0 flat_in_ns=%llu eval_ns=%llu flat_out_ns=%llu encode_ns=%llu ipc_write_ns=0 total_ns=%llu\n",
+      (unsigned long long)(t1 >= t0 ? t1 - t0 : 0),
+      (unsigned long long)(t2 >= t1 ? t2 - t1 : 0),
+      (unsigned long long)(t3 >= t2 ? t3 - t2 : 0),
+      (unsigned long long)(t4 >= t3 ? t4 - t3 : 0),
+      (unsigned long long)(t5 >= t4 ? t5 - t4 : 0),
+      (unsigned long long)(t5 >= t0 ? t5 - t0 : 0));
+    fflush(stderr);
   }
 
   k_wire_input_free(input);

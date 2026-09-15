@@ -42,7 +42,8 @@ import {
   shouldStrictFail,
   toPlainObject,
   tryCompileCase,
-  wireInput
+  wireInput,
+  PersistentExecutable
 } from "../backends/llvm/tests/perf-support.mjs";
 
 import {
@@ -71,6 +72,7 @@ const ops = ["reverse", "concat", "split_by", "get_nth", "length"];
 const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
 const listLength = parsePositiveIntEnv("LIST_LENGTH", 40);
 const iterations = parsePositiveIntEnv("ITERATIONS", 3);
+const runTrace = process.argv.includes("--trace") || process.env.TRACE === "1" || process.env.K_TRACE === "1";
 
 // ARM64 options
 const arm64WarmupIterations = parseNonNegativeIntEnv("ARM64_WARMUP_ITERATIONS", 1);
@@ -452,3 +454,185 @@ console.log(`Conformance validation: ${validationSummary.join(", ")} cases match
 if (runLLVM && shouldStrictFail(testSuite)) process.exitCode = 1;
 if (runWasm && testSuite.some(tc => tc.wasmConformance !== "ok")) process.exitCode = 1;
 if (runARM64 && testSuite.some(tc => tc.arm64Conformance !== "ok")) process.exitCode = 1;
+
+if (runTrace && process.exitCode !== 1) {
+  console.log("\n=================== RUNNING MACRO-PHASE TRACING ===================");
+  const sampleReps = parsePositiveIntEnv("TRACE_SAMPLES", 10);
+  console.log(`Collecting phase timings (averaged over 3 warmup + ${sampleReps} sample calls)...`);
+
+  const llvmServers = new Map();
+  if (runLLVM) {
+    for (const tc of testSuite) {
+      if (tc.llvm?.status === "ok") {
+        llvmServers.set(tc.op, new PersistentExecutable(tc.llvm.exePath));
+      }
+    }
+  }
+
+  const arm64Servers = new Map();
+  if (runARM64) {
+    for (const tc of testSuite) {
+      if (tc.arm64?.status === "ok") {
+        arm64Servers.set(tc.op, new PersistentExecutable(tc.arm64.exePath));
+      }
+    }
+  }
+
+  const averageTrace = (samples) => {
+    if (!samples || samples.length === 0) return null;
+    const avg = {};
+    const keys = ["ipcReadNs", "decodeNs", "flatInNs", "evalNs", "flatOutNs", "encodeNs", "ipcWriteNs", "totalNs"];
+    for (const key of keys) {
+      avg[key] = samples.reduce((sum, s) => sum + (s[key] || 0), 0) / samples.length;
+    }
+    return avg;
+  };
+
+  const phaseResults = [];
+
+  for (const tc of testSuite) {
+    const op = tc.op;
+    const opData = { op, label: tc.label };
+
+    // 1. ARM64
+    if (arm64Servers.has(op)) {
+      const server = arm64Servers.get(op);
+      for (let i = 0; i < 3; i++) await server.requestWithTrace(tc.inputWire);
+      const samples = [];
+      for (let i = 0; i < sampleReps; i++) {
+        const res = await server.requestWithTrace(tc.inputWire);
+        if (res.trace) samples.push(res.trace);
+      }
+      opData.arm64 = averageTrace(samples);
+    }
+
+    // 2. LLVM
+    if (llvmServers.has(op)) {
+      const server = llvmServers.get(op);
+      for (let i = 0; i < 3; i++) await server.requestWithTrace(tc.inputWire);
+      const samples = [];
+      for (let i = 0; i < sampleReps; i++) {
+        const res = await server.requestWithTrace(tc.inputWire);
+        if (res.trace) samples.push(res.trace);
+      }
+      opData.llvm = averageTrace(samples);
+    }
+
+    // 3. Wasm
+    if (runWasm) {
+      const funcName = cleanName(state.relAliases[benchNames[op]]);
+      const samples = [];
+      for (let i = 0; i < sampleReps + 3; i++) {
+        const t0 = process.hrtime.bigint();
+        const wasmPtrIn = writeValueToArena(wasmExports, tc.inputVal, propertyListToPattern(tc.inputPattern), 0);
+        const t1 = process.hrtime.bigint();
+        const mark = wasmReset ? wasmExports.arena_mark() : 0;
+        const res = wasmExports[funcName](wasmPtrIn);
+        const t2 = process.hrtime.bigint();
+        const actual = readArenaValue(wasmExports, res[0], propertyListToPattern(tc.outputPattern), 0, tc.outputPattern);
+        const t3 = process.hrtime.bigint();
+        if (wasmReset) wasmExports.arena_reset(mark);
+        const t4 = process.hrtime.bigint();
+
+        if (i >= 3) {
+          samples.push({
+            ipcReadNs: 0,
+            decodeNs: 0,
+            flatInNs: Number(t1 - t0),
+            evalNs: Number(t2 - t1),
+            flatOutNs: Number(t3 - t2),
+            encodeNs: 0,
+            ipcWriteNs: Number(t4 - t3),
+            totalNs: Number(t4 - t0)
+          });
+        }
+      }
+      opData.wasm = averageTrace(samples);
+    }
+
+    // 4. kVM
+    if (runBaselines) {
+      const relDef = relations[op].relDef;
+      const samples = [];
+      run_converged.defs = state;
+      for (let i = 0; i < sampleReps + 2; i++) {
+        const t0 = process.hrtime.bigint();
+        const expected = run_converged(codes.find, relDef.def, tc.inputVal, relDef.typePatternGraph);
+        const t1 = process.hrtime.bigint();
+        if (i >= 2) {
+          samples.push({
+            ipcReadNs: 0,
+            decodeNs: 0,
+            flatInNs: 0,
+            evalNs: Number(t1 - t0),
+            flatOutNs: 0,
+            encodeNs: 0,
+            ipcWriteNs: 0,
+            totalNs: Number(t1 - t0)
+          });
+        }
+      }
+      opData.kvm = averageTrace(samples);
+    }
+
+    phaseResults.push(opData);
+  }
+
+  for (const s of llvmServers.values()) s.close();
+  for (const s of arm64Servers.values()) s.close();
+
+  function formatUs(ns) {
+    if (ns == null || ns === 0) return "      -     ";
+    const us = ns / 1000;
+    return `${us.toFixed(2)} µs`.padStart(12);
+  }
+
+  const phases = [
+    { name: "1. IPC Read (Pipe In)", key: "ipcReadNs" },
+    { name: "2. Wire Decode & Validate", key: "decodeNs" },
+    { name: "3. Flat Input Prep (Arena)", key: "flatInNs" },
+    { name: "4. Pure Evaluation", key: "evalNs" },
+    { name: "5. Flat Output Prep (Arena)", key: "flatOutNs" },
+    { name: "6. Wire Encode", key: "encodeNs" },
+    { name: "7. IPC Write (Pipe Out)", key: "ipcWriteNs" },
+    { name: "Total Request Time", key: "totalNs", isTotal: true }
+  ];
+
+  for (const item of phaseResults) {
+    console.log(`\n--- Operation: ${item.op} (${item.label}) ---`);
+    console.log("Phase                    | Linux ARM64   | LLVM          | WebAssembly   | kVM Interp");
+    console.log("-------------------------+---------------+---------------+---------------+---------------");
+    for (const phase of phases) {
+      if (phase.isTotal) {
+        console.log("-------------------------+---------------+---------------+---------------+---------------");
+      }
+      const pName = phase.name.padEnd(24);
+      const arm64Col = formatUs(item.arm64?.[phase.key]);
+      const llvmCol = formatUs(item.llvm?.[phase.key]);
+      const wasmCol = formatUs(item.wasm?.[phase.key]);
+      const kvmCol = formatUs(item.kvm?.[phase.key]);
+      console.log(`${pName} | ${arm64Col}  | ${llvmCol}  | ${wasmCol}  | ${kvmCol}`);
+    }
+  }
+
+  console.log(`\n=== AVERAGE ACROSS ALL ${phaseResults.length} OPERATIONS ===`);
+  console.log("Phase                    | Linux ARM64   | LLVM          | WebAssembly   | kVM Interp");
+  console.log("-------------------------+---------------+---------------+---------------+---------------");
+  for (const phase of phases) {
+    if (phase.isTotal) {
+      console.log("-------------------------+---------------+---------------+---------------+---------------");
+    }
+    const pName = phase.name.padEnd(24);
+    const avg = (backend) => {
+      const vals = phaseResults.map(r => r[backend]?.[phase.key]).filter(v => v != null && v > 0);
+      if (vals.length === 0) return null;
+      return vals.reduce((a, b) => a + b, 0) / vals.length;
+    };
+    const arm64Col = formatUs(avg("arm64"));
+    const llvmCol = formatUs(avg("llvm"));
+    const wasmCol = formatUs(avg("wasm"));
+    const kvmCol = formatUs(avg("kvm"));
+    console.log(`${pName} | ${arm64Col}  | ${llvmCol}  | ${wasmCol}  | ${kvmCol}`);
+  }
+  console.log("=====================================================================\n");
+}

@@ -203,46 +203,140 @@ export function runExecutableMainBench(exePath, inputWire, calls) {
   });
 }
 
+export function parseTraceLine(line) {
+  const parts = line.trim().split(/\s+/);
+  if (parts[0] !== "K_TRACE_PHASES") return null;
+  const result = {};
+  for (let i = 1; i < parts.length; i++) {
+    const [key, val] = parts[i].split("=");
+    if (!key || val == null) continue;
+    if (key === "backend") {
+      result.backend = val;
+    } else {
+      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+      result[camelKey] = Number(val);
+    }
+  }
+  return result;
+}
+
+export function runExecutableWithTrace(exePath, inputWire) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(exePath, [], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, K_TRACE: "1" }
+    });
+    const stdout = [];
+    const stderr = [];
+
+    child.stdout.on("data", chunk => stdout.push(chunk));
+    child.stderr.on("data", chunk => stderr.push(chunk));
+    child.on("error", reject);
+    child.on("close", status => {
+      const errText = Buffer.concat(stderr).toString("utf8");
+      if (status !== 0) {
+        reject(new Error(`${exePath} failed with status ${status}\n${errText}`.trim()));
+        return;
+      }
+      let trace = null;
+      for (const line of errText.split("\n")) {
+        if (line.trim().startsWith("K_TRACE_PHASES ")) {
+          trace = parseTraceLine(line);
+          break;
+        }
+      }
+      resolve({
+        payload: Buffer.concat(stdout),
+        trace
+      });
+    });
+
+    child.stdin.end(inputWire);
+  });
+}
+
 export class PersistentExecutable {
   constructor(exePath) {
     this.exePath = exePath;
-    this.child = spawn(exePath, ["--server"], { stdio: ["pipe", "pipe", "pipe"] });
+    this.child = spawn(exePath, ["--server"], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, K_TRACE: "1" }
+    });
     this.buffer = Buffer.alloc(0);
     this.pending = [];
     this.stderr = [];
+    this.stderrRemainder = "";
+    this.traces = [];
+    this.waitingForTrace = [];
     this.closed = false;
 
     this.child.stdout.on("data", chunk => {
       this.buffer = Buffer.concat([this.buffer, chunk]);
       this.drainOutput();
     });
-    this.child.stderr.on("data", chunk => this.stderr.push(chunk));
+    this.child.stderr.on("data", chunk => {
+      this.stderr.push(chunk);
+      this.stderrRemainder += chunk.toString("utf8");
+      let idx;
+      while ((idx = this.stderrRemainder.indexOf("\n")) !== -1) {
+        const line = this.stderrRemainder.slice(0, idx).trim();
+        this.stderrRemainder = this.stderrRemainder.slice(idx + 1);
+        if (line.startsWith("K_TRACE_PHASES ")) {
+          const parsed = parseTraceLine(line);
+          if (parsed) {
+            if (this.waitingForTrace.length > 0) {
+              const item = this.waitingForTrace.shift();
+              item.resolve({ payload: item.payload, trace: parsed });
+            } else {
+              this.traces.push(parsed);
+            }
+          }
+        }
+      }
+    });
     this.child.on("error", error => this.fail(error));
     this.child.on("close", status => {
       this.closed = true;
       if (status !== 0) {
         this.fail(new Error(`${this.exePath} --server failed with status ${status}\n${Buffer.concat(this.stderr).toString("utf8")}`.trim()));
-      } else if (this.pending.length > 0) {
-        this.fail(new Error(`${this.exePath} --server closed with ${this.pending.length} pending request(s)`));
+      } else if (this.pending.length > 0 || this.waitingForTrace.length > 0) {
+        this.fail(new Error(`${this.exePath} --server closed with pending request(s)`));
       }
     });
   }
 
   fail(error) {
     while (this.pending.length > 0) this.pending.shift().reject(error);
+    while (this.waitingForTrace.length > 0) this.waitingForTrace.shift().reject(error);
   }
 
   drainOutput() {
     while (this.pending.length > 0 && this.buffer.length >= 4) {
       const length = this.buffer.readUInt32BE(0);
       if (this.buffer.length < 4 + length) return;
-      const payload = this.buffer.subarray(4, 4 + length);
+      const payload = Buffer.from(this.buffer.subarray(4, 4 + length));
       this.buffer = this.buffer.subarray(4 + length);
-      this.pending.shift().resolve(Buffer.from(payload));
+      const req = this.pending.shift();
+      if (!req.includeTrace) {
+        req.resolve(payload);
+      } else if (this.traces.length > 0) {
+        const trace = this.traces.shift();
+        req.resolve({ payload, trace });
+      } else {
+        this.waitingForTrace.push({ payload, resolve: req.resolve, reject: req.reject });
+      }
     }
   }
 
   request(inputWire) {
+    return this._sendRequest(inputWire, false);
+  }
+
+  requestWithTrace(inputWire) {
+    return this._sendRequest(inputWire, true);
+  }
+
+  _sendRequest(inputWire, includeTrace) {
     if (this.closed) {
       return Promise.reject(new Error(`${this.exePath} --server is closed`));
     }
@@ -250,7 +344,7 @@ export class PersistentExecutable {
     header.writeUInt32BE(inputWire.length);
     const frame = Buffer.concat([header, inputWire]);
     return new Promise((resolve, reject) => {
-      this.pending.push({ resolve, reject });
+      this.pending.push({ resolve, reject, includeTrace });
       this.child.stdin.write(frame, error => {
         if (error) {
           const index = this.pending.findIndex(entry => entry.resolve === resolve);
