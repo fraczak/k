@@ -20,6 +20,7 @@
         "perf:ieee": "node scripts/perf-ieee.mjs",
         "perf:ieee:full": "node scripts/perf-ieee.mjs --full",
         "perf:int": "node scripts/perf-int.mjs",
+        "perf:poly": "node scripts/perf-poly.mjs",
         "perf:idempotency": "node scripts/benchmark-idempotency.mjs",
         "deps:graph": "node scripts/generate-dependency-graph.mjs"
     },
