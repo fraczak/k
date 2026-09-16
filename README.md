@@ -207,8 +207,10 @@ Experimental backends live under [`backends/`](backends/) as npm workspaces:
   WebAssembly artifacts.
 - [`backends/llvm`](backends/llvm/) lowers envelope-specialized KIR-P into LLVM IR and
   native test executables.
+- [`backends/arm64`](backends/arm64/) lowers polymorphic kVM programs directly into
+  standalone Linux ARM64 native executables.
 
-Both backends integrate with the compiler and binary codecs through
+All backends integrate with the compiler and binary codecs through
 [`backend-api.mjs`](backend-api.mjs).
 
 ## Node.js API
@@ -292,10 +294,13 @@ compose with `.result` when only the floating-point value is needed.
 ## Development
 
 ```bash
-npm run prepare   # regenerate parsers from .jison grammars
-npm test          # run the fail-fast full suite with per-test timings
-npm run test:wasm # run the WebAssembly backend tests
-npm run test:llvm # run the LLVM backend tests
+npm run prepare        # regenerate parsers from .jison grammars
+npm test               # run the fail-fast full suite with per-test timings
+npm run test:wasm      # run the WebAssembly backend tests
+npm run test:llvm      # run the LLVM backend tests
+npm run test:arm64     # run the Linux ARM64 backend tests
+npm run perf:poly      # run polymorphic benchmark across backends
+npm run perf:poly:trace # run execution phase tracing & call profiling
 ```
 
 The test runner prints each test before execution and reports its elapsed time
@@ -315,6 +320,7 @@ afterward. It stops immediately when a test fails. The suite covers:
 - [DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md) - textual boundary notation
 - [DOCS/PATTERNS.md](DOCS/PATTERNS.md) - pattern representation
 - [DOCS/OBJECT_FILE_AND_PATTERN.md](DOCS/OBJECT_FILE_AND_PATTERN.md) - object format
+- [DOCS/PROFILING_AND_TRACING.md](DOCS/PROFILING_AND_TRACING.md) - execution phase tracing and function call profiling across backends
 - [DOCS/CODECS.md](DOCS/CODECS.md) - writing external codecs
 - [codecs/README.md](codecs/README.md) - binary codec internals
 - [objects/README.md](objects/README.md) - object/library tools
