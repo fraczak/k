@@ -420,7 +420,14 @@ export function runTimedIterations(iterations, body) {
 
   for (let i = 0; i < iterations; i++) {
     const iterationStartedAt = performance.now();
-    body();
+    try {
+      body();
+    } catch (err) {
+      if (err instanceof RangeError) {
+        return { status: "overflow", error: "stack overflow (no TCO)" };
+      }
+      throw err;
+    }
     iterationTimes.push(performance.now() - iterationStartedAt);
   }
 
@@ -654,6 +661,8 @@ export function average(times) {
 
 export function formatTiming(result) {
   if (result == null) return "unavailable";
+  if (result.status === "overflow") return "stack overflow (no TCO)";
+  if (!result.iterationTimes) return "unavailable";
   const samples = result.iterationTimes.map(time => time.toFixed(2)).join(", ");
   return `(${samples}) ~ ${average(result.iterationTimes).toFixed(2)} ms/iteration`;
 }

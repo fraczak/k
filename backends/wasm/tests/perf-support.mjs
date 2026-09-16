@@ -160,79 +160,177 @@ export function resetWasmProfile(wasmExports, profileFunctions) {
   }
 }
 
-export function readArenaValue(exports, ptr, pattern, patternNodeId, patternPropertyList) {
-  const patternNode = pattern.nodes[patternNodeId];
-  const view = new DataView(exports.memory.buffer);
+export function readArenaValue(exports, rootPtr, pattern, rootPatternNodeId, patternPropertyList) {
+  let rootValue;
+  const stack = [{
+    ptr: rootPtr,
+    patternNodeId: rootPatternNodeId,
+    assign: (v) => { rootValue = v; }
+  }];
 
-  if (patternNode.kind === 1 || patternNode.kind === 3) {
-    const size = view.getUint32(ptr, true);
-    const N = view.getUint32(ptr + 4, true);
-    const productObj = {};
+  while (stack.length > 0) {
+    const frame = stack.pop();
 
-    for (let i = 0; i < N; i++) {
-      const edge = patternNode.edges[i];
-      const offsetVal = view.getUint32(ptr + 8 + 4 * i, true);
-      const childPtr = view.getUint32(ptr + offsetVal, true);
-      productObj[edge.label] = readArenaValue(exports, childPtr, pattern, edge.target, patternPropertyList);
+    if (frame.finishProduct) {
+      const { productObj, assign } = frame;
+      assign(Value.product(productObj, patternPropertyList));
+      continue;
     }
-    return Value.product(productObj, patternPropertyList);
-  } else if (patternNode.kind === 2 || patternNode.kind === 4) {
-    const size = view.getUint32(ptr, true);
-    const tagId = view.getUint32(ptr + 4, true);
-    const payloadPtr = view.getUint32(ptr + 8, true);
 
-    const tag = getTagFromId(tagId);
-    const edge = patternNode.edges.find(e => e.label === tag);
-    if (!edge) {
-      throw new Error(`Variant tag '${tag}' not found in pattern edges`);
+    if (frame.finishVariant) {
+      const { tag, payloadBox, assign } = frame;
+      assign(Value.variant(tag, payloadBox[0], patternPropertyList));
+      continue;
     }
-    const payloadVal = readArenaValue(exports, payloadPtr, pattern, edge.target, patternPropertyList);
-    return Value.variant(tag, payloadVal, patternPropertyList);
+
+    const { ptr, patternNodeId, assign } = frame;
+    const patternNode = pattern.nodes[patternNodeId];
+    const view = new DataView(exports.memory.buffer);
+
+    if (patternNode.kind === 1 || patternNode.kind === 3) {
+      const size = view.getUint32(ptr, true);
+      const N = view.getUint32(ptr + 4, true);
+      const productObj = {};
+
+      stack.push({
+        finishProduct: true,
+        productObj,
+        assign
+      });
+
+      for (let i = N - 1; i >= 0; i--) {
+        const edge = patternNode.edges[i];
+        const offsetVal = view.getUint32(ptr + 8 + 4 * i, true);
+        const childPtr = view.getUint32(ptr + offsetVal, true);
+        const label = edge.label;
+        stack.push({
+          ptr: childPtr,
+          patternNodeId: edge.target,
+          assign: (v) => { productObj[label] = v; }
+        });
+      }
+    } else if (patternNode.kind === 2 || patternNode.kind === 4) {
+      const size = view.getUint32(ptr, true);
+      const tagId = view.getUint32(ptr + 4, true);
+      const payloadPtr = view.getUint32(ptr + 8, true);
+
+      const tag = getTagFromId(tagId);
+      const edge = patternNode.edges.find(e => e.label === tag);
+      if (!edge) {
+        throw new Error(`Variant tag '${tag}' not found in pattern edges`);
+      }
+      const payloadBox = [null];
+
+      stack.push({
+        finishVariant: true,
+        tag,
+        payloadBox,
+        assign
+      });
+
+      stack.push({
+        ptr: payloadPtr,
+        patternNodeId: edge.target,
+        assign: (v) => { payloadBox[0] = v; }
+      });
+    } else {
+      throw new Error(`Unsupported pattern kind: ${patternNode.kind}`);
+    }
   }
-  throw new Error(`Unsupported pattern kind: ${patternNode.kind}`);
+
+  return rootValue;
 }
 
-export function writeValueToArena(exports, value, pattern, patternNodeId) {
-  const patternNode = pattern.nodes[patternNodeId];
+export function writeValueToArena(exports, rootValue, pattern, rootPatternNodeId) {
+  let rootPtr;
+  const stack = [{
+    value: rootValue,
+    patternNodeId: rootPatternNodeId,
+    assign: (p) => { rootPtr = p; }
+  }];
 
-  if (isProduct(value)) {
-    const keys = Object.keys(value.product).sort();
-    const N = keys.length;
-    const totalSize = 8 + 8 * N;
-    const ptr = exports.alloc(totalSize);
+  while (stack.length > 0) {
+    const frame = stack.pop();
 
-    // Evaluate and allocate all children first
-    const childPtrs = [];
-    for (let i = 0; i < N; i++) {
-      const label = keys[i];
-      const edge = patternNode.edges.find(e => e.label === label);
-      const childPtr = writeValueToArena(exports, value.product[label], pattern, edge.target);
-      childPtrs.push(childPtr);
+    if (frame.finishProduct) {
+      const { ptr, totalSize, N, childPtrs, assign } = frame;
+      const view = new DataView(exports.memory.buffer);
+      view.setUint32(ptr, totalSize, true);
+      view.setUint32(ptr + 4, N, true);
+
+      for (let i = 0; i < N; i++) {
+        const offsetVal = 8 + 4 * N + 4 * i;
+        view.setUint32(ptr + 8 + 4 * i, offsetVal, true);
+        view.setUint32(ptr + offsetVal, childPtrs[i], true);
+      }
+      assign(ptr);
+      continue;
     }
 
-    // All allocations/grows are done; now create the DataView
-    const view = new DataView(exports.memory.buffer);
-    view.setUint32(ptr, totalSize, true);
-    view.setUint32(ptr + 4, N, true);
+    if (frame.finishVariant) {
+      const { tagId, childPtrBox, assign } = frame;
+      const ptr = exports.alloc(12);
+      const view = new DataView(exports.memory.buffer);
 
-    for (let i = 0; i < N; i++) {
-      const offsetVal = 8 + 4 * N + 4 * i;
-      view.setUint32(ptr + 8 + 4 * i, offsetVal, true);
-      view.setUint32(ptr + offsetVal, childPtrs[i], true);
+      view.setUint32(ptr, 12, true);
+      view.setUint32(ptr + 4, tagId, true);
+      view.setUint32(ptr + 8, childPtrBox[0], true);
+      assign(ptr);
+      continue;
     }
-    return ptr;
-  } else if (isVariant(value)) {
-    const tagId = getTagId(value.tag);
-    const edge = patternNode.edges.find(e => e.label === value.tag);
-    const childPtr = writeValueToArena(exports, value.value, pattern, edge.target);
 
-    const ptr = exports.alloc(12);
-    const view = new DataView(exports.memory.buffer);
+    const { value, patternNodeId, assign } = frame;
+    const patternNode = pattern.nodes[patternNodeId];
 
-    view.setUint32(ptr, 12, true);
-    view.setUint32(ptr + 4, tagId, true);
-    view.setUint32(ptr + 8, childPtr, true);
-    return ptr;
+    if (isProduct(value)) {
+      const keys = Object.keys(value.product).sort();
+      const N = keys.length;
+      const totalSize = 8 + 8 * N;
+      const ptr = exports.alloc(totalSize);
+
+      const childPtrs = new Array(N);
+      stack.push({
+        finishProduct: true,
+        ptr,
+        totalSize,
+        N,
+        childPtrs,
+        assign
+      });
+
+      for (let i = N - 1; i >= 0; i--) {
+        const label = keys[i];
+        const edge = patternNode.edges.find(e => e.label === label);
+        const childVal = value.product[label];
+        const targetNode = edge ? edge.target : patternNodeId;
+        const index = i;
+        stack.push({
+          value: childVal,
+          patternNodeId: targetNode,
+          assign: (p) => { childPtrs[index] = p; }
+        });
+      }
+    } else if (isVariant(value)) {
+      const tagId = getTagId(value.tag);
+      const edge = patternNode.edges.find(e => e.label === value.tag);
+      const childPtrBox = [0];
+
+      stack.push({
+        finishVariant: true,
+        tagId,
+        childPtrBox,
+        assign
+      });
+
+      stack.push({
+        value: value.value,
+        patternNodeId: edge ? edge.target : patternNodeId,
+        assign: (p) => { childPtrBox[0] = p; }
+      });
+    } else {
+      throw new Error(`Unsupported value type: ${value}`);
+    }
   }
-  throw new Error(`Unsupported value type: ${value}`);
+
+  return rootPtr;
 }

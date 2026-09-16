@@ -185,9 +185,30 @@ const rawCases = [
 const testSuite = [];
 for (const tc of rawCases) {
   const relation = relations[tc.op];
-  run.defs = state;
-  run_converged.defs = state;
-  const expected = run_converged(codes.find, relation.relDef.def, tc.inputVal, relation.relDef.typePatternGraph);
+  let expected;
+  if (!runBaselines || listLength > 400) {
+    expected = executeKVM(relation.kvmFunc, tc.inputVal, {
+      rels: state.rels,
+      codes: state.codes,
+      options: { envelopeFree: true }
+    });
+  } else {
+    try {
+      run.defs = state;
+      run_converged.defs = state;
+      expected = run_converged(codes.find, relation.relDef.def, tc.inputVal, relation.relDef.typePatternGraph);
+    } catch (err) {
+      if (err instanceof RangeError) {
+        expected = executeKVM(relation.kvmFunc, tc.inputVal, {
+          rels: state.rels,
+          codes: state.codes,
+          options: { envelopeFree: true }
+        });
+      } else {
+        throw err;
+      }
+    }
+  }
   assert.ok(expected !== undefined, `${tc.op} should produce a value`);
 
   const inferredPat = inputPatternForObjectRelation(relation.object, relation.relationName);
