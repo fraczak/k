@@ -723,14 +723,37 @@ export function specializeKVM(artifactOrFunc, inputEnvelope, options = {}) {
   return specializedFunc;
 }
 
-function executeBlock(instructions, inputVal, context) {
+const TAIL_CALL = Symbol("TAIL_CALL");
+
+function tailValueAfter(insts, startIndex, valueReg) {
+  let current = valueReg;
+  for (let i = startIndex; i < insts.length; i++) {
+    const inst = insts[i];
+    if (inst.op === "guard_pattern" || inst.op === "guard_code" || inst.op === "id") {
+      if (inst.src !== current) return false;
+      current = inst.dest;
+      continue;
+    }
+    if (inst.op === "return" && inst.src === current) {
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+function executeBlock(instructions, inputVal, context, isTail = false) {
   const registers = new Map();
   registers.set("%in", inputVal);
 
-  for (const inst of instructions) {
-    const res = executeInstruction(inst, registers, context);
+  for (let i = 0; i < instructions.length; i++) {
+    const inst = instructions[i];
+    const res = executeInstruction(inst, registers, context, instructions, i, isTail);
     if (res === undefined) {
       return undefined;
+    }
+    if (res && res[TAIL_CALL]) {
+      return res;
     }
     if (res.type === "return") {
       return res.value;
@@ -739,7 +762,7 @@ function executeBlock(instructions, inputVal, context) {
   return undefined;
 }
 
-function executeInstruction(inst, registers, context) {
+function executeInstruction(inst, registers, context, instructions = null, instIndex = -1, isTail = false) {
   const options = context.options || {};
   switch (inst.op) {
     case "id": {
@@ -831,6 +854,9 @@ function executeInstruction(inst, registers, context) {
       if (!relDef._kvmFunc) {
         relDef._kvmFunc = lowerToKVM(relDef, inst.func, { codes: context.codes || {} });
       }
+      if (!options.trace && isTail && instructions && tailValueAfter(instructions, instIndex + 1, inst.dest)) {
+        return { [TAIL_CALL]: true, func: relDef._kvmFunc, val };
+      }
       const res = executeKVM(relDef._kvmFunc, val, context);
       if (options.trace) {
         console.log(`[Trace] Returned from ${inst.func} ->:`, res ? res.toString() : "fail");
@@ -847,7 +873,7 @@ function executeInstruction(inst, registers, context) {
       const result = {};
       const patternEntries = [];
       for (const branch of inst.branches) {
-        const branchRes = executeBlock(branch.body, val, context);
+        const branchRes = executeBlock(branch.body, val, context, false);
         if (branchRes === undefined) return undefined;
         result[branch.label] = branchRes;
         if (!options.envelopeFree) {
@@ -870,9 +896,13 @@ function executeInstruction(inst, registers, context) {
     }
     case "union": {
       const val = registers.get(inst.src);
+      const unionIsTail = isTail && instructions && tailValueAfter(instructions, instIndex + 1, inst.dest);
       for (const branch of inst.branches) {
-        const branchRes = executeBlock(branch.body, val, context);
+        const branchRes = executeBlock(branch.body, val, context, unionIsTail);
         if (branchRes !== undefined) {
+          if (branchRes && branchRes[TAIL_CALL]) {
+            return branchRes;
+          }
           registers.set(inst.dest, branchRes);
           return { type: "continue" };
         }
@@ -889,24 +919,34 @@ function executeInstruction(inst, registers, context) {
 
 export function executeKVM(kvmFunc, inputVal, context) {
   const options = context.options || {};
-  if (context.profile) {
-    let name = kvmFunc.name || "anon";
-    if (context.hashToName && context.hashToName.has(name)) {
-      name = context.hashToName.get(name);
+  let currentFunc = kvmFunc;
+  let currentVal = inputVal;
+
+  while (true) {
+    if (context.profile) {
+      let name = currentFunc.name || "anon";
+      if (context.hashToName && context.hashToName.has(name)) {
+        name = context.hashToName.get(name);
+      }
+      context.profile[name] = (context.profile[name] || 0) + 1;
     }
-    context.profile[name] = (context.profile[name] || 0) + 1;
-  }
-  if (options.requireConverged && !kvmFunc.isConverged) {
-    throw new Error(`Cannot run '${kvmFunc.name}' without envelopes: type derivation is not converged`);
-  }
+    if (options.requireConverged && !currentFunc.isConverged) {
+      throw new Error(`Cannot run '${currentFunc.name}' without envelopes: type derivation is not converged`);
+    }
 
-  const result = executeBlock(kvmFunc.body, inputVal, context);
-  if (result === undefined) return undefined;
+    const result = executeBlock(currentFunc.body, currentVal, context, true);
+    if (result === undefined) return undefined;
+    if (result && result[TAIL_CALL]) {
+      currentFunc = result.func;
+      currentVal = result.val;
+      continue;
+    }
 
-  if (options.envelopeFree && kvmFunc.isConverged) {
-    return withPattern(result, kvmFunc.outputPattern);
+    if (options.envelopeFree && currentFunc.isConverged) {
+      return withPattern(result, currentFunc.outputPattern);
+    }
+    return result;
   }
-  return result;
 }
 
 export default {

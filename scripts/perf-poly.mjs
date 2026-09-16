@@ -41,6 +41,7 @@ import {
   runTimedIterationsAsync,
   shouldStrictFail,
   toPlainObject,
+  safeDeepEqual,
   tryCompileCase,
   wireInput,
   PersistentExecutable
@@ -416,7 +417,7 @@ console.log("===================================================================
 for (const tc of testSuite) {
   if (runBaselines) {
     const kvmActual = runKVMCase(tc, relations, state, codes);
-    assert.deepEqual(toPlainObject(kvmActual), toPlainObject(tc.expected));
+    assert.ok(safeDeepEqual(kvmActual, tc.expected), `kVM output mismatch for ${tc.op}`);
   }
 
   if (runLLVM) {
@@ -426,7 +427,7 @@ for (const tc of testSuite) {
       try {
         const outputWire = await runExecutable(tc.llvm.exePath, tc.inputWire);
         const actual = decodeWire(outputWire).value;
-        assert.deepEqual(toPlainObject(actual), toPlainObject(tc.expected));
+        assert.ok(safeDeepEqual(actual, tc.expected), `LLVM output mismatch for ${tc.op}`);
         tc.llvmConformance = "ok";
       } catch (error) {
         tc.llvmConformance = "failed";
@@ -449,7 +450,7 @@ for (const tc of testSuite) {
         0,
         tc.outputPattern
       );
-      assert.deepEqual(toPlainObject(actual), toPlainObject(tc.expected));
+      assert.ok(safeDeepEqual(actual, tc.expected), `Wasm output mismatch for ${tc.op}`);
       if (wasmReset) wasmExports.arena_reset(mark);
       tc.wasmConformance = "ok";
     } catch (error) {
@@ -465,7 +466,7 @@ for (const tc of testSuite) {
       try {
         const outputWire = await runExecutable(tc.arm64.exePath, tc.inputWire);
         const actual = decodeWire(outputWire).value;
-        assert.deepEqual(toPlainObject(actual), toPlainObject(tc.expected));
+        assert.ok(safeDeepEqual(actual, tc.expected), `ARM64 output mismatch for ${tc.op}`);
         tc.arm64Conformance = "ok";
       } catch (error) {
         tc.arm64Conformance = "failed";

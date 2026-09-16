@@ -6,16 +6,13 @@
 pred_int = dec /'+' nat | '+';
 
 -- Concatenate two lists: {xs, ys} -> list
-concat = <
-  {.xs /nil if, .ys then} .then,
-  {.xs car car, {.xs cdr xs, .ys ys} concat cdr} cons
->;
+concat = {.xs reverse xs, .ys acc} _reverse;
 
 -- Reverse a list: xs -> list
 reverse = {() xs, nil acc} _reverse;
 _reverse = <
-  {.xs /nil if, .acc then} .then,
-  {.xs cdr xs, {.xs car car, .acc cdr} cons acc} _reverse
+  {.xs cdr xs, {.xs car car, .acc cdr} cons acc} _reverse,
+  .acc
 >;
 
 -- Length of a list: xs -> int
