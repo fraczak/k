@@ -144,26 +144,37 @@ typedef struct {
 } k_flat_map_entry;
 
 #define MAX_FLAT_MAP 65536
+#define FLAT_MAP_MASK (MAX_FLAT_MAP - 1)
 static k_flat_map_entry flat_map[MAX_FLAT_MAP];
-static size_t flat_map_count = 0;
+
+static void flat_map_reset(void) {
+  memset(flat_map, 0, sizeof(flat_map));
+}
 
 static void flat_map_put(void *flat_ptr, k_value *val) {
-  if (flat_map_count < MAX_FLAT_MAP) {
-    flat_map[flat_map_count].flat_ptr = flat_ptr;
-    flat_map[flat_map_count].val = val;
-    flat_map_count++;
+  if (flat_ptr == NULL) return;
+  size_t idx = (((uintptr_t)flat_ptr) >> 4) & FLAT_MAP_MASK;
+  for (size_t probe = 0; probe < MAX_FLAT_MAP; probe++) {
+    if (flat_map[idx].flat_ptr == NULL || flat_map[idx].flat_ptr == flat_ptr) {
+      flat_map[idx].flat_ptr = flat_ptr;
+      flat_map[idx].val = val;
+      return;
+    }
+    idx = (idx + 1) & FLAT_MAP_MASK;
   }
 }
 
-static void flat_map_reset(void) {
-  flat_map_count = 0;
-}
-
 static k_value *flat_map_get(void *flat_ptr) {
-  for (size_t i = 0; i < flat_map_count; i++) {
-    if (flat_map[i].flat_ptr == flat_ptr) {
-      return flat_map[i].val;
+  if (flat_ptr == NULL) return NULL;
+  size_t idx = (((uintptr_t)flat_ptr) >> 4) & FLAT_MAP_MASK;
+  for (size_t probe = 0; probe < MAX_FLAT_MAP; probe++) {
+    if (flat_map[idx].flat_ptr == NULL) {
+      return NULL;
     }
+    if (flat_map[idx].flat_ptr == flat_ptr) {
+      return flat_map[idx].val;
+    }
+    idx = (idx + 1) & FLAT_MAP_MASK;
   }
   return NULL;
 }

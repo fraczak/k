@@ -827,7 +827,7 @@ function writeValueToArena(exports, value, pattern, patternNodeId, arenaValues, 
   return result;
 }
 
-async function runWasmArtifact(wasmBuffer, inputBuffer) {
+async function instantiateWasmArtifact(wasmBuffer) {
   const module = await WebAssembly.compile(wasmBuffer);
   const metadata = metadataFromModule(module);
   const instance = await WebAssembly.instantiate(module);
@@ -835,18 +835,61 @@ async function runWasmArtifact(wasmBuffer, inputBuffer) {
   const tags = createTagRegistry(metadata.tags);
   const inputPattern = propertyListToPattern(metadata.inputPattern);
   const outputPattern = propertyListToPattern(metadata.outputPattern);
-  const { pattern: valuePattern, value } = decodeWire(inputBuffer);
-  if (!isMonomorphicPattern(metadata.inputPattern)) {
-    validateInputEnvelope(metadata.inputPattern, valuePattern);
+
+  function execute(inputBuffer, options = {}) {
+    const t0 = process.hrtime.bigint();
+    const { pattern: valuePattern, value } = decodeWire(inputBuffer);
+    if (!isMonomorphicPattern(metadata.inputPattern)) {
+      validateInputEnvelope(metadata.inputPattern, valuePattern);
+    }
+    const t1 = process.hrtime.bigint();
+    const mark = exports.arena_mark ? exports.arena_mark() : 0;
+    const arenaValues = new Map();
+    const ptrIn = writeValueToArena(exports, value, inputPattern, 0, arenaValues, tags, metadata.inputPattern);
+    const t2 = process.hrtime.bigint();
+    const result = exports[metadata.entry](ptrIn);
+    if (result[1] !== 1) {
+      if (exports.arena_reset) exports.arena_reset(mark);
+      throw new Error("Wasm relation execution failed (returned false)");
+    }
+    const t3 = process.hrtime.bigint();
+    const output = readArenaValue(exports, wasmPtr(result[0]), outputPattern, 0, metadata.outputPattern, arenaValues, tags);
+    const t4 = process.hrtime.bigint();
+    const outWire = encodeToWire(output, output.pattern);
+    const t5 = process.hrtime.bigint();
+    if (exports.arena_reset) exports.arena_reset(mark);
+
+    if (options.trace) {
+      return {
+        outputWire: outWire,
+        trace: {
+          decodeNs: Number(t1 - t0),
+          flatInNs: Number(t2 - t1),
+          evalNs: Number(t3 - t2),
+          flatOutNs: Number(t4 - t3),
+          encodeNs: Number(t5 - t4),
+          totalNs: Number(t5 - t0)
+        }
+      };
+    }
+    return outWire;
   }
-  const arenaValues = new Map();
-  const ptrIn = writeValueToArena(exports, value, inputPattern, 0, arenaValues, tags, metadata.inputPattern);
-  const result = exports[metadata.entry](ptrIn);
-  if (result[1] !== 1) {
-    throw new Error("Wasm relation execution failed (returned false)");
-  }
-  const output = readArenaValue(exports, wasmPtr(result[0]), outputPattern, 0, metadata.outputPattern, arenaValues, tags);
-  return encodeToWire(output, output.pattern);
+
+  return {
+    module,
+    instance,
+    exports,
+    metadata,
+    tags,
+    inputPattern,
+    outputPattern,
+    execute
+  };
+}
+
+async function runWasmArtifact(wasmBuffer, inputBuffer) {
+  const runner = await instantiateWasmArtifact(wasmBuffer);
+  return runner.execute(inputBuffer);
 }
 
 export {
@@ -857,6 +900,7 @@ export {
   compileWasmArtifactFromKVM,
   compileWasmArtifactFromObject,
   compileWasmArtifact,
+  instantiateWasmArtifact,
   metadataFromModule,
   readArenaValue,
   runWasmArtifact,
