@@ -524,7 +524,7 @@ export function compileLLVMToExecutable(llvm, outputPath, { driver = stdioDriver
     fs.writeFileSync(llPath, llvm);
     fs.writeFileSync(driverPath, driver);
     runCommand("clang", [
-      clangOpt,
+      ...(Array.isArray(clangOpt) ? clangOpt : String(clangOpt).split(/\s+/).filter(Boolean)),
       "-Wno-override-module",
       "-Iruntime",
       "runtime/krt.c",

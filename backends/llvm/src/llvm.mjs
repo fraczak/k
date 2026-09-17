@@ -3,8 +3,13 @@ import {
   decodeObject,
   isIntrinsic,
   unsupportedIntrinsic,
-  retypeObjectRelationForBackend
+  retypeObjectRelationForBackend,
+  objectToKVMArtifact,
+  specializeKVM,
+  lowerKIRToKVM,
+  objectToKIRP
 } from "@fraczak/k/backend-api.mjs";
+import { compileKVMModuleToLLVM } from "./kvm2llvm.mjs";
 
 const ARTIFACT_FORMAT = "k-llvm";
 const ARTIFACT_VERSION = 1;
@@ -945,7 +950,21 @@ function relationFunctionNames(kir) {
   ]));
 }
 
-export function emitLLVMModule(kir, options = {}) {
+export function emitLLVMModule(input, options = {}) {
+  if (input?.format === "k-vm" || input?.functions) {
+    const entry = input.entry || options.relation || "__main__";
+    return compileKVMModuleToLLVM(entry, input.functions || input, options);
+  }
+  if (input && typeof input === "object" && !input.rels && !input.format) {
+    const values = Object.values(input);
+    if (values.length > 0 && values[0]?.body && Array.isArray(values[0].body)) {
+      const entry = options.relation || "__main__";
+      return compileKVMModuleToLLVM(entry, input, options);
+    }
+  }
+
+  // Legacy KIR-P path for compatibility with raw KIR-P inputs
+  const kir = input;
   const labels = new Map();
   const syntheticFunctions = [];
   const functionNames = relationFunctionNames(kir);
@@ -990,21 +1009,70 @@ export function emitLLVMModule(kir, options = {}) {
 }
 
 export function compileObjectToLLVM(object, options = {}) {
-  const inputPattern = readPattern(options.inputPattern);
-  const { relation, kir, inputPattern: entryInputPattern, outputPattern } = retypeObjectRelationForBackend(object, options.relation || object.main, inputPattern, {
-    source: options.source || "<k-llvm>"
-  });
-  return {
-    kir,
+  const inputPattern = options.inputPattern ? readPattern(options.inputPattern) : null;
+  const relation = options.relation || object.main;
+
+  let retypedKir = null;
+  let entryInputPattern = inputPattern;
+  let outputPattern = null;
+
+  if (inputPattern) {
+    const retyped = retypeObjectRelationForBackend(object, relation, inputPattern, {
+      source: options.source || "<k-llvm>"
+    });
+    retypedKir = retyped.kir;
+    entryInputPattern = retyped.inputPattern;
+    outputPattern = retyped.outputPattern;
+  } else {
+    retypedKir = objectToKIRP(object);
+  }
+
+  let kvmArtifact = objectToKVMArtifact(object, relation, null, options);
+  let specializedKvm = kvmArtifact;
+  if (inputPattern) {
+    try {
+      specializedKvm = specializeKVM(kvmArtifact, inputPattern);
+    } catch {
+      specializedKvm = {
+        ...kvmArtifact,
+        functions: lowerKIRToKVM(retypedKir),
+        entry: relation
+      };
+    }
+  }
+
+  const entry = specializedKvm.entry || relation;
+  const functions = specializedKvm.functions;
+
+  const llvm = compileKVMModuleToLLVM(entry, functions, {
+    ...options,
     relation,
-    inputPattern: entryInputPattern,
-    outputPattern,
-    llvm: emitLLVMModule(kir, { ...options, relation })
+    inputPattern: entryInputPattern || specializedKvm.inputPattern,
+    outputPattern: outputPattern || specializedKvm.outputPattern
+  });
+
+  return {
+    kir: retypedKir,
+    kvm: specializedKvm,
+    relation,
+    inputPattern: entryInputPattern || specializedKvm.inputPattern,
+    outputPattern: outputPattern || specializedKvm.outputPattern,
+    llvm
   };
 }
 
 export function compileBufferToLLVM(buffer, options = {}) {
   return compileObjectToLLVM(decodeObject(buffer), options);
+}
+
+export function compileLLVMArtifactFromKVM(kvmInput, options = {}) {
+  const entry = options.entry || kvmInput.entry || "__main__";
+  const functions = kvmInput.functions || kvmInput;
+  return compileKVMModuleToLLVM(entry, functions, options);
+}
+
+export function compileLLVMArtifactFromObject(object, options = {}) {
+  return compileObjectToLLVM(object, options);
 }
 
 export {
@@ -1017,6 +1085,8 @@ export default {
   ARTIFACT_VERSION,
   compileBufferToLLVM,
   compileObjectToLLVM,
+  compileLLVMArtifactFromKVM,
+  compileLLVMArtifactFromObject,
   emitLLVMModule,
   llvmIdentifier
 };

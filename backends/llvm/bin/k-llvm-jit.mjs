@@ -41,7 +41,7 @@ let cachedBackendFingerprint = null;
 function backendFingerprint() {
   if (cachedBackendFingerprint != null) return cachedBackendFingerprint;
   const hash = crypto.createHash("sha256");
-  for (const relPath of ["src/llvm.mjs", "src/executable.mjs", "runtime/krt.c", "runtime/krt.h"]) {
+  for (const relPath of ["src/llvm.mjs", "src/kvm2llvm.mjs", "src/executable.mjs", "runtime/krt.c", "runtime/krt.h"]) {
     hash.update(relPath);
     hash.update("\0");
     hash.update(fs.readFileSync(path.join(root, relPath)));
