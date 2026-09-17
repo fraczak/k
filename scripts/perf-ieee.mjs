@@ -32,6 +32,7 @@ import {
   parsePositiveIntEnv,
   prepareRelation,
   printCompileFailures,
+  PersistentExecutable,
   runExecutable,
   runTimedIterations,
   runTimedIterationsAsync,
@@ -48,6 +49,7 @@ import {
   writeValueToArena
 } from "../backends/wasm/tests/perf-support.mjs";
 
+import { compileWasmArtifactFromObject } from "../backends/wasm/src/wasm.mjs";
 import { compileARM64ArtifactFromObject } from "../backends/arm64/src/arm64.mjs";
 
 // Backend selection
@@ -109,6 +111,13 @@ const cacheDir = makeCacheDir("k-llvm-ieee-perf-");
 // Wasm options
 const wasmWarmupIterations = parseNonNegativeIntEnv("WASM_WARMUP_ITERATIONS", 10);
 const wasmReset = process.env.WASM_RESET !== "0";
+const wasmPipe = process.env.WASM_PIPE === "0" || process.env.WASM_IN_PROCESS === "1" || process.argv.includes("--wasm-in-process")
+  ? false
+  : true;
+function wasmLaneName() {
+  const mode = wasmPipe ? "persistent" : "in-process";
+  return `WebAssembly (${mode})`;
+}
 
 console.log("==> Initializing state and loading @fraczak/k/Examples/ieee.k");
 const state = createState();
@@ -213,25 +222,45 @@ let wasmPtrIn = null;
 let wasmOutputPattern = null;
 let wasmOutputPatternPropertyList = null;
 let wasmFuncName = null;
+let wasmExePath = null;
+let wasmCompileError = null;
 
 if (runWasm) {
-  console.log("==> Compiling WebAssembly module...");
-  const wabtInstance = await wabtFactory();
-  const wasmModule = await instantiateWasmModule([state.relAliases.perf_ieee], state, wabtInstance);
-  wasmExports = wasmModule.exports;
+  if (wasmPipe) {
+    console.log("==> Compiling WebAssembly executable (persistent runner)...");
+    try {
+      const wasmPath = path.join(cacheDir, "perf_ieee_wasm.wasm");
+      wasmExePath = path.join(cacheDir, "perf_ieee_wasm.exe");
+      const wasmBuf = await compileWasmArtifactFromObject(relation.object, {
+        entry: "__main__"
+      });
+      fs.writeFileSync(wasmPath, wasmBuf);
+      const runBin = fileURLToPath(import.meta.resolve("../backends/wasm/bin/k-wasm-run.mjs"));
+      fs.writeFileSync(wasmExePath, `#!/bin/sh\nexec node "${runBin}" "${wasmPath}" "$@"\n`, { mode: 0o755 });
+    } catch (error) {
+      wasmCompileError = error.stack || error.message || String(error);
+      console.log("WebAssembly compilation failed:");
+      console.log(wasmCompileError.split("\n").slice(0, 8).join("\n"));
+    }
+  } else {
+    console.log("==> Compiling WebAssembly module...");
+    const wabtInstance = await wabtFactory();
+    const wasmModule = await instantiateWasmModule([state.relAliases.perf_ieee], state, wabtInstance);
+    wasmExports = wasmModule.exports;
 
-  const relDef = relation.relDef;
-  const graph = relDef.typePatternGraph;
+    const relDef = relation.relDef;
+    const graph = relDef.typePatternGraph;
 
-  const inputPatternNodeId = graph.find(relDef.def.patterns[0]);
-  const inputPat = propertyListToPattern(patternToPropertyList(exportPatternGraph(graph, inputPatternNodeId)));
+    const inputPatternNodeId = graph.find(relDef.def.patterns[0]);
+    const inputPat = propertyListToPattern(patternToPropertyList(exportPatternGraph(graph, inputPatternNodeId)));
 
-  const outputPatternNodeId = graph.find(relDef.def.patterns[1]);
-  wasmOutputPatternPropertyList = patternToPropertyList(exportPatternGraph(graph, outputPatternNodeId));
-  wasmOutputPattern = propertyListToPattern(wasmOutputPatternPropertyList);
+    const outputPatternNodeId = graph.find(relDef.def.patterns[1]);
+    wasmOutputPatternPropertyList = patternToPropertyList(exportPatternGraph(graph, outputPatternNodeId));
+    wasmOutputPattern = propertyListToPattern(wasmOutputPatternPropertyList);
 
-  wasmPtrIn = writeValueToArena(wasmExports, inputVal, inputPat, 0);
-  wasmFuncName = cleanName(state.relAliases.perf_ieee);
+    wasmPtrIn = writeValueToArena(wasmExports, inputVal, inputPat, 0);
+    wasmFuncName = cleanName(state.relAliases.perf_ieee);
+  }
 }
 
 // Setup ARM64
@@ -268,7 +297,7 @@ function printBenchmarkDescription() {
       lanes.push(llvmOptLevels.length > 1 ? `LLVM ${opt} (${mode})` : llvmLaneName());
     }
   }
-  if (runWasm) lanes.push("WebAssembly");
+  if (runWasm) lanes.push(wasmLaneName());
   if (runARM64) lanes.push(arm64LaneName(arm64OptLevel));
 
   console.log("==> Benchmark description");
@@ -283,8 +312,11 @@ function printBenchmarkDescription() {
     console.log(`    llvm cache dir: ${cacheDir}`);
   }
   if (runWasm) {
+    console.log(`    wasm runner mode: ${wasmPipe ? "persistent pipe" : "in-process"}`);
     console.log(`    wasm warmup iterations: ${wasmWarmupIterations}`);
-    console.log(`    wasm arena reset: ${wasmReset ? "yes" : "no"}`);
+    if (!wasmPipe) {
+      console.log(`    wasm arena reset: ${wasmReset ? "yes" : "no"}`);
+    }
   }
   if (runARM64) {
     console.log(`    arm64 warmup iterations: ${arm64WarmupIterations}`);
@@ -352,23 +384,43 @@ if (runLLVM) {
 // 3. Wasm lane
 let wasmResult = null;
 if (runWasm) {
-  if (wasmWarmupIterations > 0) {
-    console.log(`==> Warming WebAssembly (${wasmWarmupIterations} iterations)...`);
-    for (let i = 0; i < wasmWarmupIterations; i++) {
+  if (wasmPipe) {
+    if (wasmExePath) {
+      const server = new PersistentExecutable(wasmExePath);
+      try {
+        if (wasmWarmupIterations > 0) {
+          console.log(`==> Warming WebAssembly (${wasmWarmupIterations} iterations)...`);
+          for (let i = 0; i < wasmWarmupIterations; i++) {
+            await server.request(inputWire);
+          }
+        }
+        console.log(`==> Running WebAssembly (${iterations} iterations)...`);
+        wasmResult = await runTimedIterationsAsync(iterations, async () => {
+          await server.request(inputWire);
+        });
+      } finally {
+        server.close();
+      }
+    }
+  } else {
+    if (wasmWarmupIterations > 0) {
+      console.log(`==> Warming WebAssembly (${wasmWarmupIterations} iterations)...`);
+      for (let i = 0; i < wasmWarmupIterations; i++) {
+        const mark = wasmReset ? wasmExports.arena_mark() : 0;
+        const res = wasmExports[wasmFuncName](wasmPtrIn);
+        assert.ok(res[1] === 1);
+        if (wasmReset) wasmExports.arena_reset(mark);
+      }
+    }
+
+    console.log(`==> Running WebAssembly (${iterations} iterations)...`);
+    wasmResult = runTimedIterations(iterations, () => {
       const mark = wasmReset ? wasmExports.arena_mark() : 0;
       const res = wasmExports[wasmFuncName](wasmPtrIn);
       assert.ok(res[1] === 1);
       if (wasmReset) wasmExports.arena_reset(mark);
-    }
+    });
   }
-
-  console.log(`==> Running WebAssembly (${iterations} iterations)...`);
-  wasmResult = runTimedIterations(iterations, () => {
-    const mark = wasmReset ? wasmExports.arena_mark() : 0;
-    const res = wasmExports[wasmFuncName](wasmPtrIn);
-    assert.ok(res[1] === 1);
-    if (wasmReset) wasmExports.arena_reset(mark);
-  });
 }
 
 // 4. Linux ARM64 lane
@@ -411,7 +463,8 @@ if (runLLVM) {
   }
 }
 if (runWasm) {
-  console.log(`${laneIndex++}. ${"WebAssembly".padEnd(29)} ${formatTiming(wasmResult)}`);
+  const timingStr = wasmResult ? formatTiming(wasmResult) : "compile failed";
+  console.log(`${laneIndex++}. ${wasmLaneName().padEnd(29)} ${timingStr}`);
 }
 if (runARM64) {
   const timingStr = arm64Result ? formatTiming(arm64Result) : "compile failed";
@@ -456,22 +509,37 @@ if (runLLVM) {
 
 let wasmOk = false;
 if (runWasm) {
-  try {
-    const mark = wasmReset ? wasmExports.arena_mark() : 0;
-    const res = wasmExports[wasmFuncName](wasmPtrIn);
-    assert.ok(res[1] === 1, `Wasm function ${wasmFuncName} execution failed`);
-    const actual = readArenaValue(
-      wasmExports,
-      res[0],
-      wasmOutputPattern,
-      0,
-      wasmOutputPatternPropertyList
-    );
-    if (wasmReset) wasmExports.arena_reset(mark);
-    assert.deepEqual(toPlainObject(actual), toPlainObject(expected));
-    wasmOk = true;
-  } catch (error) {
-    console.log("Wasm conformance failure:", error);
+  if (wasmPipe) {
+    if (!wasmExePath) {
+      console.log("Wasm conformance failure: executable was not compiled");
+    } else {
+      try {
+        const outputWire = await runExecutable(wasmExePath, inputWire);
+        const actual = decodeWire(outputWire).value;
+        assert.deepEqual(toPlainObject(actual), toPlainObject(expected));
+        wasmOk = true;
+      } catch (error) {
+        console.log("Wasm conformance failure:", error.message || error);
+      }
+    }
+  } else {
+    try {
+      const mark = wasmReset ? wasmExports.arena_mark() : 0;
+      const res = wasmExports[wasmFuncName](wasmPtrIn);
+      assert.ok(res[1] === 1, `Wasm function ${wasmFuncName} execution failed`);
+      const actual = readArenaValue(
+        wasmExports,
+        res[0],
+        wasmOutputPattern,
+        0,
+        wasmOutputPatternPropertyList
+      );
+      if (wasmReset) wasmExports.arena_reset(mark);
+      assert.deepEqual(toPlainObject(actual), toPlainObject(expected));
+      wasmOk = true;
+    } catch (error) {
+      console.log("Wasm conformance failure:", error);
+    }
   }
 }
 

@@ -221,6 +221,7 @@ function compileModule(mainRelName, defs) {
   const compiled = new Set();
   const queue = [mainRelName];
   const wats = [];
+  const nameMap = cleanFunctionNameMap(Object.keys(defs.rels));
 
   while (queue.length > 0) {
     const name = queue.shift();
@@ -236,14 +237,15 @@ function compileModule(mainRelName, defs) {
     kvmFunc.typePatternGraph = relDef.typePatternGraph;
     scanCalls(kvmFunc.body, compiled, queue);
 
-    kvmFunc.name = cleanName(name);
-    cleanCallNames(kvmFunc.body);
+    kvmFunc.name = nameMap.get(name) || cleanName(name);
+    cleanCallNames(kvmFunc.body, nameMap);
     wats.push(lowerToWasm(kvmFunc, kvmFunc.name));
   }
 
   return {
     wat: wats.join("\n\n"),
-    relationNames: [...compiled]
+    relationNames: [...compiled],
+    entryName: nameMap.get(mainRelName) || cleanName(mainRelName)
   };
 }
 
@@ -440,7 +442,7 @@ async function compileWasmArtifactFromDefs(
     throw new Error(`No main relation (${mainRelName}) defined in script`);
   }
 
-  const { wat: moduleWatBody, relationNames } = compileModule(mainRelName, defs);
+  const { wat: moduleWatBody, relationNames, entryName } = compileModule(mainRelName, defs);
   assertRelationsConverged(defs, relationNames);
   const fullWat = runtimeWat.trim().slice(0, -1) + "\n" + moduleWatBody + "\n)";
   const graph = mainRel.typePatternGraph;
@@ -450,7 +452,7 @@ async function compileWasmArtifactFromDefs(
     format: ARTIFACT_FORMAT,
     version: ARTIFACT_VERSION,
     abi: "arena-v1",
-    entry: cleanName(mainRelName),
+    entry: entryName || cleanName(mainRelName),
     inputPattern,
     outputPattern,
     typing: classifyTyping(inputPattern, outputPattern, relTypeStatus(defs, mainRelName), typingMode),
