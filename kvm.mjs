@@ -897,8 +897,11 @@ function executeInstruction(inst, registers, context, instructions = null, instI
     case "union": {
       const val = registers.get(inst.src);
       const unionIsTail = isTail && instructions && tailValueAfter(instructions, instIndex + 1, inst.dest);
-      for (const branch of inst.branches) {
-        const branchRes = executeBlock(branch.body, val, context, unionIsTail);
+      for (let i = 0; i < inst.branches.length; i++) {
+        const branch = inst.branches[i];
+        const isLastBranch = i === inst.branches.length - 1;
+        const branchIsTail = unionIsTail && isLastBranch;
+        const branchRes = executeBlock(branch.body, val, context, branchIsTail);
         if (branchRes !== undefined) {
           if (branchRes && branchRes[TAIL_CALL]) {
             return branchRes;
