@@ -301,6 +301,40 @@ assert.match(output[0], /^\{\}\|_\|0\|1\|0\|1/);
 output = await evaluateInput("{10 int x, 5 int y} plus", arithState);
 assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
 
+// Verify built-in codecs, :codecs, :codec define, and :codec unload
+const codecTestState = createState();
+output = await evaluateInput(":codecs", codecTestState);
+assert.equal(output[0], "(none)");
+
+output = await evaluateInput(":codec load int", codecTestState);
+assert.match(output[0], /^loaded codec int for @/);
+
+output = await evaluateInput(":codecs", codecTestState);
+assert.match(output[0], /^int @/);
+
+completions = completeInput(":codec un", codecTestState)[0];
+assert(completions.includes(":codec unload"));
+completions = completeInput(":codec unload ", codecTestState)[0];
+assert(completions.includes(":codec unload int"));
+completions = completeInput(":codec load i", codecTestState)[0];
+assert(completions.includes(":codec load int"));
+
+output = await evaluateInput(":codec unload int", codecTestState);
+assert.equal(output[0], "unloaded codec int");
+output = await evaluateInput(":codecs", codecTestState);
+assert.equal(output[0], "(none)");
+
+output = await evaluateInput(":type bool = <{} true, {} false>", codecTestState);
+output = await evaluateInput(
+  `:codec define yn bool ({ parse: (text) => Value.variant(text.trim() === "yes" ? "true" : "false", Value.product({})), print: (v) => v.tag === "true" ? "YES" : "NO" })`,
+  codecTestState
+);
+assert.match(output[0], /^defined codec yn for @/);
+
+output = await evaluateInput(":input bool yn", codecTestState);
+output = await evaluateInput("yes", codecTestState);
+assert.match(output[0], /yn: YES/);
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");

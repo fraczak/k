@@ -702,6 +702,360 @@
       color: var(--color-prompt);
     }
 
+    /* Codecs Subsystem & Badges */
+    .badge-count {
+      display: inline-block;
+      min-width: 18px;
+      height: 18px;
+      line-height: 16px;
+      text-align: center;
+      padding: 0 5px;
+      border-radius: 9px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(139, 148, 158, 0.2);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+    }
+
+    .badge-count.active {
+      background: rgba(63, 185, 80, 0.2);
+      color: var(--color-green);
+      border-color: rgba(63, 185, 80, 0.4);
+    }
+
+    .codecs-dialog {
+      max-width: 960px;
+      max-height: 90vh;
+    }
+
+    .codecs-body {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .codecs-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .codecs-section-header {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .codecs-section-header h4 {
+      font-size: 14px;
+      color: var(--color-prompt);
+    }
+
+    .section-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .codec-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .codec-card {
+      background: var(--bg-base);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+      transition: border-color 0.15s;
+    }
+
+    .codec-card:hover {
+      border-color: var(--border-focus);
+    }
+
+    .codec-card-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .codec-icon {
+      font-size: 16px;
+    }
+
+    .codec-name {
+      flex: 1;
+      color: #ffffff;
+    }
+
+    .codec-status-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: rgba(139, 148, 158, 0.15);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+    }
+
+    .codec-status-badge.active {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--color-green);
+      border-color: rgba(63, 185, 80, 0.4);
+    }
+
+    .codec-types {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .codec-desc {
+      font-size: 11px;
+      color: var(--text-main);
+      line-height: 1.4;
+    }
+
+    .codec-card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      border-top: 1px solid rgba(48, 54, 61, 0.4);
+      padding-top: 8px;
+    }
+
+    .codec-caps {
+      display: flex;
+      gap: 4px;
+    }
+
+    .cap-badge {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .cap-badge.print {
+      background: rgba(188, 140, 255, 0.15);
+      color: var(--color-purple);
+      border: 1px solid rgba(188, 140, 255, 0.3);
+    }
+
+    .cap-badge.parse {
+      background: rgba(57, 197, 207, 0.15);
+      color: var(--color-cyan);
+      border: 1px solid rgba(57, 197, 207, 0.3);
+    }
+
+    .badge-type {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--color-prompt);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      border: 1px solid rgba(88, 166, 255, 0.25);
+    }
+
+    .badge-type.universal {
+      background: rgba(210, 153, 34, 0.15);
+      color: var(--color-yellow);
+      border-color: rgba(210, 153, 34, 0.3);
+    }
+
+    .codecs-table-container {
+      background: var(--bg-base);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    .codec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .codec-table th {
+      background: var(--bg-subtle);
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .codec-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+      vertical-align: middle;
+    }
+
+    .codec-cell-name {
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .btn-danger {
+      background: rgba(248, 81, 73, 0.1);
+      color: var(--color-red);
+      border-color: rgba(248, 81, 73, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: rgba(248, 81, 73, 0.25);
+      border-color: var(--color-red);
+    }
+
+    .codec-studio-box {
+      background: var(--bg-base);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .studio-top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .studio-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .studio-field label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .studio-field input, .studio-field select {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 12px;
+    }
+
+    .studio-field input:focus, .studio-field select:focus {
+      border-color: var(--border-focus);
+      outline: none;
+    }
+
+    .studio-editors-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 700px) {
+      .studio-editors-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .studio-editor-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .pane-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pane-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .codec-code-area {
+      width: 100%;
+      background: #090d12;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.4;
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    .codec-code-area:focus {
+      border-color: var(--border-focus);
+      outline: none;
+    }
+
+    .studio-test-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      border-top: 1px solid rgba(48, 54, 61, 0.4);
+      padding-top: 10px;
+    }
+
+    .studio-test-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .studio-test-input-wrap label {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .studio-test-input-wrap input {
+      flex: 1;
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 12px;
+    }
+
+    .studio-test-input-wrap input:focus {
+      border-color: var(--border-focus);
+      outline: none;
+    }
+
+    .studio-status-box {
+      font-size: 12px;
+      min-height: 20px;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .navbar {
@@ -750,7 +1104,8 @@
             <optgroup label="Standard Examples">
               <option value="Examples/arithmetics.k">Examples/arithmetics.k</option>
               <option value="Examples/nat.k">Examples/nat.k</option>
-              <option value="Examples/bool.k">Examples/bool.k</option>
+              <option value="Examples/bnat.k">Examples/bnat.k</option>
+              <option value="Examples/ieee.k">Examples/ieee.k</option>
               <option value="Examples/list.k">Examples/list.k</option>
               <option value="Examples/byte.k">Examples/byte.k</option>
               <option value="Examples/esc.k">Examples/esc.k</option>
@@ -768,6 +1123,14 @@
               <option value="expr::rels">:rels</option>
               <option value="expr::val">:val</option>
             </optgroup>
+            <optgroup label="Codecs &amp; Serializers">
+              <option value="expr::codecs">:codecs</option>
+              <option value="expr::codec load int">:codec load int</option>
+              <option value="expr:10 int">10 int</option>
+              <option value="expr::codec load utf8">:codec load utf8</option>
+              <option value="expr::codec load json">:codec load json</option>
+              <option value="expr::codec load ieee">:codec load ieee</option>
+            </optgroup>
           </select>
           <button id="btn-load-example" class="btn btn-primary">Load</button>
         </div>
@@ -780,6 +1143,9 @@
 
         <!-- VFS Explorer -->
         <button id="btn-vfs" class="btn btn-secondary" title="Explore Virtual File System">🗂 Files</button>
+
+        <!-- Codecs Subsystem -->
+        <button id="btn-codecs" class="btn btn-secondary" title="Codecs &amp; Custom Serializers (:codecs)">⚙ Codecs <span id="codecs-count-badge" class="badge-count">0</span></button>
 
         <!-- Clear -->
         <button id="btn-clear" class="btn btn-secondary" title="Clear terminal screen (Ctrl+L)">⌫ Clear</button>
@@ -846,6 +1212,198 @@
       </div>
     </div>
 
+    <!-- Codecs Modal -->
+    <div id="codecs-modal" class="modal">
+      <div class="modal-dialog codecs-dialog">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h3>Codecs &amp; Custom Serializers / Deserializers</h3>
+            <span class="engine-badge">:codecs subsystem</span>
+          </div>
+          <button id="btn-close-codecs" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body codecs-body">
+          <!-- Section 1: Standard Built-in Codecs -->
+          <div class="codecs-section">
+            <div class="codecs-section-header">
+              <h4>Standard Built-in Codecs</h4>
+              <span class="section-subtitle">Click 'Load' to activate bidirectional serialization in the REPL session</span>
+            </div>
+            <div class="codec-grid">
+              <!-- int card -->
+              <div class="codec-card" id="card-codec-int">
+                <div class="codec-card-top">
+                  <div class="codec-card-title">
+                    <span class="codec-icon">🔢</span>
+                    <span class="codec-name">int</span>
+                    <span id="codec-badge-int" class="codec-status-badge">Inactive</span>
+                  </div>
+                  <div class="codec-types">Target: <span class="badge-type">$int</span></div>
+                  <div class="codec-desc">Arbitrary-precision signed integers serialized to/from sign-magnitude bit sequences.</div>
+                </div>
+                <div class="codec-card-footer">
+                  <div class="codec-caps">
+                    <span class="cap-badge print">Serializer</span>
+                    <span class="cap-badge parse">Deserializer</span>
+                  </div>
+                  <button id="btn-toggle-codec-int" class="btn btn-sm btn-primary">Load</button>
+                </div>
+              </div>
+
+              <!-- utf8 card -->
+              <div class="codec-card" id="card-codec-utf8">
+                <div class="codec-card-top">
+                  <div class="codec-card-title">
+                    <span class="codec-icon">🔤</span>
+                    <span class="codec-name">utf8</span>
+                    <span id="codec-badge-utf8" class="codec-status-badge">Inactive</span>
+                  </div>
+                  <div class="codec-types">Target: <span class="badge-type">$list $byte</span></div>
+                  <div class="codec-desc">UTF-8 strings serialized to/from linked lists of 8-bit bytes ($byte).</div>
+                </div>
+                <div class="codec-card-footer">
+                  <div class="codec-caps">
+                    <span class="cap-badge print">Serializer</span>
+                    <span class="cap-badge parse">Deserializer</span>
+                  </div>
+                  <button id="btn-toggle-codec-utf8" class="btn btn-sm btn-primary">Load</button>
+                </div>
+              </div>
+
+              <!-- json card -->
+              <div class="codec-card" id="card-codec-json">
+                <div class="codec-card-top">
+                  <div class="codec-card-title">
+                    <span class="codec-icon">📋</span>
+                    <span class="codec-name">json</span>
+                    <span id="codec-badge-json" class="codec-status-badge">Inactive</span>
+                  </div>
+                  <div class="codec-types">Target: <span class="badge-type universal">Universal (*)</span></div>
+                  <div class="codec-desc">Arbitrary algebraic products and variants mapped to standard JSON objects and values.</div>
+                </div>
+                <div class="codec-card-footer">
+                  <div class="codec-caps">
+                    <span class="cap-badge print">Serializer</span>
+                    <span class="cap-badge parse">Deserializer</span>
+                  </div>
+                  <button id="btn-toggle-codec-json" class="btn btn-sm btn-primary">Load</button>
+                </div>
+              </div>
+
+              <!-- ieee card -->
+              <div class="codec-card" id="card-codec-ieee">
+                <div class="codec-card-top">
+                  <div class="codec-card-title">
+                    <span class="codec-icon">🧮</span>
+                    <span class="codec-name">ieee</span>
+                    <span id="codec-badge-ieee" class="codec-status-badge">Inactive</span>
+                  </div>
+                  <div class="codec-types">Target: <span class="badge-type">$float</span></div>
+                  <div class="codec-desc">IEEE 754 floating point numbers serialized to sign, exponent, and mantissa fields.</div>
+                </div>
+                <div class="codec-card-footer">
+                  <div class="codec-caps">
+                    <span class="cap-badge print">Serializer</span>
+                    <span class="cap-badge parse">Deserializer</span>
+                  </div>
+                  <button id="btn-toggle-codec-ieee" class="btn btn-sm btn-primary">Load</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Active Registered Codecs -->
+          <div class="codecs-section">
+            <div class="codecs-section-header">
+              <h4>Active Registered Codecs in Current Session</h4>
+              <span class="section-subtitle">Active codecs intercept evaluation formatting and :input commands</span>
+            </div>
+            <div class="codecs-table-container">
+              <table class="codec-table">
+                <thead>
+                  <tr>
+                    <th>Codec Name</th>
+                    <th>Target Type Binding</th>
+                    <th>Capabilities</th>
+                    <th>Source</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="active-codecs-tbody">
+                  <!-- dynamically populated by renderCodecsModal() -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Section 3: Custom Codec Studio -->
+          <div class="codecs-section">
+            <div class="codecs-section-header">
+              <h4>Custom Serializer &amp; Deserializer Studio</h4>
+              <span class="section-subtitle">Create and test custom domain formats (e.g. Yes/No booleans, Hex, Currency, Dates)</span>
+            </div>
+
+            <div class="codec-studio-box">
+              <div class="studio-top-bar">
+                <div class="studio-field">
+                  <label for="codec-preset-select">Preset Template:</label>
+                  <select id="codec-preset-select">
+                    <option value="yn">Yes / No ($bool)</option>
+                    <option value="hex">Hexadecimal 0x... ($int)</option>
+                    <option value="currency">Currency $XX.YY ($int cents)</option>
+                    <option value="blank">Blank / Custom</option>
+                  </select>
+                </div>
+
+                <div class="studio-field">
+                  <label for="codec-custom-name">Codec Name:</label>
+                  <input type="text" id="codec-custom-name" placeholder="e.g. yn" value="yn">
+                </div>
+
+                <div class="studio-field" style="flex: 1;">
+                  <label for="codec-custom-type">Target Type:</label>
+                  <select id="codec-custom-type">
+                    <!-- populated dynamically from state.typeAliases -->
+                  </select>
+                </div>
+              </div>
+
+              <div class="studio-editors-grid">
+                <div class="studio-editor-pane">
+                  <div class="pane-title">
+                    <span class="cap-badge parse">Deserializer (parse)</span>
+                    <span class="pane-hint"><code>(text, context) =&gt; Value</code></span>
+                  </div>
+                  <textarea id="codec-custom-parse" class="codec-code-area" spellcheck="false" rows="7"></textarea>
+                </div>
+
+                <div class="studio-editor-pane">
+                  <div class="pane-title">
+                    <span class="cap-badge print">Serializer (print)</span>
+                    <span class="pane-hint"><code>(value, context) =&gt; string</code></span>
+                  </div>
+                  <textarea id="codec-custom-print" class="codec-code-area" spellcheck="false" rows="7"></textarea>
+                </div>
+              </div>
+
+              <div class="studio-test-bar">
+                <div class="studio-test-input-wrap">
+                  <label for="codec-test-input">Test Input:</label>
+                  <input type="text" id="codec-test-input" placeholder="e.g. yes or 0xFF or $42.50" value="yes">
+                </div>
+                <button id="btn-test-parse" class="btn btn-secondary btn-sm" title="Test parse function against test input">🧪 Test Parse</button>
+                <button id="btn-test-print" class="btn btn-secondary btn-sm" title="Test print function against current REPL value (:val)">🖨 Test Print</button>
+                <button id="btn-register-codec" class="btn btn-primary btn-sm" title="Register codec in active REPL state">✓ Register in REPL</button>
+                <button id="btn-save-codec-vfs" class="btn btn-secondary btn-sm" title="Export as standalone .mjs file to VFS">💾 Save to VFS</button>
+              </div>
+
+              <div id="codec-studio-status" class="studio-status-box"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Help Modal -->
     <div id="help-modal" class="modal">
       <div class="modal-dialog help-dialog">
@@ -864,6 +1422,11 @@
               <tr><td><code>:rel &lt;name&gt; = expr</code></td><td>Define a relation alias</td></tr>
               <tr><td><code>:codes</code></td><td>List all type aliases</td></tr>
               <tr><td><code>:rels</code></td><td>List all relation aliases</td></tr>
+              <tr><td><code>:codecs</code></td><td>List all loaded codecs / serializers</td></tr>
+              <tr><td><code>:codec load &lt;name|file&gt;</code></td><td>Load a built-in codec (<code>int</code>, <code>utf8</code>, <code>json</code>, <code>ieee</code>) or file</td></tr>
+              <tr><td><code>:codec define n t b</code></td><td>Define inline custom codec: <code>name type { parse: ..., print: ... }</code></td></tr>
+              <tr><td><code>:codec unload &lt;name&gt;</code></td><td>Unload a registered codec</td></tr>
+              <tr><td><code>:input &lt;type&gt; [codec]</code></td><td>Read next input line using specified codec</td></tr>
               <tr><td><code>:val</code></td><td>Print current accumulator value</td></tr>
               <tr><td><code>:klib &lt;file&gt;</code></td><td>Export current state as a <code>.klib</code> binary file</td></tr>
               <tr><td><code>:reset</code></td><td>Clear state and reset to initial environment</td></tr>
@@ -930,8 +1493,8 @@ var __commonJS = (cb, mod) => function __require() {
   }
 };
 var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+  for (var name5 in all)
+    __defProp(target, name5, { get: all[name5], enumerable: true });
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -1548,7 +2111,303 @@ bool
       "Examples/list.k": "list? = ?< {} nil, {X car, Y cdr} cons > = Y;\nnil = {} |nil list?;\nsingleton = {() car, nil cdr} | cons list?;\ncons = {.car car, .cdr cdr} | cons list?;\nnil? = list? /nil nil;\ncar = list? /cons .car;\ncdr = list? /cons .cdr;\n",
       "Examples/nat.k": "$ nat = < {} 0, nat +1 >;\n0 = {} | 0 ;\n0? = $ nat { / 0 if, () then} .then;\nsucc = | +1 $ nat ;\npred = $nat / +1 ;\nadd = ?{ $nat x, ... } = X <{.x pred x, .y succ y} ?X add, .y> ;\nmult = <\n    {{.x pred x, .y y} mult x, .y y} add,\n    0\n> ;\n\nsucc {()x,()y} add\n",
       "Examples/poly.k": "-- Examples/poly.k: Polymorphic list functions in k\n-- Uses list constructors/destructors from Examples/list.k\n-- and arbitrary-precision integer representations from Examples/arithmetics.k.\n\n-- Decrement an integer and normalize its representation (stripping leading zeros)\npred_int = dec /'+' nat | '+';\n\n-- Concatenate two lists: {xs, ys} -> list\nconcat = {.xs reverse xs, .ys acc} _reverse;\n\n-- Reverse a list: xs -> list\nreverse = {() xs, nil acc} _reverse;\n_reverse = <\n  {.xs cdr xs, {.xs car car, .acc cdr} cons acc} _reverse,\n  .acc\n>;\n\n-- Length of a list: xs -> int\nlength = {() xs, 0 int acc} _length;\n_length = <\n  {.xs /nil if, .acc then} .then,\n  {.xs cdr xs, .acc inc acc} _length\n>;\n\n-- Get N-th element of a list (0-indexed): {n, xs} -> element\nget_nth = <\n  {.n zero_int? if, .xs car then} .then,\n  {.n pred_int n, .xs cdr xs} get_nth\n>;\n\n-- Split list at index N: {n, xs} -> {first, second}\nsplit_by = {.n n, .xs xs, nil acc} _split_by;\n_split_by = <\n  {.n zero_int? if, {.acc reverse first, .xs second} then} .then,\n  {.xs /nil if, {.acc reverse first, nil second} then} .then,\n  {.n pred_int n, .xs cdr xs, {.xs car car, .acc cdr} cons acc} _split_by\n>;\n\n-- Take the first N elements of a list: {n, xs} -> list\ntake = split_by .first;\n\n-- Drop the first N elements of a list: {n, xs} -> list\ndrop = <\n  {.n zero_int? if, .xs then} .then,\n  {.xs /nil if, nil then} .then,\n  {.n pred_int n, .xs cdr xs} drop\n>;\n\n-- Repeat element X, N times: {n, x} -> list\nrepeat = {.n n, .x x, nil acc} _repeat;\n_repeat = <\n  {.n zero_int? if, .acc then} .then,\n  {.n pred_int n, .x x, {.x car, .acc cdr} cons acc} _repeat\n>;\n\n-- Append an element to the end of a list: {x, xs} -> list\nappend = {.xs xs, {.x car, nil cdr} cons ys} concat;\n\n-- Zip two lists into a list of {x, y} pairs: {xs, ys} -> list\nzip = <\n  {.xs /nil if, nil then} .then,\n  {.ys /nil if, nil then} .then,\n  {\n    {.xs car x, .ys car y} car,\n    {.xs cdr xs, .ys cdr ys} zip cdr\n  } cons\n>;\n",
-      "Examples/vhdl_to_k.k": '-- VHDL to K Translation Patterns\n\n-- VHDL: signal a : std_logic;\n-- K:    $ bit = <{} 0, {} 1>;\n\n-- VHDL: signal bus : std_logic_vector(7 downto 0);\n-- K:    $ byte = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7};\n\n-- VHDL: entity adder is port(a,b: in std_logic; sum: out std_logic); end;\n-- K:    adder = ${bit a, bit b} {.a a_out, .b b_out, xor_gate sum_out};\n\n-- VHDL: process(clk) begin if rising_edge(clk) then q <= d; end if; end;\n-- K:    dff = $bit .;  -- Identity (register holds value)\n\n-- VHDL: y <= a and b;\n-- K:    and_gate = ${bit a, bit b} <{.a.1 1, .b.1 1, 1}, 0>;\n\n-- VHDL: y <= a or b;  \n-- K:    or_gate = ${bit a, bit b} <{.a.0 0, .b.0 0, 0}, 1>;\n\n-- VHDL: y <= not a;\n-- K:    not_gate = $bit <{.0 0, 1}, {.1 1, 0}>;\n\n-- VHDL: with sel select y <= a when "00", b when "01", c when others;\n-- K:    mux = ${bit sel0, bit sel1, bit a, bit b, bit c} <\n--             {.sel0.0 0, .sel1.0 0, .a},\n--             {.sel0.1 1, .sel1.0 0, .b}, \n--             .c>;\n\n-- VHDL: architecture of 4-bit adder\nfour_bit_adder = ${\n  {bit 0, bit 1, bit 2, bit 3} a,\n  {bit 0, bit 1, bit 2, bit 3} b\n} {\n  {.a.0 a0, .b.0 b0} full_adder fa0,\n  {.a.1 a1, .b.1 b1, .fa0.carry c_in} full_adder fa1,\n  {.a.2 a2, .b.2 b2, .fa1.carry c_in} full_adder fa2,\n  {.a.3 a3, .b.3 b3, .fa2.carry c_in} full_adder fa3,\n  {.fa0.sum 0, .fa1.sum 1, .fa2.sum 2, .fa3.sum 3} sum,\n  .fa3.carry overflow\n};\n\n-- VHDL: Full adder component\nfull_adder = ${bit a, bit b, bit c_in} {\n  {.a a_val, .b b_val} xor_gate ab_xor,\n  {.ab_xor xor_val, .c_in c_val} xor_gate sum,\n  {.a a_val, .b b_val} and_gate ab_and,\n  {.ab_xor xor_val, .c_in c_val} and_gate xor_cin_and,\n  {.ab_and and1, .xor_cin_and and2} or_gate carry\n};'
+      "Examples/vhdl_to_k.k": '-- VHDL to K Translation Patterns\n\n-- VHDL: signal a : std_logic;\n-- K:    $ bit = <{} 0, {} 1>;\n\n-- VHDL: signal bus : std_logic_vector(7 downto 0);\n-- K:    $ byte = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7};\n\n-- VHDL: entity adder is port(a,b: in std_logic; sum: out std_logic); end;\n-- K:    adder = ${bit a, bit b} {.a a_out, .b b_out, xor_gate sum_out};\n\n-- VHDL: process(clk) begin if rising_edge(clk) then q <= d; end if; end;\n-- K:    dff = $bit .;  -- Identity (register holds value)\n\n-- VHDL: y <= a and b;\n-- K:    and_gate = ${bit a, bit b} <{.a.1 1, .b.1 1, 1}, 0>;\n\n-- VHDL: y <= a or b;  \n-- K:    or_gate = ${bit a, bit b} <{.a.0 0, .b.0 0, 0}, 1>;\n\n-- VHDL: y <= not a;\n-- K:    not_gate = $bit <{.0 0, 1}, {.1 1, 0}>;\n\n-- VHDL: with sel select y <= a when "00", b when "01", c when others;\n-- K:    mux = ${bit sel0, bit sel1, bit a, bit b, bit c} <\n--             {.sel0.0 0, .sel1.0 0, .a},\n--             {.sel0.1 1, .sel1.0 0, .b}, \n--             .c>;\n\n-- VHDL: architecture of 4-bit adder\nfour_bit_adder = ${\n  {bit 0, bit 1, bit 2, bit 3} a,\n  {bit 0, bit 1, bit 2, bit 3} b\n} {\n  {.a.0 a0, .b.0 b0} full_adder fa0,\n  {.a.1 a1, .b.1 b1, .fa0.carry c_in} full_adder fa1,\n  {.a.2 a2, .b.2 b2, .fa1.carry c_in} full_adder fa2,\n  {.a.3 a3, .b.3 b3, .fa2.carry c_in} full_adder fa3,\n  {.fa0.sum 0, .fa1.sum 1, .fa2.sum 2, .fa3.sum 3} sum,\n  .fa3.carry overflow\n};\n\n-- VHDL: Full adder component\nfull_adder = ${bit a, bit b, bit c_in} {\n  {.a a_val, .b b_val} xor_gate ab_xor,\n  {.ab_xor xor_val, .c_in c_val} xor_gate sum,\n  {.a a_val, .b b_val} and_gate ab_and,\n  {.ab_xor xor_val, .c_in c_val} and_gate xor_cin_and,\n  {.ab_and and1, .xor_cin_and and2} or_gate carry\n};',
+      "codecs/example-pipeline.mjs": `#!/usr/bin/env node
+/**
+ * Example: Demonstrating the codec pipeline
+ * 
+ * Shows how to:
+ * 1. Define types with canonical names
+ * 2. Create values
+ * 3. Encode to binary
+ * 4. Pass through "compiled program" (identity)
+ * 5. Decode from binary
+ * 6. Print result
+ */
+
+import { deriveClosedPattern } from './runtime/codec.mjs';
+import { encodeToWire, decodeWire } from './runtime/prefix-codec.mjs';
+import { patternToPropertyList } from './runtime/pattern-json.mjs';
+import { Value, isVariant } from '../Value.mjs';
+import hash from '../hash.mjs';
+import { argv, exit } from 'node:process';
+
+function usage() {
+  console.log(\`Usage: \${argv[1]}\`);
+  console.log("       Run a self-contained demonstration of the codec pipeline.");
+  console.log("");
+  console.log("Options:");
+  console.log("  -h, --help   Show this help.");
+}
+
+if (argv.slice(2).includes("-h") || argv.slice(2).includes("--help")) {
+  usage();
+  exit(0);
+}
+
+console.log('=== K Codec Pipeline Example ===\\n');
+
+// ============================================================================
+// Step 1: Define types (normally from compiler)
+// ============================================================================
+
+const types = {};
+
+// Unit: {}
+const unitDef = { code: 'product', product: {} };
+const unitName = hash('$C0={};');
+types[unitName] = unitDef;
+
+// Bool: <{} false, {} true>
+const boolDef = {
+  code: 'union',
+  union: { false: unitName, true: unitName }
+};
+const boolName = hash(\`$C0=<\${unitName}"false",\${unitName}"true">;\`);
+types[boolName] = boolDef;
+
+// Maybe: <{} nothing, Bool something>
+const maybeDef = {
+  code: 'union',
+  union: { nothing: unitName, something: boolName }
+};
+const maybeName = hash(
+  \`$C0=<\${unitName}"nothing",\${boolName}"something">;\`
+);
+types[maybeName] = maybeDef;
+
+console.log('Types defined:');
+console.log('  unit:', unitName);
+console.log('  bool:', boolName);
+console.log('  maybe:', maybeName);
+console.log();
+
+// ============================================================================
+// Step 2: Type resolver
+// ============================================================================
+
+function resolveType(typeName) {
+  const def = types[typeName];
+  if (!def) {
+    throw new Error(\`Unknown type: \${typeName}\`);
+  }
+  return def;
+}
+
+// ============================================================================
+// Step 3: Create input value: Maybe Bool = something(true)
+// ============================================================================
+
+const inputValue = Value.variant(
+  'something',
+  Value.variant('true', Value.product({}))
+);
+
+console.log('Input value:', inputValue.toString());
+console.log();
+
+const maybePattern = patternToPropertyList(
+  deriveClosedPattern(maybeName, maybeDef, resolveType)
+);
+
+// ============================================================================
+// Step 4: Parse (TEXT \u2192 BINARY)
+// ============================================================================
+
+console.log('--- PARSE (text \u2192 binary) ---');
+const binaryInput = encodeToWire(inputValue, maybePattern);
+console.log('Binary size:', binaryInput.length, 'bytes');
+console.log('  Bytes:', binaryInput.toString('hex'));
+console.log();
+
+// ============================================================================
+// Step 5: Compiled k-program (BINARY \u2192 BINARY)
+// ============================================================================
+
+console.log('--- COMPILED PROGRAM (binary \u2192 binary) ---');
+
+// Simulate a compiled k-program: decode \u2192 transform \u2192 encode
+const { value: programInput } = decodeWire(binaryInput);
+
+console.log('Program sees value:', programInput.toString());
+
+// Example transformation: NOT operation (flip bool inside Maybe)
+let programOutput;
+if (isVariant(programInput) && programInput.tag === 'something') {
+  const innerBool = programInput.value;
+  if (isVariant(innerBool)) {
+    const flipped = Value.variant(
+      innerBool.tag === 'true' ? 'false' : 'true',
+      innerBool.value
+    );
+    programOutput = Value.variant('something', flipped);
+  }
+} else {
+  programOutput = programInput; // nothing \u2192 nothing
+}
+
+console.log('Program output value:', programOutput.toString());
+
+// Encode output
+const binaryOutput = encodeToWire(programOutput, maybePattern);
+
+console.log('Binary output size:', binaryOutput.length, 'bytes');
+console.log('  Bytes:', binaryOutput.toString('hex'));
+console.log();
+
+// ============================================================================
+// Step 6: Print (BINARY \u2192 TEXT)
+// ============================================================================
+
+console.log('--- PRINT (binary \u2192 text) ---');
+const { value: finalValue } = decodeWire(binaryOutput);
+
+console.log('Output value:', finalValue.toString());
+console.log();
+
+// ============================================================================
+// Summary
+// ============================================================================
+
+console.log('=== Pipeline Summary ===');
+console.log('Input:  ', inputValue.toString(), '(true inside Maybe)');
+console.log('Transform: NOT operation on inner bool');
+console.log('Output: ', finalValue.toString(), '(false inside Maybe)');
+console.log();
+console.log('Binary representations are canonical and type-safe!');
+`,
+      "codecs/ieee.mjs": '#!/usr/bin/env node\n\nimport { stdin, stdout, argv, exit } from "node:process";\nimport { Value, isProduct, isVariant } from "../Value.mjs";\nimport { isMainEntrypoint } from "./runtime/cli-entry.mjs";\nimport { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";\nimport { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";\nconst UNIT = Value.product({});\nconst name = "ieee";\nconst patterns = [FLOAT64_PATTERN];\n\nfunction usage(stream = console.error) {\n  stream(`Usage: ${argv[1]} --parse | --print`);\n  stream("  --parse      Read a float literal from stdin, write binary pattern+value stream.");\n  stream("  --print      Read binary pattern+value stream from stdin, write a float literal.");\n  stream("  -h, --help   Show this help.");\n}\n\nfunction bitValue(bit) {\n  return Value.variant(bit === 0 ? "0" : "1", UNIT);\n}\n\nfunction bitsProduct(width, value) {\n  const big = BigInt(value);\n  const product = {};\n  for (let i = width - 1; i >= 0; i--) {\n    product[String(i)] = bitValue(Number((big >> BigInt(i)) & 1n));\n  }\n  return Value.product(product);\n}\n\nfunction encodeNumberToValue(number) {\n  const buf = Buffer.alloc(8);\n  buf.writeDoubleBE(number, 0);\n  const bits = buf.readBigUInt64BE(0);\n  const sign = Number((bits >> 63n) & 1n);\n  const exponent = Number((bits >> 52n) & 0x7ffn);\n  const fraction = bits & ((1n << 52n) - 1n);\n\n  return Value.product({\n    sign: Value.variant(sign === 0 ? "+" : "-", UNIT),\n    exponent: bitsProduct(11, exponent),\n    fraction: bitsProduct(52, fraction)\n  });\n}\n\nfunction requireProduct(value, where) {\n  if (!isProduct(value)) {\n    throw new Error(`${where}: expected Product`);\n  }\n  return value.product;\n}\n\nfunction requireVariant(value, where) {\n  if (!isVariant(value)) {\n    throw new Error(`${where}: expected Variant`);\n  }\n  return value;\n}\n\nfunction parseBitsProduct(value, maxBit, where) {\n  const product = requireProduct(value, where);\n  let n = 0n;\n  for (let i = maxBit; i >= 0; i--) {\n    const entry = requireVariant(product[String(i)], `${where}.bit${i}`);\n    if (entry.tag !== "0" && entry.tag !== "1") {\n      throw new Error(`${where}.bit${i}: expected tag 0 or 1`);\n    }\n    n = (n << 1n) | BigInt(entry.tag === "1" ? 1 : 0);\n  }\n  return n;\n}\n\nfunction decodeValueToNumber(value) {\n  const product = requireProduct(value, "float64");\n  const sign = requireVariant(product.sign, "float64.sign");\n  if (sign.tag !== "+" && sign.tag !== "-") {\n    throw new Error(`float64.sign: expected + or -, got ${sign.tag}`);\n  }\n  const exponent = parseBitsProduct(product.exponent, 10, "float64.exponent");\n  const fraction = parseBitsProduct(product.fraction, 51, "float64.fraction");\n\n  const bits =\n    (BigInt(sign.tag === "-" ? 1 : 0) << 63n) |\n    (exponent << 52n) |\n    fraction;\n\n  const buf = Buffer.alloc(8);\n  buf.writeBigUInt64BE(bits, 0);\n  return buf.readDoubleBE(0);\n}\n\nfunction parseFloatText(text) {\n  const trimmed = text.trim();\n  if (trimmed === "") {\n    throw new Error("Expected a floating-point literal");\n  }\n\n  if (/^[+-]?nan$/i.test(trimmed)) return NaN;\n  if (/^[+]?inf(inity)?$/i.test(trimmed)) return Infinity;\n  if (/^-inf(inity)?$/i.test(trimmed)) return -Infinity;\n\n  const value = Number(trimmed);\n  if (Number.isNaN(value)) {\n    throw new Error(`Invalid floating-point literal: ${JSON.stringify(trimmed)}`);\n  }\n  return value;\n}\n\nfunction printFloatText(number) {\n  if (Number.isNaN(number)) return "NaN";\n  if (number === Infinity) return "Infinity";\n  if (number === -Infinity) return "-Infinity";\n  if (Object.is(number, -0)) return "-0";\n  return String(number);\n}\n\nfunction parse(text) {\n  return encodeNumberToValue(parseFloatText(text));\n}\n\nfunction print(value) {\n  return printFloatText(decodeValueToNumber(value));\n}\n\nfunction readAll(stream) {\n  return new Promise((resolve, reject) => {\n    const chunks = [];\n    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));\n    stream.on("end", () => resolve(Buffer.concat(chunks)));\n    stream.on("error", reject);\n  });\n}\n\nasync function main() {\n  const args = argv.slice(2);\n  if (args.includes("-h") || args.includes("--help")) {\n    usage(console.log);\n    exit(0);\n  }\n\n  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {\n    usage();\n    exit(1);\n  }\n\n  const buf = await readAll(stdin);\n\n  if (args[0] === "--parse") {\n    const value = encodeNumberToValue(parseFloatText(buf.toString("utf8")));\n    stdout.write(encodeToWire(value, FLOAT64_PATTERN));\n  } else {\n    const { value } = decodeWire(buf);\n    stdout.write(`${printFloatText(decodeValueToNumber(value))}\\n`);\n  }\n}\n\nif (isMainEntrypoint(import.meta.url, argv[1])) {\n  main().catch((error) => {\n    console.error(error.message || String(error));\n    exit(1);\n  });\n}\n\nexport { FLOAT64_PATTERN, name, patterns, parse, print };\n',
+      "codecs/int.mjs": `#!/usr/bin/env node
+
+/**
+ * int: parse/print integers in the k 'int' binary pattern+value stream.
+ *
+ * $ bits = < {} _, bits 0, bits 1 >;
+ * $ int  = < bits '+', bits '-' >;
+ *
+ * Bits are stored MSB-outermost (remove_leading_zeros strips outermost 0s).
+ *
+ * Usage:
+ *   echo "-21"  | int.mjs --parse   # decimal \u2192 binary pattern+value stream
+ *   <wire>      | int.mjs --print   # binary pattern+value stream \u2192 decimal
+ */
+
+import { stdin, stdout, argv, exit } from "node:process";
+import { Value, isVariant } from "../Value.mjs";
+import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
+import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
+
+function usage(stream = console.error) {
+  stream(\`Usage: \${argv[1]} --parse | --print\`);
+  stream("  --parse      Read a decimal integer from stdin, write binary pattern+value stream.");
+  stream("  --print      Read binary pattern+value stream from stdin, write decimal integer.");
+  stream("  -h, --help   Show this help.");
+}
+
+// Closed pattern for $ int = < bits '+', bits '-' >
+// with $ bits = < {} _, bits 0, bits 1 >
+const INT_PATTERN = [
+  ["closed-union", [["+", 1], ["-", 1]]],
+  ["closed-union", [["0", 1], ["1", 1], ["_", 2]]],
+  ["closed-product", []]
+];
+const name = "int";
+const patterns = [INT_PATTERN];
+
+function readAll(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+
+// Build bits Value (MSB outermost) from a non-negative BigInt.
+function buildBits(n) {
+  const bitChars = n === 0n ? ["0"] : n.toString(2).split("");
+  let v = Value.variant("_", Value.product({}));
+  for (let i = bitChars.length - 1; i >= 0; i--) {
+    v = Value.variant(bitChars[i], v);
+  }
+  return v;
+}
+
+// Parse a decimal integer string ([-+]?[ ]*[1-9][0-9]*|0) into a k int Value.
+function parseIntStr(str) {
+  str = str.trim();
+  let sign = "+";
+  if (str[0] === "-") { sign = "-"; str = str.slice(1).replace(/\\s+/g, ""); }
+  else if (str[0] === "+") { str = str.slice(1).replace(/\\s+/g, ""); }
+  if (!/^(0|[1-9][0-9]*)$/.test(str)) {
+    throw new Error(\`Invalid integer syntax: \${JSON.stringify(str)}\`);
+  }
+  const n = BigInt(str);
+  if (n === 0n) sign = "+"; // zero is always '+'
+  return Value.variant(sign, buildBits(n));
+}
+
+// Walk a decoded int Value (Variant sign \u2192 bits) and return a decimal string.
+function printIntValue(value) {
+  if (!isVariant(value) || (value.tag !== "+" && value.tag !== "-")) {
+    throw new Error("Not a valid k int value");
+  }
+  const sign = value.tag;
+  let bits = "";
+  let node = value.value;
+  while (isVariant(node) && node.tag !== "_") {
+    bits += node.tag;
+    node = node.value;
+  }
+  // bits is MSB-first binary string (may be empty for zero represented as "0")
+  const n = bits === "" ? 0n : BigInt("0b" + bits);
+  const digits = n.toString(10);
+  if (n === 0n) return "0";
+  return (sign === "-" ? "-" : "") + digits;
+}
+
+async function main() {
+  const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage(console.log);
+    exit(0);
+  }
+
+  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
+    usage();
+    exit(1);
+  }
+
+  const buf = await readAll(stdin);
+
+  if (args[0] === "--parse") {
+    const text = buf.toString("utf8").trim();
+    const value = parseIntStr(text);
+    stdout.write(encodeToWire(value, INT_PATTERN));
+  } else {
+    const { value } = decodeWire(buf);
+    stdout.write(printIntValue(value) + "\\n");
+  }
+}
+
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main().catch(err => {
+    console.error(err.message || String(err));
+    exit(1);
+  });
+}
+
+export { INT_PATTERN, name, patterns, parseIntStr as parse, printIntValue as print };
+`,
+      "codecs/json-codec.mjs": 'import { Value, isProduct, isVariant } from "../Value.mjs";\nimport { STRING_PATTERN_PROPERTY_LIST, textToStringValue, stringValueToText } from "./string-codec.mjs";\nimport { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";\n\nconst UNIT = Value.product({});\nconst BOOL_PATTERN = [\n  ["closed-union", [["false", 1], ["true", 1]]],\n  ["closed-product", []]\n];\nconst NULL_PATTERN = [\n  ["closed-union", [["null", 1]]],\n  ["closed-product", []]\n];\n\nfunction bitValue(bit) {\n  return Value.variant(bit === 0 ? "0" : "1", UNIT);\n}\n\nfunction bitsProduct(width, value) {\n  const big = BigInt(value);\n  const product = {};\n  for (let i = width - 1; i >= 0; i--) {\n    product[String(i)] = bitValue(Number((big >> BigInt(i)) & 1n));\n  }\n  return Value.product(product);\n}\n\nfunction encodeNumberToValue(number) {\n  const buf = Buffer.alloc(8);\n  buf.writeDoubleBE(number, 0);\n  const bits = buf.readBigUInt64BE(0);\n  const sign = Number((bits >> 63n) & 1n);\n  const exponent = Number((bits >> 52n) & 0x7ffn);\n  const fraction = bits & ((1n << 52n) - 1n);\n\n  return Value.product({\n    sign: Value.variant(sign === 0 ? "+" : "-", UNIT),\n    exponent: bitsProduct(11, exponent),\n    fraction: bitsProduct(52, fraction)\n  });\n}\n\nfunction requireProduct(value, where) {\n  if (!isProduct(value)) {\n    throw new Error(`${where}: expected Product`);\n  }\n  return value.product;\n}\n\nfunction requireVariant(value, where) {\n  if (!isVariant(value)) {\n    throw new Error(`${where}: expected Variant`);\n  }\n  return value;\n}\n\nfunction parseBitsProduct(value, maxBit, where) {\n  const product = requireProduct(value, where);\n  let n = 0n;\n  for (let i = maxBit; i >= 0; i--) {\n    const entry = requireVariant(product[String(i)], `${where}.bit${i}`);\n    if (entry.tag !== "0" && entry.tag !== "1") {\n      throw new Error(`${where}.bit${i}: expected tag 0 or 1`);\n    }\n    n = (n << 1n) | BigInt(entry.tag === "1" ? 1 : 0);\n  }\n  return n;\n}\n\nfunction decodeValueToNumber(value) {\n  const product = requireProduct(value, "json.number");\n  const sign = requireVariant(product.sign, "json.number.sign");\n  if (sign.tag !== "+" && sign.tag !== "-") {\n    throw new Error(`json.number.sign: expected + or -, got ${sign.tag}`);\n  }\n  const exponent = parseBitsProduct(product.exponent, 10, "json.number.exponent");\n  const fraction = parseBitsProduct(product.fraction, 51, "json.number.fraction");\n\n  const bits =\n    (BigInt(sign.tag === "-" ? 1 : 0) << 63n) |\n    (exponent << 52n) |\n    fraction;\n\n  const buf = Buffer.alloc(8);\n  buf.writeBigUInt64BE(bits, 0);\n  return buf.readDoubleBE(0);\n}\n\nfunction fromJsonValue(value) {\n  if (value === null) {\n    return Value.variant("null", UNIT);\n  }\n  if (typeof value === "boolean") {\n    return Value.variant(value ? "true" : "false", UNIT);\n  }\n  if (typeof value === "number") {\n    if (!Number.isFinite(value)) {\n      throw new Error("JSON numbers must be finite");\n    }\n    return encodeNumberToValue(value);\n  }\n  if (typeof value === "string") {\n    return textToStringValue(value);\n  }\n  if (Array.isArray(value)) {\n    return Value.product(\n      value.reduce((product, item, index) => {\n        product[String(index)] = fromJsonValue(item);\n        return product;\n      }, {})\n    );\n  }\n  if (value && typeof value === "object") {\n    return Value.product(\n      Object.keys(value).reduce((product, key) => {\n        product[key] = fromJsonValue(value[key]);\n        return product;\n      }, {})\n    );\n  }\n  throw new Error(`Unsupported JSON value: ${value}`);\n}\n\nfunction composePattern(kind, entries) {\n  const result = [[kind, []]];\n\n  for (const [label, childPattern] of entries) {\n    const offset = result.length;\n    result[0][1].push([label, offset]);\n    for (const [childKind, childEdges] of childPattern) {\n      result.push([\n        childKind,\n        childEdges.map(([edgeLabel, target]) => [edgeLabel, target + offset])\n      ]);\n    }\n  }\n\n  return result;\n}\n\nfunction patternFromJsonValue(value) {\n  if (value === null) return NULL_PATTERN;\n  if (typeof value === "boolean") return BOOL_PATTERN;\n  if (typeof value === "number") return FLOAT64_PATTERN;\n  if (typeof value === "string") return STRING_PATTERN_PROPERTY_LIST;\n  if (Array.isArray(value)) {\n    return composePattern(\n      "closed-product",\n      value.map((item, index) => [String(index), patternFromJsonValue(item)])\n    );\n  }\n  if (value && typeof value === "object") {\n    return composePattern(\n      "closed-product",\n      Object.keys(value)\n        .sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")))\n        .map((key) => [key, patternFromJsonValue(value[key])])\n    );\n  }\n  throw new Error(`Unsupported JSON value: ${value}`);\n}\n\nfunction toJsonValue(value) {\n  if (isVariant(value)) {\n    if (value.tag === "null") {\n      requireProduct(value.value, "json.null");\n      return null;\n    }\n    if (value.tag === "true") {\n      requireProduct(value.value, "json.true");\n      return true;\n    }\n    if (value.tag === "false") {\n      requireProduct(value.value, "json.false");\n      return false;\n    }\n    return stringValueToText(value);\n  }\n\n  const product = requireProduct(value, "json.value");\n  const keys = Object.keys(product);\n  const isArray = keys.every((key, index) => key === String(index));\n\n  if (isArray) {\n    return keys.map((key) => {\n      const child = product[key];\n      if (isVariant(child)) return toJsonValue(child);\n      if (isProduct(child)) {\n        try {\n          return decodeValueToNumber(child);\n        } catch {}\n      }\n      return toJsonValue(child);\n    });\n  }\n\n  // Distinguish object from number by shape first.\n  const numberKeys = ["exponent", "fraction", "sign"];\n  if (keys.length === numberKeys.length && numberKeys.every((key) => key in product)) {\n    return decodeValueToNumber(value);\n  }\n\n  // Distinguish object from string list by trying the string decoder.\n  try {\n    return stringValueToText(value);\n  } catch {}\n\n  return keys.reduce((result, key) => {\n    result[key] = toJsonValue(product[key]);\n    return result;\n  }, {});\n}\n\nexport { fromJsonValue, toJsonValue, patternFromJsonValue, encodeNumberToValue, decodeValueToNumber, BOOL_PATTERN, NULL_PATTERN };\nexport default { fromJsonValue, toJsonValue, patternFromJsonValue, encodeNumberToValue, decodeValueToNumber, BOOL_PATTERN, NULL_PATTERN };\n',
+      "codecs/json.mjs": '#!/usr/bin/env node\n\nimport { stdin, stdout, argv, exit } from "node:process";\nimport { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";\nimport { isMainEntrypoint } from "./runtime/cli-entry.mjs";\nimport { fromJsonValue, toJsonValue, patternFromJsonValue } from "./json-codec.mjs";\n\nconst name = "json";\nconst universal = true;\n\nfunction usage(stream = console.error) {\n  stream(`Usage: ${argv[1]} --parse | --print`);\n  stream("  --parse      Read JSON from stdin, write binary pattern+value stream.");\n  stream("  --print      Read binary pattern+value stream from stdin, write JSON.");\n  stream("  -h, --help   Show this help.");\n}\n\nfunction readAll(stream) {\n  return new Promise((resolve, reject) => {\n    const chunks = [];\n    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));\n    stream.on("end", () => resolve(Buffer.concat(chunks)));\n    stream.on("error", reject);\n  });\n}\n\nfunction parse(text) {\n  return fromJsonValue(JSON.parse(text));\n}\n\nfunction print(value) {\n  return JSON.stringify(toJsonValue(value));\n}\n\nasync function main() {\n  const args = argv.slice(2);\n  if (args.includes("-h") || args.includes("--help")) {\n    usage(console.log);\n    exit(0);\n  }\n\n  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {\n    usage();\n    exit(1);\n  }\n\n  const buf = await readAll(stdin);\n\n  if (args[0] === "--parse") {\n    const text = buf.toString("utf8");\n    const json = JSON.parse(text);\n    const value = fromJsonValue(json);\n    stdout.write(encodeToWire(value, patternFromJsonValue(json)));\n  } else {\n    const { value } = decodeWire(buf);\n    stdout.write(`${print(value)}\\n`);\n  }\n}\n\nif (isMainEntrypoint(import.meta.url, argv[1])) {\n  main().catch((error) => {\n    console.error(error.stack || error.message || String(error));\n    exit(1);\n  });\n}\n\nexport { name, universal, parse, print };\n',
+      "codecs/k-parse.mjs": '#!/usr/bin/env node\n\nimport fs from "node:fs";\nimport { argv, stdin, exit, stdout } from "node:process";\nimport k from "../index.mjs";\nimport { parseValue } from "../valueIO.mjs";\nimport { isMainEntrypoint } from "./runtime/cli-entry.mjs";\nimport { exportPatternGraph } from "./runtime/codec.mjs";\nimport { patternToPropertyList } from "./runtime/pattern-json.mjs";\nimport { encodeToWire } from "./runtime/prefix-codec.mjs";\n\nfunction usage(prog) {\n  console.error(`Usage: ${prog} [--input-type <type-script|type-file> | --input-pattern <pattern-script|pattern-file>] [value-file]`);\n  console.error("  Parse a textual k value and emit the self-hosted binary pattern+value stream.");\n  console.error("  If no pattern or type is provided, derive a closed pattern from the value.");\n}\n\nfunction maybeReadFile(s) {\n  if (!s) return s;\n  if (fs.existsSync(s) && fs.statSync(s).isFile()) {\n    return fs.readFileSync(s, "utf8");\n  }\n  return s;\n}\n\nfunction readAll(stream) {\n  return new Promise((resolve, reject) => {\n    const chunks = [];\n    stream.on("data", (chunk) => chunks.push(chunk));\n    stream.on("end", () => resolve(Buffer.concat(chunks.map((c) => Buffer.isBuffer(c) ? c : Buffer.from(c)))));\n    stream.on("error", reject);\n  });\n}\n\nfunction propertyListFromScript(script) {\n  const annotated = k.annotate(script);\n  const mainRel = annotated.rels.__main__;\n  if (!mainRel || !mainRel.typePatternGraph) {\n    throw new Error("Could not resolve __main__ relation");\n  }\n  if (mainRel.def.op !== "filter" && mainRel.def.op !== "code") {\n    throw new Error("Input script must end with a filter or a type name");\n  }\n  const rootPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);\n  const pattern = exportPatternGraph(mainRel.typePatternGraph, rootPatternId);\n  return patternToPropertyList(pattern);\n}\n\nasync function main() {\n  const prog = argv[1];\n  const args = argv.slice(2);\n\n  if (args.includes("-h") || args.includes("--help")) {\n    usage(prog);\n    return exit(0);\n  }\n\n  let inputTypeArg = null;\n  let inputPatternArg = null;\n  let valueFile = null;\n\n  for (let i = 0; i < args.length; i++) {\n    if (args[i] === "--input-type") {\n      inputTypeArg = args[++i];\n    } else if (args[i] === "--input-pattern") {\n      inputPatternArg = args[++i];\n    } else if (valueFile == null) {\n      valueFile = args[i];\n    } else {\n      usage(prog);\n      return exit(1);\n    }\n  }\n\n  if (inputTypeArg != null && inputPatternArg != null) {\n    usage(prog);\n    return exit(1);\n  }\n\n  const inputBuffer = valueFile ? fs.readFileSync(valueFile) : await readAll(stdin);\n  const inputText = inputBuffer.toString("utf8");\n  const value = parseValue(inputText, null, null);\n\n  const propertyList = (() => {\n    if (inputTypeArg != null) return propertyListFromScript(maybeReadFile(inputTypeArg));\n    if (inputPatternArg != null) return propertyListFromScript(maybeReadFile(inputPatternArg));\n    return null;\n  })();\n\n  stdout.write(encodeToWire(value, propertyList));\n}\n\nif (isMainEntrypoint(import.meta.url, argv[1])) {\n  main().catch((error) => {\n    console.error(error.stack || error.message || String(error));\n    process.exit(1);\n  });\n}\n',
+      "codecs/k-print.mjs": '#!/usr/bin/env node\n\nimport fs from "node:fs";\nimport { argv, stdin, stdout } from "node:process";\nimport { isMainEntrypoint } from "./runtime/cli-entry.mjs";\nimport { decodeWire } from "./runtime/prefix-codec.mjs";\n\nfunction usage(stream = console.error) {\n  stream(`Usage: ${argv[1]} [--debug] [file]`);\n  stream("  Read a binary pattern+value stream and print the decoded textual value.");\n  stream("");\n  stream("Options:");\n  stream("  --debug      Print decoded pattern and value as JSON.");\n  stream("  -h, --help   Show this help.");\n}\n\nfunction readAll(stream) {\n  return new Promise((resolve, reject) => {\n    const chunks = [];\n    stream.on("data", (chunk) => chunks.push(chunk));\n    stream.on("end", () => resolve(Buffer.concat(chunks.map((c) => Buffer.isBuffer(c) ? c : Buffer.from(c)))));\n    stream.on("error", reject);\n  });\n}\n\nasync function main() {\n  const args = argv.slice(2);\n  if (args.includes("-h") || args.includes("--help")) {\n    usage(console.log);\n    return;\n  }\n\n  let debug = false;\n  let fileArg = null;\n\n  for (const arg of args) {\n    if (arg === "--debug") {\n      debug = true;\n    } else if (fileArg == null) {\n      fileArg = arg;\n    } else {\n      usage();\n      process.exit(1);\n    }\n  }\n\n  const input = fileArg ? fs.createReadStream(fileArg) : stdin;\n  const buffer = await readAll(input);\n  const { pattern, value } = decodeWire(buffer);\n\n  if (debug) {\n    stdout.write(`${JSON.stringify({ pattern, value })}\\n`);\n    return;\n  }\n\n  stdout.write(`${JSON.stringify(value)}\\n`);\n}\n\nif (isMainEntrypoint(import.meta.url, argv[1])) {\n  main().catch((error) => {\n    console.error(error.stack || error.message || String(error));\n    process.exit(1);\n  });\n}\n',
+      "codecs/show.mjs": '#!/usr/bin/env node\n\nimport fs from "node:fs";\nimport { argv, stdin, stdout, stderr } from "node:process";\nimport { isMainEntrypoint } from "./runtime/cli-entry.mjs";\nimport { decodeWire } from "./runtime/prefix-codec.mjs";\nimport { propertyListToFilter, valueToK } from "./runtime/show-value.mjs";\n\nfunction usage(stream = console.error) {\n  stream(`Usage: ${argv[1]} [wire-file]`);\n  stream("  Pass the wire stream through unchanged on stdout.");\n  stream("  Print the decoded value and filter to stderr.");\n  stream("");\n  stream("Options:");\n  stream("  -h, --help   Show this help.");\n}\n\nfunction readAll(stream) {\n  return new Promise((resolve, reject) => {\n    const chunks = [];\n    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));\n    stream.on("end", () => resolve(Buffer.concat(chunks)));\n    stream.on("error", reject);\n  });\n}\n\nasync function main() {\n  const args = argv.slice(2);\n  if (args.includes("-h") || args.includes("--help")) {\n    usage(console.log);\n    return;\n  }\n\n  let fileArg = null;\n  for (const arg of args) {\n    if (fileArg == null) fileArg = arg;\n    else { usage(); process.exit(1); }\n  }\n\n  const buffer = fileArg ? fs.readFileSync(fileArg) : await readAll(stdin);\n\n  // forward unchanged to stdout\n  stdout.write(buffer);\n\n  // decode and print: value filter\n  const { pattern, value } = decodeWire(buffer);\n\n  const valueStr = valueToK(value);\n  const filterStr = propertyListToFilter(pattern);\n  stderr.write(`${valueStr} ?${filterStr}\\n`);\n}\n\nif (isMainEntrypoint(import.meta.url, argv[1])) {\n  main().catch((error) => {\n    console.error(error.stack || error.message || String(error));\n    process.exit(1);\n  });\n}\n',
+      "codecs/string-codec.mjs": 'import { NODE_KIND } from "./runtime/codec.mjs";\nimport { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";\nimport { patternToPropertyList } from "./runtime/pattern-json.mjs";\nimport { textToStringValue, stringValueToText } from "./runtime/unicode-string.mjs";\n\nconst STRING_PATTERN = {\n  dictionary: [\n    "0", "1", "10",\n    "ascii", "bmp_common", "bmp_private_use",\n    "car", "cdr", "cons",\n    "h08_0F", "h10_7F", "h80_CF", "hD0_D7", "hE0_EF", "hF0_F7", "hF8", "hF9", "hFA_FB", "hFC_FD", "hFE_FF",\n    "hi",\n    "lo",\n    "mid",\n    "nil",\n    "p02_03", "p04_07", "p08_0F", "p10",\n    "plane", "plane0",\n    "supplementary_plane1", "supplementary_planes2_16",\n    "2", "3", "4", "5", "6", "7", "8", "9"\n  ],\n  nodes: [\n    { kind: NODE_KIND.CLOSED_UNION, edges: [ { label: "nil", target: 1 }, { label: "cons", target: 2 } ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "car", target: 3 }, { label: "cdr", target: 0 } ] },\n    { kind: NODE_KIND.CLOSED_UNION, edges: [\n      { label: "ascii", target: 4 },\n      { label: "plane0", target: 6 },\n      { label: "bmp_common", target: 7 },\n      { label: "bmp_private_use", target: 10 },\n      { label: "supplementary_plane1", target: 12 },\n      { label: "supplementary_planes2_16", target: 13 }\n    ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [\n      { label: "6", target: 5 }, { label: "5", target: 5 }, { label: "4", target: 5 },\n      { label: "3", target: 5 }, { label: "2", target: 5 }, { label: "1", target: 5 }, { label: "0", target: 5 }\n    ] },\n    { kind: NODE_KIND.CLOSED_UNION, edges: [ { label: "0", target: 1 }, { label: "1", target: 1 } ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [\n      { label: "10", target: 5 }, { label: "9", target: 5 }, { label: "8", target: 5 }, { label: "7", target: 5 },\n      { label: "6", target: 5 }, { label: "5", target: 5 }, { label: "4", target: 5 }, { label: "3", target: 5 },\n      { label: "2", target: 5 }, { label: "1", target: 5 }, { label: "0", target: 5 }\n    ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "hi", target: 8 }, { label: "lo", target: 9 } ] },\n    { kind: NODE_KIND.CLOSED_UNION, edges: [\n      { label: "h08_0F", target: 15 }, { label: "h10_7F", target: 16 }, { label: "h80_CF", target: 16 },\n      { label: "hD0_D7", target: 15 }, { label: "hF9", target: 1 },\n      { label: "hFA_FB", target: 17 }, { label: "hFC_FD", target: 17 }, { label: "hFE_FF", target: 17 }\n    ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [\n      { label: "7", target: 5 }, { label: "6", target: 5 }, { label: "5", target: 5 }, { label: "4", target: 5 },\n      { label: "3", target: 5 }, { label: "2", target: 5 }, { label: "1", target: 5 }, { label: "0", target: 5 }\n    ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "hi", target: 11 }, { label: "lo", target: 9 } ] },\n    { kind: NODE_KIND.CLOSED_UNION, edges: [ { label: "hE0_EF", target: 18 }, { label: "hF0_F7", target: 15 }, { label: "hF8", target: 1 } ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "mid", target: 9 }, { label: "lo", target: 9 } ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "plane", target: 14 }, { label: "mid", target: 9 }, { label: "lo", target: 9 } ] },\n    { kind: NODE_KIND.CLOSED_UNION, edges: [ { label: "p02_03", target: 17 }, { label: "p04_07", target: 19 }, { label: "p08_0F", target: 15 }, { label: "p10", target: 1 } ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "2", target: 5 }, { label: "1", target: 5 }, { label: "0", target: 5 } ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [\n      { label: "6", target: 5 }, { label: "5", target: 5 }, { label: "4", target: 5 },\n      { label: "3", target: 5 }, { label: "2", target: 5 }, { label: "1", target: 5 }, { label: "0", target: 5 }\n    ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "0", target: 5 } ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "3", target: 5 }, { label: "2", target: 5 }, { label: "1", target: 5 }, { label: "0", target: 5 } ] },\n    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [ { label: "1", target: 5 }, { label: "0", target: 5 } ] }\n  ]\n};\n\nconst STRING_PATTERN_PROPERTY_LIST = patternToPropertyList(STRING_PATTERN);\n\nfunction encodeText(text) {\n  return encodeToWire(textToStringValue(text), STRING_PATTERN_PROPERTY_LIST);\n}\n\nfunction decodeText(buffer) {\n  const { value } = decodeWire(buffer);\n  return stringValueToText(value);\n}\n\nexport { STRING_PATTERN, STRING_PATTERN_PROPERTY_LIST, textToStringValue, stringValueToText, encodeText, decodeText };\n',
+      "codecs/unit.mjs": '#!/usr/bin/env node\n\nimport { stdin, stdout, argv, exit } from "node:process";\nimport { Value, isProduct } from "../Value.mjs";\nimport { isMainEntrypoint } from "./runtime/cli-entry.mjs";\nimport { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";\n\nfunction usage(stream = console.error) {\n  stream(`Usage: ${argv[1]} --parse | --print`);\n  stream("  --parse      Ignore stdin and write the unit binary pattern+value stream.");\n  stream("  --print      Validate the unit binary pattern+value stream and write {}.");\n  stream("  -h, --help   Show this help.");\n}\n\nconst UNIT_PATTERN = [\n  ["closed-product", []]\n];\nconst name = "unit";\nconst patterns = [UNIT_PATTERN];\n\nfunction readAll(stream) {\n  return new Promise((resolve, reject) => {\n    const chunks = [];\n    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));\n    stream.on("end", () => resolve(Buffer.concat(chunks)));\n    stream.on("error", reject);\n  });\n}\n\nfunction unitEncoding() {\n  return encodeToWire(Value.product({}), UNIT_PATTERN);\n}\n\nfunction parse() {\n  return Value.product({});\n}\n\nfunction print(value) {\n  if (!isProduct(value) || Object.keys(value.product).length !== 0) {\n    throw new Error("Input is not a unit value");\n  }\n  return "{}";\n}\n\nasync function main() {\n  const args = argv.slice(2);\n  if (args.includes("-h") || args.includes("--help")) {\n    usage(console.log);\n    exit(0);\n  }\n\n  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {\n    usage();\n    exit(1);\n  }\n\n  const expected = unitEncoding();\n\n  if (args[0] === "--parse") {\n    stdout.write(expected);\n    return;\n  }\n\n  const input = await readAll(stdin);\n  const { value } = decodeWire(input);\n  stdout.write(print(value));\n}\n\nif (isMainEntrypoint(import.meta.url, argv[1])) {\n  main().catch((error) => {\n    console.error(error.message || String(error));\n    exit(1);\n  });\n}\n\nexport { UNIT_PATTERN, name, patterns, parse, print };\n',
+      "codecs/utf16.mjs": '#!/usr/bin/env node\n\nimport { stdin, stdout, argv, exit } from "node:process";\nimport { isMainEntrypoint } from "./runtime/cli-entry.mjs";\nimport {\n  STRING_PATTERN_PROPERTY_LIST,\n  encodeText,\n  decodeText,\n  textToStringValue,\n  stringValueToText\n} from "./string-codec.mjs";\n\nconst name = "utf16";\nconst patterns = [STRING_PATTERN_PROPERTY_LIST];\n\nfunction parse(text) {\n  return textToStringValue(text);\n}\n\nfunction print(value) {\n  return stringValueToText(value);\n}\n\nfunction usage(stream = console.error) {\n  stream(`Usage: ${argv[1]} --parse | --print`);\n  stream("  --parse      Read UTF-16 text from stdin (BOM-aware), write binary pattern+value stream of k string.");\n  stream("  --print      Read binary pattern+value stream of k string, write UTF-16LE text with BOM.");\n  stream("  -h, --help   Show this help.");\n}\n\nfunction readAll(stream) {\n  return new Promise((resolve, reject) => {\n    const chunks = [];\n    stream.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));\n    stream.on("end", () => resolve(Buffer.concat(chunks)));\n    stream.on("error", reject);\n  });\n}\n\nfunction decodeUtf16Input(buf) {\n  if (buf.length === 0) return "";\n\n  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {\n    const src = buf.subarray(2);\n    if (src.length % 2 !== 0) throw new Error("UTF-16BE payload has odd byte length");\n    const le = Buffer.alloc(src.length);\n    for (let i = 0; i < src.length; i += 2) {\n      le[i] = src[i + 1];\n      le[i + 1] = src[i];\n    }\n    return le.toString("utf16le");\n  }\n\n  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {\n    const src = buf.subarray(2);\n    if (src.length % 2 !== 0) throw new Error("UTF-16LE payload has odd byte length");\n    return src.toString("utf16le");\n  }\n\n  if (buf.length % 2 !== 0) throw new Error("UTF-16 input without BOM has odd byte length");\n  return buf.toString("utf16le");\n}\n\nfunction encodeUtf16Output(text) {\n  const bomLe = Buffer.from([0xff, 0xfe]);\n  return Buffer.concat([bomLe, Buffer.from(text, "utf16le")]);\n}\n\nasync function main() {\n  const args = argv.slice(2);\n  if (args.includes("-h") || args.includes("--help")) {\n    usage(console.log);\n    exit(0);\n  }\n\n  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {\n    usage();\n    exit(1);\n  }\n\n  const buf = await readAll(stdin);\n\n  if (args[0] === "--parse") {\n    const text = decodeUtf16Input(buf);\n    stdout.write(encodeText(text));\n  } else {\n    stdout.write(encodeUtf16Output(decodeText(buf)));\n  }\n}\n\nif (isMainEntrypoint(import.meta.url, argv[1])) {\n  main().catch(err => {\n    console.error(err.message || String(err));\n    exit(1);\n  });\n}\n\nexport { name, patterns, parse, print };\n',
+      "codecs/utf8.mjs": '#!/usr/bin/env node\n\nimport { stdin, stdout, argv, exit } from "node:process";\nimport { isMainEntrypoint } from "./runtime/cli-entry.mjs";\nimport {\n  STRING_PATTERN_PROPERTY_LIST,\n  encodeText,\n  decodeText,\n  textToStringValue,\n  stringValueToText\n} from "./string-codec.mjs";\n\nconst name = "utf8";\nconst patterns = [STRING_PATTERN_PROPERTY_LIST];\n\nfunction parse(text) {\n  return textToStringValue(text);\n}\n\nfunction print(value) {\n  return stringValueToText(value);\n}\n\nfunction usage(stream = console.error) {\n  stream(`Usage: ${argv[1]} --parse | --print`);\n  stream("  --parse      Read UTF-8 text from stdin, write binary pattern+value stream of k string.");\n  stream("  --print      Read binary pattern+value stream of k string, write UTF-8 text.");\n  stream("  -h, --help   Show this help.");\n}\n\nfunction readAll(stream) {\n  return new Promise((resolve, reject) => {\n    const chunks = [];\n    stream.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));\n    stream.on("end", () => resolve(Buffer.concat(chunks)));\n    stream.on("error", reject);\n  });\n}\n\nasync function main() {\n  const args = argv.slice(2);\n  if (args.includes("-h") || args.includes("--help")) {\n    usage(console.log);\n    exit(0);\n  }\n\n  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {\n    usage();\n    exit(1);\n  }\n\n  const buf = await readAll(stdin);\n\n  if (args[0] === "--parse") {\n    const text = buf.toString("utf8");\n    stdout.write(encodeText(text));\n  } else {\n    stdout.write(decodeText(buf));\n  }\n}\n\nif (isMainEntrypoint(import.meta.url, argv[1])) {\n  main().catch(err => {\n    console.error(err.message || String(err));\n    exit(1);\n  });\n}\n\nexport { name, patterns, parse, print };\n'
     };
   }
 });
@@ -1620,14 +2479,14 @@ function readdirSync(dirPath, options = {}) {
   for (const key of vfs.keys()) {
     if (prefix === "" || key.startsWith(prefix)) {
       const rest = key.slice(prefix.length);
-      const name = rest.split("/")[0];
-      if (name) results.add(name);
+      const name5 = rest.split("/")[0];
+      if (name5) results.add(name5);
     }
   }
   const withFileTypes = options?.withFileTypes ?? false;
   if (withFileTypes) {
-    return Array.from(results).map((name) => {
-      const subPrefix = prefix + name + "/";
+    return Array.from(results).map((name5) => {
+      const subPrefix = prefix + name5 + "/";
       let isDir = false;
       for (const k of vfs.keys()) {
         if (k.startsWith(subPrefix)) {
@@ -1636,7 +2495,7 @@ function readdirSync(dirPath, options = {}) {
         }
       }
       return {
-        name,
+        name: name5,
         isDirectory: () => isDir,
         isFile: () => !isDir
       };
@@ -5528,13 +6387,13 @@ var SymbolTable = class {
     this.codes[newName] = codeExp;
     return newName;
   }
-  add_rel(name, rel) {
-    if (this.rels[name] != void 0)
-      console.error(`SymbolTable: rel '${name}' is redefined (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column})`);
-    this.rels[name] = { def: rel };
+  add_rel(name5, rel) {
+    if (this.rels[name5] != void 0)
+      console.error(`SymbolTable: rel '${name5}' is redefined (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column})`);
+    this.rels[name5] = { def: rel };
   }
-  add_code(name, code) {
-    this.codes[name] = code;
+  add_code(name5, code) {
+    this.codes[name5] = code;
   }
 };
 
@@ -5804,7 +6663,7 @@ var parser = (function() {
         throw error;
       }
     },
-    parse: function parse2(input) {
+    parse: function parse4(input) {
       var self2 = this, stack = [0], tstack = [], vstack = [null], lstack = [], table = this.table, yytext = "", yylineno = 0, yyleng = 0, recovering = 0, TERROR = 2, EOF = 1;
       var args = lstack.slice.call(arguments, 1);
       var lexer2 = Object.create(this.lexer);
@@ -6562,7 +7421,7 @@ var valueParser = (function() {
         throw error;
       }
     },
-    parse: function parse2(input) {
+    parse: function parse4(input) {
       var self2 = this, stack = [0], tstack = [], vstack = [null], lstack = [], table = this.table, yytext = "", yylineno = 0, yyleng = 0, recovering = 0, TERROR = 2, EOF = 1;
       var args = lstack.slice.call(arguments, 1);
       var lexer2 = Object.create(this.lexer);
@@ -7468,9 +8327,9 @@ var TypePatternGraph = class {
   cloneAll(targetGraph = this) {
     return this.clone(this.patterns.nodes.map((x, i) => i), targetGraph);
   }
-  unify_patterns(...patterns) {
+  unify_patterns(...patterns4) {
     const unifyFn = unify_two_patterns.bind(null, this.findCode);
-    return patterns.reduce(unifyFn, { pattern: "(...)", fields: [] });
+    return patterns4.reduce(unifyFn, { pattern: "(...)", fields: [] });
   }
   unify(rule, ...ids) {
     const find2 = (x) => this.find(x);
@@ -7577,10 +8436,10 @@ function encodeCodeToString(code, codes2 = theRepository.codes) {
   }
   return result.join("");
 }
-function are_different(classes, representatives, name1, name2, codes2) {
-  if (name1 === name2) return false;
+function are_different(classes, representatives, name1, name22, codes2) {
+  if (name1 === name22) return false;
   const code1 = codes2[name1];
-  const code2 = codes2[name2];
+  const code2 = codes2[name22];
   if (code1.code !== code2.code) return true;
   switch (code1.code) {
     case "union":
@@ -7609,8 +8468,8 @@ function minimize(codes2) {
   const classes = {};
   const seed = names.includes(unitCode2) ? unitCode2 : names[0];
   classes[seed] = names;
-  const representatives = names.reduce((representatives2, name) => {
-    representatives2[name] = seed;
+  const representatives = names.reduce((representatives2, name5) => {
+    representatives2[name5] = seed;
     return representatives2;
   }, {});
   let changed = true;
@@ -7618,11 +8477,11 @@ function minimize(codes2) {
     changed = false;
     for (const name1 in classes) {
       const [eq_names, dif_names] = classes[name1].reduce(
-        ([eq_names2, dif_names2], name2) => {
-          if (are_different(classes, representatives, name1, name2, codes2)) {
-            dif_names2.push(name2);
+        ([eq_names2, dif_names2], name22) => {
+          if (are_different(classes, representatives, name1, name22, codes2)) {
+            dif_names2.push(name22);
           } else {
-            eq_names2.push(name2);
+            eq_names2.push(name22);
           }
           return [eq_names2, dif_names2];
         },
@@ -7633,7 +8492,7 @@ function minimize(codes2) {
         const new_rep = dif_names[0];
         changed = true;
         classes[new_rep] = dif_names;
-        dif_names.forEach((name) => representatives[name] = new_rep);
+        dif_names.forEach((name5) => representatives[name5] = new_rep);
       }
     }
   }
@@ -7641,39 +8500,39 @@ function minimize(codes2) {
 }
 function resolveRefs(codes2) {
   const resolved = {};
-  for (const name in codes2) {
-    const code = codes2[name];
+  for (const name5 in codes2) {
+    const code = codes2[name5];
     if (code.code === "ref" && code.ref.startsWith("@")) {
       const refName = code.ref.substring(1);
       if (codes2[refName] !== void 0) {
-        resolved[name] = refName;
+        resolved[name5] = refName;
       } else if (theRepository.codes[code.ref] !== void 0) {
-        resolved[name] = code.ref;
+        resolved[name5] = code.ref;
       } else {
         throw new Error(`Type alias references undefined type: ${code.ref}`);
       }
     } else {
-      resolved[name] = name;
+      resolved[name5] = name5;
     }
   }
   return resolved;
 }
 function normalize2(label_ref_map, representatives) {
   return Object.keys(label_ref_map).reduce((result, label) => {
-    const name = label_ref_map[label];
-    result[label] = representatives[name] || name;
+    const name5 = label_ref_map[label];
+    result[label] = representatives[name5] || name5;
     return result;
   }, {});
 }
 function normalizeAll(codes2, representatives) {
-  return Object.keys(codes2).reduce(function(normalized, name) {
-    if (name === representatives[name]) {
-      const code = codes2[name];
+  return Object.keys(codes2).reduce(function(normalized, name5) {
+    if (name5 === representatives[name5]) {
+      const code = codes2[name5];
       switch (code.code) {
         case "union":
         case "product":
-          normalized[name] = { ...code };
-          normalized[name][code.code] = normalize2(
+          normalized[name5] = { ...code };
+          normalized[name5][code.code] = normalize2(
             code[code.code],
             representatives
           );
@@ -7690,41 +8549,41 @@ function normalizeAll(codes2, representatives) {
 function finalize(codes2) {
   const refResolution = resolveRefs(codes2);
   const resolvedCodes = {};
-  for (const name in codes2) {
-    const code = codes2[name];
+  for (const name5 in codes2) {
+    const code = codes2[name5];
     if (code.code === "ref" && code.ref.startsWith("@")) {
-      const target = refResolution[name];
+      const target = refResolution[name5];
       if (target.startsWith("@")) {
-        resolvedCodes[name] = theRepository.codes[target];
+        resolvedCodes[name5] = theRepository.codes[target];
       } else {
-        resolvedCodes[name] = codes2[target];
+        resolvedCodes[name5] = codes2[target];
       }
     } else {
-      resolvedCodes[name] = code;
+      resolvedCodes[name5] = code;
     }
   }
   const representatives = minimize(resolvedCodes).representatives;
-  for (const name in refResolution) {
-    if (refResolution[name] !== name) {
-      const target = refResolution[name];
-      representatives[name] = representatives[target] || target;
+  for (const name5 in refResolution) {
+    if (refResolution[name5] !== name5) {
+      const target = refResolution[name5];
+      representatives[name5] = representatives[target] || target;
     }
   }
   const normalizedCodes = normalizeAll(resolvedCodes, representatives);
-  const globalNames = Object.keys(normalizedCodes).reduce((globalNames2, name) => {
-    const globalDef = encodeCodeToString(name, normalizedCodes);
-    normalizedCodes[name].def = globalDef;
-    globalNames2[name] = hash_default(globalDef);
+  const globalNames = Object.keys(normalizedCodes).reduce((globalNames2, name5) => {
+    const globalDef = encodeCodeToString(name5, normalizedCodes);
+    normalizedCodes[name5].def = globalDef;
+    globalNames2[name5] = hash_default(globalDef);
     return globalNames2;
   }, {});
-  const globalCodes = Object.keys(normalizedCodes).reduce((globalCodes2, name) => {
-    globalCodes2[globalNames[name]] = normalizedCodes[name];
+  const globalCodes = Object.keys(normalizedCodes).reduce((globalCodes2, name5) => {
+    globalCodes2[globalNames[name5]] = normalizedCodes[name5];
     return globalCodes2;
   }, {});
-  const extendedRepresentatives = Object.keys(representatives).reduce((result, name) => {
-    result[name] = globalNames[representatives[name]] || name;
+  const extendedRepresentatives = Object.keys(representatives).reduce((result, name5) => {
+    result[name5] = globalNames[representatives[name5]] || name5;
     return result;
-  }, Object.values(globalNames).reduce((result, name) => ({ [name]: name, ...result }), {}));
+  }, Object.values(globalNames).reduce((result, name5) => ({ [name5]: name5, ...result }), {}));
   const normalizedGlobalCodes = normalizeAll(globalCodes, extendedRepresentatives);
   return {
     codes: normalizedGlobalCodes,
@@ -7734,29 +8593,29 @@ function finalize(codes2) {
 function finalizeIncremental(newCodes) {
   const refResolution = resolveRefs(newCodes);
   const resolvedCodes = {};
-  for (const name in newCodes) {
-    const code = newCodes[name];
+  for (const name5 in newCodes) {
+    const code = newCodes[name5];
     if (code.code === "ref" && code.ref.startsWith("@")) {
-      const target = refResolution[name];
+      const target = refResolution[name5];
       if (target.startsWith("@")) {
-        resolvedCodes[name] = theRepository.codes[target];
+        resolvedCodes[name5] = theRepository.codes[target];
       } else {
-        resolvedCodes[name] = newCodes[target];
+        resolvedCodes[name5] = newCodes[target];
       }
     } else {
-      resolvedCodes[name] = code;
+      resolvedCodes[name5] = code;
     }
   }
   const reachableCodes = {};
   const queue = Object.keys(resolvedCodes);
   while (queue.length > 0) {
-    const name = queue.shift();
-    if (reachableCodes[name]) continue;
-    const code = resolvedCodes[name] || theRepository.codes[name];
+    const name5 = queue.shift();
+    if (reachableCodes[name5]) continue;
+    const code = resolvedCodes[name5] || theRepository.codes[name5];
     if (code == null) {
-      throw new Error(`Type references undefined type: ${name}`);
+      throw new Error(`Type references undefined type: ${name5}`);
     }
-    reachableCodes[name] = code;
+    reachableCodes[name5] = code;
     for (const dest of Object.values(code[code.code] || {})) {
       if (!reachableCodes[dest]) queue.push(dest);
     }
@@ -7800,16 +8659,16 @@ var intrinsicDefinitions = /* @__PURE__ */ new Map([
   }]
 ]);
 var jsIntrinsicFunctions = Object.freeze(Object.fromEntries(
-  [...intrinsicDefinitions].filter(([, intrinsic]) => typeof intrinsic.js === "function").map(([name, intrinsic]) => [name, intrinsic.js])
+  [...intrinsicDefinitions].filter(([, intrinsic]) => typeof intrinsic.js === "function").map(([name5, intrinsic]) => [name5, intrinsic.js])
 ));
-function getIntrinsic(name) {
-  return intrinsicDefinitions.get(name) || null;
+function getIntrinsic(name5) {
+  return intrinsicDefinitions.get(name5) || null;
 }
-function isIntrinsic(name) {
-  return intrinsicDefinitions.has(name);
+function isIntrinsic(name5) {
+  return intrinsicDefinitions.has(name5);
 }
-function unsupportedIntrinsic(target, name) {
-  return new Error(`${target}: unsupported intrinsic '${name}'`);
+function unsupportedIntrinsic(target, name5) {
+  return new Error(`${target}: unsupported intrinsic '${name5}'`);
 }
 
 // augmentation.mjs
@@ -8020,11 +8879,11 @@ function prettyCode_labels(representatives, findCode, label_ref_map) {
 function prettyCode(representatives, findCode, codeExp) {
   switch (codeExp.code) {
     case "ref":
-      const name = representatives[codeExp.ref] || codeExp.ref;
-      if (name.startsWith(":")) {
-        return prettyCode(representatives, findCode, findCode(name));
+      const name5 = representatives[codeExp.ref] || codeExp.ref;
+      if (name5.startsWith(":")) {
+        return prettyCode(representatives, findCode, findCode(name5));
       } else {
-        return name;
+        return name5;
       }
     case "product":
       return `{${prettyCode_labels(representatives, findCode, codeExp.product)}}`;
@@ -8209,9 +9068,9 @@ function simplifyRel(relDef, rels) {
     comp: [filters[0], newRel, filters[1]]
   };
 }
-function theID(alias, rel, scc, name) {
+function theID(alias, rel, scc, name5) {
   const sccNames = new Set(scc);
-  const auxNames = { [name]: "X0" };
+  const auxNames = { [name5]: "X0" };
   const reNameX = (rel2) => {
     const newRel2 = { ...rel2 };
     switch (rel2.op) {
@@ -8248,7 +9107,7 @@ function theID(alias, rel, scc, name) {
   const newRel = reNameX(rel);
   const resultRelStr = prettyRel(newRel);
   const newName = hash_default(resultRelStr);
-  logNormalized(name, resultRelStr, newName);
+  logNormalized(name5, resultRelStr, newName);
   return newName;
 }
 function assignCanonicalNames(scc, rels, relAlias) {
@@ -8452,7 +9311,7 @@ function relDefToString(relDef) {
   }
   return result;
 }
-function compactRel(relDef, name = "") {
+function compactRel(relDef, name5 = "") {
   const start = (/* @__PURE__ */ new Date()).getTime();
   const { def, typePatternGraph, varRefs } = relDef;
   const { typePatternGraph: newTypePatternGraph, remapping: renumbering } = getCompressed(typePatternGraph);
@@ -8490,7 +9349,7 @@ function compactRel(relDef, name = "") {
   });
   const time = (/* @__PURE__ */ new Date()).getTime() - start;
   if (time > 500) {
-    console.log(`[${(/* @__PURE__ */ new Date()).getTime() - start} msecs] - COMPACTED ${name}.typePatternGraph [${typePatternGraph.size()}->${newTypePatternGraph.size()}]`);
+    console.log(`[${(/* @__PURE__ */ new Date()).getTime() - start} msecs] - COMPACTED ${name5}.typePatternGraph [${typePatternGraph.size()}->${newTypePatternGraph.size()}]`);
   }
   return { def, typePatternGraph: newTypePatternGraph, varRefs: newVarRefs };
 }
@@ -8634,7 +9493,7 @@ function compileTypes(representatives, rels, options = {}) {
   const sccInOrder = topoOrder(DAG).reverse();
   for (const scc of sccInOrder) {
     const currentScc = DAGnodes[scc].scc;
-    const newRels = currentScc.filter((name) => !rels[name]._library);
+    const newRels = currentScc.filter((name5) => !rels[name5]._library);
     if (newRels.length === 0) continue;
     const convergenceStats = convergeScc(newRels, rels, options.convergence);
     compileStats.sccs.push({
@@ -8678,7 +9537,7 @@ var NODE_KIND_TO_NAME = Object.freeze({
   4: "closed-union"
 });
 var NAME_TO_NODE_KIND = Object.freeze(
-  Object.fromEntries(Object.entries(NODE_KIND_TO_NAME).map(([kind, name]) => [name, Number(kind)]))
+  Object.fromEntries(Object.entries(NODE_KIND_TO_NAME).map(([kind, name5]) => [name5, Number(kind)]))
 );
 function patternToPropertyList(pattern) {
   if (!pattern || !Array.isArray(pattern.nodes)) {
@@ -9707,7 +10566,7 @@ function compiledExp(findCode, exp, typePatternGraph) {
   compiled.target = fn;
   return compiled.fn;
 }
-function compiledRel(findCode, relDef, name = "<anonymous>") {
+function compiledRel(findCode, relDef, name5 = "<anonymous>") {
   const cached = relDef._compiledRunRel;
   if (cached?.findCode === findCode && cached?.defs === run.defs) {
     return cached.fn;
@@ -9734,17 +10593,17 @@ function compiledRel(findCode, relDef, name = "<anonymous>") {
     try {
       return constrainWithPattern(result, staticOutputPattern, exp);
     } catch (error) {
-      error.message = `Type Error in output of '${name}'
+      error.message = `Type Error in output of '${name5}'
  - ${error.message}`;
       throw error;
     }
   };
   return compiled.fn;
 }
-function assertConvergedRel(rel, name) {
+function assertConvergedRel(rel, name5) {
   const status = rel?.typeDerivation?.status || "unknown";
   if (status !== "converged") {
-    throw new Error(`Cannot run '${name}' without envelopes: type derivation is ${status}`);
+    throw new Error(`Cannot run '${name5}' without envelopes: type derivation is ${status}`);
   }
 }
 function compiledConvergedExp(findCode, exp, typePatternGraph, options = {}) {
@@ -9918,9 +10777,9 @@ function annotate(script, options = {}) {
   if (options.libraries) {
     for (const lib of options.libraries) {
       const libRels = lib.rels || lib.defs?.rels || {};
-      for (const [name, rel] of Object.entries(libRels)) {
-        if (!(name in rels)) {
-          rels[name] = { ...rel, _library: true };
+      for (const [name5, rel] of Object.entries(libRels)) {
+        if (!(name5 in rels)) {
+          rels[name5] = { ...rel, _library: true };
         }
       }
     }
@@ -10550,9 +11409,9 @@ function serializeAnnotated(annotated) {
   const typeDerivations = buildRelTypeDerivations(annotated.rels, annotated.compileStats);
   return {
     rels: Object.fromEntries(
-      Object.entries(annotated.rels).map(([name, rel]) => [
-        name,
-        serializeRelation(rel, typeDerivations[name])
+      Object.entries(annotated.rels).map(([name5, rel]) => [
+        name5,
+        serializeRelation(rel, typeDerivations[name5])
       ])
     ),
     representatives: annotated.representatives,
@@ -10561,8 +11420,8 @@ function serializeAnnotated(annotated) {
   };
 }
 var NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
-function isSourceName(name) {
-  return NAME_RE.test(name) && !name.startsWith("@") && !name.startsWith(":");
+function isSourceName(name5) {
+  return NAME_RE.test(name5) && !name5.startsWith("@") && !name5.startsWith(":");
 }
 function addOrigin(meta, hash2, type, origin) {
   if (!hash2) return;
@@ -10724,21 +11583,21 @@ function firstExpSourceRange(exp) {
       return null;
   }
 }
-function originFromSourceNode(source, name, compiledAt, node) {
+function originFromSourceNode(source, name5, compiledAt, node) {
   return {
     source,
-    name,
+    name: name5,
     compiledAt,
     ...node?.start ? { start: node.start } : {},
     ...node?.end ? { end: node.end } : {}
   };
 }
-function relationOrigin(source, name, compiledAt, rel) {
+function relationOrigin(source, name5, compiledAt, rel) {
   const printableDef = stripRelationBoundaryFilters(rel.def, rel.typePatternGraph);
   const range = firstExpSourceRange(printableDef);
   return {
     source,
-    name,
+    name: name5,
     compiledAt,
     ...range?.start ? { start: range.start } : {},
     ...range?.end ? { end: range.end } : {}
@@ -10752,9 +11611,9 @@ function buildRelTypeDerivation(rel, sccStats) {
 function buildRelTypeDerivations(rels, compileStats) {
   const statsByName = compileStatsByRelName(compileStats);
   return Object.fromEntries(
-    Object.entries(rels || {}).map(([name, rel]) => [
-      name,
-      buildRelTypeDerivation(rel, statsByName[name])
+    Object.entries(rels || {}).map(([name5, rel]) => [
+      name5,
+      buildRelTypeDerivation(rel, statsByName[name5])
     ])
   );
 }
@@ -10777,20 +11636,20 @@ function buildMeta(annotated, source) {
   const representatives = annotated.representatives || {};
   const relAlias = annotated.relAlias || {};
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  for (const [name, hash2] of Object.entries(representatives)) {
-    if (!isSourceName(name)) continue;
+  for (const [name5, hash2] of Object.entries(representatives)) {
+    if (!isSourceName(name5)) continue;
     addOrigin(meta, hash2, "code", originFromSourceNode(
       source,
-      name,
+      name5,
       now,
-      annotated.sourceDefs?.codes?.[name]
+      annotated.sourceDefs?.codes?.[name5]
     ));
   }
-  for (const [name, hash2] of Object.entries(relAlias)) {
-    const rel = annotated.rels?.[name];
+  for (const [name5, hash2] of Object.entries(relAlias)) {
+    const rel = annotated.rels?.[name5];
     if (!rel) continue;
-    if (name === "__main__" || isSourceName(name)) {
-      addOrigin(meta, hash2, "rel", relationOrigin(source, name, now, rel));
+    if (name5 === "__main__" || isSourceName(name5)) {
+      addOrigin(meta, hash2, "rel", relationOrigin(source, name5, now, rel));
     }
   }
   return meta;
@@ -10876,10 +11735,10 @@ function compileObject(script, options = {}) {
     Object.entries(allCodes).filter(([h]) => reachableCodes.has(h))
   );
   const prunedRels = Object.fromEntries(
-    Object.entries(serialized.rels).filter(([name]) => reachableRels.has(name))
+    Object.entries(serialized.rels).filter(([name5]) => reachableRels.has(name5))
   );
   const reachableRelHashes = new Set(
-    [...reachableRels].map((name) => serialized.relAlias?.[name] || name)
+    [...reachableRels].map((name5) => serialized.relAlias?.[name5] || name5)
   );
   const prunedMeta = Object.fromEntries(
     Object.entries(meta).filter(([h]) => reachableRels.has(h) || reachableRelHashes.has(h) || reachableCodes.has(h))
@@ -10926,9 +11785,9 @@ function compileLibrary(script, options = {}) {
   );
   const relAlias = serialized.relAlias || {};
   const libRels = {};
-  for (const [name, rel] of Object.entries(serialized.rels)) {
-    if (name === "__main__") continue;
-    const canonicalName = relAlias[name] || name;
+  for (const [name5, rel] of Object.entries(serialized.rels)) {
+    if (name5 === "__main__") continue;
+    const canonicalName = relAlias[name5] || name5;
     const { varRefs, ...relWithoutVarRefs } = rel;
     libRels[canonicalName] = {
       ...relWithoutVarRefs,
@@ -10958,7 +11817,7 @@ function hydrateObject(object) {
   }
   codes_default.load(object.codes);
   const hydratedRels = Object.fromEntries(
-    Object.entries(object.rels).map(([name, rel]) => [name, hydrateRelation(rel)])
+    Object.entries(object.rels).map(([name5, rel]) => [name5, hydrateRelation(rel)])
   );
   return { ...object, rels: hydratedRels };
 }
@@ -11318,7 +12177,7 @@ function sortedEntries(object = {}) {
   return Object.entries(object).sort(([a], [b]) => a.localeCompare(b));
 }
 function normalizeRelations(rels = {}) {
-  return Object.fromEntries(sortedEntries(rels).map(([name, rel]) => [name, normalizeRelation(rel)]));
+  return Object.fromEntries(sortedEntries(rels).map(([name5, rel]) => [name5, normalizeRelation(rel)]));
 }
 function objectToKIRP(object) {
   if (object?.format !== "k-object") {
@@ -11339,13 +12198,13 @@ function objectToKIRP(object) {
   };
 }
 function resolveRelation(object, relationName = null) {
-  const name = relationName || object.main;
-  if (!name) throw new Error("KIR retyping requires a relation name");
-  if (object.rels?.[name]) return { name, rel: object.rels[name] };
-  const alias = object.relAlias?.[name];
+  const name5 = relationName || object.main;
+  if (!name5) throw new Error("KIR retyping requires a relation name");
+  if (object.rels?.[name5]) return { name: name5, rel: object.rels[name5] };
+  const alias = object.relAlias?.[name5];
   if (alias && object.rels?.[alias]) return { name: alias, rel: object.rels[alias] };
-  if (alias && object.rels?.[name]) return { name, rel: object.rels[name] };
-  throw new Error(`Relation '${name}' not found`);
+  if (alias && object.rels?.[name5]) return { name: name5, rel: object.rels[name5] };
+  throw new Error(`Relation '${name5}' not found`);
 }
 function relationLibraryWithTarget(object, targetRel) {
   const rels = { ...object.rels || {} };
@@ -11496,8 +12355,8 @@ function buildExportPreamble(exports, libraries) {
   if (exports.length === 0) return "";
   const aliasMap = {};
   for (const lib of libraries) {
-    for (const [name, hash2] of Object.entries(lib.relAlias || {})) {
-      if (name !== "__main__") aliasMap[name] = hash2;
+    for (const [name5, hash2] of Object.entries(lib.relAlias || {})) {
+      if (name5 !== "__main__") aliasMap[name5] = hash2;
     }
     for (const [hash2, entry] of Object.entries(lib.meta || {})) {
       if (entry?.type !== "rel") continue;
@@ -11554,17 +12413,17 @@ function kirPatternToPropertyList(patternGraph, codesTable, rootId) {
 function isKIRRelation(relDef) {
   return relDef?.patternGraph && relDef?.body;
 }
-function objectRelationToKIRRelation(relDef, name, options = {}) {
+function objectRelationToKIRRelation(relDef, name5, options = {}) {
   const kir = objectToKIRP({
     format: "k-object",
     codes: options.codes || {},
-    rels: { [name]: relDef },
+    rels: { [name5]: relDef },
     relAlias: {},
     compileStats: {},
     meta: {},
-    main: name
+    main: name5
   });
-  const relation = kir.rels[name];
+  const relation = kir.rels[name5];
   const codesTable = { ...codesFromTypePatternGraph(relDef.typePatternGraph, relation), ...options.codes || {} };
   return { relation, codesTable };
 }
@@ -11754,7 +12613,7 @@ function compileKIRExp(exp, inputReg, builder) {
       throw new Error(`Unsupported KIR operation: ${exp.op}`);
   }
 }
-function lowerKIRRelationToKVM(kirRel, name, options = {}) {
+function lowerKIRRelationToKVM(kirRel, name5, options = {}) {
   const builder = new KVMBuilder(kirRel.patternGraph, options.codes || {});
   const inputReg = "%in";
   let currentReg = inputReg;
@@ -11774,19 +12633,19 @@ function lowerKIRRelationToKVM(kirRel, name, options = {}) {
   }
   builder.emit({ op: "return", src: finalReg });
   return {
-    name,
+    name: name5,
     inputPattern,
     outputPattern: outputPattern2,
     isConverged: kirRel.typeDerivation?.status === "converged",
     body: builder.instructions
   };
 }
-function lowerToKVM(relDef, name, options = {}) {
+function lowerToKVM(relDef, name5, options = {}) {
   if (isKIRRelation(relDef)) {
-    return lowerKIRRelationToKVM(relDef, name, options);
+    return lowerKIRRelationToKVM(relDef, name5, options);
   }
-  const { relation, codesTable } = objectRelationToKIRRelation(relDef, name, options);
-  return lowerKIRRelationToKVM(relation, name, { ...options, codes: codesTable });
+  const { relation, codesTable } = objectRelationToKIRRelation(relDef, name5, options);
+  return lowerKIRRelationToKVM(relation, name5, { ...options, codes: codesTable });
 }
 var TAIL_CALL = /* @__PURE__ */ Symbol("TAIL_CALL");
 function tailValueAfter(insts, startIndex, valueReg) {
@@ -11984,11 +12843,11 @@ function executeKVM(kvmFunc, inputVal, context) {
   let currentVal = inputVal;
   while (true) {
     if (context.profile) {
-      let name = currentFunc.name || "anon";
-      if (context.hashToName && context.hashToName.has(name)) {
-        name = context.hashToName.get(name);
+      let name5 = currentFunc.name || "anon";
+      if (context.hashToName && context.hashToName.has(name5)) {
+        name5 = context.hashToName.get(name5);
       }
-      context.profile[name] = (context.profile[name] || 0) + 1;
+      context.profile[name5] = (context.profile[name5] || 0) + 1;
     }
     if (options.requireConverged && !currentFunc.isConverged) {
       throw new Error(`Cannot run '${currentFunc.name}' without envelopes: type derivation is not converged`);
@@ -12123,6 +12982,16 @@ if (isMainEntrypoint(import.meta.url, argv[1])) {
   });
 }
 
+// codecs/ieee.mjs
+var ieee_exports = {};
+__export(ieee_exports, {
+  FLOAT64_PATTERN: () => FLOAT64_PATTERN,
+  name: () => name,
+  parse: () => parse,
+  patterns: () => patterns,
+  print: () => print
+});
+
 // codecs/runtime/ieee-pattern.mjs
 init_fs();
 var IEEE_SCRIPT = fs_default.readFileSync(new URL("../../Examples/ieee.k", import.meta.url), "utf8");
@@ -12134,10 +13003,10 @@ function loadFloat64Pattern() {
   if (!typeInfo) {
     throw new Error("Could not resolve float64 type from Examples/ieee.k");
   }
-  const resolveType = (name) => {
-    const type = finalizedCodes[name];
+  const resolveType = (name5) => {
+    const type = finalizedCodes[name5];
     if (!type) {
-      throw new Error(`Unknown IEEE helper type '${name}'`);
+      throw new Error(`Unknown IEEE helper type '${name5}'`);
     }
     return type;
   };
@@ -12147,6 +13016,8 @@ var FLOAT64_PATTERN = loadFloat64Pattern();
 
 // codecs/ieee.mjs
 var UNIT3 = Value.product({});
+var name = "ieee";
+var patterns = [FLOAT64_PATTERN];
 function usage3(stream = console.error) {
   stream(`Usage: ${argv[1]} --parse | --print`);
   stream("  --parse      Read a float literal from stdin, write binary pattern+value stream.");
@@ -12235,6 +13106,12 @@ function printFloatText(number) {
   if (Object.is(number, -0)) return "-0";
   return String(number);
 }
+function parse(text) {
+  return encodeNumberToValue(parseFloatText(text));
+}
+function print(value) {
+  return printFloatText(decodeValueToNumber(value));
+}
 function readAll(stream) {
   return new Promise((resolve2, reject) => {
     const chunks = [];
@@ -12272,9 +13149,545 @@ if (isMainEntrypoint(import.meta.url, argv[1])) {
 
 // repl-codecs.mjs
 init_fs();
+
+// codecs/int.mjs
+var int_exports = {};
+__export(int_exports, {
+  INT_PATTERN: () => INT_PATTERN,
+  name: () => name2,
+  parse: () => parseIntStr,
+  patterns: () => patterns2,
+  print: () => printIntValue
+});
+function usage4(stream = console.error) {
+  stream(`Usage: ${argv[1]} --parse | --print`);
+  stream("  --parse      Read a decimal integer from stdin, write binary pattern+value stream.");
+  stream("  --print      Read binary pattern+value stream from stdin, write decimal integer.");
+  stream("  -h, --help   Show this help.");
+}
+var INT_PATTERN = [
+  ["closed-union", [["+", 1], ["-", 1]]],
+  ["closed-union", [["0", 1], ["1", 1], ["_", 2]]],
+  ["closed-product", []]
+];
+var name2 = "int";
+var patterns2 = [INT_PATTERN];
+function readAll2(stream) {
+  return new Promise((resolve2, reject) => {
+    const chunks = [];
+    stream.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    stream.on("end", () => resolve2(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+function buildBits(n) {
+  const bitChars = n === 0n ? ["0"] : n.toString(2).split("");
+  let v = Value.variant("_", Value.product({}));
+  for (let i = bitChars.length - 1; i >= 0; i--) {
+    v = Value.variant(bitChars[i], v);
+  }
+  return v;
+}
+function parseIntStr(str) {
+  str = str.trim();
+  let sign = "+";
+  if (str[0] === "-") {
+    sign = "-";
+    str = str.slice(1).replace(/\s+/g, "");
+  } else if (str[0] === "+") {
+    str = str.slice(1).replace(/\s+/g, "");
+  }
+  if (!/^(0|[1-9][0-9]*)$/.test(str)) {
+    throw new Error(`Invalid integer syntax: ${JSON.stringify(str)}`);
+  }
+  const n = BigInt(str);
+  if (n === 0n) sign = "+";
+  return Value.variant(sign, buildBits(n));
+}
+function printIntValue(value) {
+  if (!isVariant(value) || value.tag !== "+" && value.tag !== "-") {
+    throw new Error("Not a valid k int value");
+  }
+  const sign = value.tag;
+  let bits = "";
+  let node = value.value;
+  while (isVariant(node) && node.tag !== "_") {
+    bits += node.tag;
+    node = node.value;
+  }
+  const n = bits === "" ? 0n : BigInt("0b" + bits);
+  const digits = n.toString(10);
+  if (n === 0n) return "0";
+  return (sign === "-" ? "-" : "") + digits;
+}
+async function main4() {
+  const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage4(console.log);
+    exit(0);
+  }
+  if (args.length !== 1 || args[0] !== "--parse" && args[0] !== "--print") {
+    usage4();
+    exit(1);
+  }
+  const buf = await readAll2(stdin);
+  if (args[0] === "--parse") {
+    const text = buf.toString("utf8").trim();
+    const value = parseIntStr(text);
+    stdout.write(encodeToWire(value, INT_PATTERN));
+  } else {
+    const { value } = decodeWire(buf);
+    stdout.write(printIntValue(value) + "\n");
+  }
+}
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main4().catch((err) => {
+    console.error(err.message || String(err));
+    exit(1);
+  });
+}
+
+// codecs/utf8.mjs
+var utf8_exports = {};
+__export(utf8_exports, {
+  name: () => name3,
+  parse: () => parse2,
+  patterns: () => patterns3,
+  print: () => print2
+});
+
+// codecs/string-codec.mjs
+var STRING_PATTERN = {
+  dictionary: [
+    "0",
+    "1",
+    "10",
+    "ascii",
+    "bmp_common",
+    "bmp_private_use",
+    "car",
+    "cdr",
+    "cons",
+    "h08_0F",
+    "h10_7F",
+    "h80_CF",
+    "hD0_D7",
+    "hE0_EF",
+    "hF0_F7",
+    "hF8",
+    "hF9",
+    "hFA_FB",
+    "hFC_FD",
+    "hFE_FF",
+    "hi",
+    "lo",
+    "mid",
+    "nil",
+    "p02_03",
+    "p04_07",
+    "p08_0F",
+    "p10",
+    "plane",
+    "plane0",
+    "supplementary_plane1",
+    "supplementary_planes2_16",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9"
+  ],
+  nodes: [
+    { kind: NODE_KIND.CLOSED_UNION, edges: [{ label: "nil", target: 1 }, { label: "cons", target: 2 }] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "car", target: 3 }, { label: "cdr", target: 0 }] },
+    { kind: NODE_KIND.CLOSED_UNION, edges: [
+      { label: "ascii", target: 4 },
+      { label: "plane0", target: 6 },
+      { label: "bmp_common", target: 7 },
+      { label: "bmp_private_use", target: 10 },
+      { label: "supplementary_plane1", target: 12 },
+      { label: "supplementary_planes2_16", target: 13 }
+    ] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [
+      { label: "6", target: 5 },
+      { label: "5", target: 5 },
+      { label: "4", target: 5 },
+      { label: "3", target: 5 },
+      { label: "2", target: 5 },
+      { label: "1", target: 5 },
+      { label: "0", target: 5 }
+    ] },
+    { kind: NODE_KIND.CLOSED_UNION, edges: [{ label: "0", target: 1 }, { label: "1", target: 1 }] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [
+      { label: "10", target: 5 },
+      { label: "9", target: 5 },
+      { label: "8", target: 5 },
+      { label: "7", target: 5 },
+      { label: "6", target: 5 },
+      { label: "5", target: 5 },
+      { label: "4", target: 5 },
+      { label: "3", target: 5 },
+      { label: "2", target: 5 },
+      { label: "1", target: 5 },
+      { label: "0", target: 5 }
+    ] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "hi", target: 8 }, { label: "lo", target: 9 }] },
+    { kind: NODE_KIND.CLOSED_UNION, edges: [
+      { label: "h08_0F", target: 15 },
+      { label: "h10_7F", target: 16 },
+      { label: "h80_CF", target: 16 },
+      { label: "hD0_D7", target: 15 },
+      { label: "hF9", target: 1 },
+      { label: "hFA_FB", target: 17 },
+      { label: "hFC_FD", target: 17 },
+      { label: "hFE_FF", target: 17 }
+    ] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [
+      { label: "7", target: 5 },
+      { label: "6", target: 5 },
+      { label: "5", target: 5 },
+      { label: "4", target: 5 },
+      { label: "3", target: 5 },
+      { label: "2", target: 5 },
+      { label: "1", target: 5 },
+      { label: "0", target: 5 }
+    ] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "hi", target: 11 }, { label: "lo", target: 9 }] },
+    { kind: NODE_KIND.CLOSED_UNION, edges: [{ label: "hE0_EF", target: 18 }, { label: "hF0_F7", target: 15 }, { label: "hF8", target: 1 }] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "mid", target: 9 }, { label: "lo", target: 9 }] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "plane", target: 14 }, { label: "mid", target: 9 }, { label: "lo", target: 9 }] },
+    { kind: NODE_KIND.CLOSED_UNION, edges: [{ label: "p02_03", target: 17 }, { label: "p04_07", target: 19 }, { label: "p08_0F", target: 15 }, { label: "p10", target: 1 }] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "2", target: 5 }, { label: "1", target: 5 }, { label: "0", target: 5 }] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [
+      { label: "6", target: 5 },
+      { label: "5", target: 5 },
+      { label: "4", target: 5 },
+      { label: "3", target: 5 },
+      { label: "2", target: 5 },
+      { label: "1", target: 5 },
+      { label: "0", target: 5 }
+    ] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "0", target: 5 }] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "3", target: 5 }, { label: "2", target: 5 }, { label: "1", target: 5 }, { label: "0", target: 5 }] },
+    { kind: NODE_KIND.CLOSED_PRODUCT, edges: [{ label: "1", target: 5 }, { label: "0", target: 5 }] }
+  ]
+};
+var STRING_PATTERN_PROPERTY_LIST = patternToPropertyList(STRING_PATTERN);
+function encodeText(text) {
+  return encodeToWire(textToStringValue(text), STRING_PATTERN_PROPERTY_LIST);
+}
+function decodeText(buffer) {
+  const { value } = decodeWire(buffer);
+  return stringValueToText(value);
+}
+
+// codecs/utf8.mjs
+var name3 = "utf8";
+var patterns3 = [STRING_PATTERN_PROPERTY_LIST];
+function parse2(text) {
+  return textToStringValue(text);
+}
+function print2(value) {
+  return stringValueToText(value);
+}
+function usage5(stream = console.error) {
+  stream(`Usage: ${argv[1]} --parse | --print`);
+  stream("  --parse      Read UTF-8 text from stdin, write binary pattern+value stream of k string.");
+  stream("  --print      Read binary pattern+value stream of k string, write UTF-8 text.");
+  stream("  -h, --help   Show this help.");
+}
+function readAll3(stream) {
+  return new Promise((resolve2, reject) => {
+    const chunks = [];
+    stream.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    stream.on("end", () => resolve2(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+async function main5() {
+  const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage5(console.log);
+    exit(0);
+  }
+  if (args.length !== 1 || args[0] !== "--parse" && args[0] !== "--print") {
+    usage5();
+    exit(1);
+  }
+  const buf = await readAll3(stdin);
+  if (args[0] === "--parse") {
+    const text = buf.toString("utf8");
+    stdout.write(encodeText(text));
+  } else {
+    stdout.write(decodeText(buf));
+  }
+}
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main5().catch((err) => {
+    console.error(err.message || String(err));
+    exit(1);
+  });
+}
+
+// codecs/json.mjs
+var json_exports = {};
+__export(json_exports, {
+  name: () => name4,
+  parse: () => parse3,
+  print: () => print3,
+  universal: () => universal
+});
+
+// codecs/json-codec.mjs
+var UNIT4 = Value.product({});
+var BOOL_PATTERN = [
+  ["closed-union", [["false", 1], ["true", 1]]],
+  ["closed-product", []]
+];
+var NULL_PATTERN = [
+  ["closed-union", [["null", 1]]],
+  ["closed-product", []]
+];
+function bitValue3(bit) {
+  return Value.variant(bit === 0 ? "0" : "1", UNIT4);
+}
+function bitsProduct3(width, value) {
+  const big = BigInt(value);
+  const product = {};
+  for (let i = width - 1; i >= 0; i--) {
+    product[String(i)] = bitValue3(Number(big >> BigInt(i) & 1n));
+  }
+  return Value.product(product);
+}
+function encodeNumberToValue2(number) {
+  const buf = Buffer.alloc(8);
+  buf.writeDoubleBE(number, 0);
+  const bits = buf.readBigUInt64BE(0);
+  const sign = Number(bits >> 63n & 1n);
+  const exponent = Number(bits >> 52n & 0x7ffn);
+  const fraction = bits & (1n << 52n) - 1n;
+  return Value.product({
+    sign: Value.variant(sign === 0 ? "+" : "-", UNIT4),
+    exponent: bitsProduct3(11, exponent),
+    fraction: bitsProduct3(52, fraction)
+  });
+}
+function requireProduct4(value, where) {
+  if (!isProduct(value)) {
+    throw new Error(`${where}: expected Product`);
+  }
+  return value.product;
+}
+function requireVariant4(value, where) {
+  if (!isVariant(value)) {
+    throw new Error(`${where}: expected Variant`);
+  }
+  return value;
+}
+function parseBitsProduct3(value, maxBit, where) {
+  const product = requireProduct4(value, where);
+  let n = 0n;
+  for (let i = maxBit; i >= 0; i--) {
+    const entry = requireVariant4(product[String(i)], `${where}.bit${i}`);
+    if (entry.tag !== "0" && entry.tag !== "1") {
+      throw new Error(`${where}.bit${i}: expected tag 0 or 1`);
+    }
+    n = n << 1n | BigInt(entry.tag === "1" ? 1 : 0);
+  }
+  return n;
+}
+function decodeValueToNumber2(value) {
+  const product = requireProduct4(value, "json.number");
+  const sign = requireVariant4(product.sign, "json.number.sign");
+  if (sign.tag !== "+" && sign.tag !== "-") {
+    throw new Error(`json.number.sign: expected + or -, got ${sign.tag}`);
+  }
+  const exponent = parseBitsProduct3(product.exponent, 10, "json.number.exponent");
+  const fraction = parseBitsProduct3(product.fraction, 51, "json.number.fraction");
+  const bits = BigInt(sign.tag === "-" ? 1 : 0) << 63n | exponent << 52n | fraction;
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64BE(bits, 0);
+  return buf.readDoubleBE(0);
+}
+function fromJsonValue(value) {
+  if (value === null) {
+    return Value.variant("null", UNIT4);
+  }
+  if (typeof value === "boolean") {
+    return Value.variant(value ? "true" : "false", UNIT4);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("JSON numbers must be finite");
+    }
+    return encodeNumberToValue2(value);
+  }
+  if (typeof value === "string") {
+    return textToStringValue(value);
+  }
+  if (Array.isArray(value)) {
+    return Value.product(
+      value.reduce((product, item, index) => {
+        product[String(index)] = fromJsonValue(item);
+        return product;
+      }, {})
+    );
+  }
+  if (value && typeof value === "object") {
+    return Value.product(
+      Object.keys(value).reduce((product, key) => {
+        product[key] = fromJsonValue(value[key]);
+        return product;
+      }, {})
+    );
+  }
+  throw new Error(`Unsupported JSON value: ${value}`);
+}
+function composePattern2(kind, entries) {
+  const result = [[kind, []]];
+  for (const [label, childPattern] of entries) {
+    const offset = result.length;
+    result[0][1].push([label, offset]);
+    for (const [childKind, childEdges] of childPattern) {
+      result.push([
+        childKind,
+        childEdges.map(([edgeLabel, target]) => [edgeLabel, target + offset])
+      ]);
+    }
+  }
+  return result;
+}
+function patternFromJsonValue(value) {
+  if (value === null) return NULL_PATTERN;
+  if (typeof value === "boolean") return BOOL_PATTERN;
+  if (typeof value === "number") return FLOAT64_PATTERN;
+  if (typeof value === "string") return STRING_PATTERN_PROPERTY_LIST;
+  if (Array.isArray(value)) {
+    return composePattern2(
+      "closed-product",
+      value.map((item, index) => [String(index), patternFromJsonValue(item)])
+    );
+  }
+  if (value && typeof value === "object") {
+    return composePattern2(
+      "closed-product",
+      Object.keys(value).sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"))).map((key) => [key, patternFromJsonValue(value[key])])
+    );
+  }
+  throw new Error(`Unsupported JSON value: ${value}`);
+}
+function toJsonValue(value) {
+  if (isVariant(value)) {
+    if (value.tag === "null") {
+      requireProduct4(value.value, "json.null");
+      return null;
+    }
+    if (value.tag === "true") {
+      requireProduct4(value.value, "json.true");
+      return true;
+    }
+    if (value.tag === "false") {
+      requireProduct4(value.value, "json.false");
+      return false;
+    }
+    return stringValueToText(value);
+  }
+  const product = requireProduct4(value, "json.value");
+  const keys = Object.keys(product);
+  const isArray = keys.every((key, index) => key === String(index));
+  if (isArray) {
+    return keys.map((key) => {
+      const child = product[key];
+      if (isVariant(child)) return toJsonValue(child);
+      if (isProduct(child)) {
+        try {
+          return decodeValueToNumber2(child);
+        } catch {
+        }
+      }
+      return toJsonValue(child);
+    });
+  }
+  const numberKeys = ["exponent", "fraction", "sign"];
+  if (keys.length === numberKeys.length && numberKeys.every((key) => key in product)) {
+    return decodeValueToNumber2(value);
+  }
+  try {
+    return stringValueToText(value);
+  } catch {
+  }
+  return keys.reduce((result, key) => {
+    result[key] = toJsonValue(product[key]);
+    return result;
+  }, {});
+}
+
+// codecs/json.mjs
+var name4 = "json";
+var universal = true;
+function usage6(stream = console.error) {
+  stream(`Usage: ${argv[1]} --parse | --print`);
+  stream("  --parse      Read JSON from stdin, write binary pattern+value stream.");
+  stream("  --print      Read binary pattern+value stream from stdin, write JSON.");
+  stream("  -h, --help   Show this help.");
+}
+function readAll4(stream) {
+  return new Promise((resolve2, reject) => {
+    const chunks = [];
+    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on("end", () => resolve2(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+function parse3(text) {
+  return fromJsonValue(JSON.parse(text));
+}
+function print3(value) {
+  return JSON.stringify(toJsonValue(value));
+}
+async function main6() {
+  const args = argv.slice(2);
+  if (args.includes("-h") || args.includes("--help")) {
+    usage6(console.log);
+    exit(0);
+  }
+  if (args.length !== 1 || args[0] !== "--parse" && args[0] !== "--print") {
+    usage6();
+    exit(1);
+  }
+  const buf = await readAll4(stdin);
+  if (args[0] === "--parse") {
+    const text = buf.toString("utf8");
+    const json = JSON.parse(text);
+    const value = fromJsonValue(json);
+    stdout.write(encodeToWire(value, patternFromJsonValue(json)));
+  } else {
+    const { value } = decodeWire(buf);
+    stdout.write(`${print3(value)}
+`);
+  }
+}
+if (isMainEntrypoint(import.meta.url, argv[1])) {
+  main6().catch((error) => {
+    console.error(error.stack || error.message || String(error));
+    exit(1);
+  });
+}
+
+// repl-codecs.mjs
+var BUILTIN_CODECS = {
+  int: int_exports,
+  utf8: utf8_exports,
+  json: json_exports,
+  ieee: ieee_exports
+};
 var UNIVERSAL_CODE = "*";
-function isCanonicalCodeName(name) {
-  return typeof name === "string" && name.startsWith("@");
+function isCanonicalCodeName(name5) {
+  return typeof name5 === "string" && name5.startsWith("@");
 }
 function closedPatternToCodeHash(pattern) {
   if (!Array.isArray(pattern) || pattern.length === 0) {
@@ -12307,10 +13720,10 @@ function codeHashToPattern(codeHash, findCode) {
   if (!code || code.code === "undefined") {
     throw new Error(`Unknown type '${codeHash}'`);
   }
-  const resolveType = (name) => {
-    const resolved = findCode(name);
+  const resolveType = (name5) => {
+    const resolved = findCode(name5);
     if (!resolved || resolved.code === "undefined") {
-      throw new Error(`Unknown type '${name}'`);
+      throw new Error(`Unknown type '${name5}'`);
     }
     return resolved;
   };
@@ -12322,30 +13735,30 @@ function valueForCode(value, codeHash, findCode) {
 }
 function normalizeCodecModule(mod, fallbackName) {
   const codec = mod.replCodec || mod.codec || mod.default || mod;
-  const name = codec.name || mod.name || fallbackName;
-  const universal = codec.universal === true;
-  const patterns = codec.patterns || (codec.pattern ? [codec.pattern] : null);
-  const codes2 = codec.codes || codec.codeHashes || (codec.code ? [codec.code] : null) || patterns?.map((pattern, index) => {
+  const name5 = codec.name || mod.name || fallbackName;
+  const universal2 = codec.universal === true;
+  const patterns4 = codec.patterns || (codec.pattern ? [codec.pattern] : null);
+  const codes2 = codec.codes || codec.codeHashes || (codec.code ? [codec.code] : null) || patterns4?.map((pattern, index) => {
     const codeHash = closedPatternToCodeHash(pattern);
-    if (!codeHash) throw new Error(`Codec '${name}' pattern ${index} must be a closed property-list pattern`);
+    if (!codeHash) throw new Error(`Codec '${name5}' pattern ${index} must be a closed property-list pattern`);
     return codeHash;
   });
-  if (!name || typeof name !== "string") {
+  if (!name5 || typeof name5 !== "string") {
     throw new Error("Codec module must export a string name");
   }
-  if (!universal && (!Array.isArray(codes2) || codes2.length === 0)) {
-    throw new Error(`Codec '${name}' must export a non-empty codes array`);
+  if (!universal2 && (!Array.isArray(codes2) || codes2.length === 0)) {
+    throw new Error(`Codec '${name5}' must export a non-empty codes array`);
   }
   if (codec.parse != null && typeof codec.parse !== "function") {
-    throw new Error(`Codec '${name}' parse export must be a function`);
+    throw new Error(`Codec '${name5}' parse export must be a function`);
   }
   if (codec.print != null && typeof codec.print !== "function") {
-    throw new Error(`Codec '${name}' print export must be a function`);
+    throw new Error(`Codec '${name5}' print export must be a function`);
   }
   return {
-    name,
-    codes: universal ? [UNIVERSAL_CODE] : codes2,
-    universal,
+    name: name5,
+    codes: universal2 ? [UNIVERSAL_CODE] : codes2,
+    universal: universal2,
     parse: codec.parse,
     print: codec.print
   };
@@ -12354,19 +13767,29 @@ function codecStore(state2) {
   if (!state2.codecs) state2.codecs = {};
   return state2.codecs;
 }
+function resolveCanonicalCodeHash(codeHash, state2 = null) {
+  if (codeHash === UNIVERSAL_CODE) return UNIVERSAL_CODE;
+  if (isCanonicalCodeName(codeHash)) return codeHash;
+  if (state2?.typeAliases) {
+    const clean = codeHash.startsWith("$") ? codeHash.slice(1) : codeHash;
+    if (state2.typeAliases[clean]) return state2.typeAliases[clean];
+  }
+  return codeHash;
+}
 function registerCodec(state2, codec, source = null) {
   const registered = [];
   const store = codecStore(state2);
-  for (const codeHash of codec.codes) {
-    const universal = codeHash === UNIVERSAL_CODE;
-    if (!universal && !isCanonicalCodeName(codeHash)) {
+  for (const rawCodeHash of codec.codes) {
+    const codeHash = resolveCanonicalCodeHash(rawCodeHash, state2);
+    const universal2 = codeHash === UNIVERSAL_CODE;
+    if (!universal2 && !isCanonicalCodeName(codeHash)) {
       throw new Error(`Codec '${codec.name}' has non-canonical code '${codeHash}'`);
     }
     if (!store[codeHash]) store[codeHash] = [];
     const entry = {
       name: codec.name,
       source,
-      universal,
+      universal: universal2,
       parse: codec.parse,
       print: codec.print
     };
@@ -12382,13 +13805,74 @@ function registerCodec(state2, codec, source = null) {
   }
   return registered;
 }
+function unregisterCodec(state2, codecName) {
+  const store = codecStore(state2);
+  let removedCount = 0;
+  for (const [codeHash, codecs] of Object.entries(store)) {
+    const remaining = codecs.filter((c) => c.name !== codecName);
+    if (remaining.length !== codecs.length) {
+      removedCount += codecs.length - remaining.length;
+      if (remaining.length === 0) {
+        delete store[codeHash];
+      } else {
+        store[codeHash] = remaining;
+      }
+    }
+  }
+  return removedCount;
+}
+function matchBuiltinCodec(target) {
+  const normalized = target.replace(/\\/g, "/").replace(/^\.\//, "").toLowerCase();
+  const base = path_default.basename(normalized, path_default.extname(normalized));
+  if (BUILTIN_CODECS[base]) return { name: base, mod: BUILTIN_CODECS[base] };
+  return null;
+}
 async function loadCodecModule(state2, filePath) {
+  const builtin2 = matchBuiltinCodec(filePath);
+  if (builtin2) {
+    const codec2 = normalizeCodecModule(builtin2.mod, builtin2.name);
+    return registerCodec(state2, codec2, "built-in");
+  }
+  let source = null;
+  try {
+    if (fs_default.existsSync(filePath)) {
+      source = fs_default.readFileSync(filePath, "utf8");
+    }
+  } catch {
+  }
   const resolved = path_default.resolve(filePath);
-  const url = pathToFileURL(resolved);
-  url.searchParams.set("mtime", String(fs_default.statSync(resolved).mtimeMs));
-  const mod = await import(url.href);
-  const codec = normalizeCodecModule(mod, path_default.basename(resolved, path_default.extname(resolved)));
-  return registerCodec(state2, codec, resolved);
+  if (!source && fs_default.existsSync(resolved)) {
+    try {
+      source = fs_default.readFileSync(resolved, "utf8");
+    } catch {
+    }
+  }
+  if (typeof process !== "undefined" && process?.versions?.node && fs_default.existsSync(resolved)) {
+    try {
+      const url = pathToFileURL(resolved);
+      try {
+        const stats = fs_default.statSync(resolved);
+        if (stats?.mtimeMs) url.searchParams.set("mtime", String(stats.mtimeMs));
+      } catch {
+      }
+      const mod2 = await import(url.href);
+      const codec2 = normalizeCodecModule(mod2, path_default.basename(resolved, path_default.extname(resolved)));
+      return registerCodec(state2, codec2, resolved);
+    } catch (nodeErr) {
+      if (!source) throw nodeErr;
+    }
+  }
+  if (!source) {
+    throw new Error(`Cannot find codec file '${filePath}'`);
+  }
+  const sanitized = source.replace(
+    /import\s+[^;]*from\s+['"][^'"]*['"];?/g,
+    "const { Value, isProduct, isVariant, NODE_KIND } = globalThis;"
+  );
+  const dataUrl = "data:text/javascript;charset=utf-8," + encodeURIComponent(sanitized);
+  const mod = await import(dataUrl);
+  const codec = normalizeCodecModule(mod, path_default.basename(filePath, path_default.extname(filePath)));
+  return registerCodec(state2, codec, filePath);
 }
 function listCodecs(state2) {
   const entries = Object.entries(codecStore(state2)).flatMap(([codeHash, codecs]) => codecs.map((codec) => ({ codeHash, ...codec }))).sort((a, b) => a.name.localeCompare(b.name) || a.codeHash.localeCompare(b.codeHash));
@@ -12434,11 +13918,11 @@ function resetTagIds() {
 }
 var funcMap = /* @__PURE__ */ new Map();
 var nextFuncId = 1;
-function getFuncId(name) {
-  if (!funcMap.has(name)) {
-    funcMap.set(name, nextFuncId++);
+function getFuncId(name5) {
+  if (!funcMap.has(name5)) {
+    funcMap.set(name5, nextFuncId++);
   }
-  return funcMap.get(name);
+  return funcMap.get(name5);
 }
 function cloneInstructions(insts) {
   return insts.map((inst) => {
@@ -12471,8 +13955,8 @@ function renameRegisters(insts, prefix) {
     }
   }
 }
-function lowerToWasm(relDef, name, options = {}) {
-  const kvmFuncOriginal = relDef.body ? relDef : lowerToKVM(relDef, name, options);
+function lowerToWasm(relDef, name5, options = {}) {
+  const kvmFuncOriginal = relDef.body ? relDef : lowerToKVM(relDef, name5, options);
   const kvmFunc = {
     ...kvmFuncOriginal,
     body: cloneInstructions(kvmFuncOriginal.body)
@@ -12560,14 +14044,14 @@ function lowerToWasm(relDef, name, options = {}) {
   function isSelfTailCall(insts, index, inputMap, returnTarget, tailReturnTargets) {
     if (options.trace) return false;
     const inst = insts[index];
-    if (inst.op !== "call" || inst.func !== name) return false;
+    if (inst.op !== "call" || inst.func !== name5) return false;
     const dest = cleanReg(inst.dest);
     return tailValueAfter2(insts, index + 1, dest, inputMap, returnTarget, tailReturnTargets);
   }
   function selfTailCallAfterProduct(insts, index, productDest, inputMap, returnTarget, tailReturnTargets) {
     if (options.trace || inputProductFields.length === 0) return null;
     const callInst = insts[index + 1];
-    if (!callInst || callInst.op !== "call" || callInst.func !== name) return null;
+    if (!callInst || callInst.op !== "call" || callInst.func !== name5) return null;
     if (mapsToReg(callInst.src, inputMap) !== productDest) return null;
     const callDest = cleanReg(callInst.dest);
     if (!tailValueAfter2(insts, index + 2, callDest, inputMap, returnTarget, tailReturnTargets)) return null;
@@ -12715,12 +14199,12 @@ function lowerToWasm(relDef, name, options = {}) {
           lines.push(`    ;; product creation for $${dest}`);
           if (tailCall) {
             if (N !== inputProductFields.length) {
-              throw new Error(`Wasm compiler: tail-call ${name} input product field count mismatch`);
+              throw new Error(`Wasm compiler: tail-call ${name5} input product field count mismatch`);
             }
             for (let i = 0; i < N; i++) {
               const branch = sortedBranches[i];
               if (!inputProductFieldByLabel.has(branch.label)) {
-                throw new Error(`Wasm compiler: tail-call ${name} input product is missing field '${branch.label}'`);
+                throw new Error(`Wasm compiler: tail-call ${name5} input product is missing field '${branch.label}'`);
               }
               const fieldTmp = `${dest}_f${i}`;
               registers.add(fieldTmp);
@@ -12957,12 +14441,12 @@ function lowerToWasm(relDef, name, options = {}) {
   const bodyWat = compileInstructions(kvmFunc.body);
   const inputProductLocalInit = initInputProductLocals();
   const localDecls = Array.from(registers).filter((r) => r !== "in").map((r) => `    (local $${r} i32)`).join("\n");
-  const profWat = options.profile ? `      global.get $prof_${name}
+  const profWat = options.profile ? `      global.get $prof_${name5}
       i64.const 1
       i64.add
-      global.set $prof_${name}
+      global.set $prof_${name5}
 ` : "";
-  const wat = `(func $${name} (export "${name}") (param $in i32) (result i32 i32)
+  const wat = `(func $${name5} (export "${name5}") (param $in i32) (result i32 i32)
 ${localDecls}
 ${inputProductLocalInit}
     (loop ${tailLoopLabel}
@@ -12980,7 +14464,7 @@ var wabtPromise;
 var METADATA_SECTION = "k.metadata";
 var ARTIFACT_FORMAT = "k-wasm";
 var ARTIFACT_VERSION = 1;
-var cleanName = (name) => "rel_" + name.replace(/[^a-zA-Z0-9_]/g, "_");
+var cleanName = (name5) => "rel_" + name5.replace(/[^a-zA-Z0-9_]/g, "_");
 async function getWabt() {
   if (!wabtPromise) {
     wabtPromise = Promise.resolve().then(() => __toESM(require_wabt(), 1)).then(({ default: wabtFactory }) => wabtFactory());
@@ -13021,9 +14505,9 @@ function scanCalls(insts, compiled, queue) {
 function injectLibraries(rels, libraries = []) {
   for (const lib of libraries) {
     const libRels = lib.rels || lib.defs?.rels || {};
-    for (const [name, rel] of Object.entries(libRels)) {
-      if (!(name in rels)) {
-        rels[name] = { ...rel, _library: true };
+    for (const [name5, rel] of Object.entries(libRels)) {
+      if (!(name5 in rels)) {
+        rels[name5] = { ...rel, _library: true };
       }
     }
   }
@@ -13049,14 +14533,14 @@ function composeInputFilter(filterExp, exp) {
 function compileObjectDefs(object, mainRelName, mainExp = null, options = {}) {
   const representatives = codes_default.register(object.codes || {});
   const rels = Object.fromEntries(
-    Object.entries(object.rels || {}).map(([name, rel]) => {
-      if (name === mainRelName) {
-        return [name, { def: cloneForRetyping(mainExp ? mainExp : rel.def) }];
+    Object.entries(object.rels || {}).map(([name5, rel]) => {
+      if (name5 === mainRelName) {
+        return [name5, { def: cloneForRetyping(mainExp ? mainExp : rel.def) }];
       }
       if (rel.typePatternGraph) {
-        return [name, { ...rel, _library: true }];
+        return [name5, { ...rel, _library: true }];
       }
-      return [name, { def: cloneForRetyping(rel.def) }];
+      return [name5, { def: cloneForRetyping(rel.def) }];
     })
   );
   injectLibraries(rels, options.libraries);
@@ -13087,15 +14571,15 @@ function annotateObjectWithInputFilter(object, mainRelName, inputPattern, valueP
 function cleanFunctionNameMap(names) {
   const used = /* @__PURE__ */ new Set();
   const nameMap = /* @__PURE__ */ new Map();
-  for (const name of names) {
-    const base = cleanName(name);
+  for (const name5 of names) {
+    const base = cleanName(name5);
     let candidate = base;
     let suffix = 1;
     while (used.has(candidate)) {
       candidate = `${base}_${suffix++}`;
     }
     used.add(candidate);
-    nameMap.set(name, candidate);
+    nameMap.set(name5, candidate);
   }
   return nameMap;
 }
@@ -13117,17 +14601,17 @@ function compileModule(mainRelName, defs) {
   const wats = [];
   const nameMap = cleanFunctionNameMap(Object.keys(defs.rels));
   while (queue.length > 0) {
-    const name = queue.shift();
-    if (compiled.has(name)) continue;
-    compiled.add(name);
-    const relDef = defs.rels[name];
+    const name5 = queue.shift();
+    if (compiled.has(name5)) continue;
+    compiled.add(name5);
+    const relDef = defs.rels[name5];
     if (!relDef) {
-      throw new Error(`Relation ${name} not found`);
+      throw new Error(`Relation ${name5} not found`);
     }
-    const kvmFunc = lowerToKVM(relDef, name);
+    const kvmFunc = lowerToKVM(relDef, name5);
     kvmFunc.typePatternGraph = relDef.typePatternGraph;
     scanCalls(kvmFunc.body, compiled, queue);
-    kvmFunc.name = nameMap.get(name) || cleanName(name);
+    kvmFunc.name = nameMap.get(name5) || cleanName(name5);
     cleanCallNames(kvmFunc.body, nameMap);
     wats.push(lowerToWasm(kvmFunc, kvmFunc.name));
   }
@@ -13151,8 +14635,8 @@ function encodeU32(value) {
   } while (value > 0);
   return Buffer.from(bytes);
 }
-function appendCustomSection(wasmBuffer, name, data) {
-  const nameBuffer = Buffer.from(name, "utf8");
+function appendCustomSection(wasmBuffer, name5, data) {
+  const nameBuffer = Buffer.from(name5, "utf8");
   const dataBuffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
   const payload = Buffer.concat([
     encodeU32(nameBuffer.length),
@@ -13213,19 +14697,19 @@ function compileStatsByRelName2(compileStats = {}) {
   }
   return byName;
 }
-function relTypeStatus(defs, name) {
-  const rel = defs.rels?.[name];
+function relTypeStatus(defs, name5) {
+  const rel = defs.rels?.[name5];
   const explicit = rel?.typeDerivation?.status;
   if (explicit) return explicit;
-  const scc = compileStatsByRelName2(defs.compileStats).get(name);
+  const scc = compileStatsByRelName2(defs.compileStats).get(name5);
   if (scc) return scc.converged ? "converged" : "not-converged";
   return "unknown";
 }
 function assertRelationsConverged(defs, relationNames) {
-  for (const name of relationNames) {
-    const status = relTypeStatus(defs, name);
+  for (const name5 of relationNames) {
+    const status = relTypeStatus(defs, name5);
     if (status !== "converged") {
-      throw new Error(`Cannot compile '${name}' to WebAssembly: type derivation is ${status}`);
+      throw new Error(`Cannot compile '${name5}' to WebAssembly: type derivation is ${status}`);
     }
   }
 }
@@ -13603,6 +15087,11 @@ async function instantiateWasmArtifact(wasmBuffer) {
 }
 
 // repl.mjs
+if (typeof globalThis !== "undefined") {
+  globalThis.Value = Value;
+  globalThis.isProduct = isProduct;
+  globalThis.isVariant = isVariant;
+}
 var NAME_RE2 = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 var TYPE_DEF_RE = /^\s*\$\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 var REL_DEF_RE = /^\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
@@ -13618,6 +15107,7 @@ var COMMAND_NAMES = [
   "d",
   "C",
   "codes",
+  "codecs",
   "rels",
   "val",
   "codec",
@@ -13629,7 +15119,7 @@ var COMMAND_NAMES = [
   "quit",
   "exit"
 ];
-var CODEC_COMMAND_NAMES = ["load", "list"];
+var CODEC_COMMAND_NAMES = ["load", "unload", "list", "define"];
 var PATH_COMMANDS = /* @__PURE__ */ new Set(["klib", "ko", "load"]);
 var INPUT_TYPE_NAME = "__input__";
 var initialCodes = codes_default.dump();
@@ -13666,18 +15156,18 @@ function stateLibrary(state2) {
 function restoreCodes(state2) {
   codes_default.load(state2.codes);
 }
-function aliasLine(kind, name, hash2) {
-  if (!NAME_RE2.test(name)) return null;
+function aliasLine(kind, name5, hash2) {
+  if (!NAME_RE2.test(name5)) return null;
   const body = hash2.startsWith("@") ? hash2.slice(1) : hash2;
-  return kind === "code" ? `$ ${name} = @${body};` : `${name} = @${body};`;
+  return kind === "code" ? `$ ${name5} = @${body};` : `${name5} = @${body};`;
 }
 function aliasPreamble(state2, omitName = null) {
   const lines = [];
-  for (const [name, hash2] of Object.entries(state2.typeAliases).sort()) {
-    if (name !== omitName) lines.push(aliasLine("code", name, hash2));
+  for (const [name5, hash2] of Object.entries(state2.typeAliases).sort()) {
+    if (name5 !== omitName) lines.push(aliasLine("code", name5, hash2));
   }
-  for (const [name, hash2] of Object.entries(state2.relAliases).sort()) {
-    if (name !== omitName) lines.push(aliasLine("rel", name, hash2));
+  for (const [name5, hash2] of Object.entries(state2.relAliases).sort()) {
+    if (name5 !== omitName) lines.push(aliasLine("rel", name5, hash2));
   }
   return lines.filter(Boolean).join("\n");
 }
@@ -13737,16 +15227,16 @@ function mergeMeta(state2, meta = {}) {
     state2.meta[hash2].origins.push(...origins.map((origin) => ({ ...origin })));
   }
 }
-function rememberOrigin(state2, hash2, name, type, source = "<repl>") {
+function rememberOrigin(state2, hash2, name5, type, source = "<repl>") {
   if (!state2.meta[hash2]) state2.meta[hash2] = { type, origins: [] };
   if (state2.meta[hash2].type == null) state2.meta[hash2].type = type;
   const exists = state2.meta[hash2].origins.some(
-    (origin) => origin.name === name && state2.meta[hash2].type === type && origin.source === source
+    (origin) => origin.name === name5 && state2.meta[hash2].type === type && origin.source === source
   );
   if (!exists) {
     state2.meta[hash2].origins.push({
       source,
-      name,
+      name: name5,
       compiledAt: (/* @__PURE__ */ new Date()).toISOString()
     });
   }
@@ -13771,10 +15261,10 @@ function mergeLibrary(state2, lib, source = "<load>", options = {}) {
   mergeMeta(state2, lib.meta);
   if (loadAliases) {
     state2.relAliases = { ...state2.relAliases, ...lib.relAlias || {} };
-    for (const [name, hash2] of Object.entries(lib.relAlias || {})) {
-      if (name !== "__main__" && NAME_RE2.test(name) && hash2 in state2.rels) {
-        state2.relAliases[name] = hash2;
-        rememberOrigin(state2, hash2, name, "rel", source);
+    for (const [name5, hash2] of Object.entries(lib.relAlias || {})) {
+      if (name5 !== "__main__" && NAME_RE2.test(name5) && hash2 in state2.rels) {
+        state2.relAliases[name5] = hash2;
+        rememberOrigin(state2, hash2, name5, "rel", source);
       }
     }
     recoverAliasesFromMeta(state2, lib);
@@ -13814,15 +15304,15 @@ function reachableRelations(rels, roots) {
 function savedLibrary(state2) {
   const meta = cloneJSON(state2.meta);
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  for (const [name, hash2] of Object.entries(state2.typeAliases)) {
+  for (const [name5, hash2] of Object.entries(state2.typeAliases)) {
     if (!meta[hash2]) meta[hash2] = { type: "code", origins: [] };
     if (meta[hash2].type == null) meta[hash2].type = "code";
-    meta[hash2].origins.push({ source: "<repl>", name, compiledAt: now });
+    meta[hash2].origins.push({ source: "<repl>", name: name5, compiledAt: now });
   }
-  for (const [name, hash2] of Object.entries(state2.relAliases)) {
+  for (const [name5, hash2] of Object.entries(state2.relAliases)) {
     if (!meta[hash2]) meta[hash2] = { type: "rel", origins: [] };
     if (meta[hash2].type == null) meta[hash2].type = "rel";
-    meta[hash2].origins.push({ source: "<repl>", name, compiledAt: now });
+    meta[hash2].origins.push({ source: "<repl>", name: name5, compiledAt: now });
   }
   const rels = reachableRelations(state2.rels, Object.values(state2.relAliases));
   const storedHashes = /* @__PURE__ */ new Set([
@@ -13842,14 +15332,14 @@ function savedLibrary(state2) {
   };
 }
 function executableObject(state2, mainExpression) {
-  const main4 = (mainExpression || state2.lastMain || "").trim();
-  if (!main4) {
+  const main7 = (mainExpression || state2.lastMain || "").trim();
+  if (!main7) {
     throw new Error(":ko file expr requires a main expression unless one has already been evaluated or defined");
   }
   restoreCodes(state2);
   const preamble = aliasPreamble(state2);
   try {
-    return compileObject([preamble, main4].filter(Boolean).join("\n"), {
+    return compileObject([preamble, main7].filter(Boolean).join("\n"), {
       source: "<repl>",
       libraries: [stateLibrary(state2)]
     });
@@ -13859,8 +15349,8 @@ function executableObject(state2, mainExpression) {
     restoreCodes(state2);
   }
 }
-function resolveRel(state2, name) {
-  const hash2 = state2.relAliases[name] || (name.startsWith("@") ? name : null);
+function resolveRel(state2, name5) {
+  const hash2 = state2.relAliases[name5] || (name5.startsWith("@") ? name5 : null);
   return hash2 ? { hash: hash2, rel: state2.rels[hash2] } : { hash: null, rel: null };
 }
 function relTypeString(rel) {
@@ -13870,7 +15360,7 @@ function relTypeString(rel) {
 function listAliases(aliases) {
   const entries = Object.entries(aliases).sort(([a], [b]) => a.localeCompare(b));
   if (entries.length === 0) return "(none)";
-  return entries.map(([name, hash2]) => `${name} = ${hash2}`).join("\n");
+  return entries.map(([name5, hash2]) => `${name5} = ${hash2}`).join("\n");
 }
 function formatCodecOutput(output) {
   if (Buffer.isBuffer(output)) return output.toString("utf8");
@@ -13914,17 +15404,17 @@ function userDefinedNames(source) {
   }
   return {
     typeNames: Object.keys(parsed.defs.codes).filter(
-      (name) => NAME_RE2.test(name) && !name.startsWith("@") && !name.startsWith(":")
+      (name5) => NAME_RE2.test(name5) && !name5.startsWith("@") && !name5.startsWith(":")
     ),
     relNames: Object.keys(parsed.defs.rels).filter(
-      (name) => NAME_RE2.test(name) && !name.startsWith("@") && name !== "__main__"
+      (name5) => NAME_RE2.test(name5) && !name5.startsWith("@") && name5 !== "__main__"
     )
   };
 }
-function originFromSourceNode2(source, name, compiledAt, node) {
+function originFromSourceNode2(source, name5, compiledAt, node) {
   return {
     source,
-    name,
+    name: name5,
     compiledAt,
     ...node?.start ? { start: node.start } : {},
     ...node?.end ? { end: node.end } : {}
@@ -13935,27 +15425,27 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
   const annotated = annotateWithOptionalIdentity(fullSource, options);
   const meta = {};
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  for (const name of typeNames) {
-    const hash2 = annotated.representatives?.[name];
+  for (const name5 of typeNames) {
+    const hash2 = annotated.representatives?.[name5];
     if (!hash2) continue;
     if (!meta[hash2]) meta[hash2] = { type: "code", origins: [] };
     meta[hash2].origins.push(originFromSourceNode2(
       options.source || null,
-      name,
+      name5,
       now,
-      annotated.sourceDefs?.codes?.[name]
+      annotated.sourceDefs?.codes?.[name5]
     ));
   }
   const relAlias = Object.fromEntries(
-    relNames.map((name) => [name, lib.relAlias?.[name]]).filter(([, hash2]) => hash2 != null)
+    relNames.map((name5) => [name5, lib.relAlias?.[name5]]).filter(([, hash2]) => hash2 != null)
   );
-  for (const [name, hash2] of Object.entries(relAlias)) {
+  for (const [name5, hash2] of Object.entries(relAlias)) {
     if (!meta[hash2]) meta[hash2] = { type: "rel", origins: [] };
     meta[hash2].origins.push(originFromSourceNode2(
       options.source || null,
-      name,
+      name5,
       now,
-      annotated.rels?.[name]?.def
+      annotated.rels?.[name5]?.def
     ));
   }
   return { relAlias, meta };
@@ -13966,13 +15456,13 @@ function canonicalNames(state2) {
     ...Object.keys(state2.rels),
     ...Object.values(state2.typeAliases),
     ...Object.values(state2.relAliases)
-  ])].filter((name) => name.startsWith("@")).sort();
+  ])].filter((name5) => name5.startsWith("@")).sort();
 }
 function canonicalCodeNames(state2) {
   return [.../* @__PURE__ */ new Set([
     ...Object.keys(state2.codes),
     ...Object.values(state2.typeAliases)
-  ])].filter((name) => name.startsWith("@")).sort();
+  ])].filter((name5) => name5.startsWith("@")).sort();
 }
 function aliasNames(state2) {
   return [.../* @__PURE__ */ new Set([
@@ -13982,11 +15472,11 @@ function aliasNames(state2) {
 }
 function displayAliases(state2) {
   const aliases = {};
-  for (const [name, hash2] of [
+  for (const [name5, hash2] of [
     ...Object.entries(state2.typeAliases),
     ...Object.entries(state2.relAliases)
   ].sort(([a], [b]) => a.localeCompare(b))) {
-    if (!aliases[hash2]) aliases[hash2] = name;
+    if (!aliases[hash2]) aliases[hash2] = name5;
   }
   return aliases;
 }
@@ -14010,14 +15500,14 @@ function completeCanonical(line, state2) {
   const match = line.match(/^(.*?)(@[A-Za-z0-9_?!+-]*)$/);
   if (!match) return [[], line];
   const [, prefix, partial] = match;
-  const matches = canonicalNames(state2).filter((name) => name.startsWith(partial)).map((name) => `${prefix}${name}`);
+  const matches = canonicalNames(state2).filter((name5) => name5.startsWith(partial)).map((name5) => `${prefix}${name5}`);
   return [matches, line];
 }
 function completeCanonicalCode(line, state2) {
   const match = line.match(/^(.*?)(@[A-Za-z0-9_?!+-]*)$/);
   if (!match) return [[], line];
   const [, prefix, partial] = match;
-  const matches = canonicalCodeNames(state2).filter((name) => name.startsWith(partial)).map((name) => `${prefix}${name}`);
+  const matches = canonicalCodeNames(state2).filter((name5) => name5.startsWith(partial)).map((name5) => `${prefix}${name5}`);
   return [matches, line];
 }
 function completeIdentifier(line, state2) {
@@ -14027,7 +15517,7 @@ function completeIdentifier(line, state2) {
   const isTypeToken = partial.startsWith("$");
   const barePartial = isTypeToken ? partial.slice(1) : partial;
   const names = isTypeToken ? Object.keys(state2.typeAliases).sort() : aliasNames(state2);
-  const matches = names.filter((name) => name.startsWith(barePartial)).map((name) => `${prefix}${isTypeToken ? "$" : ""}${name}`);
+  const matches = names.filter((name5) => name5.startsWith(barePartial)).map((name5) => `${prefix}${isTypeToken ? "$" : ""}${name5}`);
   return [matches, line];
 }
 function completeTypeIdentifier(line, state2) {
@@ -14036,7 +15526,7 @@ function completeTypeIdentifier(line, state2) {
   const [, prefix, partial] = match;
   const isTypeToken = partial.startsWith("$");
   const barePartial = isTypeToken ? partial.slice(1) : partial;
-  const matches = Object.keys(state2.typeAliases).sort().filter((name) => name.startsWith(barePartial)).map((name) => `${prefix}${isTypeToken ? "$" : ""}${name}`);
+  const matches = Object.keys(state2.typeAliases).sort().filter((name5) => name5.startsWith(barePartial)).map((name5) => `${prefix}${isTypeToken ? "$" : ""}${name5}`);
   return [matches, line];
 }
 function completePath(line, tokenStart) {
@@ -14100,14 +15590,27 @@ function codecLoadPathCompletionStart(argStart, arg) {
   const restLeadingWhitespace = rest.length - rest.trimStart().length;
   return argStart + leading.length + "load".length + 1 + restLeadingWhitespace + completionTokenStart(rest.trimStart());
 }
-function completeCodecCommand(line, argStart, arg) {
+function completeCodecCommand(line, argStart, arg, state2) {
   const trimmed = arg.trimStart();
   if (trimmed === "" || !/\s/.test(trimmed)) {
     return completeCommandWord(line, argStart, arg, CODEC_COMMAND_NAMES);
   }
+  const unloadMatch = arg.match(/^(\s*)unload(?:\s+(.*))?$/);
+  if (unloadMatch) {
+    const [, leading, partial2 = ""] = unloadMatch;
+    const prefix2 = line.slice(0, argStart + leading.length + "unload".length + 1);
+    const names = state2 ? codecNames(state2) : [];
+    const matches = names.filter((name5) => name5.startsWith(partial2.trim())).map((name5) => `${prefix2}${name5}`);
+    return [matches, line];
+  }
   const tokenStart = codecLoadPathCompletionStart(argStart, arg);
   if (tokenStart == null) return [[], line];
-  return completePath(line, tokenStart);
+  const [pathMatches] = completePath(line, tokenStart);
+  const match = arg.match(/^(\s*)load(?:\s+(.*))?$/);
+  const partial = match && match[2] != null ? match[2].trim() : "";
+  const prefix = line.slice(0, tokenStart);
+  const builtinMatches = ["int", "utf8", "json", "ieee"].filter((name5) => name5.startsWith(partial)).map((name5) => `${prefix}${name5}`);
+  return [[...builtinMatches, ...pathMatches], line];
 }
 function resolveTypeHash(state2, rawName) {
   const token = rawName.trim();
@@ -14164,7 +15667,7 @@ function completeInputCommand(line, state2, argStart, arg) {
       }
     })();
     return [
-      names.filter((name) => name.startsWith(codecPartial)).map((name) => `${prefix}${name}`),
+      names.filter((name5) => name5.startsWith(codecPartial)).map((name5) => `${prefix}${name5}`),
       line
     ];
   }
@@ -14177,8 +15680,8 @@ function completeCommandArgument(line, state2) {
   const command = body.slice(0, firstSpace);
   const argStart = 1 + firstSpace + 1;
   const arg = line.slice(argStart);
-  if (command === "codec") {
-    return completeCodecCommand(line, argStart, arg);
+  if (command === "codec" || command === "codecs") {
+    return completeCodecCommand(line, argStart, arg, state2);
   }
   if (command === "input") {
     return completeInputCommand(line, state2, argStart, arg);
@@ -14301,9 +15804,9 @@ async function defineType(input, state2) {
   if (!typeMatch) {
     throw new Error("Type definitions use: :type name = <...>");
   }
-  const name = typeMatch[1];
+  const name5 = typeMatch[1];
   restoreCodes(state2);
-  const preamble = aliasPreamble(state2, name);
+  const preamble = aliasPreamble(state2, name5);
   const source = [preamble, ensureSemicolon(input), "()"].filter(Boolean).join("\n");
   let annotated;
   try {
@@ -14311,37 +15814,37 @@ async function defineType(input, state2) {
   } catch (error) {
     throw remapError(error, preambleLineCount(preamble));
   }
-  const hash2 = annotated.representatives[name];
-  if (!hash2) throw new Error(`Type definition did not produce an alias for '${name}'`);
+  const hash2 = annotated.representatives[name5];
+  if (!hash2) throw new Error(`Type definition did not produce an alias for '${name5}'`);
   state2.codes = codes_default.dump();
-  state2.typeAliases[name] = hash2;
-  rememberOrigin(state2, hash2, name, "code");
-  return [`$ ${name} = ${hash2}`];
+  state2.typeAliases[name5] = hash2;
+  rememberOrigin(state2, hash2, name5, "code");
+  return [`$ ${name5} = ${hash2}`];
 }
 async function defineRelation(input, state2) {
   const relMatch = input.match(REL_DEF_RE);
   if (!relMatch) {
     throw new Error("Relation definitions use: :rel name = expression");
   }
-  const name = relMatch[1];
+  const name5 = relMatch[1];
   restoreCodes(state2);
-  const preamble = aliasPreamble(state2, name);
-  const source = [preamble, ensureSemicolon(input), name].filter(Boolean).join("\n");
+  const preamble = aliasPreamble(state2, name5);
+  const source = [preamble, ensureSemicolon(input), name5].filter(Boolean).join("\n");
   let lib;
   try {
     lib = hydrateObject(compileLibrary(source, { source: "<repl>", libraries: [stateLibrary(state2)] }));
   } catch (error) {
     throw remapError(error, preambleLineCount(preamble));
   }
-  const hash2 = lib.relAlias?.[name];
-  if (!hash2 || !lib.rels?.[hash2]) throw new Error(`Relation definition did not produce an alias for '${name}'`);
+  const hash2 = lib.relAlias?.[name5];
+  if (!hash2 || !lib.rels?.[hash2]) throw new Error(`Relation definition did not produce an alias for '${name5}'`);
   state2.codes = codes_default.dump();
   state2.rels[hash2] = lib.rels[hash2];
-  state2.relAliases[name] = hash2;
-  state2.lastMain = name;
+  state2.relAliases[name5] = hash2;
+  state2.lastMain = name5;
   mergeMeta(state2, lib.meta);
-  rememberOrigin(state2, hash2, name, "rel");
-  return [`${name} = ${hash2}`];
+  rememberOrigin(state2, hash2, name5, "rel");
+  return [`${name5} = ${hash2}`];
 }
 async function executeExpressionWithWasm(annotated, state2, lineOffset = 0) {
   const mainRel = annotated.rels.__main__;
@@ -14412,21 +15915,57 @@ async function runSnippet(input, state2, options = {}) {
   return commitResult(state2, result, snippet);
 }
 async function loadCodec(input, state2) {
-  const [subcommand, ...rest] = input.trim().split(/\s+/);
+  const trimmed = input.trim();
+  if (!trimmed || trimmed === "list") {
+    return [listCodecs(state2)];
+  }
+  const [subcommand, ...rest] = trimmed.split(/\s+/);
   switch (subcommand) {
     case "load": {
       const filePath = rest.join(" ");
-      if (!filePath) throw new Error(":codec load requires a file path");
+      if (!filePath) throw new Error(":codec load requires a file path or codec name");
       const registered = await loadCodecModule(state2, expandHome(filePath));
       return registered.map(
-        ({ name, codeHash }) => `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
+        ({ name: name5, codeHash }) => `loaded codec ${name5} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
+      );
+    }
+    case "unload": {
+      const codecName = rest.join(" ").trim();
+      if (!codecName) throw new Error(":codec unload requires a codec name");
+      const removed = unregisterCodec(state2, codecName);
+      if (removed === 0) throw new Error(`Codec '${codecName}' is not loaded`);
+      return [`unloaded codec ${codecName}`];
+    }
+    case "define": {
+      const match = rest.join(" ").match(/^([a-zA-Z0-9_+-]+)\s+(\S+)\s+([\s\S]+)$/);
+      if (!match) {
+        throw new Error(":codec define requires: name type { parse: ..., print: ... }");
+      }
+      const [, name5, rawType, bodyStr] = match;
+      const fn = new Function("Value", "isProduct", "isVariant", "state", `return (${bodyStr});`);
+      const obj = fn(Value, isProduct, isVariant, state2);
+      const codeHash = rawType === "*" ? UNIVERSAL_CODE : resolveInputTypeHash(state2, rawType);
+      const codec = normalizeCodecModule({
+        name: name5,
+        codes: [codeHash],
+        universal: codeHash === UNIVERSAL_CODE,
+        parse: obj.parse,
+        print: obj.print
+      }, name5);
+      const registered = registerCodec(state2, codec, "<inline>");
+      return registered.map(
+        ({ name: name6, codeHash: codeHash2 }) => `defined codec ${name6} for ${codeHash2 === UNIVERSAL_CODE ? "all types" : codeHash2}`
       );
     }
     case "list":
       if (rest.length > 0) throw new Error(":codec list does not accept arguments");
       return [listCodecs(state2)];
-    default:
-      throw new Error(":codec requires 'load' or 'list'");
+    default: {
+      const registered = await loadCodecModule(state2, expandHome(trimmed));
+      return registered.map(
+        ({ name: name5, codeHash }) => `loaded codec ${name5} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
+      );
+    }
   }
 }
 async function requestCodecInput(input, state2) {
@@ -14520,6 +16059,7 @@ async function evaluateCommand(line, state2) {
         JSON.stringify(state2.value, null, 2)
       ];
     case "codec":
+    case "codecs":
       return loadCodec(arg, state2);
     case "input":
       return requestCodecInput(arg, state2);
@@ -14541,8 +16081,8 @@ async function evaluateCommand(line, state2) {
       }
       const object = executableObject(state2, mainParts.join(" "));
       fs_default.writeFileSync(path, encodeObject(object));
-      const main4 = mainParts.join(" ").trim();
-      return [`saved ${path} (${main4})`];
+      const main7 = mainParts.join(" ").trim();
+      return [`saved ${path} (${main7})`];
     }
     case "load": {
       const { path: loadPath, loadAliases } = parseLoadArgs(arg, usagePrefix);
@@ -14600,8 +16140,10 @@ function helpText2() {
     ":type name           show type definition",
     ":codes               list type aliases",
     ":rels                list relation aliases",
-    ":codec load file     load a REPL codec module",
-    ":codec list          list loaded codecs",
+    ":codec load file     load a REPL codec module (or built-in: int, utf8, json, ieee)",
+    ":codec define n t b  define a custom codec: name type { parse: ..., print: ... }",
+    ":codec unload name   unload a registered codec",
+    ":codec list          list loaded codecs (or simply :codecs)",
     ":input type [codec]  read next line as codec input",
     ":load [--no-alias] file",
     "                     load .k source or .klib",
@@ -14726,6 +16268,11 @@ if (isMainEntrypoint2()) {
 
 // browser/repl-browser.mjs
 init_fs();
+if (typeof window !== "undefined") {
+  window.Value = Value;
+  window.isProduct = isProduct;
+  window.isVariant = isVariant;
+}
 var state = createState();
 var completer = createCompleter(state);
 var isEvaluating = false;
@@ -14751,6 +16298,10 @@ var vfsPreviewEl;
 var vfsPreviewNameEl;
 var helpModal;
 var dropOverlay;
+var codecsModal;
+var codecsBadgeEl;
+var activeCodecsTbody;
+var codecTypeSelect;
 function escapeHtml(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
@@ -14784,12 +16335,33 @@ function ansiToHtml(str) {
   });
   return inSpan ? formatted + "</span>" : formatted;
 }
+function countActiveCodecs() {
+  const store = state.codecs || {};
+  let count = 0;
+  const seen = /* @__PURE__ */ new Set();
+  for (const list of Object.values(store)) {
+    for (const c of list) {
+      if (!seen.has(c.name)) {
+        seen.add(c.name);
+        count++;
+      }
+    }
+  }
+  return count;
+}
+function updateCodecsBadge() {
+  if (!codecsBadgeEl) return;
+  const count = countActiveCodecs();
+  codecsBadgeEl.textContent = String(count);
+  codecsBadgeEl.className = count > 0 ? "badge-count active" : "badge-count";
+}
 function updatePrompt() {
   const prompt = promptForState(state);
   if (promptEl) promptEl.textContent = prompt;
   if (inputEl) {
-    inputEl.placeholder = state.pendingInput ? `Enter value for ${state.pendingInput.promptName || "input"}...` : "Enter K expression or command (:help)...";
+    inputEl.placeholder = state.pendingInput ? `Enter value for ${state.pendingInput.promptName || "input"}...` : "Enter K expression or command (:help, :codecs)...";
   }
+  updateCodecsBadge();
 }
 function setStatus(busy, text = "Ready") {
   isEvaluating = busy;
@@ -14911,6 +16483,10 @@ async function executeCommand(input) {
     duration
   });
   completer = createCompleter(state);
+  updateCodecsBadge();
+  if (codecsModal && codecsModal.classList.contains("open")) {
+    renderCodecsModal();
+  }
 }
 function adjustInputHeight() {
   if (!inputEl) return;
@@ -15077,7 +16653,11 @@ function handleFileUpload(file) {
     }
     setVfsFile(file.name, data);
     appendSystemMessage(`\u{1F4C1} Uploaded <b>${escapeHtml(file.name)}</b> into VFS (${(data.length / 1024).toFixed(1)} KB).`);
-    executeCommand(`:load ${file.name}`);
+    if (file.name.endsWith("-codec.mjs") || file.name.endsWith("-codec.js") || file.name.includes("codec")) {
+      executeCommand(`:codec load ${file.name}`);
+    } else {
+      executeCommand(`:load ${file.name}`);
+    }
   };
   if (isBinary) {
     reader.readAsArrayBuffer(file);
@@ -15101,6 +16681,344 @@ function exportKlib() {
     appendSystemMessage(`Failed to export .klib: ${err.message}`, true);
   }
 }
+var CODEC_PRESETS = {
+  yn: {
+    name: "yn",
+    type: "bool",
+    universal: false,
+    parse: `// Parse 'yes', 'no', 'true', 'false' into $bool
+const tag = text.trim().toLowerCase();
+if (tag === "yes" || tag === "true" || tag === "1") {
+  return Value.variant("true", Value.product({}));
+}
+if (tag === "no" || tag === "false" || tag === "0") {
+  return Value.variant("false", Value.product({}));
+}
+throw new Error("Expected yes/no or true/false");`,
+    print: `// Serialize boolean value to YES / NO
+return value.tag === "true" ? "YES" : "NO";`
+  },
+  hex: {
+    name: "hex",
+    type: "int",
+    universal: false,
+    parse: `// Parse decimal or hex (e.g. 0x2a, 42, -0x10) into $int
+let str = text.trim();
+let sign = "+";
+if (str.startsWith("-")) { sign = "-"; str = str.slice(1).trim(); }
+else if (str.startsWith("+")) { str = str.slice(1).trim(); }
+
+const num = str.startsWith("0x") || str.startsWith("0X") ? BigInt(str) : BigInt(str);
+if (num === 0n) sign = "+";
+
+const bitChars = num === 0n ? ["0"] : num.toString(2).split("");
+let v = Value.variant("_", Value.product({}));
+for (let i = bitChars.length - 1; i >= 0; i--) {
+  v = Value.variant(bitChars[i], v);
+}
+return Value.variant(sign, v);`,
+    print: `// Serialize $int to hexadecimal string (0x...)
+if (!isVariant(value) || (value.tag !== "+" && value.tag !== "-")) {
+  throw new Error("Not a valid int value");
+}
+let bits = "";
+let node = value.value;
+while (isVariant(node) && node.tag !== "_") {
+  bits += node.tag;
+  node = node.value;
+}
+const n = bits === "" ? 0n : BigInt("0b" + bits);
+const hex = "0x" + n.toString(16).toUpperCase();
+return (value.tag === "-" && n !== 0n ? "-" : "") + hex;`
+  },
+  currency: {
+    name: "currency",
+    type: "int",
+    universal: false,
+    parse: `// Parse currency e.g. $42.50 or $100 into cents int
+const clean = text.trim().replace(/^\\$/, "").trim();
+const parts = clean.split(".");
+const dollars = BigInt(parts[0] || "0");
+const cents = BigInt((parts[1] || "0").padEnd(2, "0").slice(0, 2));
+const total = dollars * 100n + cents;
+
+const bitChars = total === 0n ? ["0"] : total.toString(2).split("");
+let v = Value.variant("_", Value.product({}));
+for (let i = bitChars.length - 1; i >= 0; i--) {
+  v = Value.variant(bitChars[i], v);
+}
+return Value.variant("+", v);`,
+    print: `// Format cents int as currency string ($X.XX)
+let bits = "";
+let node = value.value;
+while (isVariant(node) && node.tag !== "_") {
+  bits += node.tag;
+  node = node.value;
+}
+const n = bits === "" ? 0n : BigInt("0b" + bits);
+const dollars = n / 100n;
+const cents = (n % 100n).toString().padStart(2, "0");
+return "$" + dollars.toString() + "." + cents;`
+  },
+  blank: {
+    name: "custom",
+    type: "",
+    universal: false,
+    parse: `// Parse text string and return a K Value
+// Available: Value.product({ field: val }), Value.variant("tag", val)
+return Value.product({});`,
+    print: `// Serialize K Value into string or Buffer
+return JSON.stringify(value);`
+  }
+};
+function openCodecsModal() {
+  if (!codecsModal) return;
+  renderCodecsModal();
+  codecsModal.classList.add("open");
+}
+function closeCodecsModal() {
+  if (codecsModal) codecsModal.classList.remove("open");
+}
+function renderCodecsModal() {
+  updateCodecsBadge();
+  const standardCodecs = ["int", "utf8", "json", "ieee"];
+  for (const name5 of standardCodecs) {
+    const btn = document.getElementById(`btn-toggle-codec-${name5}`);
+    const badge = document.getElementById(`codec-badge-${name5}`);
+    const isLoaded = isCodecRegistered(name5);
+    if (btn) {
+      btn.textContent = isLoaded ? "Unload" : "Load";
+      btn.className = isLoaded ? "btn btn-sm btn-secondary" : "btn btn-sm btn-primary";
+    }
+    if (badge) {
+      badge.textContent = isLoaded ? "Active" : "Inactive";
+      badge.className = isLoaded ? "codec-status-badge active" : "codec-status-badge";
+    }
+  }
+  if (codecTypeSelect) {
+    const prev = codecTypeSelect.value;
+    codecTypeSelect.innerHTML = `<option value="">-- Choose Type Alias or Code Hash --</option>`;
+    const typeGroup = document.createElement("optgroup");
+    typeGroup.label = "Available Type Aliases in State";
+    const aliases = Object.entries(state.typeAliases || {}).sort(([a], [b]) => a.localeCompare(b));
+    for (const [alias, hash2] of aliases) {
+      const opt = document.createElement("option");
+      opt.value = alias;
+      opt.textContent = `$${alias} (${hash2.slice(0, 10)}...)`;
+      typeGroup.appendChild(opt);
+    }
+    codecTypeSelect.appendChild(typeGroup);
+    const universalOpt = document.createElement("option");
+    universalOpt.value = "*";
+    universalOpt.textContent = "* (Universal - all types)";
+    codecTypeSelect.appendChild(universalOpt);
+    if (prev) codecTypeSelect.value = prev;
+  }
+  if (activeCodecsTbody) {
+    activeCodecsTbody.innerHTML = "";
+    const store = state.codecs || {};
+    const entries = [];
+    for (const [codeHash, list] of Object.entries(store)) {
+      for (const c of list) {
+        entries.push({ codeHash, ...c });
+      }
+    }
+    if (entries.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">No codecs currently loaded. Load a built-in codec or register a custom serializer/deserializer below.</td>`;
+      activeCodecsTbody.appendChild(tr);
+      return;
+    }
+    const hashToAlias = {};
+    for (const [name5, hash2] of Object.entries(state.typeAliases || {})) {
+      hashToAlias[hash2] = name5;
+    }
+    for (const entry of entries) {
+      const tr = document.createElement("tr");
+      const nameTd = document.createElement("td");
+      nameTd.className = "codec-cell-name";
+      nameTd.textContent = entry.name;
+      tr.appendChild(nameTd);
+      const typeTd = document.createElement("td");
+      typeTd.className = "codec-cell-type";
+      if (entry.codeHash === "*") {
+        typeTd.innerHTML = `<span class="badge-type universal">Universal (*)</span>`;
+      } else {
+        const alias = hashToAlias[entry.codeHash];
+        typeTd.innerHTML = `<span class="badge-type">${alias ? `$${alias} ` : ""}<code title="${entry.codeHash}">${entry.codeHash.slice(0, 10)}...</code></span>`;
+      }
+      tr.appendChild(typeTd);
+      const capTd = document.createElement("td");
+      const caps = [];
+      if (typeof entry.print === "function") caps.push(`<span class="cap-badge print">Serializer</span>`);
+      if (typeof entry.parse === "function") caps.push(`<span class="cap-badge parse">Deserializer</span>`);
+      capTd.innerHTML = caps.join(" ");
+      tr.appendChild(capTd);
+      const srcTd = document.createElement("td");
+      srcTd.className = "codec-cell-src";
+      srcTd.textContent = entry.source ? entry.source === "built-in" ? "Built-in" : entry.source.split("/").pop() : "Custom";
+      tr.appendChild(srcTd);
+      const actTd = document.createElement("td");
+      const unloadBtn = document.createElement("button");
+      unloadBtn.className = "btn btn-sm btn-danger";
+      unloadBtn.textContent = "Unload";
+      unloadBtn.onclick = () => {
+        executeCommand(`:codec unload ${entry.name}`);
+        renderCodecsModal();
+      };
+      actTd.appendChild(unloadBtn);
+      tr.appendChild(actTd);
+      activeCodecsTbody.appendChild(tr);
+    }
+  }
+}
+function isCodecRegistered(name5) {
+  const store = state.codecs || {};
+  for (const list of Object.values(store)) {
+    if (list.some((c) => c.name === name5)) return true;
+  }
+  return false;
+}
+function applyCodecPreset(presetKey) {
+  const preset = CODEC_PRESETS[presetKey];
+  if (!preset) return;
+  const nameInput = document.getElementById("codec-custom-name");
+  const parseArea = document.getElementById("codec-custom-parse");
+  const printArea = document.getElementById("codec-custom-print");
+  if (nameInput) nameInput.value = preset.name;
+  if (parseArea) parseArea.value = preset.parse;
+  if (printArea) printArea.value = preset.print;
+  if (codecTypeSelect) {
+    if (preset.type) {
+      codecTypeSelect.value = preset.type;
+    }
+  }
+}
+function registerCustomCodecFromForm() {
+  const nameInput = document.getElementById("codec-custom-name");
+  const parseArea = document.getElementById("codec-custom-parse");
+  const printArea = document.getElementById("codec-custom-print");
+  const statusBox = document.getElementById("codec-studio-status");
+  const name5 = nameInput?.value.trim();
+  const rawType = codecTypeSelect?.value.trim() || "*";
+  const parseCode = parseArea?.value.trim();
+  const printCode = printArea?.value.trim();
+  if (!name5) {
+    if (statusBox) statusBox.innerHTML = `<span class="line-error">Codec name is required.</span>`;
+    return;
+  }
+  try {
+    let parseFn = null;
+    let printFn = null;
+    if (parseCode) {
+      parseFn = new Function(
+        "text",
+        "context",
+        `const { Value, isProduct, isVariant } = globalThis;
+${parseCode}`
+      );
+    }
+    if (printCode) {
+      printFn = new Function(
+        "value",
+        "context",
+        `const { Value, isProduct, isVariant } = globalThis;
+${printCode}`
+      );
+    }
+    let codeHash = rawType === "*" ? "*" : state.typeAliases[rawType] || rawType;
+    if (!codeHash.startsWith("@") && codeHash !== "*") {
+      throw new Error(`Cannot resolve type '${rawType}' to a canonical code hash. Define the type first (e.g. :type ${rawType} = ...).`);
+    }
+    registerCodec(state, {
+      name: name5,
+      codes: [codeHash],
+      universal: codeHash === "*",
+      parse: parseFn,
+      print: printFn
+    }, "<custom-studio>");
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-output">\u2713 Successfully registered codec <b>${name5}</b> for ${codeHash === "*" ? "all types" : codeHash}!</span>`;
+    }
+    appendSystemMessage(`\u2699 Registered custom codec <b>${name5}</b> (serializer/deserializer) for ${codeHash === "*" ? "all types" : codeHash}.`);
+    renderCodecsModal();
+  } catch (err) {
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-error">Error: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+}
+function testCustomParse() {
+  const parseArea = document.getElementById("codec-custom-parse");
+  const testInput = document.getElementById("codec-test-input");
+  const statusBox = document.getElementById("codec-studio-status");
+  try {
+    const parseFn = new Function(
+      "text",
+      "context",
+      `const { Value, isProduct, isVariant } = globalThis;
+${parseArea.value}`
+    );
+    const result = parseFn(testInput.value, { Value, isProduct, isVariant, state });
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-output"><b>Parse Result:</b> ${escapeHtml(JSON.stringify(result, null, 2))}</span>`;
+    }
+  } catch (err) {
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-error">Parse Error: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+}
+function testCustomPrint() {
+  const printArea = document.getElementById("codec-custom-print");
+  const statusBox = document.getElementById("codec-studio-status");
+  try {
+    const printFn = new Function(
+      "value",
+      "context",
+      `const { Value, isProduct, isVariant } = globalThis;
+${printArea.value}`
+    );
+    const result = printFn(state.value, { Value, isProduct, isVariant, state });
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-output"><b>Print Output:</b> ${escapeHtml(String(result))}</span>`;
+    }
+  } catch (err) {
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-error">Print Error: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+}
+function saveCustomCodecToVfs() {
+  const nameInput = document.getElementById("codec-custom-name");
+  const parseArea = document.getElementById("codec-custom-parse");
+  const printArea = document.getElementById("codec-custom-print");
+  const statusBox = document.getElementById("codec-studio-status");
+  const name5 = nameInput?.value.trim() || "custom";
+  const rawType = codecTypeSelect?.value.trim() || "*";
+  const codeHash = rawType === "*" ? "*" : state.typeAliases[rawType] || rawType;
+  const fileName = `codecs/${name5}-codec.mjs`;
+  const fileContent = `// Custom K Codec: ${name5}
+import { Value, isProduct, isVariant } from "../Value.mjs";
+
+export const name = ${JSON.stringify(name5)};
+export const codes = [${JSON.stringify(codeHash)}];
+export const universal = ${codeHash === "*"};
+
+export function parse(text, context) {
+  ${parseArea?.value || ""}
+}
+
+export function print(value, context) {
+  ${printArea?.value || ""}
+}
+`;
+  setVfsFile(fileName, fileContent);
+  if (statusBox) {
+    statusBox.innerHTML = `<span class="line-output">\u{1F4BE} Saved codec file to VFS as <b>${fileName}</b></span>`;
+  }
+  appendSystemMessage(`\u{1F4BE} Saved codec file to VFS: <b>${fileName}</b>. You can reload it anytime via <code>:codec load ${fileName}</code>.`);
+}
 function initRepl() {
   outputEl = document.getElementById("terminal-output");
   inputEl = document.getElementById("repl-input");
@@ -15114,19 +17032,25 @@ function initRepl() {
   vfsPreviewNameEl = document.getElementById("vfs-preview-name");
   helpModal = document.getElementById("help-modal");
   dropOverlay = document.getElementById("drop-overlay");
+  codecsModal = document.getElementById("codecs-modal");
+  codecsBadgeEl = document.getElementById("codecs-count-badge");
+  activeCodecsTbody = document.getElementById("active-codecs-tbody");
+  codecTypeSelect = document.getElementById("codec-custom-type");
   updatePrompt();
   appendSystemMessage(`
 <div class="welcome-banner">
   <div class="welcome-title">\u03BB k interactive repl</div>
-  <div class="welcome-desc">First-order partial functions over algebraic data types &bull; WebAssembly execution engine</div>
+  <div class="welcome-desc">First-order partial functions over algebraic data types &bull; WebAssembly execution engine &bull; Custom Serializers &amp; Deserializers (:codecs)</div>
   <div class="welcome-tips">
     <span>\u{1F4A1} Try: <a href="javascript:void(0)" class="quick-link" data-code=":load Examples/arithmetics.k">:load Examples/arithmetics.k</a></span>
-    <span>\u2022 <a href="javascript:void(0)" class="quick-link" data-code="10">10</a></span>
+    <span>\u2022 <a href="javascript:void(0)" class="quick-link" data-code=":codec load int">:codec load int</a></span>
+    <span>\u2022 <a href="javascript:void(0)" class="quick-link" data-code="10 int">10 int</a></span>
     <span>\u2022 <a href="javascript:void(0)" class="quick-link" data-code="{10 int x, 5 int y} plus">{10 int x, 5 int y} plus</a></span>
-    <span>\u2022 Type <a href="javascript:void(0)" class="quick-link" data-code=":help">:help</a> for all commands</span>
+    <span>\u2022 <a href="javascript:void(0)" class="quick-link" data-code=":codecs">:codecs</a></span>
+    <span>\u2022 <a href="javascript:void(0)" class="quick-link" data-code=":help">:help</a></span>
   </div>
 </div>
-`);
+`, false, true);
   document.addEventListener("click", (e) => {
     const link = e.target.closest(".quick-link");
     if (link && link.dataset.code) {
@@ -15141,7 +17065,7 @@ function initRepl() {
     hideAutocomplete();
   });
   inputEl.addEventListener("keydown", (e) => {
-    if (autocompleteEl.classList.contains("visible")) {
+    if (autocompleteEl && autocompleteEl.classList.contains("visible")) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         activeMatchIndex = (activeMatchIndex + 1) % currentMatches.length;
@@ -15277,6 +17201,37 @@ function initRepl() {
   if (loadVfsFileBtn) loadVfsFileBtn.onclick = loadPreviewedFile;
   const downloadVfsFileBtn = document.getElementById("btn-vfs-download");
   if (downloadVfsFileBtn) downloadVfsFileBtn.onclick = downloadPreviewedFile;
+  const codecsBtn = document.getElementById("btn-codecs");
+  if (codecsBtn) codecsBtn.onclick = openCodecsModal;
+  const closeCodecsBtn = document.getElementById("btn-close-codecs");
+  if (closeCodecsBtn) closeCodecsBtn.onclick = closeCodecsModal;
+  ["int", "utf8", "json", "ieee"].forEach((name5) => {
+    const btn = document.getElementById(`btn-toggle-codec-${name5}`);
+    if (btn) {
+      btn.onclick = () => {
+        if (isCodecRegistered(name5)) {
+          executeCommand(`:codec unload ${name5}`);
+        } else {
+          executeCommand(`:codec load ${name5}`);
+        }
+        renderCodecsModal();
+      };
+    }
+  });
+  const presetSelect = document.getElementById("codec-preset-select");
+  if (presetSelect) {
+    presetSelect.addEventListener("change", () => {
+      if (presetSelect.value) applyCodecPreset(presetSelect.value);
+    });
+  }
+  const btnRegisterCodec = document.getElementById("btn-register-codec");
+  if (btnRegisterCodec) btnRegisterCodec.onclick = registerCustomCodecFromForm;
+  const btnTestParse = document.getElementById("btn-test-parse");
+  if (btnTestParse) btnTestParse.onclick = testCustomParse;
+  const btnTestPrint = document.getElementById("btn-test-print");
+  if (btnTestPrint) btnTestPrint.onclick = testCustomPrint;
+  const btnSaveCodecVfs = document.getElementById("btn-save-codec-vfs");
+  if (btnSaveCodecVfs) btnSaveCodecVfs.onclick = saveCustomCodecToVfs;
   const exportBtn = document.getElementById("btn-export");
   if (exportBtn) exportBtn.onclick = exportKlib;
   const exampleSelect = document.getElementById("example-select");
@@ -15322,12 +17277,14 @@ function initRepl() {
   window.addEventListener("click", (e) => {
     if (e.target === vfsModal) closeVfsModal();
     if (e.target === helpModal) helpModal.classList.remove("open");
+    if (e.target === codecsModal) closeCodecsModal();
   });
   document.addEventListener("click", (e) => {
-    if (!e.target.closest("button, select, input, .modal, .quick-link, .btn-copy-entry")) {
+    if (!e.target.closest("button, select, input, textarea, .modal, .quick-link, .btn-copy-entry")) {
       inputEl.focus();
     }
   });
+  applyCodecPreset("yn");
   inputEl.focus();
 }
 function clearOutput() {
@@ -15343,7 +17300,10 @@ if (typeof window !== "undefined") {
     getState: () => state,
     getVfsFile,
     setVfsFile,
-    getAllVfsFiles
+    getAllVfsFiles,
+    openCodecsModal,
+    registerCodec,
+    unregisterCodec
   };
   if (document.readyState !== "loading") {
     initRepl();

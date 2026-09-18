@@ -13,7 +13,12 @@ import { compileWasmArtifactFromObject, instantiateWasmArtifact } from "./backen
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import codes from "./codes.mjs";
-import { Value } from "./Value.mjs";
+import { Value, isProduct, isVariant } from "./Value.mjs";
+if (typeof globalThis !== "undefined") {
+  globalThis.Value = Value;
+  globalThis.isProduct = isProduct;
+  globalThis.isVariant = isVariant;
+}
 import { patterns2filters, prettyCode, prettyRel } from "./pretty.mjs";
 import {
   compileObject,
@@ -31,7 +36,11 @@ import {
   codeHashToPattern,
   listCodecs,
   loadCodecModule,
+  normalizeCodecModule,
+  registerCodec,
   resolveCodec,
+  unregisterCodec,
+  BUILTIN_CODECS,
   closedPatternToCodeHash,
   UNIVERSAL_CODE,
   valueForCode
@@ -42,10 +51,10 @@ const TYPE_DEF_RE = /^\s*\$\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 const REL_DEF_RE = /^\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 const COMMAND_NAMES = [
   "help", "type", "code", "rel", "def", "run", "eval", "t", "d", "C",
-  "codes", "rels", "val", "codec", "input", "reset", "klib", "ko", "load",
+  "codes", "codecs", "rels", "val", "codec", "input", "reset", "klib", "ko", "load",
   "quit", "exit"
 ];
-const CODEC_COMMAND_NAMES = ["load", "list"];
+const CODEC_COMMAND_NAMES = ["load", "unload", "list", "define"];
 const PATH_COMMANDS = new Set(["klib", "ko", "load"]);
 const INPUT_TYPE_NAME = "__input__";
 const initialCodes = codes.dump();
@@ -600,15 +609,33 @@ function codecLoadPathCompletionStart(argStart, arg) {
   return argStart + leading.length + "load".length + 1 + restLeadingWhitespace + completionTokenStart(rest.trimStart());
 }
 
-function completeCodecCommand(line, argStart, arg) {
+function completeCodecCommand(line, argStart, arg, state) {
   const trimmed = arg.trimStart();
   if (trimmed === "" || !/\s/.test(trimmed)) {
     return completeCommandWord(line, argStart, arg, CODEC_COMMAND_NAMES);
   }
 
+  const unloadMatch = arg.match(/^(\s*)unload(?:\s+(.*))?$/);
+  if (unloadMatch) {
+    const [, leading, partial = ""] = unloadMatch;
+    const prefix = line.slice(0, argStart + leading.length + "unload".length + 1);
+    const names = state ? codecNames(state) : [];
+    const matches = names
+      .filter((name) => name.startsWith(partial.trim()))
+      .map((name) => `${prefix}${name}`);
+    return [matches, line];
+  }
+
   const tokenStart = codecLoadPathCompletionStart(argStart, arg);
   if (tokenStart == null) return [[], line];
-  return completePath(line, tokenStart);
+  const [pathMatches] = completePath(line, tokenStart);
+  const match = arg.match(/^(\s*)load(?:\s+(.*))?$/);
+  const partial = match && match[2] != null ? match[2].trim() : "";
+  const prefix = line.slice(0, tokenStart);
+  const builtinMatches = ["int", "utf8", "json", "ieee"]
+    .filter((name) => name.startsWith(partial))
+    .map((name) => `${prefix}${name}`);
+  return [[...builtinMatches, ...pathMatches], line];
 }
 
 function resolveTypeHash(state, rawName) {
@@ -692,8 +719,8 @@ function completeCommandArgument(line, state) {
   const argStart = 1 + firstSpace + 1;
   const arg = line.slice(argStart);
 
-  if (command === "codec") {
-    return completeCodecCommand(line, argStart, arg);
+  if (command === "codec" || command === "codecs") {
+    return completeCodecCommand(line, argStart, arg, state);
   }
 
   if (command === "input") {
@@ -965,21 +992,58 @@ async function runSnippet(input, state, options = {}) {
 }
 
 async function loadCodec(input, state) {
-  const [subcommand, ...rest] = input.trim().split(/\s+/);
+  const trimmed = input.trim();
+  if (!trimmed || trimmed === "list") {
+    return [listCodecs(state)];
+  }
+
+  const [subcommand, ...rest] = trimmed.split(/\s+/);
   switch (subcommand) {
     case "load": {
       const filePath = rest.join(" ");
-      if (!filePath) throw new Error(":codec load requires a file path");
+      if (!filePath) throw new Error(":codec load requires a file path or codec name");
       const registered = await loadCodecModule(state, expandHome(filePath));
       return registered.map(({ name, codeHash }) =>
         `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
       );
     }
+    case "unload": {
+      const codecName = rest.join(" ").trim();
+      if (!codecName) throw new Error(":codec unload requires a codec name");
+      const removed = unregisterCodec(state, codecName);
+      if (removed === 0) throw new Error(`Codec '${codecName}' is not loaded`);
+      return [`unloaded codec ${codecName}`];
+    }
+    case "define": {
+      const match = rest.join(" ").match(/^([a-zA-Z0-9_+-]+)\s+(\S+)\s+([\s\S]+)$/);
+      if (!match) {
+        throw new Error(":codec define requires: name type { parse: ..., print: ... }");
+      }
+      const [, name, rawType, bodyStr] = match;
+      const fn = new Function("Value", "isProduct", "isVariant", "state", `return (${bodyStr});`);
+      const obj = fn(Value, isProduct, isVariant, state);
+      const codeHash = rawType === "*" ? UNIVERSAL_CODE : resolveInputTypeHash(state, rawType);
+      const codec = normalizeCodecModule({
+        name,
+        codes: [codeHash],
+        universal: codeHash === UNIVERSAL_CODE,
+        parse: obj.parse,
+        print: obj.print
+      }, name);
+      const registered = registerCodec(state, codec, "<inline>");
+      return registered.map(({ name, codeHash }) =>
+        `defined codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
+      );
+    }
     case "list":
       if (rest.length > 0) throw new Error(":codec list does not accept arguments");
       return [listCodecs(state)];
-    default:
-      throw new Error(":codec requires 'load' or 'list'");
+    default: {
+      const registered = await loadCodecModule(state, expandHome(trimmed));
+      return registered.map(({ name, codeHash }) =>
+        `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
+      );
+    }
   }
 }
 
@@ -1085,6 +1149,7 @@ async function evaluateCommand(line, state) {
         JSON.stringify(state.value, null, 2)
       ];
     case "codec":
+    case "codecs":
       return loadCodec(arg, state);
     case "input":
       return requestCodecInput(arg, state);
@@ -1166,8 +1231,10 @@ function helpText() {
     ":type name           show type definition",
     ":codes               list type aliases",
     ":rels                list relation aliases",
-    ":codec load file     load a REPL codec module",
-    ":codec list          list loaded codecs",
+    ":codec load file     load a REPL codec module (or built-in: int, utf8, json, ieee)",
+    ":codec define n t b  define a custom codec: name type { parse: ..., print: ... }",
+    ":codec unload name   unload a registered codec",
+    ":codec list          list loaded codecs (or simply :codecs)",
     ":input type [codec]  read next line as codec input",
     ":load [--no-alias] file",
     "                     load .k source or .klib",
@@ -1314,6 +1381,11 @@ export {
   isMainEntrypoint,
   lineHasExplicitContinuation,
   lineTerminatesSnippet,
+  listCodecs,
+  loadCodecModule,
+  registerCodec,
+  unregisterCodec,
+  BUILTIN_CODECS,
   printValue,
   promptForState,
   propertyListToFilter,

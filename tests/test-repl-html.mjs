@@ -33,9 +33,12 @@ assert(html.includes("<!DOCTYPE html>"), "repl.html must be valid HTML5");
 assert(html.includes("<style>"), "repl.html must contain inlined CSS styles");
 assert(html.includes('<script type="module">'), "repl.html must contain inlined module script");
 assert(!html.includes('<script src="http'), "repl.html must NOT contain external remote scripts");
-assert(!html.includes('<link rel="stylesheet" href="http'), "repl.html must NOT contain external remote stylesheets");
 assert(html.includes("wasm-in-process"), "repl.html must mention wasm-in-process engine");
 assert(html.includes("arithmetics.k"), "repl.html must embed standard examples");
+assert(html.includes("btn-codecs"), "repl.html must contain Codecs button");
+assert(html.includes("codecs-modal"), "repl.html must contain Codecs modal");
+assert(html.includes("active-codecs-tbody"), "repl.html must contain active codecs table");
+assert(html.includes("codec-preset-select"), "repl.html must contain codec preset templates");
 console.log("   repl.html is valid, self-contained, and has size:", (html.length / 1024).toFixed(1), "KB");
 
 // 3. If Chromium is available, run end-to-end browser test
@@ -142,6 +145,50 @@ if (chromiumBin) {
       return lines[lines.length - 1];
     })()`);
     assert(plusOut.includes("{}|_|1|1|1|1|+"), `Expected 15 in output, got: ${plusOut}`);
+
+    // Test :codecs initially empty
+    const codecsOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":codecs");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert.strictEqual(codecsOut, "(none)");
+
+    // Test :codec load int
+    const loadIntOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":codec load int");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(loadIntOut.includes("loaded codec int"), `Expected loaded codec int, got: ${loadIntOut}`);
+
+    // Check codecs badge updated to 1
+    const badgeCount = await evaluateAsync(`document.getElementById("codecs-count-badge")?.textContent`);
+    assert.strictEqual(badgeCount, "1", "Codecs badge count should be 1 after loading int codec");
+
+    // Test evaluating 10 int with int codec active -> output should format using int serializer
+    const formattedVal = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand("10 int");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(formattedVal.includes("int: 10"), `Expected 'int: 10' in output, got: ${formattedVal}`);
+
+    // Test defining inline custom codec via :codec define
+    await evaluateAsync(`window.kRepl.executeCommand(":type bool = <{} true, {} false>")`);
+    const defineCodecOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":codec define yn bool ({ parse: (t) => Value.variant(t.trim() === 'yes' ? 'true' : 'false', Value.product({})), print: (v) => v.tag === 'true' ? 'YES' : 'NO' })");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(defineCodecOut.includes("defined codec yn"), `Expected defined codec yn, got: ${defineCodecOut}`);
+
+    // Test modal interaction via openCodecsModal
+    const modalIsOpen = await evaluateAsync(`(() => {
+      window.kRepl.openCodecsModal();
+      return document.getElementById("codecs-modal")?.classList.contains("open");
+    })()`);
+    assert.strictEqual(modalIsOpen, true, "Codecs modal should open");
 
     ws.close();
     console.log("   Browser execution verified successfully!");

@@ -7,10 +7,23 @@ import {
   analyzeRawSnippet,
   lineTerminatesSnippet,
   lineHasExplicitContinuation,
-  savedLibrary
+  savedLibrary,
+  listCodecs,
+  loadCodecModule,
+  registerCodec,
+  unregisterCodec,
+  BUILTIN_CODECS
 } from "../repl.mjs";
+import { Value, isProduct, isVariant } from "../Value.mjs";
 import { encodeLibrary } from "../object.mjs";
 import { setVfsFile, getVfsFile, getAllVfsFiles } from "./shims/fs.mjs";
+
+// Make Value and helpers globally available for custom codecs
+if (typeof window !== "undefined") {
+  window.Value = Value;
+  window.isProduct = isProduct;
+  window.isVariant = isVariant;
+}
 
 // Global REPL state
 let state = createState();
@@ -42,6 +55,10 @@ let vfsPreviewEl;
 let vfsPreviewNameEl;
 let helpModal;
 let dropOverlay;
+let codecsModal;
+let codecsBadgeEl;
+let activeCodecsTbody;
+let codecTypeSelect;
 
 function escapeHtml(str) {
   return String(str)
@@ -83,14 +100,37 @@ function ansiToHtml(str) {
   return inSpan ? formatted + "</span>" : formatted;
 }
 
+function countActiveCodecs() {
+  const store = state.codecs || {};
+  let count = 0;
+  const seen = new Set();
+  for (const list of Object.values(store)) {
+    for (const c of list) {
+      if (!seen.has(c.name)) {
+        seen.add(c.name);
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+function updateCodecsBadge() {
+  if (!codecsBadgeEl) return;
+  const count = countActiveCodecs();
+  codecsBadgeEl.textContent = String(count);
+  codecsBadgeEl.className = count > 0 ? "badge-count active" : "badge-count";
+}
+
 function updatePrompt() {
   const prompt = promptForState(state);
   if (promptEl) promptEl.textContent = prompt;
   if (inputEl) {
     inputEl.placeholder = state.pendingInput
       ? `Enter value for ${state.pendingInput.promptName || "input"}...`
-      : "Enter K expression or command (:help)...";
+      : "Enter K expression or command (:help, :codecs)...";
   }
+  updateCodecsBadge();
 }
 
 function setStatus(busy, text = "Ready") {
@@ -237,6 +277,10 @@ export async function executeCommand(input) {
 
   // Re-create completer with updated state
   completer = createCompleter(state);
+  updateCodecsBadge();
+  if (codecsModal && codecsModal.classList.contains("open")) {
+    renderCodecsModal();
+  }
 }
 
 function adjustInputHeight() {
@@ -433,7 +477,11 @@ function handleFileUpload(file) {
     }
     setVfsFile(file.name, data);
     appendSystemMessage(`📁 Uploaded <b>${escapeHtml(file.name)}</b> into VFS (${(data.length / 1024).toFixed(1)} KB).`);
-    executeCommand(`:load ${file.name}`);
+    if (file.name.endsWith("-codec.mjs") || file.name.endsWith("-codec.js") || file.name.includes("codec")) {
+      executeCommand(`:codec load ${file.name}`);
+    } else {
+      executeCommand(`:load ${file.name}`);
+    }
   };
 
   if (isBinary) {
@@ -461,6 +509,383 @@ function exportKlib() {
   }
 }
 
+// ==========================================
+// CODECS SUBSYSTEM UI & CONTROLS
+// ==========================================
+
+const CODEC_PRESETS = {
+  yn: {
+    name: "yn",
+    type: "bool",
+    universal: false,
+    parse: `// Parse 'yes', 'no', 'true', 'false' into $bool
+const tag = text.trim().toLowerCase();
+if (tag === "yes" || tag === "true" || tag === "1") {
+  return Value.variant("true", Value.product({}));
+}
+if (tag === "no" || tag === "false" || tag === "0") {
+  return Value.variant("false", Value.product({}));
+}
+throw new Error("Expected yes/no or true/false");`,
+    print: `// Serialize boolean value to YES / NO
+return value.tag === "true" ? "YES" : "NO";`
+  },
+  hex: {
+    name: "hex",
+    type: "int",
+    universal: false,
+    parse: `// Parse decimal or hex (e.g. 0x2a, 42, -0x10) into $int
+let str = text.trim();
+let sign = "+";
+if (str.startsWith("-")) { sign = "-"; str = str.slice(1).trim(); }
+else if (str.startsWith("+")) { str = str.slice(1).trim(); }
+
+const num = str.startsWith("0x") || str.startsWith("0X") ? BigInt(str) : BigInt(str);
+if (num === 0n) sign = "+";
+
+const bitChars = num === 0n ? ["0"] : num.toString(2).split("");
+let v = Value.variant("_", Value.product({}));
+for (let i = bitChars.length - 1; i >= 0; i--) {
+  v = Value.variant(bitChars[i], v);
+}
+return Value.variant(sign, v);`,
+    print: `// Serialize $int to hexadecimal string (0x...)
+if (!isVariant(value) || (value.tag !== "+" && value.tag !== "-")) {
+  throw new Error("Not a valid int value");
+}
+let bits = "";
+let node = value.value;
+while (isVariant(node) && node.tag !== "_") {
+  bits += node.tag;
+  node = node.value;
+}
+const n = bits === "" ? 0n : BigInt("0b" + bits);
+const hex = "0x" + n.toString(16).toUpperCase();
+return (value.tag === "-" && n !== 0n ? "-" : "") + hex;`
+  },
+  currency: {
+    name: "currency",
+    type: "int",
+    universal: false,
+    parse: `// Parse currency e.g. $42.50 or $100 into cents int
+const clean = text.trim().replace(/^\\$/, "").trim();
+const parts = clean.split(".");
+const dollars = BigInt(parts[0] || "0");
+const cents = BigInt((parts[1] || "0").padEnd(2, "0").slice(0, 2));
+const total = dollars * 100n + cents;
+
+const bitChars = total === 0n ? ["0"] : total.toString(2).split("");
+let v = Value.variant("_", Value.product({}));
+for (let i = bitChars.length - 1; i >= 0; i--) {
+  v = Value.variant(bitChars[i], v);
+}
+return Value.variant("+", v);`,
+    print: `// Format cents int as currency string ($X.XX)
+let bits = "";
+let node = value.value;
+while (isVariant(node) && node.tag !== "_") {
+  bits += node.tag;
+  node = node.value;
+}
+const n = bits === "" ? 0n : BigInt("0b" + bits);
+const dollars = n / 100n;
+const cents = (n % 100n).toString().padStart(2, "0");
+return "$" + dollars.toString() + "." + cents;`
+  },
+  blank: {
+    name: "custom",
+    type: "",
+    universal: false,
+    parse: `// Parse text string and return a K Value
+// Available: Value.product({ field: val }), Value.variant("tag", val)
+return Value.product({});`,
+    print: `// Serialize K Value into string or Buffer
+return JSON.stringify(value);`
+  }
+};
+
+function openCodecsModal() {
+  if (!codecsModal) return;
+  renderCodecsModal();
+  codecsModal.classList.add("open");
+}
+
+function closeCodecsModal() {
+  if (codecsModal) codecsModal.classList.remove("open");
+}
+
+function renderCodecsModal() {
+  updateCodecsBadge();
+
+  // 1. Built-in codec buttons state
+  const standardCodecs = ["int", "utf8", "json", "ieee"];
+  for (const name of standardCodecs) {
+    const btn = document.getElementById(`btn-toggle-codec-${name}`);
+    const badge = document.getElementById(`codec-badge-${name}`);
+    const isLoaded = isCodecRegistered(name);
+    if (btn) {
+      btn.textContent = isLoaded ? "Unload" : "Load";
+      btn.className = isLoaded ? "btn btn-sm btn-secondary" : "btn btn-sm btn-primary";
+    }
+    if (badge) {
+      badge.textContent = isLoaded ? "Active" : "Inactive";
+      badge.className = isLoaded ? "codec-status-badge active" : "codec-status-badge";
+    }
+  }
+
+  // 2. Populate target type dropdown
+  if (codecTypeSelect) {
+    const prev = codecTypeSelect.value;
+    codecTypeSelect.innerHTML = `<option value="">-- Choose Type Alias or Code Hash --</option>`;
+    const typeGroup = document.createElement("optgroup");
+    typeGroup.label = "Available Type Aliases in State";
+    const aliases = Object.entries(state.typeAliases || {}).sort(([a], [b]) => a.localeCompare(b));
+    for (const [alias, hash] of aliases) {
+      const opt = document.createElement("option");
+      opt.value = alias;
+      opt.textContent = `$${alias} (${hash.slice(0, 10)}...)`;
+      typeGroup.appendChild(opt);
+    }
+    codecTypeSelect.appendChild(typeGroup);
+
+    const universalOpt = document.createElement("option");
+    universalOpt.value = "*";
+    universalOpt.textContent = "* (Universal - all types)";
+    codecTypeSelect.appendChild(universalOpt);
+
+    if (prev) codecTypeSelect.value = prev;
+  }
+
+  // 3. Render active codecs table
+  if (activeCodecsTbody) {
+    activeCodecsTbody.innerHTML = "";
+    const store = state.codecs || {};
+    const entries = [];
+    for (const [codeHash, list] of Object.entries(store)) {
+      for (const c of list) {
+        entries.push({ codeHash, ...c });
+      }
+    }
+
+    if (entries.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">No codecs currently loaded. Load a built-in codec or register a custom serializer/deserializer below.</td>`;
+      activeCodecsTbody.appendChild(tr);
+      return;
+    }
+
+    // Invert type aliases for display
+    const hashToAlias = {};
+    for (const [name, hash] of Object.entries(state.typeAliases || {})) {
+      hashToAlias[hash] = name;
+    }
+
+    for (const entry of entries) {
+      const tr = document.createElement("tr");
+
+      const nameTd = document.createElement("td");
+      nameTd.className = "codec-cell-name";
+      nameTd.textContent = entry.name;
+      tr.appendChild(nameTd);
+
+      const typeTd = document.createElement("td");
+      typeTd.className = "codec-cell-type";
+      if (entry.codeHash === "*") {
+        typeTd.innerHTML = `<span class="badge-type universal">Universal (*)</span>`;
+      } else {
+        const alias = hashToAlias[entry.codeHash];
+        typeTd.innerHTML = `<span class="badge-type">${alias ? `$${alias} ` : ""}<code title="${entry.codeHash}">${entry.codeHash.slice(0, 10)}...</code></span>`;
+      }
+      tr.appendChild(typeTd);
+
+      const capTd = document.createElement("td");
+      const caps = [];
+      if (typeof entry.print === "function") caps.push(`<span class="cap-badge print">Serializer</span>`);
+      if (typeof entry.parse === "function") caps.push(`<span class="cap-badge parse">Deserializer</span>`);
+      capTd.innerHTML = caps.join(" ");
+      tr.appendChild(capTd);
+
+      const srcTd = document.createElement("td");
+      srcTd.className = "codec-cell-src";
+      srcTd.textContent = entry.source ? (entry.source === "built-in" ? "Built-in" : entry.source.split("/").pop()) : "Custom";
+      tr.appendChild(srcTd);
+
+      const actTd = document.createElement("td");
+      const unloadBtn = document.createElement("button");
+      unloadBtn.className = "btn btn-sm btn-danger";
+      unloadBtn.textContent = "Unload";
+      unloadBtn.onclick = () => {
+        executeCommand(`:codec unload ${entry.name}`);
+        renderCodecsModal();
+      };
+      actTd.appendChild(unloadBtn);
+      tr.appendChild(actTd);
+
+      activeCodecsTbody.appendChild(tr);
+    }
+  }
+}
+
+function isCodecRegistered(name) {
+  const store = state.codecs || {};
+  for (const list of Object.values(store)) {
+    if (list.some(c => c.name === name)) return true;
+  }
+  return false;
+}
+
+function applyCodecPreset(presetKey) {
+  const preset = CODEC_PRESETS[presetKey];
+  if (!preset) return;
+  const nameInput = document.getElementById("codec-custom-name");
+  const parseArea = document.getElementById("codec-custom-parse");
+  const printArea = document.getElementById("codec-custom-print");
+
+  if (nameInput) nameInput.value = preset.name;
+  if (parseArea) parseArea.value = preset.parse;
+  if (printArea) printArea.value = preset.print;
+  if (codecTypeSelect) {
+    if (preset.type) {
+      codecTypeSelect.value = preset.type;
+    }
+  }
+}
+
+function registerCustomCodecFromForm() {
+  const nameInput = document.getElementById("codec-custom-name");
+  const parseArea = document.getElementById("codec-custom-parse");
+  const printArea = document.getElementById("codec-custom-print");
+  const statusBox = document.getElementById("codec-studio-status");
+
+  const name = nameInput?.value.trim();
+  const rawType = codecTypeSelect?.value.trim() || "*";
+  const parseCode = parseArea?.value.trim();
+  const printCode = printArea?.value.trim();
+
+  if (!name) {
+    if (statusBox) statusBox.innerHTML = `<span class="line-error">Codec name is required.</span>`;
+    return;
+  }
+
+  try {
+    let parseFn = null;
+    let printFn = null;
+
+    if (parseCode) {
+      parseFn = new Function(
+        "text", "context",
+        `const { Value, isProduct, isVariant } = globalThis;\n${parseCode}`
+      );
+    }
+
+    if (printCode) {
+      printFn = new Function(
+        "value", "context",
+        `const { Value, isProduct, isVariant } = globalThis;\n${printCode}`
+      );
+    }
+
+    let codeHash = rawType === "*" ? "*" : state.typeAliases[rawType] || rawType;
+    if (!codeHash.startsWith("@") && codeHash !== "*") {
+      throw new Error(`Cannot resolve type '${rawType}' to a canonical code hash. Define the type first (e.g. :type ${rawType} = ...).`);
+    }
+
+    registerCodec(state, {
+      name,
+      codes: [codeHash],
+      universal: codeHash === "*",
+      parse: parseFn,
+      print: printFn
+    }, "<custom-studio>");
+
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-output">✓ Successfully registered codec <b>${name}</b> for ${codeHash === "*" ? "all types" : codeHash}!</span>`;
+    }
+
+    appendSystemMessage(`⚙ Registered custom codec <b>${name}</b> (serializer/deserializer) for ${codeHash === "*" ? "all types" : codeHash}.`);
+    renderCodecsModal();
+  } catch (err) {
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-error">Error: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+}
+
+function testCustomParse() {
+  const parseArea = document.getElementById("codec-custom-parse");
+  const testInput = document.getElementById("codec-test-input");
+  const statusBox = document.getElementById("codec-studio-status");
+
+  try {
+    const parseFn = new Function(
+      "text", "context",
+      `const { Value, isProduct, isVariant } = globalThis;\n${parseArea.value}`
+    );
+    const result = parseFn(testInput.value, { Value, isProduct, isVariant, state });
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-output"><b>Parse Result:</b> ${escapeHtml(JSON.stringify(result, null, 2))}</span>`;
+    }
+  } catch (err) {
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-error">Parse Error: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+}
+
+function testCustomPrint() {
+  const printArea = document.getElementById("codec-custom-print");
+  const statusBox = document.getElementById("codec-studio-status");
+
+  try {
+    const printFn = new Function(
+      "value", "context",
+      `const { Value, isProduct, isVariant } = globalThis;\n${printArea.value}`
+    );
+    const result = printFn(state.value, { Value, isProduct, isVariant, state });
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-output"><b>Print Output:</b> ${escapeHtml(String(result))}</span>`;
+    }
+  } catch (err) {
+    if (statusBox) {
+      statusBox.innerHTML = `<span class="line-error">Print Error: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+}
+
+function saveCustomCodecToVfs() {
+  const nameInput = document.getElementById("codec-custom-name");
+  const parseArea = document.getElementById("codec-custom-parse");
+  const printArea = document.getElementById("codec-custom-print");
+  const statusBox = document.getElementById("codec-studio-status");
+
+  const name = nameInput?.value.trim() || "custom";
+  const rawType = codecTypeSelect?.value.trim() || "*";
+  const codeHash = rawType === "*" ? "*" : state.typeAliases[rawType] || rawType;
+  const fileName = `codecs/${name}-codec.mjs`;
+
+  const fileContent = `// Custom K Codec: ${name}
+import { Value, isProduct, isVariant } from "../Value.mjs";
+
+export const name = ${JSON.stringify(name)};
+export const codes = [${JSON.stringify(codeHash)}];
+export const universal = ${codeHash === "*"};
+
+export function parse(text, context) {
+  ${parseArea?.value || ""}
+}
+
+export function print(value, context) {
+  ${printArea?.value || ""}
+}
+`;
+
+  setVfsFile(fileName, fileContent);
+  if (statusBox) {
+    statusBox.innerHTML = `<span class="line-output">💾 Saved codec file to VFS as <b>${fileName}</b></span>`;
+  }
+  appendSystemMessage(`💾 Saved codec file to VFS: <b>${fileName}</b>. You can reload it anytime via <code>:codec load ${fileName}</code>.`);
+}
+
 // Initialization on DOMContentLoaded
 export function initRepl() {
   outputEl = document.getElementById("terminal-output");
@@ -475,6 +900,10 @@ export function initRepl() {
   vfsPreviewNameEl = document.getElementById("vfs-preview-name");
   helpModal = document.getElementById("help-modal");
   dropOverlay = document.getElementById("drop-overlay");
+  codecsModal = document.getElementById("codecs-modal");
+  codecsBadgeEl = document.getElementById("codecs-count-badge");
+  activeCodecsTbody = document.getElementById("active-codecs-tbody");
+  codecTypeSelect = document.getElementById("codec-custom-type");
 
   updatePrompt();
 
@@ -482,15 +911,17 @@ export function initRepl() {
   appendSystemMessage(`
 <div class="welcome-banner">
   <div class="welcome-title">λ k interactive repl</div>
-  <div class="welcome-desc">First-order partial functions over algebraic data types &bull; WebAssembly execution engine</div>
+  <div class="welcome-desc">First-order partial functions over algebraic data types &bull; WebAssembly execution engine &bull; Custom Serializers &amp; Deserializers (:codecs)</div>
   <div class="welcome-tips">
     <span>💡 Try: <a href="javascript:void(0)" class="quick-link" data-code=":load Examples/arithmetics.k">:load Examples/arithmetics.k</a></span>
-    <span>• <a href="javascript:void(0)" class="quick-link" data-code="10">10</a></span>
+    <span>• <a href="javascript:void(0)" class="quick-link" data-code=":codec load int">:codec load int</a></span>
+    <span>• <a href="javascript:void(0)" class="quick-link" data-code="10 int">10 int</a></span>
     <span>• <a href="javascript:void(0)" class="quick-link" data-code="{10 int x, 5 int y} plus">{10 int x, 5 int y} plus</a></span>
-    <span>• Type <a href="javascript:void(0)" class="quick-link" data-code=":help">:help</a> for all commands</span>
+    <span>• <a href="javascript:void(0)" class="quick-link" data-code=":codecs">:codecs</a></span>
+    <span>• <a href="javascript:void(0)" class="quick-link" data-code=":help">:help</a></span>
   </div>
 </div>
-`);
+`, false, true);
 
   // Delegate quick links
   document.addEventListener("click", (e) => {
@@ -511,7 +942,7 @@ export function initRepl() {
 
   inputEl.addEventListener("keydown", (e) => {
     // Autocomplete popup navigation
-    if (autocompleteEl.classList.contains("visible")) {
+    if (autocompleteEl && autocompleteEl.classList.contains("visible")) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         activeMatchIndex = (activeMatchIndex + 1) % currentMatches.length;
@@ -683,6 +1114,48 @@ export function initRepl() {
   const downloadVfsFileBtn = document.getElementById("btn-vfs-download");
   if (downloadVfsFileBtn) downloadVfsFileBtn.onclick = downloadPreviewedFile;
 
+  // Codecs Subsystem button & modal
+  const codecsBtn = document.getElementById("btn-codecs");
+  if (codecsBtn) codecsBtn.onclick = openCodecsModal;
+
+  const closeCodecsBtn = document.getElementById("btn-close-codecs");
+  if (closeCodecsBtn) closeCodecsBtn.onclick = closeCodecsModal;
+
+  // Toggle built-in codecs buttons
+  ["int", "utf8", "json", "ieee"].forEach(name => {
+    const btn = document.getElementById(`btn-toggle-codec-${name}`);
+    if (btn) {
+      btn.onclick = () => {
+        if (isCodecRegistered(name)) {
+          executeCommand(`:codec unload ${name}`);
+        } else {
+          executeCommand(`:codec load ${name}`);
+        }
+        renderCodecsModal();
+      };
+    }
+  });
+
+  // Codec Studio controls
+  const presetSelect = document.getElementById("codec-preset-select");
+  if (presetSelect) {
+    presetSelect.addEventListener("change", () => {
+      if (presetSelect.value) applyCodecPreset(presetSelect.value);
+    });
+  }
+
+  const btnRegisterCodec = document.getElementById("btn-register-codec");
+  if (btnRegisterCodec) btnRegisterCodec.onclick = registerCustomCodecFromForm;
+
+  const btnTestParse = document.getElementById("btn-test-parse");
+  if (btnTestParse) btnTestParse.onclick = testCustomParse;
+
+  const btnTestPrint = document.getElementById("btn-test-print");
+  if (btnTestPrint) btnTestPrint.onclick = testCustomPrint;
+
+  const btnSaveCodecVfs = document.getElementById("btn-save-codec-vfs");
+  if (btnSaveCodecVfs) btnSaveCodecVfs.onclick = saveCustomCodecToVfs;
+
   // Export .klib button
   const exportBtn = document.getElementById("btn-export");
   if (exportBtn) exportBtn.onclick = exportKlib;
@@ -739,14 +1212,18 @@ export function initRepl() {
   window.addEventListener("click", (e) => {
     if (e.target === vfsModal) closeVfsModal();
     if (e.target === helpModal) helpModal.classList.remove("open");
+    if (e.target === codecsModal) closeCodecsModal();
   });
 
   // Global focus input on click outside
   document.addEventListener("click", (e) => {
-    if (!e.target.closest("button, select, input, .modal, .quick-link, .btn-copy-entry")) {
+    if (!e.target.closest("button, select, input, textarea, .modal, .quick-link, .btn-copy-entry")) {
       inputEl.focus();
     }
   });
+
+  // Apply initial yn preset to custom form
+  applyCodecPreset("yn");
 
   inputEl.focus();
 }
@@ -766,7 +1243,10 @@ if (typeof window !== "undefined") {
     getState: () => state,
     getVfsFile,
     setVfsFile,
-    getAllVfsFiles
+    getAllVfsFiles,
+    openCodecsModal,
+    registerCodec,
+    unregisterCodec
   };
   if (document.readyState !== "loading") {
     initRepl();
