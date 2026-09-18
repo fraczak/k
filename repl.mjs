@@ -8,7 +8,10 @@ import { fileURLToPath } from "node:url";
 import { argv, exit, stdin, stdout } from "node:process";
 
 import { annotate, parse } from "./index.mjs";
-import run from "./run.mjs";
+import { constrainWithPattern } from "./run.mjs";
+import { compileWasmArtifactFromObject, instantiateWasmArtifact } from "./backends/wasm/src/wasm.mjs";
+import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
+import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import codes from "./codes.mjs";
 import { Value } from "./Value.mjs";
 import { patterns2filters, prettyCode, prettyRel } from "./pretty.mjs";
@@ -883,27 +886,55 @@ async function defineRelation(input, state) {
   return [`${name} = ${hash}`];
 }
 
+async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
+  const mainRel = annotated.rels.__main__;
+  if (!mainRel) return undefined;
+
+  let inputValue = state.value ?? emptyValue();
+  if (mainRel.typePatternGraph && mainRel.def.patterns) {
+    const graph = mainRel.typePatternGraph;
+    const nodeId = graph.find(mainRel.def.patterns[0]);
+    const inputPattern = patternToPropertyList(exportPatternGraph(graph, nodeId));
+    inputValue = constrainWithPattern(inputValue, inputPattern, mainRel.def);
+  }
+
+  const obj = {
+    format: "k-object",
+    codes: { ...state.codes, ...codes.dump() },
+    rels: annotated.rels,
+    relAlias: annotated.relAlias,
+    compileStats: annotated.compileStats,
+    main: "__main__"
+  };
+
+  const wasmBytes = await compileWasmArtifactFromObject(obj, {
+    inputEnvelopePattern: inputValue?.pattern
+  });
+  const runner = await instantiateWasmArtifact(wasmBytes);
+  return runner.executeValue(inputValue);
+}
+
 async function runExpression(input, state) {
   const expression = input.trim();
   if (!expression) throw new Error(":run requires an expression");
 
   restoreCodes(state);
   const preamble = aliasPreamble(state);
+  const lineOffset = preambleLineCount(preamble);
   const source = [preamble, expression].filter(Boolean).join("\n");
   let annotated;
   try {
     annotated = annotate(source, { libraries: [stateLibrary(state)] });
   } catch (error) {
-    throw remapError(error, preambleLineCount(preamble));
+    throw remapError(error, lineOffset);
   }
-  const mainRel = annotated.rels.__main__;
-  run.defs = annotated;
   let result;
   try {
-    result = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
+    result = await executeExpressionWithWasm(annotated, state, lineOffset);
   } catch (error) {
-    throw remapError(error, preambleLineCount(preamble));
+    throw remapError(error, lineOffset);
   }
+  state.codes = codes.dump();
   restoreCodes(state);
   return commitResult(state, result, expression);
 }
@@ -922,14 +953,13 @@ async function runSnippet(input, state, options = {}) {
     return [];
   }
 
-  const mainRel = annotated.rels.__main__;
-  run.defs = annotated;
   let result;
   try {
-    result = run(codes.find, mainRel.def, state.value, mainRel.typePatternGraph);
+    result = await executeExpressionWithWasm(annotated, state, lineOffset);
   } catch (error) {
     throw remapError(error, lineOffset);
   }
+  state.codes = codes.dump();
   restoreCodes(state);
   return commitResult(state, result, snippet);
 }

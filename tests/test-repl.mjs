@@ -277,6 +277,21 @@ await assert.rejects(
   /Type Error|Unknown ref: 'type'|Parse error|Parse Error/
 );
 
+// Verify WebAssembly in-process backend supports TCO / stack safety on deep recursion
+const tcoState = createState();
+await evaluateInput(":type nat = <{} zero, nat succ>", tcoState);
+await evaluateInput(":rel countdown = $nat < /zero {}|zero, /succ countdown >", tcoState);
+
+let deepNat = Value.variant("zero", Value.product({}, [["closed-product", []]]), [["open-union", [["zero", 1]]], ["closed-product", []]]);
+for (let i = 0; i < 5000; i++) {
+  deepNat = Value.variant("succ", deepNat, [["open-union", [["succ", 1]]], ...deepNat.pattern]);
+}
+tcoState.value = deepNat;
+
+output = await evaluateInput("countdown", tcoState);
+assert.match(output[0], /^\{\}\|zero/);
+assert.equal(tcoState.value.toJSON(), "zero");
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");

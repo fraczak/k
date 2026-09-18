@@ -877,6 +877,42 @@ async function instantiateWasmArtifact(wasmBuffer) {
     return outWire;
   }
 
+  function executeValue(inputValue, options = {}) {
+    const t0 = process.hrtime.bigint();
+    const valuePattern = inputValue?.pattern || null;
+    if (valuePattern && !isMonomorphicPattern(metadata.inputPattern)) {
+      validateInputEnvelope(metadata.inputPattern, valuePattern);
+    }
+    const t1 = process.hrtime.bigint();
+    const mark = exports.arena_mark ? exports.arena_mark() : 0;
+    const arenaValues = new Map();
+    const ptrIn = writeValueToArena(exports, inputValue, inputPattern, 0, arenaValues, tags, metadata.inputPattern);
+    const t2 = process.hrtime.bigint();
+    const result = exports[metadata.entry](ptrIn);
+    if (result[1] !== 1) {
+      if (exports.arena_reset) exports.arena_reset(mark);
+      return undefined;
+    }
+    const t3 = process.hrtime.bigint();
+    const output = readArenaValue(exports, wasmPtr(result[0]), outputPattern, 0, metadata.outputPattern, arenaValues, tags);
+    const t4 = process.hrtime.bigint();
+    if (exports.arena_reset) exports.arena_reset(mark);
+
+    if (options.trace) {
+      return {
+        output,
+        trace: {
+          validateNs: Number(t1 - t0),
+          flatInNs: Number(t2 - t1),
+          evalNs: Number(t3 - t2),
+          flatOutNs: Number(t4 - t3),
+          totalNs: Number(t4 - t0)
+        }
+      };
+    }
+    return output;
+  }
+
   return {
     module,
     instance,
@@ -885,7 +921,8 @@ async function instantiateWasmArtifact(wasmBuffer) {
     tags,
     inputPattern,
     outputPattern,
-    execute
+    execute,
+    executeValue
   };
 }
 
