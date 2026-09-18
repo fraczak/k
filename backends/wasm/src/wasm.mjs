@@ -90,7 +90,7 @@ function cloneForRetyping(value) {
 
   const clone = {};
   for (const [key, child] of Object.entries(value)) {
-    if (key === "patterns" || key.startsWith("_")) continue;
+    if (key === "patterns") continue;
     clone[key] = cloneForRetyping(child);
   }
   return clone;
@@ -129,10 +129,15 @@ function compileParsedDefs(parsed, mainExp, options = {}) {
 function compileObjectDefs(object, mainRelName, mainExp = null, options = {}) {
   const representatives = codes.register(object.codes || {});
   const rels = Object.fromEntries(
-    Object.entries(object.rels || {}).map(([name, rel]) => [
-      name,
-      { def: cloneForRetyping(name === mainRelName && mainExp ? mainExp : rel.def) }
-    ])
+    Object.entries(object.rels || {}).map(([name, rel]) => {
+      if (name === mainRelName) {
+        return [name, { def: cloneForRetyping(mainExp ? mainExp : rel.def) }];
+      }
+      if (rel.typePatternGraph) {
+        return [name, { ...rel, _library: true }];
+      }
+      return [name, { def: cloneForRetyping(rel.def) }];
+    })
   );
   injectLibraries(rels, options.libraries);
 
@@ -141,7 +146,14 @@ function compileObjectDefs(object, mainRelName, mainExp = null, options = {}) {
     rels,
     representatives,
     relAlias,
-    compileStats
+    compileStats: {
+      ...object.compileStats,
+      ...compileStats,
+      sccs: [
+        ...(object.compileStats?.sccs || []),
+        ...(compileStats?.sccs || [])
+      ]
+    }
   };
 }
 

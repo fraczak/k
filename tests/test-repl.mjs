@@ -292,6 +292,15 @@ output = await evaluateInput("countdown", tcoState);
 assert.match(output[0], /^\{\}\|zero/);
 assert.equal(tcoState.value.toJSON(), "zero");
 
+// Verify loading library and evaluating constant/recursive relation from library
+const arithState = createState();
+output = await evaluateInput(":load Examples/arithmetics.k", arithState);
+assert.equal(output[0], "loaded Examples/arithmetics.k");
+output = await evaluateInput("10", arithState);
+assert.match(output[0], /^\{\}\|_\|0\|1\|0\|1/);
+output = await evaluateInput("{10 int x, 5 int y} plus", arithState);
+assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");
