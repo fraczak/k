@@ -5,6 +5,7 @@ valueParser.mjs
 DOCS/dependency-graph.md
 *~
 *.html
+!repl.html
 .codegpt
 .DS_Store
 .idea/

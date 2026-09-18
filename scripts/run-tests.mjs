@@ -25,6 +25,7 @@ const tests = [
   ["tests/test-validate-object.mjs", node, ["tests/test-validate-object.mjs"]],
   ["conformance/run.mjs", node, ["conformance/run.mjs"]],
   ["tests/test-repl.mjs", node, ["tests/test-repl.mjs"]],
+  ["tests/test-repl-html.mjs", node, ["tests/test-repl-html.mjs"]],
   ["tests/test-kvm.mjs", node, ["tests/test-kvm.mjs"]],
   ["tests/test-kvm-polymorphic.mjs", node, ["tests/test-kvm-polymorphic.mjs"]],
   ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],

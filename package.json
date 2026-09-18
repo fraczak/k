@@ -24,7 +24,8 @@
         "perf:poly:trace": "node scripts/perf-poly.mjs --trace",
         "perf:idempotency": "node scripts/benchmark-idempotency.mjs",
         "deps:graph": "node scripts/generate-dependency-graph.mjs",
-        "compare": "node harness/cli.mjs"
+        "compare": "node harness/cli.mjs",
+        "build:repl-html": "node scripts/build-repl-html.mjs"
     },
     "repository": {
         "type": "git",
@@ -63,6 +64,7 @@
         "k-vm": "./kvm.mjs"
     },
     "devDependencies": {
+        "esbuild": "^0.28.2",
         "jiwson": "^0.1.2",
         "wabt": "^1.0.39"
     }

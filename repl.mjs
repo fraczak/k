@@ -1317,5 +1317,6 @@ export {
   printValue,
   promptForState,
   propertyListToFilter,
+  savedLibrary,
   valueToK
 };
