@@ -469,7 +469,11 @@ function showVfsFilePreview(filename) {
 function loadPreviewedFile() {
   if (!currentPreviewFile) return;
   closeVfsModal();
-  executeCommand(`:load ${currentPreviewFile}`);
+  if (currentPreviewFile.endsWith(".mjs") || currentPreviewFile.startsWith("codecs/")) {
+    executeCommand(`:codec load ${currentPreviewFile}`);
+  } else {
+    executeCommand(`:load ${currentPreviewFile}`);
+  }
 }
 
 function downloadPreviewedFile() {
@@ -1510,18 +1514,27 @@ export function initRepl() {
     if (e.target === inputPopupModal) cancelInputPopup();
   });
 
-  // Global focus input on click outside
-  document.addEventListener("click", (e) => {
-    // If text is currently selected, do not steal focus (preserves copy/paste selection)
-    const selection = window.getSelection();
-    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+  // Focus input when clicking anywhere in the input bar
+  const inputBar = document.querySelector(".terminal-input-bar");
+  if (inputBar) {
+    inputBar.addEventListener("click", (e) => {
+      if (inputEl && !e.target.closest("button, select, input, textarea")) {
+        inputEl.focus();
+      }
+    });
+  }
+
+  // Focus input when typing printable characters outside modals and inputs
+  window.addEventListener("keydown", (e) => {
+    if (e.target.matches("input, textarea, select") || document.querySelector(".modal.open")) {
       return;
     }
-    // Do not steal focus if clicking interactive elements or text inside terminal entries
-    if (e.target.closest("button, select, input, textarea, .modal, .quick-link, .btn-copy-entry, .terminal-entry")) {
+    if (e.ctrlKey || e.metaKey || e.altKey) {
       return;
     }
-    inputEl.focus();
+    if (e.key.length === 1 && inputEl) {
+      inputEl.focus();
+    }
   });
 
   // Apply initial yn preset to custom form

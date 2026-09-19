@@ -50,7 +50,7 @@ export class Buffer extends Uint8Array {
   }
 
   writeUInt32BE(val, offset = 0) {
-    new DataView(this.buffer, this.byteOffset, this.byteLength).setUint32(offset, val, false);
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setUint32(offset, Number(val), false);
     return offset + 4;
   }
 
@@ -59,12 +59,156 @@ export class Buffer extends Uint8Array {
   }
 
   writeUInt32LE(val, offset = 0) {
-    new DataView(this.buffer, this.byteOffset, this.byteLength).setUint32(offset, val, true);
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setUint32(offset, Number(val), true);
     return offset + 4;
   }
 
   readUInt32LE(offset = 0) {
     return new DataView(this.buffer, this.byteOffset, this.byteLength).getUint32(offset, true);
+  }
+
+  writeInt32BE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setInt32(offset, Number(val), false);
+    return offset + 4;
+  }
+
+  readInt32BE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getInt32(offset, false);
+  }
+
+  writeInt32LE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setInt32(offset, Number(val), true);
+    return offset + 4;
+  }
+
+  readInt32LE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getInt32(offset, true);
+  }
+
+  writeUInt16BE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setUint16(offset, Number(val), false);
+    return offset + 2;
+  }
+
+  readUInt16BE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getUint16(offset, false);
+  }
+
+  writeUInt16LE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setUint16(offset, Number(val), true);
+    return offset + 2;
+  }
+
+  readUInt16LE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getUint16(offset, true);
+  }
+
+  writeInt16BE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setInt16(offset, Number(val), false);
+    return offset + 2;
+  }
+
+  readInt16BE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getInt16(offset, false);
+  }
+
+  writeInt16LE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setInt16(offset, Number(val), true);
+    return offset + 2;
+  }
+
+  readInt16LE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getInt16(offset, true);
+  }
+
+  writeUInt8(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setUint8(offset, Number(val));
+    return offset + 1;
+  }
+
+  readUInt8(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getUint8(offset);
+  }
+
+  writeInt8(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setInt8(offset, Number(val));
+    return offset + 1;
+  }
+
+  readInt8(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getInt8(offset);
+  }
+
+  writeDoubleBE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setFloat64(offset, Number(val), false);
+    return offset + 8;
+  }
+
+  readDoubleBE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getFloat64(offset, false);
+  }
+
+  writeDoubleLE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setFloat64(offset, Number(val), true);
+    return offset + 8;
+  }
+
+  readDoubleLE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getFloat64(offset, true);
+  }
+
+  writeFloatBE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setFloat32(offset, Number(val), false);
+    return offset + 4;
+  }
+
+  readFloatBE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getFloat32(offset, false);
+  }
+
+  writeFloatLE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setFloat32(offset, Number(val), true);
+    return offset + 4;
+  }
+
+  readFloatLE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getFloat32(offset, true);
+  }
+
+  writeBigUInt64BE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setBigUint64(offset, BigInt(val), false);
+    return offset + 8;
+  }
+
+  readBigUInt64BE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getBigUint64(offset, false);
+  }
+
+  writeBigUInt64LE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setBigUint64(offset, BigInt(val), true);
+    return offset + 8;
+  }
+
+  readBigUInt64LE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getBigUint64(offset, true);
+  }
+
+  writeBigInt64BE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setBigInt64(offset, BigInt(val), false);
+    return offset + 8;
+  }
+
+  readBigInt64BE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getBigInt64(offset, false);
+  }
+
+  writeBigInt64LE(val, offset = 0) {
+    new DataView(this.buffer, this.byteOffset, this.byteLength).setBigInt64(offset, BigInt(val), true);
+    return offset + 8;
+  }
+
+  readBigInt64LE(offset = 0) {
+    return new DataView(this.buffer, this.byteOffset, this.byteLength).getBigInt64(offset, true);
   }
 
   subarray(start, end) {
@@ -73,7 +217,7 @@ export class Buffer extends Uint8Array {
   }
 }
 
-if (typeof globalThis !== "undefined" && !globalThis.Buffer) {
+if (typeof globalThis !== "undefined") {
   globalThis.Buffer = Buffer;
 }
 

@@ -54,10 +54,11 @@ if (chromiumBin) {
   const tmpDir = `/tmp/chrome-test-${Date.now()}`;
   fs.mkdirSync(tmpDir, { recursive: true });
 
+  const cdpPort = 9333 + Math.floor(Math.random() * 500);
   const chrome = spawn(chromiumBin, [
     "--headless=new",
     "--disable-gpu",
-    "--remote-debugging-port=9222",
+    `--remote-debugging-port=${cdpPort}`,
     "--no-sandbox",
     "--disable-extensions",
     `--user-data-dir=${tmpDir}`,
@@ -68,9 +69,9 @@ if (chromiumBin) {
     let wsUrl = null;
     for (let i = 0; i < 30; i++) {
       try {
-        const res = await fetch("http://127.0.0.1:9222/json/list");
+        const res = await fetch(`http://127.0.0.1:${cdpPort}/json/list`);
         const list = await res.json();
-        const page = list.find(item => item.type === "page" && item.url.includes("repl.html"));
+        const page = list.find(item => item.url && item.url.includes("repl.html"));
         if (page && page.webSocketDebuggerUrl) {
           wsUrl = page.webSocketDebuggerUrl;
           break;
@@ -79,7 +80,7 @@ if (chromiumBin) {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    assert(wsUrl, "Could not connect to Chromium CDP on port 9222");
+    assert(wsUrl, `Could not connect to Chromium CDP on port ${cdpPort}`);
 
     const ws = new WebSocket(wsUrl);
     await new Promise(r => ws.onopen = r);
@@ -120,17 +121,42 @@ if (chromiumBin) {
       return res.result?.value;
     }
 
+    // Wait for window.kRepl to be ready
+    await evaluateAsync(`new Promise((resolve, reject) => {
+      let tries = 0;
+      const check = () => {
+        if (window.kRepl && typeof window.kRepl.executeCommand === "function") resolve(true);
+        else if (++tries > 100) reject(new Error("Timeout waiting for window.kRepl"));
+        else setTimeout(check, 50);
+      };
+      check();
+    })`);
+
     // Check UI initialized
     const title = await evaluateAsync(`document.querySelector(".brand-name")?.textContent`);
     assert.strictEqual(title, "k repl", "Brand name should be 'k repl'");
 
-    // Test :load Examples/arithmetics.k
+    // Verify VFS curated files
+    const vfsList = await evaluateAsync(`window.kRepl.getAllVfsFiles().sort()`);
+    const expectedFiles = [
+      "arithmetics.k",
+      "core.k",
+      "ieee.k",
+      "ieee.mjs",
+      "int.mjs",
+      "json.mjs",
+      "unit.mjs",
+      "utf8.mjs"
+    ].sort();
+    assert.deepStrictEqual(vfsList, expectedFiles, `getAllVfsFiles() must match curated files list, got: ${JSON.stringify(vfsList)}`);
+
+    // Test :load arithmetics.k
     const loadOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":load Examples/arithmetics.k");
+      await window.kRepl.executeCommand(":load arithmetics.k");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert.strictEqual(loadOut, "loaded Examples/arithmetics.k");
+    assert(loadOut.includes("loaded arithmetics.k"), `Expected loaded arithmetics.k, got: ${loadOut}`);
 
     // Test evaluating 10
     const valOut = await evaluateAsync(`(async () => {
@@ -225,6 +251,41 @@ if (chromiumBin) {
     await evaluateAsync(`window.kRepl.cancelInputPopup()`);
     const modalClosedAfterCancel = await evaluateAsync(`!document.getElementById("input-popup-modal")?.classList.contains("open")`);
     assert.strictEqual(modalClosedAfterCancel, true, "Input modal should close on cancel");
+
+    // Test JSON codec with float64 in browser: :input {string a, float64 n} then {"a":"Woj","n":123}
+    await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":load core.k");
+      await window.kRepl.executeCommand(":load ieee.k");
+      await window.kRepl.executeCommand(":codec load json");
+    })()`);
+    const inputPromptOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":input {string a, float64 n}");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(inputPromptOut.includes("enter value text"), `Expected input prompt, got: ${inputPromptOut}`);
+
+    // Enter JSON value with float64
+    const jsonResult = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand('{"a":"Woj","n":123}');
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(jsonResult.includes('json: {"a":"Woj","n":123}'), `Expected json: {"a":"Woj","n":123}, got: ${jsonResult}`);
+
+    // Verify text selection holds in output element
+    const selectionCheck = await evaluateAsync(`(() => {
+      const output = document.getElementById("terminal-output");
+      const range = document.createRange();
+      range.selectNodeContents(output);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      // Simulate click on terminal container/output
+      output.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      return window.getSelection().toString().length > 0;
+    })()`);
+    assert.strictEqual(selectionCheck, true, "Selection in terminal output should hold after click");
 
     ws.close();
     console.log("   Browser execution verified successfully!");

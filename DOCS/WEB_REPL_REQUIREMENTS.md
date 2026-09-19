@@ -105,3 +105,31 @@ The bundled VFS and UI examples must include only verified useful files:
 3. **Idempotence**:
    - `state.loadedFiles = new Set()` tracks loaded file paths (normalized).
    - Re-running `:codec load` or loading multiple codecs referencing the same file (`utf8` and `json` both referencing `core.k`) will not recompile or reload the file redundantly.
+
+---
+
+### Phase 2: Curated VFS, Browser Buffer & Selection Persistence
+
+#### 1. Curated Files Explorer
+In the Web REPL "Files" (VFS) explorer, the visible files are strictly curated to verified examples and codecs:
+- **k-codes**: `core.k`, `arithmetics.k`, `ieee.k`
+- **codecs**: `json.mjs`, `utf8.mjs`, `int.mjs`, `unit.mjs`, `ieee.mjs`
+- User-created or uploaded files remain visible.
+- Internal runtime artifacts (`backends/wasm/runtime.wat`) and redundant directory prefixes (`Examples/`, `codecs/`) are kept accessible internally but hidden from the default file listing.
+- Clicking "Load" on a `.mjs` file automatically executes `:codec load <filename>`.
+
+#### 2. Browser Buffer 64-bit Float & Int Methods
+`browser/shims/buffer.mjs` implements:
+- `writeDoubleBE`, `readDoubleBE`, `writeDoubleLE`, `readDoubleLE`
+- `writeFloatBE`, `readFloatBE`, `writeFloatLE`, `readFloatLE`
+- `writeBigUInt64BE`, `readBigUInt64BE`, `writeBigUInt64LE`, `readBigUInt64LE`
+- `writeBigInt64BE`, `readBigInt64BE`, `writeBigInt64LE`, `readBigInt64LE`
+- Complete integer read/write methods (`UInt32`, `Int32`, `UInt16`, `Int16`, `UInt8`, `Int8`).
+- `globalThis.Buffer = Buffer` set unconditionally in the browser environment.
+This fixes `:input {string a, float64 n}` number parsing in JSON and IEEE codecs in browser runtime.
+
+#### 3. Persistent Console Selection
+- Replaced the global document click focus-stealer with:
+  - Click listener on `.terminal-input-bar` (clicking prompt line focuses input).
+  - Keydown typing handler on `window` (typing printable characters outside modals/inputs focuses input).
+- Mouse selection in `.terminal-output` never collapses on click/mouseup.

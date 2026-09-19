@@ -16,6 +16,9 @@ function cleanPath(p) {
   if (exIdx !== -1) return s.slice(exIdx);
   const wasmIdx = s.lastIndexOf("backends/wasm/");
   if (wasmIdx !== -1) return s.slice(wasmIdx);
+  const codecsIdx = s.lastIndexOf("codecs/");
+  if (codecsIdx !== -1) return s.slice(codecsIdx);
+  if (s.endsWith("/core.k") || s === "core.k") return "core.k";
   if (s.startsWith("./")) s = s.slice(2);
   while (s.startsWith("/")) s = s.slice(1);
   return s;
@@ -27,16 +30,53 @@ export function setVfsFile(path, content) {
 }
 
 export function getVfsFile(path) {
-  return vfs.get(cleanPath(path));
+  const cleaned = cleanPath(path);
+  if (vfs.has(cleaned)) return vfs.get(cleaned);
+  if (cleaned.startsWith("Examples/")) {
+    const stripped = cleaned.slice("Examples/".length);
+    if (vfs.has(stripped)) return vfs.get(stripped);
+  } else {
+    const withEx = `Examples/${cleaned}`;
+    if (vfs.has(withEx)) return vfs.get(withEx);
+  }
+  if (cleaned.startsWith("codecs/")) {
+    const stripped = cleaned.slice("codecs/".length);
+    if (vfs.has(stripped)) return vfs.get(stripped);
+  } else {
+    const withCodecs = `codecs/${cleaned}`;
+    if (vfs.has(withCodecs)) return vfs.get(withCodecs);
+  }
+  return undefined;
 }
 
+const CURATED_VFS_FILES = [
+  "core.k",
+  "arithmetics.k",
+  "ieee.k",
+  "json.mjs",
+  "utf8.mjs",
+  "int.mjs",
+  "unit.mjs",
+  "ieee.mjs"
+];
+
 export function getAllVfsFiles() {
-  return Array.from(vfs.keys());
+  const result = new Set();
+  for (const name of CURATED_VFS_FILES) {
+    if (getVfsFile(name) !== undefined) {
+      result.add(name);
+    }
+  }
+  for (const key of vfs.keys()) {
+    if (key.endsWith("runtime.wat") || key.startsWith("backends/")) continue;
+    if (key.startsWith("Examples/") || key.startsWith("codecs/")) continue;
+    result.add(key);
+  }
+  return Array.from(result);
 }
 
 export function readFileSync(filePath, options) {
-  const cleaned = cleanPath(filePath);
-  const data = vfs.get(cleaned);
+  const data = getVfsFile(filePath);
   if (data === undefined) {
     throw new Error(`ENOENT: no such file or directory, open '${filePath}'`);
   }
@@ -57,8 +97,7 @@ export function writeFileSync(filePath, data) {
 }
 
 export function existsSync(filePath) {
-  const cleaned = cleanPath(filePath);
-  return vfs.has(cleaned);
+  return getVfsFile(filePath) !== undefined;
 }
 
 export function readdirSync(dirPath, options = {}) {

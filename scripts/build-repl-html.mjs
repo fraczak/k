@@ -28,24 +28,27 @@ if (fs.existsSync(coreKPath)) {
   vfsFiles["core.k"] = fs.readFileSync(coreKPath, "utf8");
 }
 
-// Add verified useful files in Examples/
-const verifiedExamples = ["arithmetics.k", "ieee.k", "poly.k"];
+// Add verified k-code files: arithmetics.k, ieee.k
+const verifiedExamples = ["arithmetics.k", "ieee.k"];
 const examplesDir = path.join(projectRoot, "Examples");
 for (const filename of verifiedExamples) {
   const fullPath = path.join(examplesDir, filename);
   if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
-    vfsFiles[`Examples/${filename}`] = fs.readFileSync(fullPath, "utf8");
+    const content = fs.readFileSync(fullPath, "utf8");
+    vfsFiles[filename] = content;
+    vfsFiles[`Examples/${filename}`] = content;
   }
 }
 
-// Add all files in codecs/
+// Add verified codecs: json.mjs, utf8.mjs, int.mjs, unit.mjs, ieee.mjs
+const verifiedCodecs = ["json.mjs", "utf8.mjs", "int.mjs", "unit.mjs", "ieee.mjs"];
 const codecsDir = path.join(projectRoot, "codecs");
-if (fs.existsSync(codecsDir)) {
-  for (const filename of fs.readdirSync(codecsDir)) {
-    const fullPath = path.join(codecsDir, filename);
-    if (fs.statSync(fullPath).isFile() && filename.endsWith(".mjs")) {
-      vfsFiles[`codecs/${filename}`] = fs.readFileSync(fullPath, "utf8");
-    }
+for (const filename of verifiedCodecs) {
+  const fullPath = path.join(codecsDir, filename);
+  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+    const content = fs.readFileSync(fullPath, "utf8");
+    vfsFiles[filename] = content;
+    vfsFiles[`codecs/${filename}`] = content;
   }
 }
 
@@ -1340,9 +1343,8 @@ const htmlContent = `<!DOCTYPE html>
             <option value="">-- Example / Expression --</option>
             <optgroup label="Standard Examples">
               <option value="core.k">core.k</option>
-              <option value="Examples/arithmetics.k">Examples/arithmetics.k</option>
-              <option value="Examples/ieee.k">Examples/ieee.k</option>
-              <option value="Examples/poly.k">Examples/poly.k</option>
+              <option value="arithmetics.k">arithmetics.k</option>
+              <option value="ieee.k">ieee.k</option>
             </optgroup>
             <optgroup label="Quick Expressions">
               <option value="expr:10">10</option>
@@ -1363,6 +1365,7 @@ const htmlContent = `<!DOCTYPE html>
               <option value="expr::codec load utf8">:codec load utf8</option>
               <option value="expr::codec load json">:codec load json</option>
               <option value="expr::codec load ieee">:codec load ieee</option>
+              <option value="expr::codec load unit">:codec load unit</option>
             </optgroup>
           </select>
           <button id="btn-load-example" class="btn btn-primary">Load</button>

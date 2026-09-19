@@ -808,10 +808,11 @@ function parseLoadArgs(arg, usagePrefix = ":") {
 }
 
 const CODEC_FILES = {
-  int: "Examples/arithmetics.k",
+  int: "arithmetics.k",
   utf8: "core.k",
   json: "core.k",
-  ieee: "Examples/ieee.k"
+  ieee: "ieee.k",
+  unit: "core.k"
 };
 
 function normalizeFilePath(p) {
@@ -826,6 +827,22 @@ function resolveKFilePath(filePath) {
     const fromRepo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), filePath);
     if (fs.existsSync(fromRepo)) return fromRepo;
   } catch {}
+  const withEx = filePath.startsWith("Examples/") ? filePath : `Examples/${filePath}`;
+  try {
+    if (fs.existsSync(withEx)) return withEx;
+  } catch {}
+  try {
+    const fromRepoEx = path.resolve(path.dirname(fileURLToPath(import.meta.url)), withEx);
+    if (fs.existsSync(fromRepoEx)) return fromRepoEx;
+  } catch {}
+  const strippedEx = filePath.startsWith("Examples/") ? filePath.slice("Examples/".length) : filePath;
+  try {
+    if (fs.existsSync(strippedEx)) return strippedEx;
+  } catch {}
+  try {
+    const fromRepoStripped = path.resolve(path.dirname(fileURLToPath(import.meta.url)), strippedEx);
+    if (fs.existsSync(fromRepoStripped)) return fromRepoStripped;
+  } catch {}
   return filePath;
 }
 
@@ -835,9 +852,10 @@ function loadSourceOrKlib(state, targetPath, options = {}) {
   if (!state.loadedFiles) state.loadedFiles = new Set();
 
   // If loading poly.k, auto-load arithmetics.k first if not already loaded
-  if (normKey === "Examples/poly.k" || normKey.endsWith("/poly.k")) {
-    const arithKey = "Examples/arithmetics.k";
-    if (!state.loadedFiles.has(arithKey)) {
+  if (normKey === "Examples/poly.k" || normKey.endsWith("/poly.k") || normKey === "poly.k") {
+    const arithKey = "arithmetics.k";
+    const alreadyHasArith = Array.from(state.loadedFiles).some(f => path.basename(f) === "arithmetics.k");
+    if (!alreadyHasArith) {
       loadSourceOrKlib(state, arithKey, { loadAliases });
     }
   }
@@ -874,7 +892,11 @@ function ensureCodecDependencies(state, codecTarget) {
   if (!depFile) return null;
   if (!state.loadedFiles) state.loadedFiles = new Set();
   const depNormKey = normalizeFilePath(depFile);
-  if (!state.loadedFiles.has(depNormKey)) {
+  const baseName = path.basename(depNormKey);
+  const alreadyLoaded = state.loadedFiles.has(depNormKey) ||
+    state.loadedFiles.has(`Examples/${depNormKey}`) ||
+    Array.from(state.loadedFiles).some(f => path.basename(f) === baseName);
+  if (!alreadyLoaded) {
     loadSourceOrKlib(state, depFile);
     return depFile;
   }

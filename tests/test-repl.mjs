@@ -351,7 +351,7 @@ assert.match(output[0], /^\{\}\|a/);
 // Auto-loading dependencies and bidirectional type aliasing tests
 const autoLoadState = createState();
 output = await evaluateInput(":codec load int", autoLoadState);
-assert.match(output[0], /auto-loaded Examples\/arithmetics\.k/);
+assert.match(output[0], /auto-loaded (?:Examples\/)?arithmetics\.k/);
 assert.ok(autoLoadState.typeAliases.int, "int type alias should be registered");
 output = await evaluateInput(":input int", autoLoadState);
 output = await evaluateInput("123", autoLoadState);
@@ -366,6 +366,30 @@ assert.equal(utf8AutoState.typeAliases.utf8, utf8AutoState.typeAliases.string);
 output = await evaluateInput(":input utf8", utf8AutoState);
 output = await evaluateInput("test utf8", utf8AutoState);
 assert.match(output[0], /utf8: test utf8/);
+
+const ieeeAutoState = createState();
+output = await evaluateInput(":codec load ieee", ieeeAutoState);
+assert.match(output[0], /auto-loaded (?:Examples\/)?ieee\.k/);
+assert.ok(ieeeAutoState.typeAliases.ieee, "ieee type alias should be registered");
+assert.ok(ieeeAutoState.typeAliases.float64, "float64 type alias should be registered");
+assert.equal(ieeeAutoState.typeAliases.ieee, ieeeAutoState.typeAliases.float64);
+
+const jsonInputState = createState();
+await evaluateInput(":load core.k", jsonInputState);
+await evaluateInput(":load ieee.k", jsonInputState);
+await evaluateInput(":codec load json", jsonInputState);
+output = await evaluateInput(":input {string a, float64 n}", jsonInputState);
+assert.match(output[0], /enter value text/);
+output = await evaluateInput('{"a":"Woj","n":123}', jsonInputState);
+assert.match(output[0], /json: \{"a":"Woj","n":123\}/);
+
+const unitState = createState();
+output = await evaluateInput(":codec load unit", unitState);
+assert.match(output[0], /loaded codec unit/);
+output = await evaluateInput(":input unit", unitState);
+assert.match(output[0], /enter value text/);
+output = await evaluateInput("{}", unitState);
+assert.match(output[0], /unit: \{\}/);
 
 const polyAutoState = createState();
 output = await evaluateInput(":load Examples/poly.k", polyAutoState);

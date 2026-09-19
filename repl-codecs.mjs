@@ -10,12 +10,14 @@ import * as intCodec from "./codecs/int.mjs";
 import * as utf8Codec from "./codecs/utf8.mjs";
 import * as jsonCodec from "./codecs/json.mjs";
 import * as ieeeCodec from "./codecs/ieee.mjs";
+import * as unitCodec from "./codecs/unit.mjs";
 
 const BUILTIN_CODECS = {
   int: intCodec,
   utf8: utf8Codec,
   json: jsonCodec,
-  ieee: ieeeCodec
+  ieee: ieeeCodec,
+  unit: unitCodec
 };
 
 const UNIVERSAL_CODE = "*";
