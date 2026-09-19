@@ -1178,6 +1178,111 @@ const htmlContent = `<!DOCTYPE html>
       min-height: 20px;
     }
 
+    /* Input Popup Modal */
+    .input-popup-dialog {
+      max-width: 580px;
+      width: 90%;
+    }
+
+    .input-popup-body {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .input-popup-banner {
+      background: var(--bg-base);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .input-popup-form-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .input-popup-field {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .input-popup-textarea {
+      width: 100%;
+      background: #090d12;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.4;
+      resize: vertical;
+      min-height: 90px;
+      max-height: 280px;
+    }
+
+    .input-popup-textarea:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+      outline: none;
+    }
+
+    .input-popup-samples {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+    }
+
+    .samples-list {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .sample-pill {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-color);
+      color: var(--color-prompt);
+      padding: 2px 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+
+    .sample-pill:hover {
+      background: rgba(88, 166, 255, 0.2);
+      border-color: var(--border-focus);
+    }
+
+    .input-popup-status {
+      font-size: 12px;
+      min-height: 22px;
+      border-radius: 4px;
+      padding: 4px 8px;
+      background: rgba(22, 27, 34, 0.5);
+    }
+
+    .input-popup-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 12px;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .navbar {
@@ -1247,6 +1352,7 @@ const htmlContent = `<!DOCTYPE html>
             </optgroup>
             <optgroup label="Codecs &amp; Serializers">
               <option value="expr::codecs">:codecs</option>
+              <option value="expr::input">:input (codec popup)</option>
               <option value="expr::codec load int">:codec load int</option>
               <option value="expr:10 int">10 int</option>
               <option value="expr::codec load utf8">:codec load utf8</option>
@@ -1268,6 +1374,9 @@ const htmlContent = `<!DOCTYPE html>
 
         <!-- Codecs Subsystem -->
         <button id="btn-codecs" class="btn btn-secondary" title="Codecs &amp; Custom Serializers (:codecs)">⚙ Codecs <span id="codecs-count-badge" class="badge-count">0</span></button>
+
+        <!-- Codec Input Popup -->
+        <button id="btn-input-popup" class="btn btn-secondary" title="Open Codec Input Popup (:input)">📥 Input</button>
 
         <!-- Clear -->
         <button id="btn-clear" class="btn btn-secondary" title="Clear terminal screen (Ctrl+L)">⌫ Clear</button>
@@ -1521,6 +1630,59 @@ const htmlContent = `<!DOCTYPE html>
 
               <div id="codec-studio-status" class="studio-status-box"></div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Popup Modal -->
+    <div id="input-popup-modal" class="modal">
+      <div class="modal-dialog input-popup-dialog">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h3>📥 Codec Input</h3>
+            <span class="engine-badge">:input directive</span>
+          </div>
+          <button id="btn-close-input-popup" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body input-popup-body">
+          <div id="input-popup-banner" class="input-popup-banner">
+            <span id="input-popup-hint">Enter input string to deserialize into a K algebraic value:</span>
+          </div>
+
+          <div class="input-popup-form-row">
+            <div class="studio-field" style="flex: 1;">
+              <label for="input-popup-type">Target Type:</label>
+              <select id="input-popup-type">
+                <!-- populated dynamically -->
+              </select>
+            </div>
+            <div class="studio-field" style="flex: 1;">
+              <label for="input-popup-codec">Deserializer Codec:</label>
+              <select id="input-popup-codec">
+                <!-- populated dynamically -->
+              </select>
+            </div>
+          </div>
+
+          <div class="input-popup-field">
+            <div class="pane-title" style="margin-bottom: 6px;">
+              <label for="input-popup-text" style="font-size: 11px; color: var(--text-muted); font-weight: 500;">Input String / Payload:</label>
+              <span class="pane-hint">Enter: submit &bull; Shift+Enter: newline</span>
+            </div>
+            <textarea id="input-popup-text" class="input-popup-textarea" rows="4" spellcheck="false" placeholder="Type or paste input string (e.g. 42, yes, hello, {...})..."></textarea>
+          </div>
+
+          <div id="input-popup-samples" class="input-popup-samples">
+            <span class="samples-label">Quick samples:</span>
+            <div id="input-samples-list" class="samples-list"></div>
+          </div>
+
+          <div id="input-popup-status" class="input-popup-status"></div>
+
+          <div class="input-popup-actions">
+            <button id="btn-cancel-input" class="btn btn-secondary">Cancel</button>
+            <button id="btn-submit-input" class="btn btn-primary">✓ Submit to REPL</button>
           </div>
         </div>
       </div>

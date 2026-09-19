@@ -39,6 +39,8 @@ assert(html.includes("btn-codecs"), "repl.html must contain Codecs button");
 assert(html.includes("codecs-modal"), "repl.html must contain Codecs modal");
 assert(html.includes("active-codecs-tbody"), "repl.html must contain active codecs table");
 assert(html.includes("codec-preset-select"), "repl.html must contain codec preset templates");
+assert(html.includes("btn-input-popup"), "repl.html must contain input button");
+assert(html.includes("input-popup-modal"), "repl.html must contain input popup modal");
 console.log("   repl.html is valid, self-contained, and has size:", (html.length / 1024).toFixed(1), "KB");
 
 // 3. If Chromium is available, run end-to-end browser test
@@ -189,6 +191,40 @@ if (chromiumBin) {
       return document.getElementById("codecs-modal")?.classList.contains("open");
     })()`);
     assert.strictEqual(modalIsOpen, true, "Codecs modal should open");
+
+    // Close codecs modal
+    await evaluateAsync(`(() => {
+      document.getElementById("codecs-modal")?.classList.remove("open");
+    })()`);
+
+    // Test :input opens input popup modal
+    await evaluateAsync(`window.kRepl.executeCommand(":input int")`);
+    const inputModalOpen = await evaluateAsync(`document.getElementById("input-popup-modal")?.classList.contains("open")`);
+    assert.strictEqual(inputModalOpen, true, "Executing :input int should open input popup modal");
+
+    // Enter value '55' in popup and submit
+    const submitResult = await evaluateAsync(`(async () => {
+      const textEl = document.getElementById("input-popup-text");
+      textEl.value = "55";
+      await window.kRepl.submitInputPopup();
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(submitResult.includes("int: 55"), `Expected int: 55 after submitting input popup, got: ${submitResult}`);
+
+    // Verify modal is closed after submission
+    const modalClosedAfterSubmit = await evaluateAsync(`!document.getElementById("input-popup-modal")?.classList.contains("open")`);
+    assert.strictEqual(modalClosedAfterSubmit, true, "Input modal should be closed after submit");
+
+    // Test :input directive without args opens input popup
+    await evaluateAsync(`window.kRepl.executeCommand(":input")`);
+    const inputWithoutArgsOpensModal = await evaluateAsync(`document.getElementById("input-popup-modal")?.classList.contains("open")`);
+    assert.strictEqual(inputWithoutArgsOpensModal, true, "Executing :input without args should open input popup");
+
+    // Test cancelInputPopup
+    await evaluateAsync(`window.kRepl.cancelInputPopup()`);
+    const modalClosedAfterCancel = await evaluateAsync(`!document.getElementById("input-popup-modal")?.classList.contains("open")`);
+    assert.strictEqual(modalClosedAfterCancel, true, "Input modal should close on cancel");
 
     ws.close();
     console.log("   Browser execution verified successfully!");

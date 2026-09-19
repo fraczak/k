@@ -1056,6 +1056,111 @@
       min-height: 20px;
     }
 
+    /* Input Popup Modal */
+    .input-popup-dialog {
+      max-width: 580px;
+      width: 90%;
+    }
+
+    .input-popup-body {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .input-popup-banner {
+      background: var(--bg-base);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .input-popup-form-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .input-popup-field {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .input-popup-textarea {
+      width: 100%;
+      background: #090d12;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.4;
+      resize: vertical;
+      min-height: 90px;
+      max-height: 280px;
+    }
+
+    .input-popup-textarea:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+      outline: none;
+    }
+
+    .input-popup-samples {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+    }
+
+    .samples-list {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .sample-pill {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-color);
+      color: var(--color-prompt);
+      padding: 2px 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+
+    .sample-pill:hover {
+      background: rgba(88, 166, 255, 0.2);
+      border-color: var(--border-focus);
+    }
+
+    .input-popup-status {
+      font-size: 12px;
+      min-height: 22px;
+      border-radius: 4px;
+      padding: 4px 8px;
+      background: rgba(22, 27, 34, 0.5);
+    }
+
+    .input-popup-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 12px;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .navbar {
@@ -1125,6 +1230,7 @@
             </optgroup>
             <optgroup label="Codecs &amp; Serializers">
               <option value="expr::codecs">:codecs</option>
+              <option value="expr::input">:input (codec popup)</option>
               <option value="expr::codec load int">:codec load int</option>
               <option value="expr:10 int">10 int</option>
               <option value="expr::codec load utf8">:codec load utf8</option>
@@ -1146,6 +1252,9 @@
 
         <!-- Codecs Subsystem -->
         <button id="btn-codecs" class="btn btn-secondary" title="Codecs &amp; Custom Serializers (:codecs)">⚙ Codecs <span id="codecs-count-badge" class="badge-count">0</span></button>
+
+        <!-- Codec Input Popup -->
+        <button id="btn-input-popup" class="btn btn-secondary" title="Open Codec Input Popup (:input)">📥 Input</button>
 
         <!-- Clear -->
         <button id="btn-clear" class="btn btn-secondary" title="Clear terminal screen (Ctrl+L)">⌫ Clear</button>
@@ -1399,6 +1508,59 @@
 
               <div id="codec-studio-status" class="studio-status-box"></div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Popup Modal -->
+    <div id="input-popup-modal" class="modal">
+      <div class="modal-dialog input-popup-dialog">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h3>📥 Codec Input</h3>
+            <span class="engine-badge">:input directive</span>
+          </div>
+          <button id="btn-close-input-popup" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body input-popup-body">
+          <div id="input-popup-banner" class="input-popup-banner">
+            <span id="input-popup-hint">Enter input string to deserialize into a K algebraic value:</span>
+          </div>
+
+          <div class="input-popup-form-row">
+            <div class="studio-field" style="flex: 1;">
+              <label for="input-popup-type">Target Type:</label>
+              <select id="input-popup-type">
+                <!-- populated dynamically -->
+              </select>
+            </div>
+            <div class="studio-field" style="flex: 1;">
+              <label for="input-popup-codec">Deserializer Codec:</label>
+              <select id="input-popup-codec">
+                <!-- populated dynamically -->
+              </select>
+            </div>
+          </div>
+
+          <div class="input-popup-field">
+            <div class="pane-title" style="margin-bottom: 6px;">
+              <label for="input-popup-text" style="font-size: 11px; color: var(--text-muted); font-weight: 500;">Input String / Payload:</label>
+              <span class="pane-hint">Enter: submit &bull; Shift+Enter: newline</span>
+            </div>
+            <textarea id="input-popup-text" class="input-popup-textarea" rows="4" spellcheck="false" placeholder="Type or paste input string (e.g. 42, yes, hello, {...})..."></textarea>
+          </div>
+
+          <div id="input-popup-samples" class="input-popup-samples">
+            <span class="samples-label">Quick samples:</span>
+            <div id="input-samples-list" class="samples-list"></div>
+          </div>
+
+          <div id="input-popup-status" class="input-popup-status"></div>
+
+          <div class="input-popup-actions">
+            <button id="btn-cancel-input" class="btn btn-secondary">Cancel</button>
+            <button id="btn-submit-input" class="btn btn-primary">✓ Submit to REPL</button>
           </div>
         </div>
       </div>
@@ -16302,6 +16464,13 @@ var codecsModal;
 var codecsBadgeEl;
 var activeCodecsTbody;
 var codecTypeSelect;
+var inputPopupModal;
+var inputPopupType;
+var inputPopupCodec;
+var inputPopupText;
+var inputPopupStatus;
+var inputPopupHint;
+var inputSamplesList;
 function escapeHtml(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
@@ -16442,7 +16611,11 @@ function appendSystemMessage(msg, isError = false, isHtml = false) {
 }
 async function executeCommand(input) {
   const trimmed = input.trim();
-  if (!trimmed) return;
+  if (!trimmed && !state.pendingInput) return;
+  if (trimmed === ":input") {
+    openInputPopup();
+    return;
+  }
   if (history.length === 0 || history[history.length - 1] !== input) {
     history.push(input);
     if (history.length > 200) history.shift();
@@ -16486,6 +16659,9 @@ async function executeCommand(input) {
   updateCodecsBadge();
   if (codecsModal && codecsModal.classList.contains("open")) {
     renderCodecsModal();
+  }
+  if (errors.length === 0 && state.pendingInput && trimmed.startsWith(":input ")) {
+    openInputPopup();
   }
 }
 function adjustInputHeight() {
@@ -17019,6 +17195,196 @@ export function print(value, context) {
   }
   appendSystemMessage(`\u{1F4BE} Saved codec file to VFS: <b>${fileName}</b>. You can reload it anytime via <code>:codec load ${fileName}</code>.`);
 }
+var CODEC_SAMPLES = {
+  int: ["0", "10", "42", "-15", "1000000"],
+  utf8: ["hello", "hello world", "k repl", "\u03BB"],
+  json: ['{"name":"Alice"}', '{"x":10,"y":20}', "true", "[1, 2, 3]"],
+  ieee: ["0.0", "3.14159", "-2.718", "1e6"],
+  yn: ["yes", "no", "true", "false"],
+  hex: ["0x2A", "0xFF", "0x1000", "-0x10"],
+  currency: ["$10.00", "$42.50", "$99.99"]
+};
+function openInputPopup(preselectedType = null, preselectedCodec = null) {
+  if (!inputPopupModal) return;
+  populateInputPopupDropdowns(preselectedType, preselectedCodec);
+  if (inputPopupText) {
+    inputPopupText.value = "";
+  }
+  updateLiveValidation();
+  inputPopupModal.classList.add("open");
+  setTimeout(() => {
+    if (inputPopupText) inputPopupText.focus();
+  }, 50);
+}
+function closeInputPopup() {
+  if (inputPopupModal) {
+    inputPopupModal.classList.remove("open");
+  }
+  if (inputEl) inputEl.focus();
+}
+function cancelInputPopup() {
+  if (state.pendingInput) {
+    state.pendingInput = null;
+    updatePrompt();
+    appendSystemMessage("Input cancelled.");
+  }
+  closeInputPopup();
+}
+function renderInputSamples(codecName) {
+  if (!inputSamplesList) return;
+  inputSamplesList.innerHTML = "";
+  const samples = CODEC_SAMPLES[codecName] || ["()"];
+  for (const s2 of samples) {
+    const btn = document.createElement("span");
+    btn.className = "sample-pill";
+    btn.textContent = s2;
+    btn.title = `Click to insert sample "${s2}"`;
+    btn.onclick = () => {
+      if (inputPopupText) {
+        inputPopupText.value = s2;
+        inputPopupText.focus();
+        updateLiveValidation();
+      }
+    };
+    inputSamplesList.appendChild(btn);
+  }
+}
+function updateInputPopupHint() {
+  if (!inputPopupHint) return;
+  if (state.pendingInput) {
+    const rawType = inputPopupType?.value || state.pendingInput.codeHash;
+    const codecName = inputPopupCodec?.value || state.pendingInput.codecName;
+    inputPopupHint.innerHTML = `Enter input value for <b>$${escapeHtml(rawType)}</b> using codec <b>${escapeHtml(codecName || "default")}</b>:`;
+  } else {
+    inputPopupHint.innerHTML = `Choose target type &amp; deserializer, then enter input string:`;
+  }
+}
+function updateInputPopupCodecs() {
+  if (!inputPopupCodec) return;
+  const rawType = inputPopupType?.value || "*";
+  const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+  const prev = inputPopupCodec.value;
+  inputPopupCodec.innerHTML = "";
+  const matchingCodecs = [];
+  const store = state.codecs || {};
+  const candidates = [
+    ...store[codeHash] || [],
+    ...codeHash !== "*" ? store["*"] || [] : []
+  ];
+  const seen = /* @__PURE__ */ new Set();
+  for (const c of candidates) {
+    if (typeof c.parse === "function" && !seen.has(c.name)) {
+      seen.add(c.name);
+      matchingCodecs.push(c.name);
+    }
+  }
+  if (matchingCodecs.length === 0) {
+    if (rawType === "int") matchingCodecs.push("int");
+    if (rawType === "bool") matchingCodecs.push("yn");
+    if (rawType === "string") matchingCodecs.push("utf8");
+    matchingCodecs.push("json");
+  }
+  for (const name5 of matchingCodecs) {
+    const opt = document.createElement("option");
+    opt.value = name5;
+    opt.textContent = name5;
+    inputPopupCodec.appendChild(opt);
+  }
+  if (prev && matchingCodecs.includes(prev)) {
+    inputPopupCodec.value = prev;
+  } else if (matchingCodecs.length > 0) {
+    inputPopupCodec.value = matchingCodecs[0];
+  }
+  renderInputSamples(inputPopupCodec.value);
+  updateInputPopupHint();
+  updateLiveValidation();
+}
+function populateInputPopupDropdowns(preselectedType = null, preselectedCodec = null) {
+  if (!inputPopupType) return;
+  let prevType = preselectedType;
+  if (!prevType && state.pendingInput) {
+    const foundAlias = Object.entries(state.typeAliases || {}).find(([, h]) => h === state.pendingInput.codeHash);
+    prevType = foundAlias ? foundAlias[0] : state.pendingInput.codeHash;
+  }
+  if (!prevType) {
+    prevType = inputPopupType.value;
+  }
+  inputPopupType.innerHTML = "";
+  const aliases = Object.entries(state.typeAliases || {}).sort(([a], [b]) => a.localeCompare(b));
+  for (const [alias, hash2] of aliases) {
+    const opt = document.createElement("option");
+    opt.value = alias;
+    opt.textContent = `$${alias} (${hash2.slice(0, 10)}...)`;
+    inputPopupType.appendChild(opt);
+  }
+  const universalOpt = document.createElement("option");
+  universalOpt.value = "*";
+  universalOpt.textContent = "* (Universal / Any)";
+  inputPopupType.appendChild(universalOpt);
+  if (prevType && (aliases.some(([a]) => a === prevType) || prevType === "*")) {
+    inputPopupType.value = prevType;
+  } else if (aliases.length > 0) {
+    inputPopupType.value = aliases[0][0];
+  }
+  updateInputPopupCodecs();
+  const targetCodec = preselectedCodec || state.pendingInput?.codecName;
+  if (targetCodec && inputPopupCodec) {
+    inputPopupCodec.value = targetCodec;
+    renderInputSamples(targetCodec);
+  }
+}
+function updateLiveValidation() {
+  if (!inputPopupStatus) return;
+  const text = inputPopupText ? inputPopupText.value : "";
+  if (!text) {
+    inputPopupStatus.innerHTML = `<span style="color:var(--text-muted);font-size:11px;">Ready for input.</span>`;
+    return;
+  }
+  const rawType = inputPopupType?.value;
+  const codecName = inputPopupCodec?.value;
+  if (!rawType) {
+    inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">Select a target type first.</span>`;
+    return;
+  }
+  const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+  try {
+    const codec = resolveCodec(state, codeHash, codecName || null, "parse");
+    const pattern = codeHashToPattern(codeHash, (h) => state.codes?.[h]);
+    const parsed = codec.parse(text, {
+      codeHash,
+      pattern,
+      state,
+      Value,
+      isProduct,
+      isVariant
+    });
+    const repr = parsed instanceof Value ? parsed.toJSON() : typeof parsed === "object" ? JSON.stringify(parsed) : String(parsed);
+    inputPopupStatus.innerHTML = `<span class="line-output" style="margin:0;padding:2px 6px;">\u2713 Valid: <code>${escapeHtml(String(repr))}</code></span>`;
+  } catch (err) {
+    inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">\u26A0 ${escapeHtml(err.message || String(err))}</span>`;
+  }
+}
+async function submitInputPopup() {
+  const text = inputPopupText?.value ?? "";
+  if (!state.pendingInput) {
+    const rawType = inputPopupType?.value;
+    const codecName = inputPopupCodec?.value;
+    if (!rawType) {
+      if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">Please select a target type.</span>`;
+      return;
+    }
+    const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+    try {
+      const codec = resolveCodec(state, codeHash, codecName || null, "parse");
+      state.pendingInput = { codeHash, codecName: codec.name, promptName: codec.name };
+    } catch (err) {
+      if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">${escapeHtml(err.message)}</span>`;
+      return;
+    }
+  }
+  closeInputPopup();
+  await executeCommand(text);
+}
 function initRepl() {
   outputEl = document.getElementById("terminal-output");
   inputEl = document.getElementById("repl-input");
@@ -17036,6 +17402,13 @@ function initRepl() {
   codecsBadgeEl = document.getElementById("codecs-count-badge");
   activeCodecsTbody = document.getElementById("active-codecs-tbody");
   codecTypeSelect = document.getElementById("codec-custom-type");
+  inputPopupModal = document.getElementById("input-popup-modal");
+  inputPopupType = document.getElementById("input-popup-type");
+  inputPopupCodec = document.getElementById("input-popup-codec");
+  inputPopupText = document.getElementById("input-popup-text");
+  inputPopupStatus = document.getElementById("input-popup-status");
+  inputPopupHint = document.getElementById("input-popup-hint");
+  inputSamplesList = document.getElementById("input-samples-list");
   updatePrompt();
   appendSystemMessage(`
 <div class="welcome-banner">
@@ -17232,6 +17605,35 @@ function initRepl() {
   if (btnTestPrint) btnTestPrint.onclick = testCustomPrint;
   const btnSaveCodecVfs = document.getElementById("btn-save-codec-vfs");
   if (btnSaveCodecVfs) btnSaveCodecVfs.onclick = saveCustomCodecToVfs;
+  const btnInputNavbar = document.getElementById("btn-input-popup");
+  if (btnInputNavbar) btnInputNavbar.onclick = () => openInputPopup();
+  const btnCloseInput = document.getElementById("btn-close-input-popup");
+  if (btnCloseInput) btnCloseInput.onclick = cancelInputPopup;
+  const btnCancelInput = document.getElementById("btn-cancel-input");
+  if (btnCancelInput) btnCancelInput.onclick = cancelInputPopup;
+  const btnSubmitInput = document.getElementById("btn-submit-input");
+  if (btnSubmitInput) btnSubmitInput.onclick = submitInputPopup;
+  if (inputPopupType) {
+    inputPopupType.addEventListener("change", updateInputPopupCodecs);
+  }
+  if (inputPopupCodec) {
+    inputPopupCodec.addEventListener("change", () => {
+      renderInputSamples(inputPopupCodec.value);
+      updateLiveValidation();
+    });
+  }
+  if (inputPopupText) {
+    inputPopupText.addEventListener("input", updateLiveValidation);
+    inputPopupText.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
+        e.preventDefault();
+        submitInputPopup();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancelInputPopup();
+      }
+    });
+  }
   const exportBtn = document.getElementById("btn-export");
   if (exportBtn) exportBtn.onclick = exportKlib;
   const exampleSelect = document.getElementById("example-select");
@@ -17278,6 +17680,7 @@ function initRepl() {
     if (e.target === vfsModal) closeVfsModal();
     if (e.target === helpModal) helpModal.classList.remove("open");
     if (e.target === codecsModal) closeCodecsModal();
+    if (e.target === inputPopupModal) cancelInputPopup();
   });
   document.addEventListener("click", (e) => {
     if (!e.target.closest("button, select, input, textarea, .modal, .quick-link, .btn-copy-entry")) {
@@ -17302,6 +17705,10 @@ if (typeof window !== "undefined") {
     setVfsFile,
     getAllVfsFiles,
     openCodecsModal,
+    openInputPopup,
+    closeInputPopup,
+    submitInputPopup,
+    cancelInputPopup,
     registerCodec,
     unregisterCodec
   };
@@ -17312,8 +17719,12 @@ if (typeof window !== "undefined") {
   }
 }
 export {
+  cancelInputPopup,
+  closeInputPopup,
   executeCommand,
-  initRepl
+  initRepl,
+  openInputPopup,
+  submitInputPopup
 };
 
   </script>

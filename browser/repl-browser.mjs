@@ -12,6 +12,8 @@ import {
   loadCodecModule,
   registerCodec,
   unregisterCodec,
+  resolveCodec,
+  codeHashToPattern,
   BUILTIN_CODECS
 } from "../repl.mjs";
 import { Value, isProduct, isVariant } from "../Value.mjs";
@@ -59,6 +61,15 @@ let codecsModal;
 let codecsBadgeEl;
 let activeCodecsTbody;
 let codecTypeSelect;
+
+// Input Popup Modal Elements
+let inputPopupModal;
+let inputPopupType;
+let inputPopupCodec;
+let inputPopupText;
+let inputPopupStatus;
+let inputPopupHint;
+let inputSamplesList;
 
 function escapeHtml(str) {
   return String(str)
@@ -227,7 +238,13 @@ function appendSystemMessage(msg, isError = false, isHtml = false) {
 
 export async function executeCommand(input) {
   const trimmed = input.trim();
-  if (!trimmed) return;
+  if (!trimmed && !state.pendingInput) return;
+
+  // Intercept :input without args -> open input popup
+  if (trimmed === ":input") {
+    openInputPopup();
+    return;
+  }
 
   // Add to history
   if (history.length === 0 || history[history.length - 1] !== input) {
@@ -280,6 +297,12 @@ export async function executeCommand(input) {
   updateCodecsBadge();
   if (codecsModal && codecsModal.classList.contains("open")) {
     renderCodecsModal();
+  }
+
+  // If :input <type> [codec] was executed, state.pendingInput is now set!
+  // Open the Input Popup immediately to prompt the user for the input string!
+  if (errors.length === 0 && state.pendingInput && trimmed.startsWith(":input ")) {
+    openInputPopup();
   }
 }
 
@@ -886,6 +909,232 @@ export function print(value, context) {
   appendSystemMessage(`💾 Saved codec file to VFS: <b>${fileName}</b>. You can reload it anytime via <code>:codec load ${fileName}</code>.`);
 }
 
+// ==========================================
+// CODEC INPUT POPUP SUBSYSTEM (:input)
+// ==========================================
+
+const CODEC_SAMPLES = {
+  int: ["0", "10", "42", "-15", "1000000"],
+  utf8: ["hello", "hello world", "k repl", "λ"],
+  json: ['{"name":"Alice"}', '{"x":10,"y":20}', 'true', '[1, 2, 3]'],
+  ieee: ["0.0", "3.14159", "-2.718", "1e6"],
+  yn: ["yes", "no", "true", "false"],
+  hex: ["0x2A", "0xFF", "0x1000", "-0x10"],
+  currency: ["$10.00", "$42.50", "$99.99"]
+};
+
+export function openInputPopup(preselectedType = null, preselectedCodec = null) {
+  if (!inputPopupModal) return;
+
+  populateInputPopupDropdowns(preselectedType, preselectedCodec);
+
+  if (inputPopupText) {
+    inputPopupText.value = "";
+  }
+  updateLiveValidation();
+
+  inputPopupModal.classList.add("open");
+  setTimeout(() => {
+    if (inputPopupText) inputPopupText.focus();
+  }, 50);
+}
+
+export function closeInputPopup() {
+  if (inputPopupModal) {
+    inputPopupModal.classList.remove("open");
+  }
+  if (inputEl) inputEl.focus();
+}
+
+export function cancelInputPopup() {
+  if (state.pendingInput) {
+    state.pendingInput = null;
+    updatePrompt();
+    appendSystemMessage("Input cancelled.");
+  }
+  closeInputPopup();
+}
+
+function renderInputSamples(codecName) {
+  if (!inputSamplesList) return;
+  inputSamplesList.innerHTML = "";
+  const samples = CODEC_SAMPLES[codecName] || ["()"];
+  for (const s of samples) {
+    const btn = document.createElement("span");
+    btn.className = "sample-pill";
+    btn.textContent = s;
+    btn.title = `Click to insert sample "${s}"`;
+    btn.onclick = () => {
+      if (inputPopupText) {
+        inputPopupText.value = s;
+        inputPopupText.focus();
+        updateLiveValidation();
+      }
+    };
+    inputSamplesList.appendChild(btn);
+  }
+}
+
+function updateInputPopupHint() {
+  if (!inputPopupHint) return;
+  if (state.pendingInput) {
+    const rawType = inputPopupType?.value || state.pendingInput.codeHash;
+    const codecName = inputPopupCodec?.value || state.pendingInput.codecName;
+    inputPopupHint.innerHTML = `Enter input value for <b>$${escapeHtml(rawType)}</b> using codec <b>${escapeHtml(codecName || "default")}</b>:`;
+  } else {
+    inputPopupHint.innerHTML = `Choose target type &amp; deserializer, then enter input string:`;
+  }
+}
+
+function updateInputPopupCodecs() {
+  if (!inputPopupCodec) return;
+  const rawType = inputPopupType?.value || "*";
+  const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+  const prev = inputPopupCodec.value;
+
+  inputPopupCodec.innerHTML = "";
+  const matchingCodecs = [];
+  const store = state.codecs || {};
+
+  const candidates = [
+    ...(store[codeHash] || []),
+    ...(codeHash !== "*" ? (store["*"] || []) : [])
+  ];
+
+  const seen = new Set();
+  for (const c of candidates) {
+    if (typeof c.parse === "function" && !seen.has(c.name)) {
+      seen.add(c.name);
+      matchingCodecs.push(c.name);
+    }
+  }
+
+  if (matchingCodecs.length === 0) {
+    if (rawType === "int") matchingCodecs.push("int");
+    if (rawType === "bool") matchingCodecs.push("yn");
+    if (rawType === "string") matchingCodecs.push("utf8");
+    matchingCodecs.push("json");
+  }
+
+  for (const name of matchingCodecs) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    inputPopupCodec.appendChild(opt);
+  }
+
+  if (prev && matchingCodecs.includes(prev)) {
+    inputPopupCodec.value = prev;
+  } else if (matchingCodecs.length > 0) {
+    inputPopupCodec.value = matchingCodecs[0];
+  }
+
+  renderInputSamples(inputPopupCodec.value);
+  updateInputPopupHint();
+  updateLiveValidation();
+}
+
+function populateInputPopupDropdowns(preselectedType = null, preselectedCodec = null) {
+  if (!inputPopupType) return;
+
+  let prevType = preselectedType;
+  if (!prevType && state.pendingInput) {
+    const foundAlias = Object.entries(state.typeAliases || {}).find(([, h]) => h === state.pendingInput.codeHash);
+    prevType = foundAlias ? foundAlias[0] : state.pendingInput.codeHash;
+  }
+  if (!prevType) {
+    prevType = inputPopupType.value;
+  }
+
+  inputPopupType.innerHTML = "";
+
+  const aliases = Object.entries(state.typeAliases || {}).sort(([a], [b]) => a.localeCompare(b));
+  for (const [alias, hash] of aliases) {
+    const opt = document.createElement("option");
+    opt.value = alias;
+    opt.textContent = `$${alias} (${hash.slice(0, 10)}...)`;
+    inputPopupType.appendChild(opt);
+  }
+
+  const universalOpt = document.createElement("option");
+  universalOpt.value = "*";
+  universalOpt.textContent = "* (Universal / Any)";
+  inputPopupType.appendChild(universalOpt);
+
+  if (prevType && (aliases.some(([a]) => a === prevType) || prevType === "*")) {
+    inputPopupType.value = prevType;
+  } else if (aliases.length > 0) {
+    inputPopupType.value = aliases[0][0];
+  }
+
+  updateInputPopupCodecs();
+
+  const targetCodec = preselectedCodec || state.pendingInput?.codecName;
+  if (targetCodec && inputPopupCodec) {
+    inputPopupCodec.value = targetCodec;
+    renderInputSamples(targetCodec);
+  }
+}
+
+function updateLiveValidation() {
+  if (!inputPopupStatus) return;
+  const text = inputPopupText ? inputPopupText.value : "";
+  if (!text) {
+    inputPopupStatus.innerHTML = `<span style="color:var(--text-muted);font-size:11px;">Ready for input.</span>`;
+    return;
+  }
+
+  const rawType = inputPopupType?.value;
+  const codecName = inputPopupCodec?.value;
+  if (!rawType) {
+    inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">Select a target type first.</span>`;
+    return;
+  }
+
+  const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+  try {
+    const codec = resolveCodec(state, codeHash, codecName || null, "parse");
+    const pattern = codeHashToPattern(codeHash, (h) => state.codes?.[h]);
+    const parsed = codec.parse(text, {
+      codeHash,
+      pattern,
+      state,
+      Value,
+      isProduct,
+      isVariant
+    });
+    const repr = parsed instanceof Value ? parsed.toJSON() : (typeof parsed === "object" ? JSON.stringify(parsed) : String(parsed));
+    inputPopupStatus.innerHTML = `<span class="line-output" style="margin:0;padding:2px 6px;">✓ Valid: <code>${escapeHtml(String(repr))}</code></span>`;
+  } catch (err) {
+    inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">⚠ ${escapeHtml(err.message || String(err))}</span>`;
+  }
+}
+
+export async function submitInputPopup() {
+  const text = inputPopupText?.value ?? "";
+
+  // If state.pendingInput is not set, configure it from the popup selections
+  if (!state.pendingInput) {
+    const rawType = inputPopupType?.value;
+    const codecName = inputPopupCodec?.value;
+    if (!rawType) {
+      if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">Please select a target type.</span>`;
+      return;
+    }
+    const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+    try {
+      const codec = resolveCodec(state, codeHash, codecName || null, "parse");
+      state.pendingInput = { codeHash, codecName: codec.name, promptName: codec.name };
+    } catch (err) {
+      if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">${escapeHtml(err.message)}</span>`;
+      return;
+    }
+  }
+
+  closeInputPopup();
+  await executeCommand(text);
+}
+
 // Initialization on DOMContentLoaded
 export function initRepl() {
   outputEl = document.getElementById("terminal-output");
@@ -904,6 +1153,14 @@ export function initRepl() {
   codecsBadgeEl = document.getElementById("codecs-count-badge");
   activeCodecsTbody = document.getElementById("active-codecs-tbody");
   codecTypeSelect = document.getElementById("codec-custom-type");
+
+  inputPopupModal = document.getElementById("input-popup-modal");
+  inputPopupType = document.getElementById("input-popup-type");
+  inputPopupCodec = document.getElementById("input-popup-codec");
+  inputPopupText = document.getElementById("input-popup-text");
+  inputPopupStatus = document.getElementById("input-popup-status");
+  inputPopupHint = document.getElementById("input-popup-hint");
+  inputSamplesList = document.getElementById("input-samples-list");
 
   updatePrompt();
 
@@ -1156,6 +1413,43 @@ export function initRepl() {
   const btnSaveCodecVfs = document.getElementById("btn-save-codec-vfs");
   if (btnSaveCodecVfs) btnSaveCodecVfs.onclick = saveCustomCodecToVfs;
 
+  // Codec Input Popup controls
+  const btnInputNavbar = document.getElementById("btn-input-popup");
+  if (btnInputNavbar) btnInputNavbar.onclick = () => openInputPopup();
+
+  const btnCloseInput = document.getElementById("btn-close-input-popup");
+  if (btnCloseInput) btnCloseInput.onclick = cancelInputPopup;
+
+  const btnCancelInput = document.getElementById("btn-cancel-input");
+  if (btnCancelInput) btnCancelInput.onclick = cancelInputPopup;
+
+  const btnSubmitInput = document.getElementById("btn-submit-input");
+  if (btnSubmitInput) btnSubmitInput.onclick = submitInputPopup;
+
+  if (inputPopupType) {
+    inputPopupType.addEventListener("change", updateInputPopupCodecs);
+  }
+
+  if (inputPopupCodec) {
+    inputPopupCodec.addEventListener("change", () => {
+      renderInputSamples(inputPopupCodec.value);
+      updateLiveValidation();
+    });
+  }
+
+  if (inputPopupText) {
+    inputPopupText.addEventListener("input", updateLiveValidation);
+    inputPopupText.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey || !e.shiftKey)) {
+        e.preventDefault();
+        submitInputPopup();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancelInputPopup();
+      }
+    });
+  }
+
   // Export .klib button
   const exportBtn = document.getElementById("btn-export");
   if (exportBtn) exportBtn.onclick = exportKlib;
@@ -1213,6 +1507,7 @@ export function initRepl() {
     if (e.target === vfsModal) closeVfsModal();
     if (e.target === helpModal) helpModal.classList.remove("open");
     if (e.target === codecsModal) closeCodecsModal();
+    if (e.target === inputPopupModal) cancelInputPopup();
   });
 
   // Global focus input on click outside
@@ -1245,6 +1540,10 @@ if (typeof window !== "undefined") {
     setVfsFile,
     getAllVfsFiles,
     openCodecsModal,
+    openInputPopup,
+    closeInputPopup,
+    submitInputPopup,
+    cancelInputPopup,
     registerCodec,
     unregisterCodec
   };

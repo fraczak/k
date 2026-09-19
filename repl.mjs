@@ -1385,6 +1385,8 @@ export {
   loadCodecModule,
   registerCodec,
   unregisterCodec,
+  resolveCodec,
+  codeHashToPattern,
   BUILTIN_CODECS,
   printValue,
   promptForState,
