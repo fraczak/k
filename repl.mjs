@@ -75,6 +75,7 @@ function createState() {
     relAliases: {},
     typeAliases: {},
     codecs: {},
+    loadedFiles: new Set(),
     pendingInput: null,
     meta: {},
     value: emptyValue(),
@@ -223,6 +224,16 @@ function mergeLibrary(state, lib, source = "<load>", options = {}) {
       }
     }
     recoverAliasesFromMeta(state, lib);
+    if (state.typeAliases.string && !state.typeAliases.utf8) {
+      state.typeAliases.utf8 = state.typeAliases.string;
+    } else if (state.typeAliases.utf8 && !state.typeAliases.string) {
+      state.typeAliases.string = state.typeAliases.utf8;
+    }
+    if (state.typeAliases.float64 && !state.typeAliases.ieee) {
+      state.typeAliases.ieee = state.typeAliases.float64;
+    } else if (state.typeAliases.ieee && !state.typeAliases.float64) {
+      state.typeAliases.float64 = state.typeAliases.ieee;
+    }
   }
   restoreCodes(state);
 }
@@ -796,6 +807,80 @@ function parseLoadArgs(arg, usagePrefix = ":") {
   return { path: arg.trim(), loadAliases: true };
 }
 
+const CODEC_FILES = {
+  int: "Examples/arithmetics.k",
+  utf8: "core.k",
+  json: "core.k",
+  ieee: "Examples/ieee.k"
+};
+
+function normalizeFilePath(p) {
+  return p.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+function resolveKFilePath(filePath) {
+  try {
+    if (fs.existsSync(filePath)) return filePath;
+  } catch {}
+  try {
+    const fromRepo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), filePath);
+    if (fs.existsSync(fromRepo)) return fromRepo;
+  } catch {}
+  return filePath;
+}
+
+function loadSourceOrKlib(state, targetPath, options = {}) {
+  const loadAliases = options.loadAliases ?? true;
+  const normKey = normalizeFilePath(targetPath);
+  if (!state.loadedFiles) state.loadedFiles = new Set();
+
+  // If loading poly.k, auto-load arithmetics.k first if not already loaded
+  if (normKey === "Examples/poly.k" || normKey.endsWith("/poly.k")) {
+    const arithKey = "Examples/arithmetics.k";
+    if (!state.loadedFiles.has(arithKey)) {
+      loadSourceOrKlib(state, arithKey, { loadAliases });
+    }
+  }
+
+  const loadPath = resolveKFilePath(targetPath);
+  if (loadPath.endsWith(".klib")) {
+    const lib = loadLibrary(decodeLibrary(fs.readFileSync(loadPath)));
+    mergeLibrary(state, lib, targetPath, { loadAliases });
+  } else {
+    restoreCodes(state);
+    const source = fs.readFileSync(loadPath, "utf8");
+    const preamble = aliasPreamble(state);
+    const fullSource = [preamble, source].filter(Boolean).join("\n");
+    const compileOptions = {
+      source: targetPath,
+      libraries: [stateLibrary(state)]
+    };
+    try {
+      const lib = compileWithOptionalIdentity(fullSource, compileOptions);
+      const { relAlias, meta } = libraryOriginsFromSource(source, fullSource, lib, compileOptions);
+      mergeLibrary(state, { ...lib, relAlias, meta }, targetPath, { loadAliases });
+    } catch (error) {
+      throw remapError(error, preambleLineCount(preamble));
+    }
+  }
+  state.loadedFiles.add(normKey);
+  return targetPath;
+}
+
+function ensureCodecDependencies(state, codecTarget) {
+  const norm = normalizeFilePath(codecTarget).toLowerCase();
+  const base = path.basename(norm, path.extname(norm));
+  const depFile = CODEC_FILES[base] || CODEC_FILES[norm];
+  if (!depFile) return null;
+  if (!state.loadedFiles) state.loadedFiles = new Set();
+  const depNormKey = normalizeFilePath(depFile);
+  if (!state.loadedFiles.has(depNormKey)) {
+    loadSourceOrKlib(state, depFile);
+    return depFile;
+  }
+  return null;
+}
+
 function lineForContinuation(line) {
   return line.replace(/\\\s*$/, "");
 }
@@ -1002,9 +1087,10 @@ async function loadCodec(input, state) {
     case "load": {
       const filePath = rest.join(" ");
       if (!filePath) throw new Error(":codec load requires a file path or codec name");
+      const autoLoaded = ensureCodecDependencies(state, filePath);
       const registered = await loadCodecModule(state, expandHome(filePath));
       return registered.map(({ name, codeHash }) =>
-        `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
+        `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}${autoLoaded ? ` (auto-loaded ${autoLoaded})` : ""}`
       );
     }
     case "unload": {
@@ -1039,9 +1125,10 @@ async function loadCodec(input, state) {
       if (rest.length > 0) throw new Error(":codec list does not accept arguments");
       return [listCodecs(state)];
     default: {
+      const autoLoaded = ensureCodecDependencies(state, trimmed);
       const registered = await loadCodecModule(state, expandHome(trimmed));
       return registered.map(({ name, codeHash }) =>
-        `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
+        `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}${autoLoaded ? ` (auto-loaded ${autoLoaded})` : ""}`
       );
     }
   }
@@ -1176,26 +1263,7 @@ async function evaluateCommand(line, state) {
     }
     case "load": {
       const { path: loadPath, loadAliases } = parseLoadArgs(arg, usagePrefix);
-      if (loadPath.endsWith(".klib")) {
-        const lib = loadLibrary(decodeLibrary(fs.readFileSync(loadPath)));
-        mergeLibrary(state, lib, loadPath, { loadAliases });
-      } else {
-        restoreCodes(state);
-        const source = fs.readFileSync(loadPath, "utf8");
-        const preamble = aliasPreamble(state);
-        const fullSource = [preamble, source].filter(Boolean).join("\n");
-        const options = {
-          source: loadPath,
-          libraries: [stateLibrary(state)]
-        };
-        try {
-          const lib = compileWithOptionalIdentity(fullSource, options);
-          const { relAlias, meta } = libraryOriginsFromSource(source, fullSource, lib, options);
-          mergeLibrary(state, { ...lib, relAlias, meta }, loadPath, { loadAliases });
-        } catch (error) {
-          throw remapError(error, preambleLineCount(preamble));
-        }
-      }
+      loadSourceOrKlib(state, loadPath, { loadAliases });
       return [`loaded ${loadPath}`];
     }
     case "t": {
@@ -1392,5 +1460,7 @@ export {
   promptForState,
   propertyListToFilter,
   savedLibrary,
+  loadSourceOrKlib,
+  ensureCodecDependencies,
   valueToK
 };

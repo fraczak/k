@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - wasm-repl
+      - web-repl
       - master
       - main
   workflow_dispatch:

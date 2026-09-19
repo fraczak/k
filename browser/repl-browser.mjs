@@ -1170,7 +1170,7 @@ export function initRepl() {
   <div class="welcome-title">λ k interactive repl</div>
   <div class="welcome-desc">First-order partial functions over algebraic data types &bull; WebAssembly execution engine &bull; Custom Serializers &amp; Deserializers (:codecs)</div>
   <div class="welcome-tips">
-    <span>💡 Try: <a href="javascript:void(0)" class="quick-link" data-code=":load Examples/arithmetics.k">:load Examples/arithmetics.k</a></span>
+    <span>💡 Try: <a href="javascript:void(0)" class="quick-link" data-code=":load core.k">:load core.k</a></span>
     <span>• <a href="javascript:void(0)" class="quick-link" data-code=":codec load int">:codec load int</a></span>
     <span>• <a href="javascript:void(0)" class="quick-link" data-code="10 int">10 int</a></span>
     <span>• <a href="javascript:void(0)" class="quick-link" data-code="{10 int x, 5 int y} plus">{10 int x, 5 int y} plus</a></span>
@@ -1512,9 +1512,16 @@ export function initRepl() {
 
   // Global focus input on click outside
   document.addEventListener("click", (e) => {
-    if (!e.target.closest("button, select, input, textarea, .modal, .quick-link, .btn-copy-entry")) {
-      inputEl.focus();
+    // If text is currently selected, do not steal focus (preserves copy/paste selection)
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return;
     }
+    // Do not steal focus if clicking interactive elements or text inside terminal entries
+    if (e.target.closest("button, select, input, textarea, .modal, .quick-link, .btn-copy-entry, .terminal-entry")) {
+      return;
+    }
+    inputEl.focus();
   });
 
   // Apply initial yn preset to custom form

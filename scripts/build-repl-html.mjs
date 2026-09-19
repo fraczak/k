@@ -28,14 +28,13 @@ if (fs.existsSync(coreKPath)) {
   vfsFiles["core.k"] = fs.readFileSync(coreKPath, "utf8");
 }
 
-// Add all files in Examples/
+// Add verified useful files in Examples/
+const verifiedExamples = ["arithmetics.k", "ieee.k", "poly.k"];
 const examplesDir = path.join(projectRoot, "Examples");
-if (fs.existsSync(examplesDir)) {
-  for (const filename of fs.readdirSync(examplesDir)) {
-    const fullPath = path.join(examplesDir, filename);
-    if (fs.statSync(fullPath).isFile()) {
-      vfsFiles[`Examples/${filename}`] = fs.readFileSync(fullPath, "utf8");
-    }
+for (const filename of verifiedExamples) {
+  const fullPath = path.join(examplesDir, filename);
+  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+    vfsFiles[`Examples/${filename}`] = fs.readFileSync(fullPath, "utf8");
   }
 }
 
@@ -331,6 +330,8 @@ const htmlContent = `<!DOCTYPE html>
       overflow-y: auto;
       padding: 16px;
       scroll-behavior: smooth;
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .terminal-output::-webkit-scrollbar,
@@ -357,6 +358,8 @@ const htmlContent = `<!DOCTYPE html>
     .terminal-entry {
       margin-bottom: 12px;
       word-break: break-word;
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .terminal-entry.system-msg {
@@ -365,6 +368,8 @@ const htmlContent = `<!DOCTYPE html>
       border-left: 3px solid var(--border-color);
       border-radius: 0 6px 6px 0;
       color: var(--text-muted);
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .entry-header {
@@ -379,6 +384,7 @@ const htmlContent = `<!DOCTYPE html>
       color: var(--color-prompt);
       font-weight: 700;
       user-select: none;
+      -webkit-user-select: none;
     }
 
     .entry-command {
@@ -386,6 +392,8 @@ const htmlContent = `<!DOCTYPE html>
       font-weight: 600;
       flex: 1;
       white-space: pre-wrap;
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .entry-meta {
@@ -420,6 +428,8 @@ const htmlContent = `<!DOCTYPE html>
       white-space: pre-wrap;
       padding-left: 16px;
       margin-top: 2px;
+      user-select: text;
+      -webkit-user-select: text;
     }
 
     .line-output {
@@ -1329,15 +1339,10 @@ const htmlContent = `<!DOCTYPE html>
           <select id="example-select" title="Choose an example or expression">
             <option value="">-- Example / Expression --</option>
             <optgroup label="Standard Examples">
-              <option value="Examples/arithmetics.k">Examples/arithmetics.k</option>
-              <option value="Examples/nat.k">Examples/nat.k</option>
-              <option value="Examples/bnat.k">Examples/bnat.k</option>
-              <option value="Examples/ieee.k">Examples/ieee.k</option>
-              <option value="Examples/list.k">Examples/list.k</option>
-              <option value="Examples/byte.k">Examples/byte.k</option>
-              <option value="Examples/esc.k">Examples/esc.k</option>
-              <option value="Examples/poly.k">Examples/poly.k</option>
               <option value="core.k">core.k</option>
+              <option value="Examples/arithmetics.k">Examples/arithmetics.k</option>
+              <option value="Examples/ieee.k">Examples/ieee.k</option>
+              <option value="Examples/poly.k">Examples/poly.k</option>
             </optgroup>
             <optgroup label="Quick Expressions">
               <option value="expr:10">10</option>

@@ -19,6 +19,7 @@ const BUILTIN_CODECS = {
 };
 
 const UNIVERSAL_CODE = "*";
+const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 
 function isCanonicalCodeName(name) {
   return typeof name === "string" && name.startsWith("@");
@@ -145,6 +146,9 @@ function registerCodec(state, codec, source = null) {
       store[codeHash].push(entry);
     } else {
       store[codeHash][existingIndex] = entry;
+    }
+    if (!universal && isCanonicalCodeName(codeHash) && state?.typeAliases && codec.name && NAME_RE.test(codec.name)) {
+      state.typeAliases[codec.name] = codeHash;
     }
     registered.push({ codeHash, ...entry });
   }

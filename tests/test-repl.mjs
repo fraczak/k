@@ -199,7 +199,7 @@ const jsonState = createState();
 output = await evaluateInput(":type bool = <{} true, {} false>", jsonState);
 assert.match(output[0], /^\$ bool = @/);
 output = await evaluateInput(":codec load ./codecs/json.mjs", jsonState);
-assert.equal(output[0], "loaded codec json for all types");
+assert.match(output[0], /^loaded codec json for all types/);
 output = await evaluateInput(":codec list", jsonState);
 assert.match(output[0], /^json all /);
 completions = completeInput(":input bool j", jsonState)[0];
@@ -347,6 +347,31 @@ output = await evaluateInput("{{}|a a, {} y}", projState2);
 assert.match(output[0], /^\{\{\}\|a a, \{\} y\}/);
 output = await evaluateInput(".a", projState2);
 assert.match(output[0], /^\{\}\|a/);
+
+// Auto-loading dependencies and bidirectional type aliasing tests
+const autoLoadState = createState();
+output = await evaluateInput(":codec load int", autoLoadState);
+assert.match(output[0], /auto-loaded Examples\/arithmetics\.k/);
+assert.ok(autoLoadState.typeAliases.int, "int type alias should be registered");
+output = await evaluateInput(":input int", autoLoadState);
+output = await evaluateInput("123", autoLoadState);
+assert.match(output[0], /int: 123/);
+
+const utf8AutoState = createState();
+output = await evaluateInput(":codec load utf8", utf8AutoState);
+assert.match(output[0], /auto-loaded core\.k/);
+assert.ok(utf8AutoState.typeAliases.utf8, "utf8 type alias should be registered");
+assert.ok(utf8AutoState.typeAliases.string, "string type alias should be registered");
+assert.equal(utf8AutoState.typeAliases.utf8, utf8AutoState.typeAliases.string);
+output = await evaluateInput(":input utf8", utf8AutoState);
+output = await evaluateInput("test utf8", utf8AutoState);
+assert.match(output[0], /utf8: test utf8/);
+
+const polyAutoState = createState();
+output = await evaluateInput(":load Examples/poly.k", polyAutoState);
+assert.equal(output[0], "loaded Examples/poly.k");
+assert.ok(polyAutoState.relAliases.reverse, "poly relations should be loaded");
+assert.ok(polyAutoState.typeAliases.int, "arithmetics int should be auto-loaded");
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
