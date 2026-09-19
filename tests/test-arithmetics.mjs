@@ -89,6 +89,60 @@ try {
     );
   }
 
+  // Regression tests for inc/dec normalization and div
+  const resDec = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "dec:dec",
+    "--export", "zero_int?:zero_int?",
+    "dec dec zero_int?"
+  ], { input: parseIntWire("2") });
+  assertOk(resDec, "2 int dec dec zero_int? should succeed");
+
+  const divTestCases = [
+    { x: "4", yAlias: "1", yVal: 1n },
+    { x: "10", yAlias: "2", yVal: 2n },
+    { x: "12", yAlias: "3", yVal: 3n },
+    { x: "11", yAlias: "3", yVal: 3n },
+    { x: "100", yAlias: "7", yVal: 7n },
+    { x: "-100", yAlias: "7", yVal: 7n },
+    { x: "1000", yAlias: "10", yVal: 10n }
+  ];
+
+  for (const { x, yAlias, yVal } of divTestCases) {
+    const xBig = BigInt(x);
+    const expectedDiv = (xBig / yVal).toString();
+    const xAbs = xBig < 0n ? -xBig : xBig;
+    const yAbs = yVal < 0n ? -yVal : yVal;
+    const expectedRem = (xAbs % yAbs).toString();
+
+    const wire = parseIntWire(x);
+
+    const resDiv = run(node, [
+      "k.mjs",
+      "--lib", libPath,
+      "--export", "div:div",
+      "--export", "int:int",
+      "--export", `${yAlias}:divisor`,
+      "{() x, divisor int y} div .div"
+    ], { input: wire });
+    assertOk(resDiv, `native div(${x}, ${yAlias}) quotient`);
+    const divOut = printIntWire(resDiv.stdout, `div quotient`);
+    assert.equal(divOut, expectedDiv, `div(${x}, ${yAlias}) quotient should match BigInt oracle`);
+
+    const resRem = run(node, [
+      "k.mjs",
+      "--lib", libPath,
+      "--export", "div:div",
+      "--export", "int:int",
+      "--export", `${yAlias}:divisor`,
+      "{() x, divisor int y} div .rem int"
+    ], { input: wire });
+    assertOk(resRem, `native div(${x}, ${yAlias}) remainder`);
+    const remOut = printIntWire(resRem.stdout, `div remainder`);
+    assert.equal(remOut, expectedRem, `div(${x}, ${yAlias}) remainder should match BigInt oracle`);
+  }
+
   console.log("OK");
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });

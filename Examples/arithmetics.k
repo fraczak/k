@@ -93,10 +93,10 @@ zero_int? = $int {/'+' /0 empty? if, () then} .then;
 minus_one? = $int {/'-' /1 empty? if, () then} .then;
 
 inc = $int <
-  /'+' {inv x, 0b y} _inc |'+',
+  /'+' {inv x, 0b y} _inc nat |'+',
   minus_one? 0 int,
-  /'-' {inv x, 0b y} _dec |'-'
->;
+  /'-' {inv x, 0b y} _dec nat |'-'
+> $int;
 
 _inc = ${bits x, bits y} <
     {.x /0 x, .y |1 y} concat_, 
@@ -106,8 +106,8 @@ _inc = ${bits x, bits y} <
 
 dec = $int <
   zero_int? 1 |'-',
-  /'+' {inv x, 0b y} _dec |'+',
-  /'-' {inv x, 0b y} _inc |'-'
+  /'+' {inv x, 0b y} _dec nat |'+',
+  /'-' {inv x, 0b y} _inc nat |'-'
 > $int;
 
 _dec = ?{X x, X y, ...} <
