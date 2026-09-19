@@ -6,7 +6,7 @@ function pLabel(label) {
   return nameRE.test(label) ? ` ${label}` : ` ${JSON.stringify(label)}`;
 }
 
-function propertyListToFilter(propertyList) {
+function propertyListToFilter(propertyList, varPrefix = "X") {
   if (!propertyList || propertyList.length === 0) return "(...)";
 
   const refCount = new Array(propertyList.length).fill(0);
@@ -18,7 +18,7 @@ function propertyListToFilter(propertyList) {
   const varNames = new Map();
   let varCounter = 0;
   for (let i = 0; i < propertyList.length; i++) {
-    if (refCount[i] > 1) varNames.set(i, `X${varCounter++}`);
+    if (refCount[i] > 1) varNames.set(i, `${varPrefix}${varCounter++}`);
   }
 
   const defined = new Set();

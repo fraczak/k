@@ -12123,7 +12123,7 @@ var nameRE3 = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 function pLabel3(label) {
   return nameRE3.test(label) ? ` ${label}` : ` ${JSON.stringify(label)}`;
 }
-function propertyListToFilter(propertyList) {
+function propertyListToFilter(propertyList, varPrefix = "X") {
   if (!propertyList || propertyList.length === 0) return "(...)";
   const refCount = new Array(propertyList.length).fill(0);
   for (const [, edges] of propertyList) {
@@ -12133,7 +12133,7 @@ function propertyListToFilter(propertyList) {
   const varNames = /* @__PURE__ */ new Map();
   let varCounter = 0;
   for (let i = 0; i < propertyList.length; i++) {
-    if (refCount[i] > 1) varNames.set(i, `X${varCounter++}`);
+    if (refCount[i] > 1) varNames.set(i, `${varPrefix}${varCounter++}`);
   }
   const defined = /* @__PURE__ */ new Set();
   function fmt(nodeId) {
@@ -14721,12 +14721,43 @@ function compileObjectDefs(object, mainRelName, mainExp = null, options = {}) {
     }
   };
 }
+function collectFilterNames(filter, names) {
+  if (!filter || typeof filter !== "object") return;
+  if (filter.name) names.add(filter.name);
+  if (filter.fields) {
+    for (const f of Object.values(filter.fields)) collectFilterNames(f, names);
+  }
+}
+function collectFilterVarNames(node, names = /* @__PURE__ */ new Set()) {
+  if (!node || typeof node !== "object") return names;
+  if (node.op === "filter" && node.filter) {
+    collectFilterNames(node.filter, names);
+  }
+  for (const val of Object.values(node)) {
+    if (Array.isArray(val)) {
+      for (const item of val) collectFilterVarNames(item, names);
+    } else if (typeof val === "object") {
+      collectFilterVarNames(val, names);
+    }
+  }
+  return names;
+}
+function freshFilterVarPrefix(node) {
+  const names = collectFilterVarNames(node);
+  let prefix = "__in_";
+  let count = 0;
+  while (Array.from(names).some((name5) => name5.startsWith(prefix))) {
+    prefix = `__in_${count++}_`;
+  }
+  return prefix;
+}
 function annotateObjectWithInputFilter(object, mainRelName, inputPattern, valuePattern, options = {}) {
   const intersection = intersectInputEnvelope(inputPattern, valuePattern);
-  const filter = propertyListToFilter(intersection);
-  const filterExp = ___parse(`?${filter}`).exp;
   const mainRel = object.rels?.[mainRelName];
   if (!mainRel) throw new Error(`No main relation (${mainRelName}) defined in object`);
+  const prefix = freshFilterVarPrefix(mainRel.def);
+  const filter = propertyListToFilter(intersection, prefix);
+  const filterExp = ___parse(`?${filter}`).exp;
   const mainExp = composeInputFilter(filterExp, cloneForRetyping(mainRel.def));
   return compileObjectDefs(object, mainRelName, mainExp, options);
 }

@@ -335,6 +335,19 @@ output = await evaluateInput(":input bool yn", codecTestState);
 output = await evaluateInput("yes", codecTestState);
 assert.match(output[0], /yn: YES/);
 
+// Projection on product with variant field (avoids filter variable collisions)
+const projState = createState();
+output = await evaluateInput("{{}|a x, {} y}", projState);
+assert.match(output[0], /^\{\{\}\|a x, \{\} y\}/);
+output = await evaluateInput(".x", projState);
+assert.match(output[0], /^\{\}\|a/);
+
+const projState2 = createState();
+output = await evaluateInput("{{}|a a, {} y}", projState2);
+assert.match(output[0], /^\{\{\}\|a a, \{\} y\}/);
+output = await evaluateInput(".a", projState2);
+assert.match(output[0], /^\{\}\|a/);
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");

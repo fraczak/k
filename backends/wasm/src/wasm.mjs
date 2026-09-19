@@ -157,10 +157,44 @@ function compileObjectDefs(object, mainRelName, mainExp = null, options = {}) {
   };
 }
 
+function collectFilterNames(filter, names) {
+  if (!filter || typeof filter !== "object") return;
+  if (filter.name) names.add(filter.name);
+  if (filter.fields) {
+    for (const f of Object.values(filter.fields)) collectFilterNames(f, names);
+  }
+}
+
+function collectFilterVarNames(node, names = new Set()) {
+  if (!node || typeof node !== "object") return names;
+  if (node.op === "filter" && node.filter) {
+    collectFilterNames(node.filter, names);
+  }
+  for (const val of Object.values(node)) {
+    if (Array.isArray(val)) {
+      for (const item of val) collectFilterVarNames(item, names);
+    } else if (typeof val === "object") {
+      collectFilterVarNames(val, names);
+    }
+  }
+  return names;
+}
+
+function freshFilterVarPrefix(node) {
+  const names = collectFilterVarNames(node);
+  let prefix = "__in_";
+  let count = 0;
+  while (Array.from(names).some((name) => name.startsWith(prefix))) {
+    prefix = `__in_${count++}_`;
+  }
+  return prefix;
+}
+
 function annotateSourceWithInputFilter(source, inputPattern, valuePattern, options = {}) {
   const intersection = intersectInputEnvelope(inputPattern, valuePattern);
-  const filter = propertyListToFilter(intersection);
   const parsed = parse(source);
+  const prefix = freshFilterVarPrefix(parsed.exp);
+  const filter = propertyListToFilter(intersection, prefix);
   const filterExp = parse(`?${filter}`).exp;
   return compileParsedDefs(
     parsed,
@@ -171,10 +205,11 @@ function annotateSourceWithInputFilter(source, inputPattern, valuePattern, optio
 
 function annotateObjectWithInputFilter(object, mainRelName, inputPattern, valuePattern, options = {}) {
   const intersection = intersectInputEnvelope(inputPattern, valuePattern);
-  const filter = propertyListToFilter(intersection);
-  const filterExp = parse(`?${filter}`).exp;
   const mainRel = object.rels?.[mainRelName];
   if (!mainRel) throw new Error(`No main relation (${mainRelName}) defined in object`);
+  const prefix = freshFilterVarPrefix(mainRel.def);
+  const filter = propertyListToFilter(intersection, prefix);
+  const filterExp = parse(`?${filter}`).exp;
   const mainExp = composeInputFilter(filterExp, cloneForRetyping(mainRel.def));
   return compileObjectDefs(object, mainRelName, mainExp, options);
 }
