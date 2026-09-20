@@ -1,1 +1,31 @@
+# Dependencies and lockfiles
 node_modules/
+package-lock.json
+
+# Local editor, caches and OS files
+.cache/
+.codegpt/
+.idea/
+.DS_Store
+*~
+
+# CI/CD and repo configuration
+.github/
+
+# VS Code extension (packaged and published separately)
+k-vscode/
+
+# Build artifacts, temporary compilation outputs, intermediate files
+*.ll
+*.bc
+*.o
+*.out
+*.wasm
+*.klib
+*.kvm
+debug_full.wat
+k_compiler/
+
+# Standalone browser builds, benchmark HTML reports, and benchmark raw data
+*.html
+benchmark-results.json

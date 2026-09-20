@@ -1,6 +1,6 @@
 {
     "name": "@fraczak/k",
-    "version": "6.3.3",
+    "version": "6.4.0",
     "description": "k — a language for composing first-order partial functions over algebraic data types (products and tagged unions); includes runtime, type derivation, REPL, and codec toolchain",
     "main": "index.mjs",
     "exports": {
@@ -63,9 +63,11 @@
         "k-utf8": "./codecs/utf8.mjs",
         "k-vm": "./kvm.mjs"
     },
+    "dependencies": {
+        "wabt": "^1.0.39"
+    },
     "devDependencies": {
         "esbuild": "^0.28.2",
-        "jiwson": "^0.1.2",
-        "wabt": "^1.0.39"
+        "jiwson": "^0.1.2"
     }
 }
