@@ -64,6 +64,15 @@ one successor. The REPL also prints the inferred value envelope.
 
 ## Try It
 
+### In the Browser (Zero Install)
+
+Try k directly in your browser without installing anything:
+**[https://fraczak.github.io/k/](https://fraczak.github.io/k/)**
+
+The Web REPL is self-contained, powered by an in-process WebAssembly compiler and execution engine with built-in codecs, autocompletion, interactive input, and standard libraries.
+
+### From Source
+
 From a checkout:
 
 ```bash
@@ -89,6 +98,13 @@ Start the interactive interpreter:
 
 ```bash
 k-repl
+```
+
+Build the standalone single-file Web REPL locally:
+
+```bash
+npm run build:repl-html
+# generates repl.html (open in any web browser)
 ```
 
 Every installed command supports `-h` and `--help`.
@@ -194,6 +210,10 @@ artifact for inspection and execution experiments.
 | `k-inspect-object` | Inspect object sections or print the KIR-P backend export |
 | `k-validate-object` | Validate `.ko`, `.klib`, or exported KIR-P artifacts |
 | `k-kir` | Export KIR-P from `.ko` or `.klib` |
+| `k-vm` | Execute or inspect lowered kVM bytecode artifacts (`.kvm`) |
+| `k-wasm` / `k-wasm-compile` / `k-wasm-run` | Compile and run via WebAssembly backend |
+| `k-llvm-build` / `k-llvm-compile` / `k-llvm-run` | Compile and run via LLVM backend |
+| `k-arm64` / `k-arm64-compile` / `k-arm64-run` | Compile and run via Linux ARM64 native backend |
 
 Installed binary names are `k-` plus the source basename without `.mjs`, except
 for `k.mjs` itself. Source names that already include `k-`, such as
@@ -201,14 +221,14 @@ for `k.mjs` itself. Source names that already include `k-`, such as
 
 ## Backends
 
-Experimental backends live under [`backends/`](backends/) as npm workspaces:
+Backends live under [`backends/`](backends/) as npm workspaces:
 
 - [`backends/wasm`](backends/wasm/) lowers typed k programs through kVM into
-  WebAssembly artifacts.
-- [`backends/llvm`](backends/llvm/) lowers envelope-specialized KIR-P into LLVM IR and
-  native test executables.
+  WebAssembly artifacts. Powers both the CLI REPL (`wasm-in-process`) and the standalone Web REPL.
+- [`backends/llvm`](backends/llvm/) lowers polymorphic kVM programs into LLVM IR and
+  compiled native test executables.
 - [`backends/arm64`](backends/arm64/) lowers polymorphic kVM programs directly into
-  standalone Linux ARM64 native executables.
+  standalone Linux ARM64 native executables without external compiler dependencies.
 
 All backends integrate with the compiler and binary codecs through
 [`backend-api.mjs`](backend-api.mjs).
@@ -274,33 +294,41 @@ serialization, or teaching tools, there is room to shape the project.
 
 ## Examples
 
-The [`Examples/`](Examples/) directory contains small language demonstrations:
+The [`Examples/`](Examples/) directory contains language demonstrations and standard libraries:
 
 | File | Contents |
 | --- | --- |
+| `core.k` | Standard library: booleans, units, strings, optionals, and fundamental helpers |
+| `arithmetics.k` | Integer and rational arithmetic built from bit-level relations from scratch |
+| `ieee.k` | IEEE 754 binary64 floating-point arithmetic (`add`, `sub`, `mul`, `div`) |
+| `poly.k` | Polymorphic list operations (`concat`, `reverse`, `length`, `get_nth`, `split_by`, `zip`) |
 | `nat.k` | Peano natural numbers |
 | `byte.k` | Byte type |
-| `ieee.k` | IEEE 754 floating-point layout |
 | `bnat.k` | Binary natural numbers |
-| `arithmetics.k` | Integer and rational arithmetic built from scratch |
+| `buda.k` | Compact relational data transformations |
 
 `list.k` is also useful as a focused demonstration of filters and patterns.
 
-`ieee.k` is the largest example. It builds an IEEE-754 binary64 model from
-bit-level types upward, including comparison and floating-point `add`, `sub`,
-`mul`, and `div` relations. Those public aliases return `{ result, flags }`;
-compose with `.result` when only the floating-point value is needed.
+`ieee.k` is a complete IEEE-754 binary64 model built from bit-level types
+upward with hierarchical significand adders, including comparison and
+floating-point `add`, `sub`, `mul`, and `div` relations. Those public aliases
+return `{ result, flags }`; compose with `.result` when only the floating-point
+value is needed.
 
 ## Development
 
 ```bash
-npm run prepare        # regenerate parsers from .jison grammars
-npm test               # run the fail-fast full suite with per-test timings
-npm run test:wasm      # run the WebAssembly backend tests
-npm run test:llvm      # run the LLVM backend tests
-npm run test:arm64     # run the Linux ARM64 backend tests
-npm run perf:poly      # run polymorphic benchmark across backends
+npm run prepare         # regenerate parsers from .jison grammars
+npm test                # run the fail-fast full suite with per-test timings
+npm run test:wasm       # run the WebAssembly backend tests
+npm run test:llvm       # run the LLVM backend tests
+npm run test:arm64      # run the Linux ARM64 backend tests
+npm run build:repl-html # build the standalone single-file Web REPL (repl.html)
+npm run compare         # run multi-backend benchmark and conformance harness
+npm run perf:poly       # run polymorphic benchmark across backends
 npm run perf:poly:trace # run execution phase tracing & call profiling
+npm run perf:int        # run integer arithmetic benchmark across backends
+npm run perf:ieee       # run IEEE-754 arithmetic benchmark across backends
 ```
 
 The test runner prints each test before execution and reports its elapsed time
@@ -311,12 +339,16 @@ afterward. It stops immediately when a test fails. The suite covers:
 - hash/fingerprint stability
 - object file round-trips
 - REPL scripted interaction
+- Web REPL headless browser verification
+- polymorphic kVM and specialization
 - shell integration tests
 
 ## Further Reading
 
 - [DOCS/DICTIONARY.md](DOCS/DICTIONARY.md) - concept names and terminology
-- [DOCS/REPL.md](DOCS/REPL.md) - interactive interpreter details
+- [DOCS/REPL.md](DOCS/REPL.md) - interactive interpreter and codec details
+- [DOCS/WEB_REPL_REQUIREMENTS.md](DOCS/WEB_REPL_REQUIREMENTS.md) - Web REPL architecture and requirements
+- [DOCS/KVM_EXECUTION_MODEL.md](DOCS/KVM_EXECUTION_MODEL.md) - kVM execution model and bytecode design
 - [DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md) - textual boundary notation
 - [DOCS/PATTERNS.md](DOCS/PATTERNS.md) - pattern representation
 - [DOCS/OBJECT_FILE_AND_PATTERN.md](DOCS/OBJECT_FILE_AND_PATTERN.md) - object format

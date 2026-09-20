@@ -40,13 +40,17 @@ complete.
 | `:def name = expr` | Alias for `:rel` |
 | `:run expr` | Evaluate `expr` on the current value |
 | `:eval expr` | Alias for `:run` |
+| `:time expr` | Evaluate `expr` and report compilation and execution time |
+| `:timing [on\|off]` | Toggle compilation and execution timing reporting for all evaluations |
 | `:t name` | Show relation input/output filters |
 | `:d name` | Show relation definition |
 | `:C name` | Show canonical code definition |
 | `:codes` | List type aliases |
 | `:rels` | List relation aliases |
-| `:codec load file` | Load an importable REPL codec module |
-| `:codec list` | List loaded REPL codecs |
+| `:codec load name\|file` | Load a built-in codec (`int`, `utf8`, `json`, `ieee`, `unit`) or an ES module file |
+| `:codec define n t b` | Define an inline custom codec: `name type { parse: ..., print: ... }` |
+| `:codec unload name` | Unload a registered codec |
+| `:codec list` | List loaded REPL codecs (alias: `:codecs`) |
 | `:input type [codec]` | Read the next line as codec input for a type |
 | `:load [--no-alias] file` | Load `.k` source or `.klib` into the current state |
 | `:klib file` | Export the active relation closure as a `.klib` library |
@@ -166,9 +170,16 @@ against the requested type before it enters the session.
 For a complete guide to writing a new codec module, see
 [`CODECS.md`](./CODECS.md).
 
-### `:codec load file`
+### `:codec load name|file`
 
-Loads an importable ES module that exports a codec shape:
+Loads either a built-in codec by name (`int`, `utf8`, `json`, `ieee`, `unit`) or an ES module file. Loading a built-in codec automatically loads its corresponding `.k` definition file if not already present:
+- `int` auto-loads `Examples/arithmetics.k`
+- `ieee` auto-loads `Examples/ieee.k`
+- `utf8`, `json`, `unit` auto-load `Examples/core.k`
+
+Loading a codec also creates code aliases matching the codec name (e.g. `$ int = @...`, `$ float64 = @...`, `$ utf8 = @...`).
+
+An external codec module exports:
 
 ```js
 export const name = "utf8";
@@ -182,6 +193,19 @@ property-list pattern that can be canonicalized to a code hash, and that hash is
 recalculated by the REPL. A universal codec exports `universal = true` instead
 of `codes` or `patterns`.
 
+### `:codec define name type { parse: ..., print: ... }`
+
+Registers a dynamic custom codec directly from the REPL:
+
+```k
+> :type bool = <{} true, {} false>
+> :codec define yn bool ({ parse: (t) => Value.variant(t.trim() === 'yes' ? 'true' : 'false', Value.product({})), print: (v) => v.tag === 'true' ? 'YES' : 'NO' })
+```
+
+### `:codec unload name`
+
+Unloads a previously registered codec by name.
+
 ### `:input type [codec]`
 
 Resolves `type` to a canonical code hash, selects the registered codec, and
@@ -189,6 +213,36 @@ consumes the next line verbatim as codec input. `type` may be a type alias, a
 canonical code hash, or an inline type expression such as
 `<{} true, {} false>`. The parsed value is validated against that type before
 becoming the current value.
+
+## Timing and Profiling
+
+### `:time expr`
+
+Evaluates `expr` and reports the elapsed time broken down into compilation
+(type derivation + WebAssembly lowering/compilation) and runtime execution:
+
+```text
+> :time {10 int x, 5 int y} plus
+{}|_|1|1|1|1|+ ?<{} _, ...>
+/* comp: 12.4ms, exec: 0.8ms */
+```
+
+### `:timing [on|off]`
+
+Toggles automatic timing reporting for every snippet or expression evaluated in
+the session.
+
+## Web REPL (Studio)
+
+The repository provides a standalone, single-file browser REPL: `repl.html`.
+
+- **Zero-install in-browser execution**: Powered by WebAssembly (`wasm-in-process`) and virtual filesystem (VFS).
+- **Interactive UI**: Tab autocompletion, persistent text selection, execution timing badges (`comp: Xms | exec: Yms`), interactive Codecs management modal, and interactive `:input` popup modal.
+- **Build**: Generate `repl.html` locally using:
+  ```bash
+  npm run build:repl-html
+  ```
+- **Live Demo**: Automatically deployed to GitHub Pages via `.github/workflows/pages.yml`.
 
 ## Export
 
