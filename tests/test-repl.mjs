@@ -397,6 +397,29 @@ assert.equal(output[0], "loaded Examples/poly.k");
 assert.ok(polyAutoState.relAliases.reverse, "poly relations should be loaded");
 assert.ok(polyAutoState.typeAliases.int, "arithmetics int should be auto-loaded");
 
+// Verify :timing and :time commands
+const timingState = createState();
+output = await evaluateInput(":time ()", timingState);
+assert.equal(output[0], "{} ?{}");
+assert.match(output[1], /\/\* comp: .*, exec: .* \*\//);
+assert.ok(timingState.lastTiming);
+assert.ok(typeof timingState.lastTiming.compileMs === "number");
+assert.ok(typeof timingState.lastTiming.executeMs === "number");
+
+output = await evaluateInput(":timing on", timingState);
+assert.equal(output[0], "timing reporting enabled");
+assert.equal(timingState.showTiming, true);
+output = await evaluateInput("()", timingState);
+assert.equal(output[0], "{} ?{}");
+assert.match(output[1], /\/\* comp: .*, exec: .* \*\//);
+
+output = await evaluateInput(":timing off", timingState);
+assert.equal(output[0], "timing reporting disabled");
+assert.equal(timingState.showTiming, false);
+output = await evaluateInput("()", timingState);
+assert.equal(output.length, 1);
+assert.equal(output[0], "{} ?{}");
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");

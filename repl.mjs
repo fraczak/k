@@ -52,12 +52,20 @@ const REL_DEF_RE = /^\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 const COMMAND_NAMES = [
   "help", "type", "code", "rel", "def", "run", "eval", "t", "d", "C",
   "codes", "codecs", "rels", "val", "codec", "input", "reset", "klib", "ko", "load",
+  "timing", "time",
   "quit", "exit"
 ];
 const CODEC_COMMAND_NAMES = ["load", "unload", "list", "define"];
 const PATH_COMMANDS = new Set(["klib", "ko", "load"]);
 const INPUT_TYPE_NAME = "__input__";
 const initialCodes = codes.dump();
+
+function formatDuration(ms) {
+  if (ms < 1000) {
+    return `${ms < 10 ? ms.toFixed(1) : Math.round(ms)}ms`;
+  }
+  return `${(ms / 1000).toFixed(2)}s`;
+}
 
 function cloneJSON(value) {
   return JSON.parse(JSON.stringify(value));
@@ -79,7 +87,9 @@ function createState() {
     pendingInput: null,
     meta: {},
     value: emptyValue(),
-    lastMain: null
+    lastMain: null,
+    lastTiming: null,
+    showTiming: false
   };
 }
 
@@ -1022,7 +1032,7 @@ async function defineRelation(input, state) {
 
 async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
   const mainRel = annotated.rels.__main__;
-  if (!mainRel) return undefined;
+  if (!mainRel) return { result: undefined, wasmCompileMs: 0, executeMs: 0 };
 
   let inputValue = state.value ?? emptyValue();
   if (mainRel.typePatternGraph && mainRel.def.patterns) {
@@ -1041,11 +1051,18 @@ async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
     main: "__main__"
   };
 
+  const wasmCompileStart = performance.now();
   const wasmBytes = await compileWasmArtifactFromObject(obj, {
     inputEnvelopePattern: inputValue?.pattern
   });
   const runner = await instantiateWasmArtifact(wasmBytes);
-  return runner.executeValue(inputValue);
+  const wasmCompileMs = performance.now() - wasmCompileStart;
+
+  const executeStart = performance.now();
+  const result = runner.executeValue(inputValue);
+  const executeMs = performance.now() - executeStart;
+
+  return { result, wasmCompileMs, executeMs };
 }
 
 async function runExpression(input, state) {
@@ -1056,21 +1073,39 @@ async function runExpression(input, state) {
   const preamble = aliasPreamble(state);
   const lineOffset = preambleLineCount(preamble);
   const source = [preamble, expression].filter(Boolean).join("\n");
+  const compileStart = performance.now();
   let annotated;
   try {
     annotated = annotate(source, { libraries: [stateLibrary(state)] });
   } catch (error) {
     throw remapError(error, lineOffset);
   }
-  let result;
+  const snippetCompileMs = performance.now() - compileStart;
+
+  let execRes;
   try {
-    result = await executeExpressionWithWasm(annotated, state, lineOffset);
+    execRes = await executeExpressionWithWasm(annotated, state, lineOffset);
   } catch (error) {
     throw remapError(error, lineOffset);
   }
   state.codes = codes.dump();
   restoreCodes(state);
-  return commitResult(state, result, expression);
+
+  const compileMs = snippetCompileMs + execRes.wasmCompileMs;
+  const executeMs = execRes.executeMs;
+  state.lastTiming = {
+    compileMs,
+    executeMs,
+    totalMs: compileMs + executeMs,
+    snippetCompileMs,
+    wasmCompileMs: execRes.wasmCompileMs
+  };
+
+  const committed = commitResult(state, execRes.result, expression);
+  if (state.showTiming) {
+    committed.push(`/* comp: ${formatDuration(compileMs)}, exec: ${formatDuration(executeMs)} */`);
+  }
+  return committed;
 }
 
 async function runSnippet(input, state, options = {}) {
@@ -1079,23 +1114,50 @@ async function runSnippet(input, state, options = {}) {
 
   const explicitTerminated = options.explicitTerminated ?? explicitSnippetTerminated(input);
   const analysis = analyzeAcceptedSnippet(snippet, explicitTerminated);
+  const compileStart = performance.now();
   const { annotated, lib, lineOffset } = compileSnippetArtifacts(snippet, state);
+  const snippetCompileMs = performance.now() - compileStart;
   mergeLibrary(state, lib, "<repl>");
 
   if (analysis.kind === "definitionsOnly") {
     restoreCodes(state);
+    state.lastTiming = {
+      compileMs: snippetCompileMs,
+      executeMs: 0,
+      totalMs: snippetCompileMs,
+      snippetCompileMs,
+      wasmCompileMs: 0
+    };
+    if (state.showTiming) {
+      return [`/* comp: ${formatDuration(snippetCompileMs)} */`];
+    }
     return [];
   }
 
-  let result;
+  let execRes;
   try {
-    result = await executeExpressionWithWasm(annotated, state, lineOffset);
+    execRes = await executeExpressionWithWasm(annotated, state, lineOffset);
   } catch (error) {
     throw remapError(error, lineOffset);
   }
   state.codes = codes.dump();
   restoreCodes(state);
-  return commitResult(state, result, snippet);
+
+  const compileMs = snippetCompileMs + execRes.wasmCompileMs;
+  const executeMs = execRes.executeMs;
+  state.lastTiming = {
+    compileMs,
+    executeMs,
+    totalMs: compileMs + executeMs,
+    snippetCompileMs,
+    wasmCompileMs: execRes.wasmCompileMs
+  };
+
+  const committed = commitResult(state, execRes.result, snippet);
+  if (state.showTiming) {
+    committed.push(`/* comp: ${formatDuration(compileMs)}, exec: ${formatDuration(executeMs)} */`);
+  }
+  return committed;
 }
 
 async function loadCodec(input, state) {
@@ -1201,6 +1263,7 @@ async function consumeCodecInput(input, state) {
 }
 
 async function evaluateInput(input, state) {
+  state.lastTiming = null;
   if (state.pendingInput) {
     return consumeCodecInput(input, state);
   }
@@ -1231,6 +1294,29 @@ async function evaluateCommand(line, state) {
       exit(0);
     case "help":
       return [helpText()];
+    case "timing": {
+      const trimmed = arg.trim().toLowerCase();
+      if (trimmed === "on" || trimmed === "true" || trimmed === "1") {
+        state.showTiming = true;
+      } else if (trimmed === "off" || trimmed === "false" || trimmed === "0") {
+        state.showTiming = false;
+      } else if (!trimmed) {
+        state.showTiming = !state.showTiming;
+      } else {
+        throw new Error(":timing accepts 'on', 'off', or no arguments to toggle");
+      }
+      return [`timing reporting ${state.showTiming ? "enabled" : "disabled"}`];
+    }
+    case "time": {
+      if (!arg) throw new Error(":time requires an expression");
+      const wasTiming = state.showTiming;
+      state.showTiming = true;
+      try {
+        return await evaluateInput(arg, state);
+      } finally {
+        state.showTiming = wasTiming;
+      }
+    }
     case "type": {
       if (!arg) throw new Error(":type requires a name or definition");
       if (arg.includes("=")) {
@@ -1316,6 +1402,8 @@ function helpText() {
     ":type name = <...>   define a type",
     ":rel name = expr     define a relation",
     ":run expr            run an expression on the current value",
+    ":time expr           run an expression and report compilation/execution time",
+    ":timing [on|off]     toggle timing reporting after every evaluation",
     ":t name              show relation type",
     ":d name              show relation definition",
     ":type name           show type definition",
@@ -1484,5 +1572,6 @@ export {
   savedLibrary,
   loadSourceOrKlib,
   ensureCodecDependencies,
-  valueToK
+  valueToK,
+  formatDuration
 };

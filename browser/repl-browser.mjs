@@ -14,7 +14,8 @@ import {
   unregisterCodec,
   resolveCodec,
   codeHashToPattern,
-  BUILTIN_CODECS
+  BUILTIN_CODECS,
+  formatDuration
 } from "../repl.mjs";
 import { Value, isProduct, isVariant } from "../Value.mjs";
 import { encodeLibrary } from "../object.mjs";
@@ -154,7 +155,7 @@ function setStatus(busy, text = "Ready") {
   }
 }
 
-function appendEntry({ prompt, command, outputs = [], errors = [], warnings = [], duration = null }) {
+function appendEntry({ prompt, command, outputs = [], errors = [], warnings = [], duration = null, timing = null }) {
   if (!outputEl) return;
 
   const entry = document.createElement("div");
@@ -174,10 +175,17 @@ function appendEntry({ prompt, command, outputs = [], errors = [], warnings = []
     cmdSpan.textContent = command;
     header.appendChild(cmdSpan);
 
-    if (duration !== null) {
+    if (timing && (timing.compileMs > 0 || timing.executeMs > 0)) {
       const metaSpan = document.createElement("span");
       metaSpan.className = "entry-meta";
-      metaSpan.textContent = `${duration.toFixed(1)}ms`;
+      metaSpan.textContent = `comp: ${formatDuration(timing.compileMs)} | exec: ${formatDuration(timing.executeMs)}`;
+      metaSpan.title = `Compilation: ${timing.compileMs.toFixed(1)}ms\nExecution: ${timing.executeMs.toFixed(1)}ms\nTotal: ${(duration ?? timing.totalMs).toFixed(1)}ms`;
+      header.appendChild(metaSpan);
+    } else if (duration !== null) {
+      const metaSpan = document.createElement("span");
+      metaSpan.className = "entry-meta";
+      metaSpan.textContent = formatDuration(duration);
+      metaSpan.title = `Total: ${duration.toFixed(1)}ms`;
       header.appendChild(metaSpan);
     }
 
@@ -289,7 +297,8 @@ export async function executeCommand(input) {
     outputs,
     errors,
     warnings,
-    duration
+    duration,
+    timing: state.lastTiming
   });
 
   // Re-create completer with updated state
