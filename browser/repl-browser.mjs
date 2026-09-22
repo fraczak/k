@@ -20,6 +20,7 @@ import {
 import { Value, isProduct, isVariant } from "../Value.mjs";
 import { encodeLibrary } from "../object.mjs";
 import { setVfsFile, getVfsFile, getAllVfsFiles } from "./shims/fs.mjs";
+import { createOutputEntryElement } from "./tree-view.mjs";
 
 // Make Value and helpers globally available for custom codecs
 if (typeof window !== "undefined") {
@@ -155,7 +156,7 @@ function setStatus(busy, text = "Ready") {
   }
 }
 
-function appendEntry({ prompt, command, outputs = [], errors = [], warnings = [], duration = null, timing = null }) {
+function appendEntry({ prompt, command, outputs = [], errors = [], warnings = [], duration = null, timing = null, value = null }) {
   if (!outputEl) return;
 
   const entry = document.createElement("div");
@@ -220,11 +221,26 @@ function appendEntry({ prompt, command, outputs = [], errors = [], warnings = []
   }
 
   // Outputs
-  for (const out of outputs) {
-    const outDiv = document.createElement("div");
-    outDiv.className = "entry-line line-output";
-    outDiv.innerHTML = ansiToHtml(out);
-    entry.appendChild(outDiv);
+  if (value && outputs.length > 0) {
+    const rawText = outputs.join("\n");
+    const allLines = outputs[0].split("\n");
+    const codecOutputs = allLines.slice(1);
+    const timingText = outputs.length > 1 ? outputs[1] : null;
+
+    const outElement = createOutputEntryElement({
+      value,
+      rawText,
+      codecOutputs,
+      timingText
+    });
+    entry.appendChild(outElement);
+  } else {
+    for (const out of outputs) {
+      const outDiv = document.createElement("div");
+      outDiv.className = "entry-line line-output";
+      outDiv.innerHTML = ansiToHtml(out);
+      entry.appendChild(outDiv);
+    }
   }
 
   outputEl.appendChild(entry);
@@ -298,7 +314,8 @@ export async function executeCommand(input) {
     errors,
     warnings,
     duration,
-    timing: state.lastTiming
+    timing: state.lastTiming,
+    value: state.lastResult
   });
 
   // Re-create completer with updated state

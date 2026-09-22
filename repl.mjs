@@ -87,6 +87,7 @@ function createState() {
     pendingInput: null,
     meta: {},
     value: emptyValue(),
+    lastResult: null,
     lastMain: null,
     lastTiming: null,
     showTiming: false
@@ -381,6 +382,7 @@ function commitResult(state, result, lastMain) {
   if (result !== undefined) {
     state.value = result;
     state.lastMain = lastMain;
+    state.lastResult = result;
   }
   return [printValue(result, state)];
 }
@@ -1259,11 +1261,13 @@ async function consumeCodecInput(input, state) {
   });
   const value = valueForCode(parsed, pending.codeHash, codes.find);
   state.value = value;
+  state.lastResult = value;
   return [printValue(value, state)];
 }
 
 async function evaluateInput(input, state) {
   state.lastTiming = null;
+  state.lastResult = null;
   if (state.pendingInput) {
     return consumeCodecInput(input, state);
   }

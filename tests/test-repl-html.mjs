@@ -287,6 +287,147 @@ if (chromiumBin) {
     })()`);
     assert.strictEqual(selectionCheck, true, "Selection in terminal output should hold after click");
 
+    // === Test Tree View Functionality ===
+    console.log("   Verifying Tree View: initial depth <= 3, folding/unfolding, mode toggle, and pattern cycles...");
+
+    // 1. Evaluate a 5-level deep nested product: { { { { {} e } d } c } b }
+    await evaluateAsync(`window.kRepl.executeCommand("{ { { { {} e } d } c } b }")`);
+
+    const treeCheck = await evaluateAsync(`(() => {
+      const entries = document.querySelectorAll(".terminal-entry");
+      const lastEntry = entries[entries.length - 1];
+      const container = lastEntry.querySelector(".k-entry-container");
+      if (!container) return { error: "No .k-entry-container found" };
+
+      const treeView = container.querySelector(".k-tree-view");
+      const rawView = container.querySelector(".k-raw-view");
+      const treeBtn = container.querySelector(".k-btn-mode.active");
+      const rawBtn = container.querySelectorAll(".k-btn-mode")[1];
+
+      // Check Value section
+      const valSection = container.querySelector(".k-tree-value-section");
+      if (!valSection) return { error: "No value section" };
+
+      // Check product details nodes hierarchy
+      // Level 1: root product (depth 1)
+      const level1 = valSection.querySelector(".k-tree-section-body > .k-tree-node.k-tree-product");
+      if (!level1 || !level1.open) return { error: "Level 1 product should be open" };
+
+      // Level 2: .b product (depth 2)
+      const level2 = level1.querySelector(".k-tree-children .k-tree-node.k-tree-product");
+      if (!level2 || !level2.open) return { error: "Level 2 product should be open" };
+
+      // Level 3: .c product (depth 3)
+      const level3 = level2.querySelector(".k-tree-children .k-tree-node.k-tree-product");
+      if (!level3 || !level3.open) return { error: "Level 3 product should be open" };
+
+      // Level 4: .d product (depth 4) -> MUST BE COLLAPSED (open === false)
+      const level4 = level3.querySelector(".k-tree-children .k-tree-node.k-tree-product");
+      if (!level4) return { error: "Level 4 product node missing" };
+      if (level4.open) return { error: "Level 4 product should be collapsed (open === false)" };
+
+      // Check pattern section exists and has cycle or vardef
+      const patSection = container.querySelector(".k-tree-pat-section");
+      if (!patSection) return { error: "No pattern section" };
+
+      // Test Mode Toggle: click Raw
+      rawBtn.click();
+      const rawVisible = rawView.style.display !== "none" && treeView.style.display === "none";
+
+      // Click Tree back
+      container.querySelector(".k-btn-mode").click();
+      const treeVisible = treeView.style.display !== "none" && rawView.style.display === "none";
+
+      // Test Unfolding Level 4
+      level4.open = true;
+      level4.dispatchEvent(new Event("toggle"));
+
+      // After toggle, level 4's children should be populated with .e
+      const level4Text = level4.textContent;
+      const unfoldedHasE = level4Text.includes(".e") || level4Text.includes("42");
+
+      return {
+        success: true,
+        rawVisible,
+        treeVisible,
+        unfoldedHasE
+      };
+    })()`);
+
+    assert.strictEqual(treeCheck.success, true, `Tree view validation failed: ${treeCheck.error}`);
+    assert.strictEqual(treeCheck.rawVisible, true, "Clicking Raw should show raw view and hide tree view");
+    assert.strictEqual(treeCheck.treeVisible, true, "Clicking Tree should restore tree view");
+    assert.strictEqual(treeCheck.unfoldedHasE, true, "Unfolding level 4 should lazily populate its children");
+
+    // 2. Test recursive pattern tree with cycle detection
+    await evaluateAsync(`window.kRepl.executeCommand("10")`);
+    const patCycleCheck = await evaluateAsync(`(() => {
+      const entries = document.querySelectorAll(".terminal-entry");
+      const lastEntry = entries[entries.length - 1];
+      const patSection = lastEntry.querySelector(".k-tree-pat-section");
+      if (!patSection) return { error: "No pattern section for 10" };
+
+      const cycleBadges = patSection.querySelectorAll(".k-badge-cycle");
+      const varDefs = patSection.querySelectorAll(".k-pat-vardef");
+
+      return {
+        hasCycleBadge: cycleBadges.length > 0,
+        hasVarDef: varDefs.length > 0
+      };
+    })()`);
+
+    assert.strictEqual(patCycleCheck.hasCycleBadge, true, "Pattern tree for recursive type should have cycle badge");
+    assert.strictEqual(patCycleCheck.hasVarDef, true, "Pattern tree for recursive type should have variable definition (=X0)");
+
+    // 3. Test variant chain depth limits and Expand All / Collapse All on 10
+    const variantDepthAndActionsCheck = await evaluateAsync(`(() => {
+      const entries = document.querySelectorAll(".terminal-entry");
+      const lastEntry = entries[entries.length - 1];
+      const valSection = lastEntry.querySelector(".k-tree-value-section");
+
+      // Hierarchy for 10 (variant chain: + -> 1 -> 0 -> 1 -> ...)
+      const v1 = valSection?.querySelector(".k-tree-section-body > .k-tree-node.k-tree-variant");
+      const v2 = v1?.querySelector(".k-tree-children .k-tree-node.k-tree-variant");
+      const v3 = v2?.querySelector(".k-tree-children .k-tree-node.k-tree-variant");
+      const v4 = v3?.querySelector(".k-tree-children .k-tree-node.k-tree-variant");
+
+      const v1Open = !!v1?.open;
+      const v2Open = !!v2?.open;
+      const v3Open = !!v3?.open;
+      const v4Collapsed = v4 ? !v4.open : false;
+
+      // Click Expand All
+      const actionBtns = lastEntry.querySelectorAll(".k-btn-action");
+      const expandBtn = actionBtns[0];
+      const collapseBtn = actionBtns[1];
+
+      expandBtn.click();
+      const allOpenAfterExpand = v4.open;
+
+      // Click Collapse All
+      collapseBtn.click();
+      const newV4 = valSection?.querySelector(
+        ".k-tree-section-body > .k-tree-node.k-tree-variant .k-tree-children .k-tree-node.k-tree-variant .k-tree-children .k-tree-node.k-tree-variant .k-tree-children .k-tree-node.k-tree-variant"
+      );
+      const v4CollapsedAgain = newV4 ? !newV4.open : false;
+
+      return {
+        v1Open,
+        v2Open,
+        v3Open,
+        v4Collapsed,
+        allOpenAfterExpand,
+        v4CollapsedAgain
+      };
+    })()`);
+
+    assert.strictEqual(variantDepthAndActionsCheck.v1Open, true, "Variant level 1 must be open");
+    assert.strictEqual(variantDepthAndActionsCheck.v2Open, true, "Variant level 2 must be open");
+    assert.strictEqual(variantDepthAndActionsCheck.v3Open, true, "Variant level 3 must be open");
+    assert.strictEqual(variantDepthAndActionsCheck.v4Collapsed, true, "Variant level 4 must be collapsed by default");
+    assert.strictEqual(variantDepthAndActionsCheck.allOpenAfterExpand, true, "Expand button should expand collapsed nodes");
+    assert.strictEqual(variantDepthAndActionsCheck.v4CollapsedAgain, true, "Collapse button should reset deeper nodes to collapsed");
+
     ws.close();
     console.log("   Browser execution verified successfully!");
   } finally {

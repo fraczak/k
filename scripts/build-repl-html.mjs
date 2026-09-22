@@ -455,6 +455,307 @@ const htmlContent = `<!DOCTYPE html>
       margin: 4px 0 4px 16px;
     }
 
+    /* Tree View & Toolbar */
+    .k-entry-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .k-output-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 2px;
+      flex-wrap: wrap;
+    }
+
+    .k-mode-group, .k-action-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .k-btn-mode, .k-btn-action {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .k-btn-mode:hover, .k-btn-action:hover {
+      background: var(--bg-subtle);
+      color: var(--text-main);
+      border-color: #8b949e;
+    }
+
+    .k-btn-mode.active {
+      background: rgba(88, 166, 255, 0.2);
+      border-color: var(--color-prompt);
+      color: var(--color-prompt);
+      font-weight: 600;
+    }
+
+    .k-tree-view {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .k-tree-section {
+      background: rgba(22, 27, 34, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .k-tree-section-summary {
+      background: rgba(33, 38, 45, 0.5);
+      padding: 6px 10px;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+      transition: background 0.15s;
+    }
+
+    .k-tree-section[open] > .k-tree-section-summary {
+      border-bottom-color: rgba(48, 54, 61, 0.5);
+    }
+
+    .k-tree-section-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .k-tree-section-summary:hover {
+      background: rgba(33, 38, 45, 0.8);
+    }
+
+    .k-section-title {
+      font-weight: 700;
+      color: var(--color-prompt);
+      white-space: nowrap;
+    }
+
+    .k-section-preview {
+      color: var(--text-muted);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .k-tree-section-body {
+      padding: 8px 10px;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+
+    /* Tree Node & Summary */
+    .k-tree-node {
+      margin-left: 12px;
+      border-left: 1px dashed rgba(48, 54, 61, 0.6);
+      padding-left: 8px;
+    }
+
+    .k-tree-summary {
+      cursor: pointer;
+      list-style: none;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      outline: none;
+      user-select: none;
+      padding: 1px 4px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+
+    .k-tree-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .k-tree-summary:hover {
+      background: rgba(88, 166, 255, 0.1);
+    }
+
+    .k-tree-arrow {
+      display: inline-block;
+      font-size: 8px;
+      width: 10px;
+      height: 10px;
+      line-height: 10px;
+      text-align: center;
+      transition: transform 0.15s ease;
+      color: var(--text-muted);
+    }
+
+    details[open] > summary > .k-tree-arrow {
+      transform: rotate(90deg);
+    }
+
+    .k-tree-children {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .k-tree-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding-left: 8px;
+      margin: 1px 0;
+    }
+
+    .k-tree-child-val, .k-tree-child-pat {
+      flex: 1;
+    }
+
+    .k-tree-leaf {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      padding: 1px 4px;
+    }
+
+    /* Syntax Highlighting */
+    .k-val-brace, .k-pat-brace {
+      color: var(--color-yellow);
+      font-weight: 600;
+    }
+
+    .k-pat-union {
+      color: var(--color-cyan);
+      font-weight: 600;
+    }
+
+    .k-val-pipe {
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .k-val-tag {
+      color: var(--color-purple);
+      font-weight: 600;
+    }
+
+    .k-pat-tag {
+      color: var(--color-cyan);
+      font-weight: 600;
+    }
+
+    .k-tree-field-key, .k-pat-field-key {
+      color: var(--color-blue);
+      font-weight: 600;
+    }
+
+    .k-val-empty, .k-pat-empty {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .k-pat-var {
+      color: var(--color-green);
+      font-weight: 700;
+    }
+
+    .k-pat-vardef {
+      color: var(--color-green);
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(63, 185, 80, 0.15);
+      border-radius: 3px;
+      padding: 0 4px;
+    }
+
+    .k-pat-any {
+      color: var(--color-yellow);
+      font-style: italic;
+    }
+
+    .k-pat-ellipsis {
+      color: var(--text-muted);
+      letter-spacing: 2px;
+    }
+
+    .k-val-preview {
+      color: var(--text-muted);
+      font-size: 11px;
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .k-tree-badge {
+      font-size: 10px;
+      background: rgba(139, 148, 158, 0.15);
+      color: var(--text-muted);
+      padding: 1px 5px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .k-badge-cycle {
+      background: rgba(248, 81, 73, 0.2);
+      color: var(--color-red);
+      font-weight: 600;
+    }
+
+    .k-codecs-box {
+      background: rgba(22, 27, 34, 0.8);
+      border: 1px solid var(--border-color);
+      border-left: 3px solid var(--color-green);
+      border-radius: 0 6px 6px 0;
+      padding: 6px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .k-codec-row {
+      color: var(--color-green);
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .k-timing-row {
+      color: var(--text-muted);
+      font-size: 11px;
+      font-style: italic;
+      padding: 2px 4px;
+    }
+
+    .k-raw-pre {
+      background: rgba(13, 17, 23, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--color-green);
+      white-space: pre-wrap;
+      word-break: break-word;
+      user-select: text;
+    }
+
     /* Welcome banner */
     .welcome-banner {
       padding: 16px;
