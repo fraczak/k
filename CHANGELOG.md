@@ -7,6 +7,23 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [6.5.0] — 2026-09-22 — Tail-loop arena compaction & OOM diagnostics
+
+### WebAssembly Backend
+
+- Added threshold-based arena compaction in self-tail-recursive loops to reclaim dead scratch space, allowing deep computations (e.g. multi-thousand-bit arithmetic) without exhausting linear memory.
+- Added explicit Out-Of-Memory error reporting (`OutOfMemoryError`), tracking allocation failure and 32-bit offset overflow via exported runtime globals.
+
+### Runtime & REPL
+
+- Replaced recursive traversal in `codecs/runtime/show-value.mjs` and `Value.mjs` with iterative loops, eliminating `Maximum call stack size exceeded` errors when rendering deep variant chains.
+
+### Examples
+
+- Converted arithmetic helper functions in `Examples/arithmetics.k` to tail-recursive relations.
+
+---
+
 ## [6.2.3] — 2026-06-03 — Unified k compiler output
 
 ### Toolchain

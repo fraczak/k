@@ -31,12 +31,18 @@ paths do not reclaim temporary values until the whole run ends.
 
 Tail-call lowering now avoids allocating replacement input products for some
 self-tail-recursive loops by keeping top-level product fields in Wasm locals.
-That improves arithmetic workloads such as `factorial:o`, but it is still only
-a first step. Large runs still allocate far more arena memory than the final
-result requires because intermediate relation results, accumulator fragments,
-and temporary products remain in the bump arena.
+Furthermore, self-tail-recursive loops now incorporate threshold-based arena
+compaction: when arena growth within a tail loop exceeds 1 MB, live accumulator
+and argument graphs are compacted down to the loop entry mark using an iterative
+staging-and-copy mechanism in `runtime.wat`, freeing dead scratch data while
+preserving performance for hot short-lived loops.
 
-Future memory-management targets:
+Additionally, linear memory exhaustion and 32-bit unsigned offset overflow are
+now tracked explicitly via exported flags (`oom_flag`, `oom_size`) in `runtime.wat`,
+which the JS runtime intercepts to throw a descriptive `OutOfMemoryError` instead
+of an untyped `unreachable` trap.
+
+Remaining memory-management targets:
 
 - Add allocation profiling that attributes arena growth to generated relations
   and static allocation sites. Large regressions should be visible without
@@ -47,14 +53,6 @@ Future memory-management targets:
 - Introduce safe lifetime boundaries for successful non-tail calls. The runtime
   needs a way to reclaim scratch values after a callee result has been consumed
   without copying large live values on every call.
-- Make arena checkpoints part of code generation decisions, not just union
-  failure handling. Tail loops should be able to reset dead scratch space while
-  preserving the next live input/result.
 - Keep unsigned pointer handling explicit. Wasm arena addresses are `i32`
   offsets, and JavaScript sees exported `i32` values as signed numbers, so all
   JS-side arena offsets must be normalized before `DataView` access.
-
-The preferred direction is performance first: reduce allocation volume in hot
-generated loops before adding a general garbage collector or compaction pass.
-Copying live arena values can control memory, but it risks slowing exactly the
-large recursive arithmetic workloads that motivated tail-call lowering.

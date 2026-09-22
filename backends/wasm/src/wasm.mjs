@@ -31,6 +31,24 @@ const METADATA_SECTION = "k.metadata";
 const ARTIFACT_FORMAT = "k-wasm";
 const ARTIFACT_VERSION = 1;
 
+class OutOfMemoryError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "OutOfMemoryError";
+  }
+}
+
+function checkWasmOom(exports) {
+  if (exports.oom_flag && exports.oom_flag.value) {
+    const size = exports.oom_size ? exports.oom_size.value : 0;
+    const max = exports.arena_max ? exports.arena_max.value : 0;
+    const free = exports.arena_free ? exports.arena_free.value : 0;
+    throw new OutOfMemoryError(
+      `WebAssembly Out of Memory: linear memory arena exhausted (failed to allocate ${size} bytes; arena used: ${free >>> 0} bytes, arena max: ${max >>> 0} bytes)`
+    );
+  }
+}
+
 const cleanName = (name) => "rel_" + name.replace(/[^a-zA-Z0-9_]/g, "_");
 
 async function getWabt() {
@@ -894,9 +912,21 @@ async function instantiateWasmArtifact(wasmBuffer) {
     const t1 = process.hrtime.bigint();
     const mark = exports.arena_mark ? exports.arena_mark() : 0;
     const arenaValues = new Map();
-    const ptrIn = writeValueToArena(exports, value, inputPattern, 0, arenaValues, tags, metadata.inputPattern);
+    let ptrIn;
+    try {
+      ptrIn = writeValueToArena(exports, value, inputPattern, 0, arenaValues, tags, metadata.inputPattern);
+    } catch (error) {
+      checkWasmOom(exports);
+      throw error;
+    }
     const t2 = process.hrtime.bigint();
-    const result = exports[metadata.entry](ptrIn);
+    let result;
+    try {
+      result = exports[metadata.entry](ptrIn);
+    } catch (error) {
+      checkWasmOom(exports);
+      throw error;
+    }
     if (result[1] !== 1) {
       if (exports.arena_reset) exports.arena_reset(mark);
       throw new Error("Wasm relation execution failed (returned false)");
@@ -933,9 +963,21 @@ async function instantiateWasmArtifact(wasmBuffer) {
     const t1 = process.hrtime.bigint();
     const mark = exports.arena_mark ? exports.arena_mark() : 0;
     const arenaValues = new Map();
-    const ptrIn = writeValueToArena(exports, inputValue, inputPattern, 0, arenaValues, tags, metadata.inputPattern);
+    let ptrIn;
+    try {
+      ptrIn = writeValueToArena(exports, inputValue, inputPattern, 0, arenaValues, tags, metadata.inputPattern);
+    } catch (error) {
+      checkWasmOom(exports);
+      throw error;
+    }
     const t2 = process.hrtime.bigint();
-    const result = exports[metadata.entry](ptrIn);
+    let result;
+    try {
+      result = exports[metadata.entry](ptrIn);
+    } catch (error) {
+      checkWasmOom(exports);
+      throw error;
+    }
     if (result[1] !== 1) {
       if (exports.arena_reset) exports.arena_reset(mark);
       return undefined;
@@ -982,6 +1024,7 @@ export {
   ARTIFACT_FORMAT,
   ARTIFACT_VERSION,
   METADATA_SECTION,
+  OutOfMemoryError,
   appendCustomSection,
   compileWasmArtifactFromKVM,
   compileWasmArtifactFromObject,
@@ -998,6 +1041,7 @@ export default {
   ARTIFACT_FORMAT,
   ARTIFACT_VERSION,
   METADATA_SECTION,
+  OutOfMemoryError,
   appendCustomSection,
   compileWasmArtifactFromKVM,
   compileWasmArtifactFromObject,

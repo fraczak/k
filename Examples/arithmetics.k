@@ -39,22 +39,33 @@ empty? = {empty /yes if, () then} .then;
 concat = ${bits x, bits y} {.x inv x, .y y} concat_; 
 concat_ = ${bits x, bits y} 
   < 
-    {.x /0 x, .y |0  y} concat_, 
-    {.x /1 x, .y |1 y} concat_, 
-    .y 
+    {.x empty? if, .y then} .then,
+    < 
+      {.x /0 x, .y |0 y}, 
+      {.x /1 x, .y |1 y}
+    > concat_ 
   >;
 inv = {()x, 0b r} _inv; 
-_inv = ${bits x, bits r} < {.x /0 x, .r |0  r} _inv, {.x /1 x, .r |1 r} _inv, .r >;
+_inv = ${bits x, bits r} 
+  < 
+    {.x empty? if, .r then} .then,
+    < 
+      {.x /0 x, .r |0 r}, 
+      {.x /1 x, .r |1 r}
+   > _inv
+  >;
 
 inOrder = ${bits x, bits y} {.x inv x, .y inv y, yes inOrder} inOrder_;
 inOrder_ = ${bits x, bits y, yes_no inOrder} 
   < 
-    {.x /0 x, .y /0 y, .inOrder inOrder} inOrder_, 
-    {.x /1 x, .y /1 y, .inOrder inOrder} inOrder_,
-    {.x /0 x, .y /1 y, .inOrder inOrder} inOrder_, 
-    {.x /1 y, .y /0 x, .inOrder swap_yes_no inOrder} inOrder_, 
-    {.x </0,/1> if, .inOrder swap_yes_no then} .then, 
-    .inOrder
+    {.x </0,/1> if1, .y /_ if2, .inOrder swap_yes_no then} .then,
+    {.x /_ if, .inOrder then} .then,
+    < 
+      {.x /0 x, .y /0 y, .inOrder inOrder}, 
+      {.x /1 x, .y /1 y, .inOrder inOrder},
+      {.x /0 x, .y /1 y, .inOrder inOrder}, 
+      {.x /1 y, .y /0 x, .inOrder swap_yes_no inOrder}
+    > inOrder_
   >;
 
 GT = {inOrder /no if, () then} . then;
@@ -63,18 +74,21 @@ EQ = GT {.x y, .y x} GT;
 
 toBitList = {inv x, nil r} _toBitList; 
 _toBitList = < 
-  {.x empty? if, .r then }.then, 
-  {.x /0 x, {0 car, .r cdr} cons r} _toBitList, 
-  {.x /1 x, {1 car, .r cdr} cons r} _toBitList 
+  {.x empty? if, .r then}.then, 
+  <
+    {.x /0 x, {0 car, .r cdr} cons r}, 
+    {.x /1 x, {1 car, .r cdr} cons r}
+  > _toBitList 
 >;
-fromBitList =
-< 
-  cdr <
-    {car /0 if, cdr fromBitList |0  then} .then, 
-    {car /1 if, cdr fromBitList |1 then} .then
-  >, 
-  0b
-> $bits;
+fromBitList = {() l, 0b r} _fromBitList inv $bits;
+_fromBitList =
+  <
+    {.l nil? if, .r then} .then,
+    <
+      {.l car /0 if, {.l cdr l, .r |0 r} then} .then,
+      {.l car /1 if, {.l cdr l, .r |1 r} then} .then
+    > _fromBitList
+  >;
 
 --------------------------------------
 $ int = < bits '+', bits '-' >;
@@ -99,9 +113,9 @@ inc = $int <
 > $int;
 
 _inc = ${bits x, bits y} <
+    {.x empty? if, .y |1 then} .then,
     {.x /0 x, .y |1 y} concat_, 
-    {.x /1 x, .y |0  y} _inc,
-    .y |1
+    {.x /1 x, .y |0  y} _inc
 >; 
 
 dec = $int <
@@ -149,38 +163,44 @@ _plus_ =
     {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
     {.x empty? if, .c/0 and, {.r x, .y r} _inv then} .then,
 
-    {.x y, .y empty? x, .c c, .r r} _plus_,
-    {<.c/0 0, 1> x, 
-              .y y, .x empty? c0 c, .r r} _plus_,
+    <
+      {.x y, .y empty? x, .c c, .r r},
+      {<.c/0 0, 1> x, .y y, .x empty? c0 c, .r r},
 
-    {.x /0 x, .y /0 y, .c/0 c0 c, .r |0 r} _plus_,
-    {.x /0 x, .y /0 y, .c/1 c0 c, .r |1 r} _plus_,
+      {.x /0 x, .y /0 y, .c/0 c0 c, .r |0 r},
+      {.x /0 x, .y /0 y, .c/1 c0 c, .r |1 r},
 
-    {.x /0 x, .y /1 y, .c/0 c0 c, .r |1 r} _plus_,
-    {.x /0 x, .y /1 y, .c/1 c1 c, .r |0 r} _plus_,
-    {.x /1 x, .y /0 y, .c/0 c0 c, .r |1 r} _plus_,
-    {.x /1 x, .y /0 y, .c/1 c1 c, .r |0 r} _plus_,
+      {.x /0 x, .y /1 y, .c/0 c0 c, .r |1 r},
+      {.x /0 x, .y /1 y, .c/1 c1 c, .r |0 r},
+      {.x /1 x, .y /0 y, .c/0 c0 c, .r |1 r},
+      {.x /1 x, .y /0 y, .c/1 c1 c, .r |0 r},
 
-    {.x /1 x, .y /1 y, .c/0 c1 c, .r |0 r} _plus_,
-    {.x /1 x, .y /1 y, .c/1 c1 c, .r |1 r} _plus_
+      {.x /1 x, .y /1 y, .c/0 c1 c, .r |0 r},
+      {.x /1 x, .y /1 y, .c/1 c1 c, .r |1 r}
+    > _plus_
   >
 ;
 
-_minus =
-  -- least significat bit first substraction with carry
-  ${bits x, bits y, carry c}
+_minus = {.x x, .y y, .c c, 0b r} _minus_;
+
+_minus_ =
+  -- least significant bit first substraction with carry
+  ${bits x, bits y, carry c, bits r}
   <
-    {.x then, .y empty? if, .c/0 and} .then,
-    {.x/1 then, .y empty? if, .c/1 and} .then |0,
-    {.x/0 x, .y empty? y, .c/1 c1 c} _minus |1,
-    {.x/0 x, .y/0   y, .c/0 c0 c} _minus |0,
-    {.x/0 x, .y/0   y, .c/1 c1 c} _minus |1,  
-    {.x/0 x, .y/1   y, .c/0 c1 c} _minus |1,
-    {.x/0 x, .y/1   y, .c/1 c1 c} _minus |0,
-    {.x/1 x, .y/0   y, .c/0 c0 c} _minus |1,
-    {.x/1 x, .y/0   y, .c/1 c0 c} _minus |0,
-    {.x/1 x, .y/1   y, .c/0 c0 c} _minus |0,
-    {.x/1 x, .y/1   y, .c/1 c1 c} _minus |1
+    {.y empty? if, .c/0 and, {.r x, .x r} _inv then} .then,
+    <
+      {.x/0 x, .y empty? y, .c/1 c1 c, .r |1 r},
+      {.x/1 x, .y empty? y, .c/1 c0 c, .r |0 r},
+
+      {.x/0 x, .y/0   y, .c/0 c0 c, .r |0 r},
+      {.x/0 x, .y/0   y, .c/1 c1 c, .r |1 r},  
+      {.x/0 x, .y/1   y, .c/0 c1 c, .r |1 r},
+      {.x/0 x, .y/1   y, .c/1 c1 c, .r |0 r},
+      {.x/1 x, .y/0   y, .c/0 c0 c, .r |1 r},
+      {.x/1 x, .y/0   y, .c/1 c0 c, .r |0 r},
+      {.x/1 x, .y/1   y, .c/0 c0 c, .r |0 r},
+      {.x/1 x, .y/1   y, .c/1 c1 c, .r |1 r}
+    > _minus_
   >
 ;
 
@@ -212,16 +232,18 @@ _times =
   ${bits result, bits _x, bits y}
   <
     { .y empty? if, .result then } .then,
-    { 
-      .result |0  result, 
-      ._x _x, 
-      .y /0 y
-    } _times,
-    { 
-      {._x x, .result |0  y, c0 c } _plus result, 
-      ._x _x, 
-      .y /1 y 
-    } _times
+    <
+      { 
+        .result |0  result, 
+        ._x _x, 
+        .y /0 y
+      },
+      { 
+        {._x x, .result |0  y, c0 c } _plus result, 
+        ._x _x, 
+        .y /1 y 
+      }
+    > _times
   >
 ;
 
@@ -327,17 +349,18 @@ lcm =
   {{.x int x, .y int y} times x, gcd int y} div .div abs
 ;
 
- factorial = <
-  zero_int? 1 int,
-  /"+" int {dec factorial x, () y} times
+factorial = {()n, 1 int acc} factorial_;
+factorial_ =  <
+  {.n zero_int? if, .acc then} .then,
+  {.n pos? dec n, {.n x, .acc y} times acc} factorial_
 >;
 
 fib_ =
   <
+    {.n int zero_int? if, ."fib(n),fib(n.1)" then} .then,
     { .n int dec /"+" n,
       ."fib(n),fib(n.1)" {plus x, .x y} "fib(n),fib(n.1)"
-    } fib_,
-    ."fib(n),fib(n.1)"
+    } fib_
   >
 ;
 

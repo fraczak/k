@@ -176,8 +176,14 @@ class Value {
 
   toString() {
     if (isVariant(this)) {
-      // return `{${JSON.stringify(this.tag)}:${this.value.toString()}}`;
-      return `${this.value.toString()}|${pLabel(this.tag)}`;
+      const tags = [];
+      let curr = this;
+      while (isVariant(curr)) {
+        tags.push(pLabel(curr.tag));
+        curr = curr.value;
+      }
+      const base = curr ? curr.toString() : "";
+      return tags.length === 0 ? base : `${base}|${tags.reverse().join("|")}`;
     }
     if (isProduct(this)) {
       return `{${Object.entries(this.product).map(([k, v]) => `${JSON.stringify(k)}:${v.toString()}`).join(',')}}`;

@@ -88,6 +88,14 @@ console.log("==> Running runtime.wat Core Allocator Tests");
   const ptr3 = runtimeExports.alloc(70000);
   assert.ok(ptr3 > 1040, "Large allocation must return a valid pointer");
   assert.equal(ptr3 % 8, 0, "Large allocation must be 8-byte aligned");
+
+  // Test 5: Out of Memory flag recording on overflow
+  assert.equal(runtimeExports.oom_flag.value, 0, "OOM flag must be 0 initially");
+  assert.throws(() => {
+    runtimeExports.alloc(-1);
+  }, /unreachable/);
+  assert.equal(runtimeExports.oom_flag.value, 1, "OOM flag must be 1 after allocation failure");
+  assert.equal(runtimeExports.oom_size.value, -1, "OOM size must record requested size");
   console.log("Core Allocator tests passed successfully!");
 }
 

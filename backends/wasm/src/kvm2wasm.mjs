@@ -159,6 +159,7 @@ export function lowerToWasm(relDef, name, options = {}) {
   for (const field of inputProductFields) {
     registers.add(field.local);
   }
+  registers.add("tail_loop_mark");
 
   let nextUnionId = 0;
   const tailLoopLabel = "$tail_loop";
@@ -379,6 +380,24 @@ export function lowerToWasm(relDef, name, options = {}) {
               );
               lines.push(branchWat);
             }
+            lines.push(`    ;; compact if arena growth exceeds 1MB`);
+            lines.push(`    global.get $arena_free`);
+            lines.push(`    local.get $tail_loop_mark`);
+            lines.push(`    i32.sub`);
+            lines.push(`    i32.const 1048576`);
+            lines.push(`    i32.gt_u`);
+            lines.push(`    if`);
+            lines.push(`      call $compact_start`);
+            for (let i = 0; i < N; i++) {
+              const fieldTmp = `${dest}_f${i}`;
+              lines.push(`      local.get $${fieldTmp}`);
+              lines.push(`      local.get $tail_loop_mark`);
+              lines.push(`      call $compact_obj`);
+              lines.push(`      local.set $${fieldTmp}`);
+            }
+            lines.push(`      local.get $tail_loop_mark`);
+            lines.push(`      call $compact_finish`);
+            lines.push(`    end`);
             for (let i = 0; i < N; i++) {
               const branch = sortedBranches[i];
               const fieldTmp = `${dest}_f${i}`;
@@ -565,6 +584,21 @@ export function lowerToWasm(relDef, name, options = {}) {
               registers.add(callSrc);
               materializeInputProduct(lines, callSrc);
             }
+            lines.push(`    ;; compact if arena growth exceeds 1MB`);
+            lines.push(`    global.get $arena_free`);
+            lines.push(`    local.get $tail_loop_mark`);
+            lines.push(`    i32.sub`);
+            lines.push(`    i32.const 1048576`);
+            lines.push(`    i32.gt_u`);
+            lines.push(`    if`);
+            lines.push(`      call $compact_start`);
+            lines.push(`      local.get $${callSrc}`);
+            lines.push(`      local.get $tail_loop_mark`);
+            lines.push(`      call $compact_obj`);
+            lines.push(`      local.set $${callSrc}`);
+            lines.push(`      local.get $tail_loop_mark`);
+            lines.push(`      call $compact_finish`);
+            lines.push(`    end`);
             lines.push(`    local.get $${callSrc}`);
             lines.push(`    local.set $in`);
             lines.push(initInputProductLocals());
@@ -641,6 +675,8 @@ export function lowerToWasm(relDef, name, options = {}) {
   const wat = `(func $${name} (export "${name}") (param $in i32) (result i32 i32)
 ${localDecls}
 ${inputProductLocalInit}
+    global.get $arena_free
+    local.set $tail_loop_mark
     (loop ${tailLoopLabel}
 ${profWat}${bodyWat}
     )

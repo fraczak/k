@@ -50,7 +50,16 @@ function propertyListToFilter(propertyList, varPrefix = "X") {
 }
 
 function valueToK(v) {
-  if (isVariant(v)) return `${valueToK(v.value)}|${pLabel(v.tag).trimStart()}`;
+  if (isVariant(v)) {
+    const tags = [];
+    let curr = v;
+    while (isVariant(curr)) {
+      tags.push(pLabel(curr.tag).trimStart());
+      curr = curr.value;
+    }
+    const base = valueToK(curr);
+    return tags.length === 0 ? base : `${base}|${tags.reverse().join("|")}`;
+  }
   if (isProduct(v)) {
     const keys = Object.keys(v.product);
     if (keys.length === 0) return "{}";
