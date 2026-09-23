@@ -156,7 +156,8 @@ await evaluateInput(perfKSource, state);
 
 const ieeeRaw = fs.readFileSync(ieeePath, "utf8");
 // Exclude trailing unassigned expression and comment block to ensure clean parse
-const ieeeBase = ieeeRaw.split("\n").slice(0, 15584).join("\n");
+const endIdx = ieeeRaw.indexOf("\n()\n");
+const ieeeBase = endIdx !== -1 ? ieeeRaw.slice(0, endIdx) : ieeeRaw;
 const fullSource = `${ieeeBase}\n${perfKSource}\nperf_ieee`;
 
 console.log("==> Preparing relation perf_ieee");
@@ -375,6 +376,8 @@ if (runLLVM) {
       console.log(`==> Running LLVM (${opt}) (${iterations} iterations)...`);
       const result = await llvmRunner.run(iterations);
       llvmResults.set(opt, result);
+    } catch (err) {
+      console.log(`==> LLVM (${opt}) execution failed: ${err.message?.split("\n")[0]}`);
     } finally {
       llvmRunner.close();
     }

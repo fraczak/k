@@ -105,7 +105,7 @@ node "$K_ROOT/backends/arm64/bin/k-arm64-compile.mjs" \
   '{succ int x,int y}+' \
   -o "$TMP_DIR/lib-add"
 
-node "$K_ROOT/codecs/k-parse.mjs" <<< '{"x":{"succ":"zero"},"y":{"succ":{"succ":"zero"}}}' |
+node "$K_ROOT/codecs/k-parse.mjs" <<< '{"x":{"0":"_"},"y":{"+":{"0":"_"}}}' |
   "$TMP_DIR/lib-add" --json |
   grep -Fxq '{"+":{"1":"_"}}'
 

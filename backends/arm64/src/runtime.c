@@ -5,7 +5,21 @@
 #include <string.h>
 #include <time.h>
 
-#define ARENA_CAPACITY (64 * 1024 * 1024)
+#define DEFAULT_ARENA_CAPACITY (256 * 1024 * 1024)
+
+static int parse_size_arg(const char *text, size_t *out);
+
+static size_t get_arena_capacity(void) {
+  const char *env = getenv("K_ARENA_CAPACITY_MB");
+  if (!env || !*env) env = getenv("K_ARENA_MB");
+  if (env && *env) {
+    size_t mb = 0;
+    if (parse_size_arg(env, &mb) && mb > 0) {
+      return mb * 1024 * 1024;
+    }
+  }
+  return DEFAULT_ARENA_CAPACITY;
+}
 
 typedef enum {
   K_VALUE_UNIT,
@@ -601,8 +615,10 @@ static int run_bench_main(void *arena_mem, const char *count_text) {
 int main(int argc, char **argv) {
   init_tag_registry();
 
+  size_t arena_capacity = get_arena_capacity();
+
   if (argc == 2 && strcmp(argv[1], "--server") == 0) {
-    void *arena_mem = malloc(ARENA_CAPACITY);
+    void *arena_mem = malloc(arena_capacity);
     if (!arena_mem) return 1;
     int rc = run_server(arena_mem);
     free(arena_mem);
@@ -610,7 +626,7 @@ int main(int argc, char **argv) {
   }
 
   if (argc == 3 && strcmp(argv[1], "--bench-main") == 0) {
-    void *arena_mem = malloc(ARENA_CAPACITY);
+    void *arena_mem = malloc(arena_capacity);
     if (!arena_mem) return 1;
     int rc = run_bench_main(arena_mem, argv[2]);
     free(arena_mem);
@@ -647,7 +663,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  void *arena_mem = malloc(ARENA_CAPACITY);
+  void *arena_mem = malloc(arena_capacity);
   if (!arena_mem) {
     if (in_fp != stdin) fclose(in_fp);
     return 1;
