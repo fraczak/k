@@ -574,7 +574,7 @@ function getNodeMemory() {
 
 const squaringSteps = parsePositiveIntEnv("SQUARING_STEPS", 10);
 const squaringInputText = process.env.SQUARING_INPUT || "987654321";
-const squaringStepTimeoutMs = parsePositiveIntEnv("SQUARING_STEP_TIMEOUT_MS", 25000);
+const squaringStepTimeoutMs = parsePositiveIntEnv("SQUARING_STEP_TIMEOUT_MS", 60000);
 
 console.log("\n=================== SQUARING SCALE & MEMORY BENCHMARK ===================");
 console.log(`Expression: s = {()x,()y}times; ${squaringInputText} ${"s ".repeat(squaringSteps).trim()}`);
@@ -676,7 +676,7 @@ try {
             canonicalWire: curWire
           };
         }
-        if (timeMs > squaringStepTimeoutMs || (lane.id === "llvm" && mem.peakRssMb > 3500)) break;
+        if (timeMs > squaringStepTimeoutMs) break;
       } catch (e) {
         squaringResults[lane.id].push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
         break;

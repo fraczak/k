@@ -66,6 +66,7 @@ k_rt *k_rt_new(void);
 void k_rt_reset(k_rt *rt);
 k_rt_checkpoint k_rt_mark(k_rt *rt);
 void k_rt_rewind(k_rt *rt, k_rt_checkpoint mark);
+k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr);
 void *k_rt_alloc(k_rt *rt, size_t size);
 void k_rt_free(k_rt *rt);
 

@@ -53,6 +53,7 @@ export function runtimeDeclarations() {
     "",
     "declare %k_rt_mark @k_rt_mark(ptr)",
     "declare void @k_rt_rewind(ptr, %k_rt_mark)",
+    "declare ptr @k_rt_compact(ptr, ptr, ptr)",
     "declare ptr @k_rt_alloc(ptr, i64)",
     "declare ptr @k_unit(ptr)",
     "declare ptr @k_bit0(ptr)",
@@ -146,10 +147,11 @@ function lowerRawVariant(ctx, tag, payload) {
   return variant;
 }
 
-function lowerProductGetAt(ctx, input, edgeIndex) {
+function lowerProductGetAt(ctx, input, edgeIndex, label = null) {
   const nonNullBlock = ctx.blockName("product_non_null");
   const productBlock = ctx.blockName("product_kind");
   const fieldBlock = ctx.blockName("product_field");
+  const fallbackBlock = ctx.blockName("product_fallback");
   const missingBlock = ctx.blockName("product_missing");
   const doneBlock = ctx.blockName("product_done");
   const isMissing = ctx.tempName("product_is_missing");
@@ -172,16 +174,38 @@ function lowerProductGetAt(ctx, input, edgeIndex) {
   const fields = loadPtrAt(ctx, input, K_VALUE_PRODUCT_FIELDS_OFFSET, "product_fields_ptr");
   const slot = bytePtr(ctx, fields, edgeIndex * K_FIELD_SIZE, "field_slot");
   const value = loadPtrAt(ctx, slot, K_FIELD_VALUE_OFFSET, "field");
-  ctx.lines.push(`  br label %${doneBlock}`);
 
-  ctx.lines.push(`${missingBlock}:`);
-  ctx.lines.push(`  br label %${doneBlock}`);
+  if (label) {
+    const fLabel = loadPtrAt(ctx, slot, K_FIELD_LABEL_OFFSET, "field_label");
+    const labelMatch = ctx.tempName("label_match");
+    ctx.lines.push(`  ${labelMatch} = icmp eq ptr ${fLabel}, ${label.pointer}`);
+    ctx.lines.push(`  br i1 ${labelMatch}, label %${doneBlock}, label %${fallbackBlock}`);
 
-  ctx.lines.push(`${doneBlock}:`);
-  const resultValue = ctx.tempName("field_value");
-  ctx.lines.push(`  ${resultValue} = phi ptr [${value}, %${fieldBlock}], [null, %${missingBlock}]`);
-  ctx.currentBlock = doneBlock;
-  return resultValue;
+    ctx.lines.push(`${fallbackBlock}:`);
+    const fallbackVal = ctx.tempName("fallback_field");
+    ctx.lines.push(`  ${fallbackVal} = call ptr @k_product_get_n(ptr ${input}, ptr ${label.pointer}, i64 ${label.length})`);
+    ctx.lines.push(`  br label %${doneBlock}`);
+
+    ctx.lines.push(`${missingBlock}:`);
+    ctx.lines.push(`  br label %${doneBlock}`);
+
+    ctx.lines.push(`${doneBlock}:`);
+    const resultValue = ctx.tempName("field_value");
+    ctx.lines.push(`  ${resultValue} = phi ptr [${value}, %${fieldBlock}], [${fallbackVal}, %${fallbackBlock}], [null, %${missingBlock}]`);
+    ctx.currentBlock = doneBlock;
+    return resultValue;
+  } else {
+    ctx.lines.push(`  br label %${doneBlock}`);
+
+    ctx.lines.push(`${missingBlock}:`);
+    ctx.lines.push(`  br label %${doneBlock}`);
+
+    ctx.lines.push(`${doneBlock}:`);
+    const resultValue = ctx.tempName("field_value");
+    ctx.lines.push(`  ${resultValue} = phi ptr [${value}, %${fieldBlock}], [null, %${missingBlock}]`);
+    ctx.currentBlock = doneBlock;
+    return resultValue;
+  }
 }
 
 function lowerVariantMatchBranch(ctx, input, label, matchBlock, mismatchBlock) {
@@ -322,7 +346,9 @@ function statusCheck(ctx, callResult, failTarget = "func_fail") {
   if (ctx.catchTail) {
     const tailInput = ctx.tempName("tail_arg");
     ctx.lines.push(`  ${tailInput} = extractvalue %k_result ${callResult}, 1`);
-    ctx.lines.push(`  store ptr ${tailInput}, ptr %tail_input_slot`);
+    const compacted = ctx.tempName("compacted_arg");
+    ctx.lines.push(`  ${compacted} = call ptr @k_rt_compact(ptr %rt, ptr ${tailInput}, ptr %tail_mark_slot)`);
+    ctx.lines.push(`  store ptr ${compacted}, ptr %tail_input_slot`);
     ctx.lines.push("  br label %tail_loop");
   } else {
     ctx.lines.push(`  ret %k_result ${callResult}`);
@@ -366,8 +392,7 @@ function hasSelfTailCall(insts, funcName, isTail = true) {
     if (inst.branches) {
       const unionIsTail = isTail && tailValueAfter(insts, i + 1, inst.dest);
       for (let bIdx = 0; bIdx < inst.branches.length; bIdx++) {
-        const isLast = (bIdx === inst.branches.length - 1);
-        if (hasSelfTailCall(inst.branches[bIdx].body, funcName, unionIsTail && isLast)) return true;
+        if (hasSelfTailCall(inst.branches[bIdx].body, funcName, unionIsTail)) return true;
       }
     }
   }
@@ -379,13 +404,6 @@ function getFieldEdgeIndex(inst, regPatterns, kvmFunc) {
   const srcPattern = regPatterns.get(srcReg) || (srcReg === "in" ? kvmFunc.inputPattern : null);
   if (Array.isArray(srcPattern) && srcPattern.length > 0) {
     const root = srcPattern[0];
-    if ((root[0] === "open-product" || root[0] === "closed-product") && Array.isArray(root[1])) {
-      const idx = root[1].findIndex(([l]) => l === inst.label);
-      if (idx >= 0) return idx;
-    }
-  }
-  if (Array.isArray(inst.pattern) && inst.pattern.length > 0) {
-    const root = inst.pattern[0];
     if ((root[0] === "open-product" || root[0] === "closed-product") && Array.isArray(root[1])) {
       const idx = root[1].findIndex(([l]) => l === inst.label);
       if (idx >= 0) return idx;
@@ -538,7 +556,11 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
 
   if (isCatchTail) {
     ctx.allocas.push("  %tail_input_slot = alloca ptr");
+    ctx.allocas.push("  %tail_mark_slot = alloca %k_rt_mark");
     ctx.lines.push("  store ptr %input, ptr %tail_input_slot");
+    const initMark = ctx.tempName("init_mark");
+    ctx.lines.push(`  ${initMark} = call %k_rt_mark @k_rt_mark(ptr %rt)`);
+    ctx.lines.push(`  store %k_rt_mark ${initMark}, ptr %tail_mark_slot`);
     ctx.lines.push("  br label %tail_loop");
     ctx.lines.push("tail_loop:");
     ctx.lines.push("  %tail_input = load ptr, ptr %tail_input_slot");
@@ -598,17 +620,13 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
           const input = getReg(inst.src);
           nullCheck(ctx, input, failTarget);
           const edgeIndex = getFieldEdgeIndex(inst, regPatterns, kvmFunc);
+          const label = ctx.labelRef(inst.label);
           let val;
           if (edgeIndex >= 0 && ctx.runtimeMode !== "compact") {
-            val = lowerProductGetAt(ctx, input, edgeIndex);
+            val = lowerProductGetAt(ctx, input, edgeIndex, label);
           } else {
-            const label = ctx.labelRef(inst.label);
             val = ctx.tempName("field");
-            if (edgeIndex >= 0) {
-              ctx.lines.push(`  ${val} = call ptr @k_product_get_at(ptr ${input}, i64 ${edgeIndex})`);
-            } else {
-              ctx.lines.push(`  ${val} = call ptr @k_product_get_n(ptr ${input}, ptr ${label.pointer}, i64 ${label.length})`);
-            }
+            ctx.lines.push(`  ${val} = call ptr @k_product_get_n(ptr ${input}, ptr ${label.pointer}, i64 ${label.length})`);
           }
           nullCheck(ctx, val, failTarget);
           regValues.set(cleanReg(inst.dest), val);
@@ -656,7 +674,9 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
           const v = getReg(inst.src);
           if (isSelfTailCall(insts, i, tailRef)) {
             if (ctx.catchTail) {
-              ctx.lines.push(`  store ptr ${v}, ptr %tail_input_slot`);
+              const compacted = ctx.tempName("compacted");
+              ctx.lines.push(`  ${compacted} = call ptr @k_rt_compact(ptr %rt, ptr ${v}, ptr %tail_mark_slot)`);
+              ctx.lines.push(`  store ptr ${compacted}, ptr %tail_input_slot`);
               ctx.lines.push("  br label %tail_loop");
               return;
             } else {
@@ -796,7 +816,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
               outputPattern: kvmFunc.outputPattern,
               body: branch.body
             };
-            const armTailRef = (isLast && tailValueAfter(insts, i + 1, inst.dest)) ? tailRef : null;
+            const armTailRef = tailValueAfter(insts, i + 1, inst.dest) ? tailRef : null;
             const armBody = lowerKVMFunction(armFunc, armName, armFunc.name, moduleCtx, "internal", { ...options, tailRef: armTailRef });
             moduleCtx.syntheticFunctions.push(armBody);
 
@@ -818,7 +838,9 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
             if (ctx.catchTail) {
               const tailArg = ctx.tempName("arm_tail_arg");
               ctx.lines.push(`  ${tailArg} = extractvalue %k_result ${armCall}, 1`);
-              ctx.lines.push(`  store ptr ${tailArg}, ptr %tail_input_slot`);
+              const compacted = ctx.tempName("compacted_arg");
+              ctx.lines.push(`  ${compacted} = call ptr @k_rt_compact(ptr %rt, ptr ${tailArg}, ptr %tail_mark_slot)`);
+              ctx.lines.push(`  store ptr ${compacted}, ptr %tail_input_slot`);
               ctx.lines.push("  br label %tail_loop");
             } else {
               ctx.lines.push(`  ret %k_result ${armCall}`);

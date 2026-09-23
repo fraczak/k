@@ -11,7 +11,8 @@ enum {
 typedef enum {
   K_VALUE_UNIT,
   K_VALUE_PRODUCT,
-  K_VALUE_VARIANT
+  K_VALUE_VARIANT,
+  K_VALUE_FORWARDED = 99
 } k_value_kind;
 
 typedef struct {
@@ -219,6 +220,382 @@ void k_rt_rewind(k_rt *rt, k_rt_checkpoint mark) {
   rt->bit0_cache = NULL;
   rt->bit1_cache = NULL;
   rt->has_reusable_blocks = has_reusable;
+}
+
+typedef struct {
+  size_t *offsets;
+  size_t count;
+  size_t capacity;
+} k_fixup_list;
+
+static void fixup_add(k_fixup_list *list, size_t offset) {
+  if (list->count == list->capacity) {
+    size_t new_cap = list->capacity == 0 ? 1024 : list->capacity * 2;
+    size_t *new_offsets = (size_t *)realloc(list->offsets, new_cap * sizeof(size_t));
+    if (new_offsets == NULL) abort();
+    list->offsets = new_offsets;
+    list->capacity = new_cap;
+  }
+  list->offsets[list->count++] = offset;
+}
+
+static int is_after_mark(k_rt *rt, const void *ptr, k_rt_checkpoint mark) {
+  if (rt == NULL || ptr == NULL) return 0;
+  const unsigned char *p = (const unsigned char *)ptr;
+  if (mark.block == NULL) {
+    for (k_arena_block *b = rt->blocks; b != NULL; b = b->next) {
+      if (p >= b->data && p < b->data + b->capacity) {
+        return 1;
+      }
+    }
+    return 0;
+  }
+  for (k_arena_block *b = rt->blocks; b != NULL; b = b->next) {
+    if (b == (k_arena_block *)mark.block) {
+      return (p >= b->data + mark.used && p < b->data + b->capacity);
+    }
+    if (p >= b->data && p < b->data + b->capacity) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static size_t bytes_since_mark(k_rt *rt, k_rt_checkpoint mark) {
+  if (rt == NULL || rt->blocks == NULL) return 0;
+  size_t total = 0;
+  if (mark.block == NULL) {
+    for (k_arena_block *b = rt->blocks; b != NULL; b = b->next) {
+      total += b->used;
+    }
+    return total;
+  }
+  for (k_arena_block *b = rt->blocks; b != NULL; b = b->next) {
+    if (b == (k_arena_block *)mark.block) {
+      if (b->used > mark.used) {
+        total += (b->used - mark.used);
+      }
+      break;
+    }
+    total += b->used;
+  }
+  return total;
+}
+
+static void *staging_alloc(unsigned char **staging_ptr, size_t *used, size_t *capacity, size_t size, k_fixup_list *fixups) {
+  size = align_size(size == 0 ? 1 : size);
+  if (*used + size > *capacity) {
+    size_t old_cap = *capacity;
+    size_t new_cap = (old_cap + size) * 2;
+    unsigned char *old_buf = *staging_ptr;
+    unsigned char *new_buf = (unsigned char *)realloc(old_buf, new_cap);
+    if (new_buf == NULL) abort();
+    if (new_buf != old_buf) {
+      ptrdiff_t realloc_diff = new_buf - old_buf;
+      for (size_t i = 0; i < fixups->count; i++) {
+        size_t off = fixups->offsets[i];
+        unsigned char **p = (unsigned char **)(new_buf + off);
+        *p += realloc_diff;
+      }
+    }
+    *staging_ptr = new_buf;
+    *capacity = new_cap;
+  }
+  void *p = *staging_ptr + *used;
+  *used += size;
+  return p;
+}
+
+static k_value *copy_value(k_rt *rt, k_value *root, unsigned char **staging_ptr, size_t *staging_used, size_t *staging_cap, k_fixup_list *fixups, k_rt_checkpoint mark) {
+  if (root == NULL || !is_after_mark(rt, root, mark)) {
+    return root;
+  }
+  if ((int)root->kind == K_VALUE_FORWARDED) {
+    return root->as.variant.payload;
+  }
+
+  if (root->kind == K_VALUE_VARIANT) {
+    k_value *first_staged = NULL;
+    k_value *prev_staged = NULL;
+    k_value *curr = root;
+
+    while (curr != NULL) {
+      if (!is_after_mark(rt, curr, mark)) {
+        if (prev_staged != NULL) {
+          prev_staged->as.variant.payload = curr;
+        }
+        if (first_staged == NULL) {
+          first_staged = curr;
+        }
+        break;
+      }
+
+      if ((int)curr->kind == K_VALUE_FORWARDED) {
+        k_value *staged_target = curr->as.variant.payload;
+        if (prev_staged != NULL) {
+          prev_staged->as.variant.payload = staged_target;
+          fixup_add(fixups, (unsigned char *)&prev_staged->as.variant.payload - *staging_ptr);
+        }
+        if (first_staged == NULL) {
+          first_staged = staged_target;
+        }
+        break;
+      }
+
+      if (curr->as.variant.tag != NULL) {
+        if (bytes_equal(curr->as.variant.tag, curr->as.variant.tag_length, "Float64", 7)) {
+          k_value *staged_v = (k_value *)staging_alloc(staging_ptr, staging_used, staging_cap, sizeof(k_value), fixups);
+          staged_v->kind = K_VALUE_VARIANT;
+          staged_v->rt = rt;
+          staged_v->as.variant.tag = curr->as.variant.tag;
+          staged_v->as.variant.tag_length = curr->as.variant.tag_length;
+          staged_v->as.variant.payload = NULL;
+
+          if (is_after_mark(rt, curr->as.variant.tag, mark)) {
+            char *staged_tag = (char *)staging_alloc(staging_ptr, staging_used, staging_cap, curr->as.variant.tag_length + 1, fixups);
+            memcpy(staged_tag, curr->as.variant.tag, curr->as.variant.tag_length);
+            staged_tag[curr->as.variant.tag_length] = 0;
+            staged_v->as.variant.tag = staged_tag;
+            fixup_add(fixups, (unsigned char *)&staged_v->as.variant.tag - *staging_ptr);
+          }
+
+          if (curr->as.variant.payload != NULL && is_after_mark(rt, curr->as.variant.payload, mark)) {
+            void *raw = staging_alloc(staging_ptr, staging_used, staging_cap, sizeof(double), fixups);
+            memcpy(raw, curr->as.variant.payload, sizeof(double));
+            staged_v->as.variant.payload = (k_value *)raw;
+            fixup_add(fixups, (unsigned char *)&staged_v->as.variant.payload - *staging_ptr);
+          } else {
+            staged_v->as.variant.payload = curr->as.variant.payload;
+          }
+
+          if (prev_staged != NULL) {
+            prev_staged->as.variant.payload = staged_v;
+            fixup_add(fixups, (unsigned char *)&prev_staged->as.variant.payload - *staging_ptr);
+          }
+          if (first_staged == NULL) {
+            first_staged = staged_v;
+          }
+          curr->kind = (k_value_kind)K_VALUE_FORWARDED;
+          curr->as.variant.payload = staged_v;
+          break;
+        }
+
+        if (bytes_equal(curr->as.variant.tag, curr->as.variant.tag_length, "Int32", 5)) {
+          k_value *staged_v = (k_value *)staging_alloc(staging_ptr, staging_used, staging_cap, sizeof(k_value), fixups);
+          staged_v->kind = K_VALUE_VARIANT;
+          staged_v->rt = rt;
+          staged_v->as.variant.tag = curr->as.variant.tag;
+          staged_v->as.variant.tag_length = curr->as.variant.tag_length;
+          staged_v->as.variant.payload = NULL;
+
+          if (is_after_mark(rt, curr->as.variant.tag, mark)) {
+            char *staged_tag = (char *)staging_alloc(staging_ptr, staging_used, staging_cap, curr->as.variant.tag_length + 1, fixups);
+            memcpy(staged_tag, curr->as.variant.tag, curr->as.variant.tag_length);
+            staged_tag[curr->as.variant.tag_length] = 0;
+            staged_v->as.variant.tag = staged_tag;
+            fixup_add(fixups, (unsigned char *)&staged_v->as.variant.tag - *staging_ptr);
+          }
+
+          if (curr->as.variant.payload != NULL && is_after_mark(rt, curr->as.variant.payload, mark)) {
+            void *raw = staging_alloc(staging_ptr, staging_used, staging_cap, sizeof(int32_t), fixups);
+            memcpy(raw, curr->as.variant.payload, sizeof(int32_t));
+            staged_v->as.variant.payload = (k_value *)raw;
+            fixup_add(fixups, (unsigned char *)&staged_v->as.variant.payload - *staging_ptr);
+          } else {
+            staged_v->as.variant.payload = curr->as.variant.payload;
+          }
+
+          if (prev_staged != NULL) {
+            prev_staged->as.variant.payload = staged_v;
+            fixup_add(fixups, (unsigned char *)&prev_staged->as.variant.payload - *staging_ptr);
+          }
+          if (first_staged == NULL) {
+            first_staged = staged_v;
+          }
+          curr->kind = (k_value_kind)K_VALUE_FORWARDED;
+          curr->as.variant.payload = staged_v;
+          break;
+        }
+      }
+
+      if (curr->kind != K_VALUE_VARIANT) {
+        k_value *staged_child = copy_value(rt, curr, staging_ptr, staging_used, staging_cap, fixups, mark);
+        if (prev_staged != NULL) {
+          prev_staged->as.variant.payload = staged_child;
+          if (staged_child != NULL && (unsigned char *)staged_child >= *staging_ptr && (unsigned char *)staged_child < *staging_ptr + *staging_used) {
+            fixup_add(fixups, (unsigned char *)&prev_staged->as.variant.payload - *staging_ptr);
+          }
+        }
+        if (first_staged == NULL) {
+          first_staged = staged_child;
+        }
+        break;
+      }
+
+      k_value *staged_v = (k_value *)staging_alloc(staging_ptr, staging_used, staging_cap, sizeof(k_value), fixups);
+      staged_v->kind = K_VALUE_VARIANT;
+      staged_v->rt = rt;
+      staged_v->as.variant.tag = curr->as.variant.tag;
+      staged_v->as.variant.tag_length = curr->as.variant.tag_length;
+      staged_v->as.variant.payload = NULL;
+
+      if (curr->as.variant.tag != NULL && is_after_mark(rt, curr->as.variant.tag, mark)) {
+        char *staged_tag = (char *)staging_alloc(staging_ptr, staging_used, staging_cap, curr->as.variant.tag_length + 1, fixups);
+        memcpy(staged_tag, curr->as.variant.tag, curr->as.variant.tag_length);
+        staged_tag[curr->as.variant.tag_length] = 0;
+        staged_v->as.variant.tag = staged_tag;
+        fixup_add(fixups, (unsigned char *)&staged_v->as.variant.tag - *staging_ptr);
+      }
+
+      if (prev_staged != NULL) {
+        prev_staged->as.variant.payload = staged_v;
+        fixup_add(fixups, (unsigned char *)&prev_staged->as.variant.payload - *staging_ptr);
+      }
+      if (first_staged == NULL) {
+        first_staged = staged_v;
+      }
+
+      k_value *next = curr->as.variant.payload;
+      curr->kind = (k_value_kind)K_VALUE_FORWARDED;
+      curr->as.variant.payload = staged_v;
+
+      prev_staged = staged_v;
+      curr = next;
+    }
+
+    return first_staged;
+  }
+
+  size_t header_size = align_size(sizeof(k_value));
+  size_t fields_size = root->as.product.count * sizeof(k_field);
+  size_t total_size = header_size + fields_size;
+
+  k_value *staged_p = (k_value *)staging_alloc(staging_ptr, staging_used, staging_cap, total_size, fixups);
+  staged_p->kind = root->kind;
+  staged_p->rt = rt;
+  staged_p->as.product.count = root->as.product.count;
+  staged_p->as.product.capacity = root->as.product.count;
+
+  if (root->as.product.count > 0) {
+    k_field *staged_fields = (k_field *)((unsigned char *)staged_p + header_size);
+    staged_p->as.product.fields = staged_fields;
+    fixup_add(fixups, (unsigned char *)&staged_p->as.product.fields - *staging_ptr);
+
+    k_field *old_fields = root->as.product.fields;
+    size_t count = root->as.product.count;
+
+    root->kind = (k_value_kind)K_VALUE_FORWARDED;
+    root->as.variant.payload = staged_p;
+
+    for (size_t i = 0; i < count; i++) {
+      staged_fields[i].label_length = old_fields[i].label_length;
+      staged_fields[i].label = old_fields[i].label;
+      if (old_fields[i].label != NULL && is_after_mark(rt, old_fields[i].label, mark)) {
+        char *staged_label = (char *)staging_alloc(staging_ptr, staging_used, staging_cap, old_fields[i].label_length + 1, fixups);
+        memcpy(staged_label, old_fields[i].label, old_fields[i].label_length);
+        staged_label[old_fields[i].label_length] = 0;
+        staged_fields[i].label = staged_label;
+        fixup_add(fixups, (unsigned char *)&staged_fields[i].label - *staging_ptr);
+      }
+
+      k_value *child = copy_value(rt, old_fields[i].value, staging_ptr, staging_used, staging_cap, fixups, mark);
+      staged_fields[i].value = child;
+      if (child != NULL && (unsigned char *)child >= *staging_ptr && (unsigned char *)child < *staging_ptr + *staging_used) {
+        fixup_add(fixups, (unsigned char *)&staged_fields[i].value - *staging_ptr);
+      }
+    }
+  } else {
+    staged_p->as.product.fields = NULL;
+    root->kind = (k_value_kind)K_VALUE_FORWARDED;
+    root->as.variant.payload = staged_p;
+  }
+
+  return staged_p;
+}
+
+static void rt_rewind_and_free(k_rt *rt, k_rt_checkpoint mark) {
+  if (rt == NULL) return;
+  if (mark.block == NULL) {
+    k_arena_block *b = rt->blocks;
+    while (b != NULL) {
+      k_arena_block *next = b->next;
+      free(b);
+      b = next;
+    }
+    rt->blocks = NULL;
+    rt->unit_cache = NULL;
+    rt->bit0_cache = NULL;
+    rt->bit1_cache = NULL;
+    rt->has_reusable_blocks = 0;
+    return;
+  }
+  k_arena_block *b = rt->blocks;
+  while (b != NULL && b != (k_arena_block *)mark.block) {
+    k_arena_block *next = b->next;
+    free(b);
+    b = next;
+  }
+  rt->blocks = (k_arena_block *)mark.block;
+  if (rt->blocks != NULL) {
+    rt->blocks->used = mark.used;
+  }
+  rt->unit_cache = NULL;
+  rt->bit0_cache = NULL;
+  rt->bit1_cache = NULL;
+  rt->has_reusable_blocks = 0;
+}
+
+k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr) {
+  if (rt == NULL || root == NULL || mark_ptr == NULL) return root;
+
+  size_t bytes = bytes_since_mark(rt, *mark_ptr);
+  if (bytes < 1048576) {
+    return root;
+  }
+
+  if (!is_after_mark(rt, root, *mark_ptr)) {
+    rt_rewind_and_free(rt, *mark_ptr);
+    return root;
+  }
+
+  size_t staging_cap = bytes + 65536;
+  unsigned char *staging = (unsigned char *)malloc(staging_cap);
+  if (staging == NULL) abort();
+  size_t staging_used = 0;
+
+  k_fixup_list fixups = {NULL, 0, 0};
+
+  k_value *staged_root = copy_value(rt, root, &staging, &staging_used, &staging_cap, &fixups, *mark_ptr);
+
+  rt_rewind_and_free(rt, *mark_ptr);
+
+  if (staging_used == 0) {
+    free(staging);
+    if (fixups.offsets != NULL) free(fixups.offsets);
+    return staged_root;
+  }
+
+  void *arena_dest = rt_alloc(rt, staging_used);
+  if (arena_dest == NULL) abort();
+
+  ptrdiff_t diff = (unsigned char *)arena_dest - staging;
+
+  for (size_t i = 0; i < fixups.count; i++) {
+    size_t off = fixups.offsets[i];
+    unsigned char **p = (unsigned char **)(staging + off);
+    *p += diff;
+  }
+
+  memcpy(arena_dest, staging, staging_used);
+
+  k_value *new_root = (staged_root != NULL && (unsigned char *)staged_root >= staging && (unsigned char *)staged_root < staging + staging_used)
+    ? (k_value *)((unsigned char *)staged_root + diff)
+    : staged_root;
+
+  free(staging);
+  if (fixups.offsets != NULL) free(fixups.offsets);
+
+  return new_root;
 }
 
 void k_rt_free(k_rt *rt) {
