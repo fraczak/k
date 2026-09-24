@@ -17,7 +17,7 @@ function usage(stream = console.error) {
   stream("");
   stream("Options:");
   stream("  --retype rel            Relation to specialize. Defaults to object main.");
-  stream("  --input-pattern value   Required input pattern property-list JSON, or a file containing it.");
+  stream("  --input-pattern value   Optional input pattern property-list JSON (defaults to relation input pattern).");
   stream("  -h, --help              Show this help.");
 }
 
@@ -57,7 +57,6 @@ try {
   if (objectPath == null) throw new Error("object-file is required");
   if (outputPath == null) throw new Error("output-exe is required");
   if (args.length > 0) throw new Error(`Unexpected argument: ${args[0]}`);
-  if (inputPattern == null) throw new Error("--input-pattern is required for k-llvm-build");
 
   const object = decodeObject(fs.readFileSync(objectPath));
   compileObjectToExecutable(object, outputPath, {
