@@ -311,6 +311,56 @@ function lowerRtRewind(ctx, mark) {
   ctx.currentBlock = doneBlock;
 }
 
+function lowerRtCompact(ctx, val, tailMarkSlot = "%tail_mark_slot") {
+  const curBlock = loadPtrAt(ctx, "%rt", K_RT_BLOCKS_OFFSET, "cur_block");
+  const hasBlock = ctx.tempName("has_block");
+  const markBlockPtr = ctx.tempName("mark_block_ptr");
+  ctx.lines.push(`  ${hasBlock} = icmp ne ptr ${curBlock}, null`);
+  ctx.lines.push(`  ${markBlockPtr} = getelementptr inbounds %k_rt_mark, ptr ${tailMarkSlot}, i32 0, i32 0`);
+  const markBlock = ctx.tempName("mark_block");
+  ctx.lines.push(`  ${markBlock} = load ptr, ptr ${markBlockPtr}`);
+
+  const diffBlock = ctx.tempName("diff_block");
+  ctx.lines.push(`  ${diffBlock} = icmp ne ptr ${curBlock}, ${markBlock}`);
+  const needCheck = ctx.tempName("need_growth_check");
+  ctx.lines.push(`  ${needCheck} = and i1 ${hasBlock}, ${diffBlock}`);
+
+  const checkGrowthBlock = ctx.blockName("check_growth");
+  const doCompactBlock = ctx.blockName("do_compact");
+  const doneBlock = ctx.blockName("compact_done");
+
+  ctx.lines.push(`  br i1 ${needCheck}, label %${doCompactBlock}, label %${checkGrowthBlock}`);
+
+  ctx.lines.push(`${checkGrowthBlock}:`);
+  const checkBlockHasBlock = ctx.tempName("check_has_block");
+  ctx.lines.push(`  ${checkBlockHasBlock} = icmp ne ptr ${curBlock}, null`);
+  const loadGrowthBlock = ctx.blockName("load_growth");
+  ctx.lines.push(`  br i1 ${checkBlockHasBlock}, label %${loadGrowthBlock}, label %${doneBlock}`);
+
+  ctx.lines.push(`${loadGrowthBlock}:`);
+  const curUsed = loadI64At(ctx, curBlock, K_ARENA_BLOCK_USED_OFFSET, "cur_used");
+  const markUsedPtr = ctx.tempName("mark_used_ptr");
+  ctx.lines.push(`  ${markUsedPtr} = getelementptr inbounds %k_rt_mark, ptr ${tailMarkSlot}, i32 0, i32 1`);
+  const markUsed = ctx.tempName("mark_used");
+  ctx.lines.push(`  ${markUsed} = load i64, ptr ${markUsedPtr}`);
+  const growth = ctx.tempName("arena_growth");
+  ctx.lines.push(`  ${growth} = sub i64 ${curUsed}, ${markUsed}`);
+  const threshExceeded = ctx.tempName("thresh_exceeded");
+  ctx.lines.push(`  ${threshExceeded} = icmp ugt i64 ${growth}, 4194304`);
+  ctx.lines.push(`  br i1 ${threshExceeded}, label %${doCompactBlock}, label %${doneBlock}`);
+
+  ctx.lines.push(`${doCompactBlock}:`);
+  const compacted = ctx.tempName("compacted");
+  ctx.lines.push(`  ${compacted} = call ptr @k_rt_compact(ptr %rt, ptr ${val}, ptr ${tailMarkSlot})`);
+  ctx.lines.push(`  br label %${doneBlock}`);
+
+  ctx.lines.push(`${doneBlock}:`);
+  const finalVal = ctx.tempName("compact_res");
+  ctx.lines.push(`  ${finalVal} = phi ptr [${val}, %${checkGrowthBlock}], [${val}, %${loadGrowthBlock}], [${compacted}, %${doCompactBlock}]`);
+  ctx.currentBlock = doneBlock;
+  return finalVal;
+}
+
 function nullCheck(ctx, val, failTarget) {
   const isMissing = ctx.tempName("missing");
   const okBlock = ctx.blockName("nonnull");
@@ -346,8 +396,7 @@ function statusCheck(ctx, callResult, failTarget = "func_fail") {
   if (ctx.catchTail) {
     const tailInput = ctx.tempName("tail_arg");
     ctx.lines.push(`  ${tailInput} = extractvalue %k_result ${callResult}, 1`);
-    const compacted = ctx.tempName("compacted_arg");
-    ctx.lines.push(`  ${compacted} = call ptr @k_rt_compact(ptr %rt, ptr ${tailInput}, ptr %tail_mark_slot)`);
+    const compacted = lowerRtCompact(ctx, tailInput, "%tail_mark_slot");
     ctx.lines.push(`  store ptr ${compacted}, ptr %tail_input_slot`);
     ctx.lines.push("  br label %tail_loop");
   } else {
@@ -674,8 +723,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
           const v = getReg(inst.src);
           if (isSelfTailCall(insts, i, tailRef)) {
             if (ctx.catchTail) {
-              const compacted = ctx.tempName("compacted");
-              ctx.lines.push(`  ${compacted} = call ptr @k_rt_compact(ptr %rt, ptr ${v}, ptr %tail_mark_slot)`);
+              const compacted = lowerRtCompact(ctx, v, "%tail_mark_slot");
               ctx.lines.push(`  store ptr ${compacted}, ptr %tail_input_slot`);
               ctx.lines.push("  br label %tail_loop");
               return;
@@ -838,8 +886,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
             if (ctx.catchTail) {
               const tailArg = ctx.tempName("arm_tail_arg");
               ctx.lines.push(`  ${tailArg} = extractvalue %k_result ${armCall}, 1`);
-              const compacted = ctx.tempName("compacted_arg");
-              ctx.lines.push(`  ${compacted} = call ptr @k_rt_compact(ptr %rt, ptr ${tailArg}, ptr %tail_mark_slot)`);
+              const compacted = lowerRtCompact(ctx, tailArg, "%tail_mark_slot");
               ctx.lines.push(`  store ptr ${compacted}, ptr %tail_input_slot`);
               ctx.lines.push("  br label %tail_loop");
             } else {

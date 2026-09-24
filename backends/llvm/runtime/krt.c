@@ -5,7 +5,7 @@
 #include <string.h>
 
 enum {
-  K_ARENA_BLOCK_SIZE = 262144
+  K_ARENA_BLOCK_SIZE = 4194304
 };
 
 typedef enum {
@@ -242,7 +242,8 @@ static void fixup_add(k_fixup_list *list, size_t offset) {
 static int is_after_mark(k_rt *rt, const void *ptr, k_rt_checkpoint mark) {
   if (rt == NULL || ptr == NULL) return 0;
   const unsigned char *p = (const unsigned char *)ptr;
-  if (mark.block == NULL) {
+  k_arena_block *mb = (k_arena_block *)mark.block;
+  if (mb == NULL) {
     for (k_arena_block *b = rt->blocks; b != NULL; b = b->next) {
       if (p >= b->data && p < b->data + b->capacity) {
         return 1;
@@ -250,8 +251,11 @@ static int is_after_mark(k_rt *rt, const void *ptr, k_rt_checkpoint mark) {
     }
     return 0;
   }
+  if (rt->blocks == mb) {
+    return (p >= mb->data + mark.used && p < mb->data + mb->capacity);
+  }
   for (k_arena_block *b = rt->blocks; b != NULL; b = b->next) {
-    if (b == (k_arena_block *)mark.block) {
+    if (b == mb) {
       return (p >= b->data + mark.used && p < b->data + b->capacity);
     }
     if (p >= b->data && p < b->data + b->capacity) {
@@ -263,15 +267,19 @@ static int is_after_mark(k_rt *rt, const void *ptr, k_rt_checkpoint mark) {
 
 static size_t bytes_since_mark(k_rt *rt, k_rt_checkpoint mark) {
   if (rt == NULL || rt->blocks == NULL) return 0;
+  k_arena_block *mb = (k_arena_block *)mark.block;
+  if (rt->blocks == mb) {
+    return rt->blocks->used >= mark.used ? rt->blocks->used - mark.used : 0;
+  }
   size_t total = 0;
-  if (mark.block == NULL) {
+  if (mb == NULL) {
     for (k_arena_block *b = rt->blocks; b != NULL; b = b->next) {
       total += b->used;
     }
     return total;
   }
   for (k_arena_block *b = rt->blocks; b != NULL; b = b->next) {
-    if (b == (k_arena_block *)mark.block) {
+    if (b == mb) {
       if (b->used > mark.used) {
         total += (b->used - mark.used);
       }
@@ -549,7 +557,7 @@ k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr) {
   if (rt == NULL || root == NULL || mark_ptr == NULL) return root;
 
   size_t bytes = bytes_since_mark(rt, *mark_ptr);
-  if (bytes < 1048576) {
+  if (bytes < 4194304) {
     return root;
   }
 

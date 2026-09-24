@@ -74,7 +74,7 @@ const arm64OptLevel = process.env.ARM64_OPT || "-O2";
 
 // LLVM options
 const llvmWarmupIterations = parseNonNegativeIntEnv("LLVM_WARMUP_ITERATIONS", 1);
-const llvmRuntimeMode = process.env.K_LLVM_IEEE_RUNTIME_MODE || "compact";
+const llvmRuntimeMode = process.env.K_LLVM_IEEE_RUNTIME_MODE || "fast";
 
 function getClangOptLevels() {
   for (const arg of process.argv.slice(2)) {
