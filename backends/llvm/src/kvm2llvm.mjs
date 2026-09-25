@@ -757,6 +757,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
           const fieldValues = [];
           const pSrc = getReg(inst.src);
           const pPattern = regPatterns.get(cleanReg(inst.src)) || (cleanReg(inst.src) === "in" ? regPatterns.get("in") : null);
+          let productFailed = false;
 
           for (let bIdx = 0; bIdx < N; bIdx++) {
             const branch = inst.branches[bIdx];
@@ -783,10 +784,19 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
               nextBlock: branchDone
             });
 
+            if (!branchRegValues.has(cleanReg(branchRes))) {
+              productFailed = true;
+              break;
+            }
+
             ctx.lines.push(`${branchDone}:`);
             ctx.currentBlock = branchDone;
-            const fVal = branchRegValues.get(cleanReg(branchRes)) || branchRes;
+            const fVal = branchRegValues.get(cleanReg(branchRes));
             fieldValues.push({ label: branch.label, val: fVal });
+          }
+
+          if (productFailed) {
+            break;
           }
 
           const requestedSize = K_PRODUCT_HEADER_SIZE + (K_FIELD_SIZE * N);

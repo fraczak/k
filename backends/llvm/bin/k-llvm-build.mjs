@@ -1,14 +1,23 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
-import { argv, exit } from "node:process";
-import { decodeObject } from "@fraczak/k/object.mjs";
+import { argv, exit, stdin } from "node:process";
+import {
+  compileProgramInputToObject,
+  parseCompileOptions,
+  resolveProgramInput
+} from "../src/cli.mjs";
 import { compileObjectToExecutable } from "../src/executable.mjs";
 
 function usage(stream = console.error) {
   const prog = argv[1] || "k-llvm-build.mjs";
-  stream(`Usage: node ${prog} [options] object-file output-exe`);
-  stream("Compile a k .ko/.klib object into a native executable.");
+  stream(`Usage: node ${prog} [options] [source-snippet | input-file [output-exe]]`);
+  stream("Compile k source, .ko, or .klib input into a native executable.");
+  stream("");
+  stream("Arguments:");
+  stream("  source-snippet  Inline k source, in the same style as k.mjs.");
+  stream("  input-file      Source .k, .ko, or .klib file. Reads UTF-8 source from stdin when omitted.");
+  stream("  output-exe      Output executable path.");
   stream("");
   stream("The executable reads a binary k pattern+value envelope from stdin and");
   stream("writes a binary k pattern+value envelope to stdout.");
@@ -16,18 +25,13 @@ function usage(stream = console.error) {
   stream("stdout is encoded with the compiled output pattern.");
   stream("");
   stream("Options:");
-  stream("  --retype rel            Relation to specialize. Defaults to object main.");
-  stream("  --input-pattern value   Optional input pattern property-list JSON (defaults to relation input pattern).");
-  stream("  -h, --help              Show this help.");
-}
-
-function readMaybeFile(textOrPath) {
-  return fs.existsSync(textOrPath) ? fs.readFileSync(textOrPath, "utf8") : textOrPath;
-}
-
-function readPattern(inputPattern) {
-  if (inputPattern == null) return null;
-  return JSON.parse(readMaybeFile(inputPattern));
+  stream("  -o, --output path  Specify output file path explicitly.");
+  stream("  --main spec        Relation name or k snippet to specialize as main. Defaults to object main.");
+  stream("  --retype spec      Alias for --main.");
+  stream("  --lib file         Load one .klib dependency before compiling.");
+  stream("  --export spec      Export a library alias into source scope. May be repeated.");
+  stream("                     spec is 'name' or 'libname:localname'.");
+  stream("  -h, --help         Show this help.");
 }
 
 try {
@@ -37,32 +41,40 @@ try {
     exit(0);
   }
 
-  let relation = null;
-  let inputPattern = null;
-  while (args.length > 0 && args[0].startsWith("--")) {
-    const option = args.shift();
-    if (option === "--retype") {
-      relation = args.shift();
-      if (!relation) throw new Error("--retype requires a relation name");
-    } else if (option === "--input-pattern") {
-      inputPattern = args.shift();
-      if (!inputPattern) throw new Error("--input-pattern requires JSON or a file path");
+  let explicitOutput = null;
+  let mainSpec = null;
+  const remainingArgs = [];
+  while (args.length > 0) {
+    const arg = args[0];
+    if (arg === "-o" || arg === "--output") {
+      args.shift();
+      explicitOutput = args.shift();
+      if (!explicitOutput) throw new Error("-o/--output requires a file argument");
+    } else if (arg === "--main" || arg === "--retype") {
+      args.shift();
+      mainSpec = args.shift();
+      if (!mainSpec) throw new Error(`${arg} requires a relation name or k snippet`);
     } else {
-      throw new Error(`Unknown option: ${option}`);
+      remainingArgs.push(args.shift());
     }
   }
 
-  const objectPath = args.shift() || null;
-  const outputPath = args.shift() || null;
-  if (objectPath == null) throw new Error("object-file is required");
-  if (outputPath == null) throw new Error("output-exe is required");
-  if (args.length > 0) throw new Error(`Unexpected argument: ${args[0]}`);
+  const { libraries, exportSpecs } = parseCompileOptions(remainingArgs);
+  const input = resolveProgramInput(remainingArgs, { allowStdinSource: true });
+  const positionalOutput = remainingArgs.shift();
+  if (remainingArgs.length > 0) throw new Error("Too many arguments");
 
-  const object = decodeObject(fs.readFileSync(objectPath));
-  compileObjectToExecutable(object, outputPath, {
-    relation: relation || object.main,
-    inputPattern: readPattern(inputPattern)
+  const outputPath = explicitOutput || positionalOutput || null;
+  if (outputPath == null) throw new Error("Output executable path is required (pass output-exe or -o/--output)");
+
+  const object = await compileProgramInputToObject(input, {
+    libraries,
+    exportSpecs,
+    stdin,
+    main: mainSpec
   });
+
+  compileObjectToExecutable(object, outputPath);
 } catch (error) {
   console.error(error.stack || error.message || String(error));
   usage();

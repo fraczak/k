@@ -2,29 +2,42 @@
 
 import fs from "node:fs";
 import { argv, exit, stdin, stdout } from "node:process";
-import { compileBufferToLLVM } from "../src/llvm.mjs";
+import {
+  compileProgramInputToObject,
+  parseCompileOptions,
+  resolveProgramInput
+} from "../src/cli.mjs";
+import { compileObjectToLLVM } from "../src/llvm.mjs";
+import { inputPatternForObjectRelation } from "../src/executable.mjs";
 
 function usage(stream = console.error) {
   const prog = argv[1] || "k-llvm-compile.mjs";
-  stream(`Usage: node ${prog} [options] object-file [output.ll]`);
+  stream(`Usage: node ${prog} [options] [source-snippet | input-file [output.ll]]`);
   stream("Compile a k .ko/.klib object into prototype LLVM IR.");
   stream("");
   stream("Arguments:");
-  stream("  object-file     Input .ko or .klib file. Reads bytes from stdin when omitted.");
+  stream("  source-snippet  Inline k source, in the same style as k.mjs.");
+  stream("  input-file      Source .k, .ko, or .klib file. Reads UTF-8 source from stdin when omitted.");
   stream("  output.ll       Output LLVM IR path. Writes to stdout when omitted.");
   stream("");
   stream("Options:");
-  stream("  --retype rel            Relation to specialize. Defaults to object main.");
-  stream("  --input-pattern value   Input pattern property-list JSON, or a file containing it.");
+  stream("  -o, --output path       Specify output file path explicitly.");
+  stream("  --main spec             Relation name or k snippet to specialize as main. Defaults to object main.");
+  stream("  --retype spec           Alias for --main.");
+  stream("  --input-pattern value   Optional input pattern property-list JSON, or a file containing it.");
+  stream("  --lib file              Load one .klib dependency before compiling.");
+  stream("  --export spec           Export a library alias into source scope. May be repeated.");
+  stream("                          spec is 'name' or 'libname:localname'.");
   stream("  -h, --help              Show this help.");
 }
 
-async function readStdinBytes() {
-  const chunks = [];
-  for await (const chunk of stdin) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks);
+function readMaybeFile(textOrPath) {
+  return fs.existsSync(textOrPath) ? fs.readFileSync(textOrPath, "utf8") : textOrPath;
+}
+
+function readPattern(inputPattern) {
+  if (inputPattern == null) return null;
+  return JSON.parse(readMaybeFile(inputPattern));
 }
 
 try {
@@ -34,32 +47,54 @@ try {
     exit(0);
   }
 
-  let relation = null;
+  let explicitOutput = null;
+  let mainSpec = null;
   let inputPattern = null;
-  while (args.length > 0 && args[0].startsWith("--")) {
-    const option = args.shift();
-    if (option === "--retype") {
-      relation = args.shift();
-      if (!relation) throw new Error("--retype requires a relation name");
-    } else if (option === "--input-pattern") {
+  const remainingArgs = [];
+  while (args.length > 0) {
+    const arg = args[0];
+    if (arg === "-o" || arg === "--output") {
+      args.shift();
+      explicitOutput = args.shift();
+      if (!explicitOutput) throw new Error("-o/--output requires a file argument");
+    } else if (arg === "--main" || arg === "--retype") {
+      args.shift();
+      mainSpec = args.shift();
+      if (!mainSpec) throw new Error(`${arg} requires a relation name or k snippet`);
+    } else if (arg === "--input-pattern") {
+      args.shift();
       inputPattern = args.shift();
       if (!inputPattern) throw new Error("--input-pattern requires JSON or a file path");
     } else {
-      throw new Error(`Unknown option: ${option}`);
+      remainingArgs.push(args.shift());
     }
   }
-  if (inputPattern == null) throw new Error("--input-pattern is required");
 
-  const inputPath = args.shift() || null;
-  const outputPath = args.shift() || null;
-  if (args.length > 0) throw new Error(`Unexpected argument: ${args[0]}`);
+  const { libraries, exportSpecs } = parseCompileOptions(remainingArgs);
+  const input = resolveProgramInput(remainingArgs, { allowStdinSource: true });
+  const positionalOutput = remainingArgs.shift();
+  if (remainingArgs.length > 0) throw new Error("Too many arguments");
 
-  const input = inputPath == null ? await readStdinBytes() : fs.readFileSync(inputPath);
-  const { llvm } = compileBufferToLLVM(input, { relation, inputPattern });
+  const outputPath = explicitOutput || positionalOutput || null;
+
+  const object = await compileProgramInputToObject(input, {
+    libraries,
+    exportSpecs,
+    stdin,
+    main: mainSpec
+  });
+
+  const parsedPattern = readPattern(inputPattern);
+  const patternToUse = parsedPattern || inputPatternForObjectRelation(object, object.main);
+  const { llvm } = compileObjectToLLVM(object, {
+    relation: object.main,
+    inputPattern: patternToUse
+  });
+
   if (outputPath == null) {
     stdout.write(llvm);
   } else {
-    fs.writeFileSync(outputPath, llvm);
+    fs.writeFileSync(outputPath, llvm, "utf8");
   }
 } catch (error) {
   console.error(error.stack || error.message || String(error));

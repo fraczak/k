@@ -44,24 +44,26 @@ status in `k_result`. These operations can compose through KIR `comp`.
 ## CLI
 
 ```sh
-k-llvm-build [options] object.ko output-exe
-k-llvm-compile [options] object.ko [output.ll]
+k-llvm-build [options] [source-snippet | input-file [output-exe]]
+k-llvm-compile [options] [source-snippet | input-file [output.ll]]
 k-llvm-jit [options] object.ko
 k-llvm-run [options] object.ko [input.kv]
 ```
 
 Options:
 
-- `--retype rel`: current option spelling for the relation to
-  envelope-specialize; defaults to the object's `main`.
-- `--input-pattern json-or-file`: KIR property-list input pattern; required
-  for `k-llvm-build`.
-- `--expect value-or-file`: for `k-llvm-run`, compare the output value against
-  expected value text.
+- `-o, --output path`: specify output file path explicitly.
+- `--main spec`: relation or k snippet to specialize as `main`; defaults to the object's `main`. (`--retype` is supported as an alias).
+- `--lib file`: load one `.klib` or `.k` dependency before compiling.
+- `--export spec`: export a library alias into source scope (`name` or `libname:localname`). May be repeated.
+- `--input-pattern json-or-file`: KIR property-list input pattern; optional override for `k-llvm-compile` or `k-llvm-run`.
+- `--expect value-or-file`: for `k-llvm-run`, compare the output value against expected value text.
 - `-h`, `--help`: show usage.
 
-Only `.ko` / `.klib` object input is supported in this first prototype.
-Source compilation remains owned by core `k`.
+The compile commands follow the unified k CLI input convention: pass inline
+source, an existing `.k` source file, or a `.ko`/`.klib` object. Reads UTF-8
+source from stdin when input is omitted. Output paths can be specified as a
+positional argument or explicitly with `-o, --output`.
 Without `--expect`, `k-llvm-run` prints the result value as compact JSON.
 `k-llvm-build` emits a native executable that reads and writes the binary
 k pattern+value envelope used by `codecs/k-parse.mjs` and `codecs/k-print.mjs`.

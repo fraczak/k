@@ -20,6 +20,7 @@ function usage(stream = console.error) {
   stream("  wasm-file       Output .wasm path. Writes the binary artifact to stdout when omitted.");
   stream("");
   stream("Options:");
+  stream("  -o, --output     Specify output file path explicitly.");
   stream("  --lib file       Load one .klib dependency before compiling.");
   stream("  --export spec    Export a library alias into source scope. May be repeated.");
   stream("                   spec is 'name' or 'libname:localname'.");
@@ -33,10 +34,24 @@ try {
     exit(0);
   }
 
-  const { libraries, exportSpecs } = parseCompileOptions(args);
-  const input = resolveProgramInput(args, { allowStdinSource: true });
-  const outputPath = args.shift();
-  if (args.length > 0) throw new Error("Too many arguments");
+  let explicitOutput = null;
+  const remainingArgs = [];
+  while (args.length > 0) {
+    const arg = args[0];
+    if (arg === "-o" || arg === "--output") {
+      args.shift();
+      explicitOutput = args.shift();
+      if (!explicitOutput) throw new Error("-o/--output requires a file argument");
+    } else {
+      remainingArgs.push(args.shift());
+    }
+  }
+
+  const { libraries, exportSpecs } = parseCompileOptions(remainingArgs);
+  const input = resolveProgramInput(remainingArgs, { allowStdinSource: true });
+  const positionalOutput = remainingArgs.shift();
+  if (remainingArgs.length > 0) throw new Error("Too many arguments");
+  const outputPath = explicitOutput || positionalOutput || null;
   const artifact = await compileProgramInput(input, { libraries, exportSpecs, stdin });
   if (outputPath == null) {
     stdout.write(artifact);

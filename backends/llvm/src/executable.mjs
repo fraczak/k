@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { isProduct, isVariant } from "@fraczak/k/Value.mjs";
 import { exportPatternGraph } from "@fraczak/k/codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "@fraczak/k/codecs/runtime/pattern-json.mjs";
+import { decodeObject, loadLibrary, compileObjectBuffer, hydrateObject } from "@fraczak/k/object.mjs";
 import { compileObjectToLLVM } from "./llvm.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -531,17 +532,63 @@ export function compileLLVMToExecutable(llvm, outputPath, { driver = stdioDriver
       driverPath,
       llPath,
       "-o",
-      outputPath
+      path.resolve(outputPath)
     ]);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 }
 
-export function compileObjectToExecutable(object, outputPath, { relation = object.main, inputPattern = null, runtimeMode = "fast", clangOpt = "-O3" } = {}) {
-  const { inputPattern: compiledInputPattern, outputPattern, llvm } = compileObjectToLLVM(object, {
-    relation,
-    inputPattern: inputPattern || inputPatternForObjectRelation(object, relation),
+function getCleanLib(object) {
+  const cloned = JSON.parse(JSON.stringify({ ...object, main: null }));
+  return loadLibrary(hydrateObject(cloned));
+}
+
+export function applyMainSpec(object, mainSpec) {
+  if (!mainSpec || mainSpec === object.main) {
+    if (!object.main) throw new Error("Object has no main relation; specify --main");
+    return { object, relation: object.main };
+  }
+
+  let snippet = mainSpec;
+  if (fs.existsSync(mainSpec)) {
+    snippet = fs.readFileSync(mainSpec, "utf8");
+  }
+
+  const lib = getCleanLib(object);
+  const aliasMap = {};
+  for (const [name, hash] of Object.entries(lib.relAlias || {})) {
+    if (name !== "__main__") aliasMap[name] = hash;
+  }
+  for (const [hash, entry] of Object.entries(lib.meta || {})) {
+    if (entry?.type !== "rel") continue;
+    for (const origin of entry?.origins || []) {
+      if (origin?.name && origin.name !== "__main__") {
+        aliasMap[origin.name] = hash;
+      }
+    }
+  }
+
+  const lines = [];
+  for (const [name, hash] of Object.entries(aliasMap)) {
+    const rawHash = hash.startsWith("@") ? hash.slice(1) : hash;
+    if (lib.rels && (hash in lib.rels || rawHash in lib.rels)) {
+      lines.push(`${name} = @${rawHash};`);
+    }
+  }
+
+  const preamble = lines.join("\n") + (lines.length > 0 ? "\n" : "");
+  const newObjBuffer = compileObjectBuffer(preamble + snippet, { libraries: [lib] });
+  const newObject = decodeObject(newObjBuffer);
+  return { object: newObject, relation: newObject.main };
+}
+
+export function compileObjectToExecutable(object, outputPath, { main = null, relation = null, inputPattern = null, runtimeMode = "fast", clangOpt = "-O3" } = {}) {
+  const mainSpec = main ?? relation;
+  const { object: targetObject, relation: targetRelation } = applyMainSpec(object, mainSpec);
+  const { inputPattern: compiledInputPattern, outputPattern, llvm } = compileObjectToLLVM(targetObject, {
+    relation: targetRelation,
+    inputPattern: inputPattern || inputPatternForObjectRelation(targetObject, targetRelation),
     runtimeMode
   });
   compileLLVMToExecutable(llvm, outputPath, {
@@ -553,10 +600,12 @@ export function compileObjectToExecutable(object, outputPath, { relation = objec
   });
 }
 
-export function compileObjectAndRun(object, { relation = object.main, input, expected = null, inputPattern = null }) {
-  const { llvm } = compileObjectToLLVM(object, {
-    relation,
-    inputPattern: inputPattern || inputPatternForObjectValue(object, input, relation)
+export function compileObjectAndRun(object, { main = null, relation = null, input, expected = null, inputPattern = null }) {
+  const mainSpec = main ?? relation;
+  const { object: targetObject, relation: targetRelation } = applyMainSpec(object, mainSpec);
+  const { llvm } = compileObjectToLLVM(targetObject, {
+    relation: targetRelation,
+    inputPattern: inputPattern || inputPatternForObjectValue(targetObject, input, targetRelation)
   });
   return compileAndRunLLVM(llvm, { input, expected });
 }

@@ -94,8 +94,7 @@ node ../../objects/compile.mjs '{ .x fieldA, .y fieldB }' "$TMP_DIR/run-product.
 printf '{"x":"left","y":"right"}' > "$TMP_DIR/run-product-input.kv"
 node ./bin/k-llvm-run.mjs "$TMP_DIR/run-product.ko" "$TMP_DIR/run-product-input.kv" | grep -qx '{"fieldA":"left","fieldB":"right"}'
 
-printf '[["closed-product",[["x",1],["y",3]]],["open-union",[["left",2]]],["closed-product",[]],["open-union",[["right",2]]]]' > "$TMP_DIR/run-envelope.pattern.json"
-node ./bin/k-llvm-build.mjs --input-pattern "$TMP_DIR/run-envelope.pattern.json" "$TMP_DIR/run.ko" "$TMP_DIR/run-exe"
+node ./bin/k-llvm-build.mjs '?{<{}=X0 left, ...> x, <X0 right, ...> y} .x' -o "$TMP_DIR/run-exe"
 printf '{"x":"left","y":"right"}' \
   | node ../../codecs/k-parse.mjs \
   | "$TMP_DIR/run-exe" \
@@ -104,15 +103,13 @@ printf '{"x":"left","y":"right"}' \
 
 printf '{"x":"left"}' | node ../../codecs/k-parse.mjs | "$TMP_DIR/run-exe" && exit 1 || test "$?" -eq 5
 
-printf '[["open-union",[["left",1],["right",1]]],["closed-product",[]]]' > "$TMP_DIR/identity-variant.pattern.json"
-node ./bin/k-llvm-build.mjs --input-pattern "$TMP_DIR/identity-variant.pattern.json" "$TMP_DIR/id.ko" "$TMP_DIR/id-exe"
+node ./bin/k-llvm-build.mjs --main '?<{} left, {} right, ...>' "$TMP_DIR/id.ko" -o "$TMP_DIR/id-exe"
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const pattern = [[\"open-union\",[[\"left\",1],[\"right\",1]]],[\"closed-product\",[]]]; stdout.write(encodeToWire(Value.variant(\"left\", Value.product({}), pattern), pattern));" \
   | "$TMP_DIR/id-exe" \
   | node --input-type=module -e "import { stdin } from 'node:process'; import { decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; const chunks = []; stdin.on('data', (chunk) => chunks.push(chunk)); stdin.on('end', () => console.log(JSON.stringify(decodeWire(Buffer.concat(chunks)).pattern)));" \
   | grep -Fqx '[["open-union",[["left",1],["right",1]]],["closed-product",[]]]'
 
-printf '[["closed-union",[["+",1],["-",1]]],["closed-union",[["0",1],["1",1],["_",2]]],["closed-product",[]]]' > "$TMP_DIR/identity-int.pattern.json"
-node ./bin/k-llvm-build.mjs --input-pattern "$TMP_DIR/identity-int.pattern.json" "$TMP_DIR/id.ko" "$TMP_DIR/id-int-exe"
+node ./bin/k-llvm-build.mjs --main '$bits = < {} _, bits 0, bits 1 >; $int = < bits "+", bits "-" >; $int' "$TMP_DIR/id.ko" -o "$TMP_DIR/id-int-exe"
 printf '2' \
   | node ../../codecs/int.mjs --parse \
   | "$TMP_DIR/id-int-exe" \
@@ -120,6 +117,13 @@ printf '2' \
   | grep -qx '2'
 
 node --input-type=module -e "import assert from 'node:assert/strict'; import { spawn } from 'node:child_process'; import { encodeToWire, decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; import { parse, INT_PATTERN } from '../../codecs/int.mjs'; const input = encodeToWire(parse('2'), INT_PATTERN); const header = Buffer.alloc(4); header.writeUInt32BE(input.length); const child = spawn(process.argv[1], ['--server']); const chunks = []; const stderr = []; child.stdout.on('data', (chunk) => chunks.push(chunk)); child.stderr.on('data', (chunk) => stderr.push(chunk)); child.stdin.end(Buffer.concat([header, input])); const status = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); }); assert.equal(status, 0, Buffer.concat(stderr).toString('utf8')); const output = Buffer.concat(chunks); const length = output.readUInt32BE(0); assert.equal(output.length, 4 + length); assert.deepEqual(decodeWire(output.subarray(4)).value.toJSON(), parse('2').toJSON());" "$TMP_DIR/id-int-exe"
+
+node ./bin/k-llvm-build.mjs --lib ../../Examples/arithmetics.k --export times 's = {()x, ()y} times; s' -o "$TMP_DIR/square-exe"
+printf '987654321' \
+  | node ../../codecs/int.mjs --parse \
+  | "$TMP_DIR/square-exe" \
+  | node ../../codecs/int.mjs --print \
+  | grep -qx '975461057789971041'
 
 printf '{"x":"left","y":"right"}' \
   | node ../../codecs/k-parse.mjs \
