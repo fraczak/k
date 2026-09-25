@@ -10,8 +10,7 @@ command -v clang >/dev/null || {
 }
 
 node ../../objects/compile.mjs '()' "$TMP_DIR/id.ko"
-printf '[["open-product",[]]]' > "$TMP_DIR/input.pattern.json"
-node ./bin/k-llvm-compile.mjs --input-pattern "$TMP_DIR/input.pattern.json" "$TMP_DIR/id.ko" "$TMP_DIR/id.ll"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/id.ko" "$TMP_DIR/id.ll"
 grep -q '@k_llvm_metadata' "$TMP_DIR/id.ll"
 grep -q 'define %k_result @k_main' "$TMP_DIR/id.ll"
 
@@ -19,32 +18,28 @@ clang -Wno-override-module -Iruntime runtime/krt.c tests/identity-driver.c "$TMP
 "$TMP_DIR/id"
 
 node ../../objects/compile.mjs '.x' "$TMP_DIR/projection.ko"
-printf '[["closed-product",[["x",1]]],["closed-product",[]]]' > "$TMP_DIR/projection.pattern.json"
-node ./bin/k-llvm-compile.mjs --input-pattern "$TMP_DIR/projection.pattern.json" "$TMP_DIR/projection.ko" "$TMP_DIR/projection.ll"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/projection.ko" "$TMP_DIR/projection.ll"
 grep -q 'product_fields_ptr' "$TMP_DIR/projection.ll"
 ! grep -q 'call ptr @k_product_get_at' "$TMP_DIR/projection.ll"
 clang -Wno-override-module -Iruntime runtime/krt.c tests/projection-driver.c "$TMP_DIR/projection.ll" -o "$TMP_DIR/projection"
 "$TMP_DIR/projection"
 
 node ../../objects/compile.mjs '{ .x fieldA, .y fieldB }' "$TMP_DIR/product.ko"
-printf '[["closed-product",[["x",1],["y",2]]],["closed-product",[["valA",1]]],["closed-product",[["valB",2]]]]' > "$TMP_DIR/product.pattern.json"
-node ./bin/k-llvm-compile.mjs --input-pattern "$TMP_DIR/product.pattern.json" "$TMP_DIR/product.ko" "$TMP_DIR/product.ll"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/product.ko" "$TMP_DIR/product.ll"
 grep -q 'store i32 1, ptr %i32_slot' "$TMP_DIR/product.ll"
 grep -q 'store ptr %product_fields' "$TMP_DIR/product.ll"
 clang -Wno-override-module -Iruntime runtime/krt.c tests/product-driver.c "$TMP_DIR/product.ll" -o "$TMP_DIR/product"
 "$TMP_DIR/product"
 
 node ../../objects/compile.mjs '|tag' "$TMP_DIR/variant.ko"
-printf '[["closed-product",[]]]' > "$TMP_DIR/variant.pattern.json"
-node ./bin/k-llvm-compile.mjs --input-pattern "$TMP_DIR/variant.pattern.json" "$TMP_DIR/variant.ko" "$TMP_DIR/variant.ll"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/variant.ko" "$TMP_DIR/variant.ll"
 grep -q 'call ptr @k_rt_alloc' "$TMP_DIR/variant.ll"
 grep -q 'store i32 2, ptr %i32_slot' "$TMP_DIR/variant.ll"
 clang -Wno-override-module -Iruntime runtime/krt.c tests/variant-driver.c "$TMP_DIR/variant.ll" -o "$TMP_DIR/variant"
 "$TMP_DIR/variant"
 
 node ../../objects/compile.mjs '/tag' "$TMP_DIR/variant-projection.ko"
-printf '[["closed-union",[["tag",1]]],["closed-product",[]]]' > "$TMP_DIR/variant-projection.pattern.json"
-node ./bin/k-llvm-compile.mjs --input-pattern "$TMP_DIR/variant-projection.pattern.json" "$TMP_DIR/variant-projection.ko" "$TMP_DIR/variant-projection.ll"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/variant-projection.ko" "$TMP_DIR/variant-projection.ll"
 grep -q 'tag_byte_ptr' "$TMP_DIR/variant-projection.ll"
 grep -q 'payload_slot' "$TMP_DIR/variant-projection.ll"
 ! grep -q 'call i32 @k_variant_tag_matches' "$TMP_DIR/variant-projection.ll"
@@ -53,24 +48,21 @@ clang -Wno-override-module -Iruntime runtime/krt.c tests/variant-projection-driv
 "$TMP_DIR/variant-projection"
 
 node ../../objects/compile.mjs '(.x .y)' "$TMP_DIR/composition.ko"
-printf '[["closed-product",[["x",1]]],["closed-product",[["y",2]]],["closed-product",[]]]' > "$TMP_DIR/composition.pattern.json"
-node ./bin/k-llvm-compile.mjs --input-pattern "$TMP_DIR/composition.pattern.json" "$TMP_DIR/composition.ko" "$TMP_DIR/composition.ll"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/composition.ko" "$TMP_DIR/composition.ll"
 grep -q 'product_fields_ptr' "$TMP_DIR/composition.ll"
 ! grep -q 'call ptr @k_product_get_at' "$TMP_DIR/composition.ll"
 clang -Wno-override-module -Iruntime runtime/krt.c tests/composition-driver.c "$TMP_DIR/composition.ll" -o "$TMP_DIR/composition"
 "$TMP_DIR/composition"
 
 node ../../objects/compile.mjs 'pick = .x; {.a pick left, .b pick right}' "$TMP_DIR/relation.ko"
-printf '[["open-product",[["a",1],["b",2]]],["open-product",[["x",3]]],["open-product",[["x",4]]],["closed-product",[]],["closed-product",[]]]' > "$TMP_DIR/relation.pattern.json"
-node ./bin/k-llvm-compile.mjs --input-pattern "$TMP_DIR/relation.pattern.json" "$TMP_DIR/relation.ko" "$TMP_DIR/relation.ll"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/relation.ko" "$TMP_DIR/relation.ll"
 grep -q 'define internal %k_result @k_rel_pick' "$TMP_DIR/relation.ll"
 grep -q 'call %k_result @k_rel_pick' "$TMP_DIR/relation.ll"
 clang -Wno-override-module -Iruntime runtime/krt.c tests/relation-driver.c "$TMP_DIR/relation.ll" -o "$TMP_DIR/relation"
 "$TMP_DIR/relation"
 
 node ../../objects/compile.mjs '< /x |left, /y |right >' "$TMP_DIR/union.ko"
-printf '[["closed-union",[["x",1],["y",2]]],["closed-product",[]],["closed-product",[]]]' > "$TMP_DIR/union.pattern.json"
-node ./bin/k-llvm-compile.mjs --input-pattern "$TMP_DIR/union.pattern.json" "$TMP_DIR/union.ko" "$TMP_DIR/union.ll"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/union.ko" "$TMP_DIR/union.ll"
 grep -q 'define internal %k_result @k_union_arm_0' "$TMP_DIR/union.ll"
 grep -q 'call %k_result @k_union_arm_1' "$TMP_DIR/union.ll"
 clang -Wno-override-module -Iruntime runtime/krt.c tests/union-driver.c "$TMP_DIR/union.ll" -o "$TMP_DIR/union"
@@ -103,13 +95,13 @@ printf '{"x":"left","y":"right"}' \
 
 printf '{"x":"left"}' | node ../../codecs/k-parse.mjs | "$TMP_DIR/run-exe" && exit 1 || test "$?" -eq 5
 
-node ./bin/k-llvm-build.mjs --main '?<{} left, {} right, ...>' "$TMP_DIR/id.ko" -o "$TMP_DIR/id-exe"
+node ./bin/k-llvm-build.mjs '?<{} left, {} right, ...>' -o "$TMP_DIR/id-exe"
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const pattern = [[\"open-union\",[[\"left\",1],[\"right\",1]]],[\"closed-product\",[]]]; stdout.write(encodeToWire(Value.variant(\"left\", Value.product({}), pattern), pattern));" \
   | "$TMP_DIR/id-exe" \
   | node --input-type=module -e "import { stdin } from 'node:process'; import { decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; const chunks = []; stdin.on('data', (chunk) => chunks.push(chunk)); stdin.on('end', () => console.log(JSON.stringify(decodeWire(Buffer.concat(chunks)).pattern)));" \
   | grep -Fqx '[["open-union",[["left",1],["right",1]]],["closed-product",[]]]'
 
-node ./bin/k-llvm-build.mjs --main '$bits = < {} _, bits 0, bits 1 >; $int = < bits "+", bits "-" >; $int' "$TMP_DIR/id.ko" -o "$TMP_DIR/id-int-exe"
+node ./bin/k-llvm-build.mjs '$bits = < {} _, bits 0, bits 1 >; $int = < bits "+", bits "-" >; $int' -o "$TMP_DIR/id-int-exe"
 printf '2' \
   | node ../../codecs/int.mjs --parse \
   | "$TMP_DIR/id-int-exe" \

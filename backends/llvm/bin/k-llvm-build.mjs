@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import fs from "node:fs";
 import { argv, exit, stdin } from "node:process";
 import {
   compileProgramInputToObject,
@@ -26,8 +25,6 @@ function usage(stream = console.error) {
   stream("");
   stream("Options:");
   stream("  -o, --output path  Specify output file path explicitly.");
-  stream("  --main spec        Relation name or k snippet to specialize as main. Defaults to object main.");
-  stream("  --retype spec      Alias for --main.");
   stream("  --lib file         Load one .klib dependency before compiling.");
   stream("  --export spec      Export a library alias into source scope. May be repeated.");
   stream("                     spec is 'name' or 'libname:localname'.");
@@ -42,7 +39,6 @@ try {
   }
 
   let explicitOutput = null;
-  let mainSpec = null;
   const remainingArgs = [];
   while (args.length > 0) {
     const arg = args[0];
@@ -50,10 +46,6 @@ try {
       args.shift();
       explicitOutput = args.shift();
       if (!explicitOutput) throw new Error("-o/--output requires a file argument");
-    } else if (arg === "--main" || arg === "--retype") {
-      args.shift();
-      mainSpec = args.shift();
-      if (!mainSpec) throw new Error(`${arg} requires a relation name or k snippet`);
     } else {
       remainingArgs.push(args.shift());
     }
@@ -70,8 +62,7 @@ try {
   const object = await compileProgramInputToObject(input, {
     libraries,
     exportSpecs,
-    stdin,
-    main: mainSpec
+    stdin
   });
 
   compileObjectToExecutable(object, outputPath);

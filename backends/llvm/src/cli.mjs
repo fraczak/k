@@ -1,8 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { compileLibrary, compileObjectBuffer, decodeObject, loadLibrary } from "@fraczak/k/object.mjs";
-import { applyMainSpec, compileObjectToExecutable } from "./executable.mjs";
-import { compileObjectToLLVM } from "./llvm.mjs";
 
 export function readAll(stream) {
   return new Promise((resolve, reject) => {
@@ -107,7 +105,7 @@ export function buildExportPreamble(exports = [], libraries = []) {
 
 export async function compileProgramInputToObject(
   input,
-  { libraries = [], exportSpecs = [], stdin = null, main = null } = {}
+  { libraries = [], exportSpecs = [], stdin = null } = {}
 ) {
   let object;
   if (input.kind === "inline-source") {
@@ -142,10 +140,6 @@ export async function compileProgramInputToObject(
     throw new Error(`Unsupported input kind: ${input.kind}`);
   }
 
-  if (main != null) {
-    const applied = applyMainSpec(object, main);
-    object = applied.object;
-  }
   return object;
 }
 

@@ -21,23 +21,11 @@ function usage(stream = console.error) {
   stream("  output.ll       Output LLVM IR path. Writes to stdout when omitted.");
   stream("");
   stream("Options:");
-  stream("  -o, --output path       Specify output file path explicitly.");
-  stream("  --main spec             Relation name or k snippet to specialize as main. Defaults to object main.");
-  stream("  --retype spec           Alias for --main.");
-  stream("  --input-pattern value   Optional input pattern property-list JSON, or a file containing it.");
-  stream("  --lib file              Load one .klib dependency before compiling.");
-  stream("  --export spec           Export a library alias into source scope. May be repeated.");
-  stream("                          spec is 'name' or 'libname:localname'.");
-  stream("  -h, --help              Show this help.");
-}
-
-function readMaybeFile(textOrPath) {
-  return fs.existsSync(textOrPath) ? fs.readFileSync(textOrPath, "utf8") : textOrPath;
-}
-
-function readPattern(inputPattern) {
-  if (inputPattern == null) return null;
-  return JSON.parse(readMaybeFile(inputPattern));
+  stream("  -o, --output path  Specify output file path explicitly.");
+  stream("  --lib file         Load one .klib dependency before compiling.");
+  stream("  --export spec      Export a library alias into source scope. May be repeated.");
+  stream("                     spec is 'name' or 'libname:localname'.");
+  stream("  -h, --help         Show this help.");
 }
 
 try {
@@ -48,8 +36,6 @@ try {
   }
 
   let explicitOutput = null;
-  let mainSpec = null;
-  let inputPattern = null;
   const remainingArgs = [];
   while (args.length > 0) {
     const arg = args[0];
@@ -57,14 +43,6 @@ try {
       args.shift();
       explicitOutput = args.shift();
       if (!explicitOutput) throw new Error("-o/--output requires a file argument");
-    } else if (arg === "--main" || arg === "--retype") {
-      args.shift();
-      mainSpec = args.shift();
-      if (!mainSpec) throw new Error(`${arg} requires a relation name or k snippet`);
-    } else if (arg === "--input-pattern") {
-      args.shift();
-      inputPattern = args.shift();
-      if (!inputPattern) throw new Error("--input-pattern requires JSON or a file path");
     } else {
       remainingArgs.push(args.shift());
     }
@@ -80,15 +58,12 @@ try {
   const object = await compileProgramInputToObject(input, {
     libraries,
     exportSpecs,
-    stdin,
-    main: mainSpec
+    stdin
   });
 
-  const parsedPattern = readPattern(inputPattern);
-  const patternToUse = parsedPattern || inputPatternForObjectRelation(object, object.main);
   const { llvm } = compileObjectToLLVM(object, {
     relation: object.main,
-    inputPattern: patternToUse
+    inputPattern: inputPatternForObjectRelation(object, object.main)
   });
 
   if (outputPath == null) {

@@ -23,7 +23,7 @@ backend from `backends/llvm`:
 npm install
 cd backends/llvm
 node ../../objects/compile.mjs '()' /tmp/id.ko
-node ./bin/k-llvm-compile.mjs --input-pattern '[["open-product",[]]]' /tmp/id.ko /tmp/id.ll
+node ./bin/k-llvm-compile.mjs /tmp/id.ko /tmp/id.ll
 ```
 
 The generated `.ll` embeds the envelope-specialized KIR-P contract as module
@@ -53,10 +53,10 @@ k-llvm-run [options] object.ko [input.kv]
 Options:
 
 - `-o, --output path`: specify output file path explicitly.
-- `--main spec`: relation or k snippet to specialize as `main`; defaults to the object's `main`. (`--retype` is supported as an alias).
 - `--lib file`: load one `.klib` or `.k` dependency before compiling.
 - `--export spec`: export a library alias into source scope (`name` or `libname:localname`). May be repeated.
-- `--input-pattern json-or-file`: KIR property-list input pattern; optional override for `k-llvm-compile` or `k-llvm-run`.
+- `--input-pattern json-or-file`: for `k-llvm-run`, KIR property-list input pattern.
+- `--retype rel`: for `k-llvm-run`, relation to specialize (defaults to object main).
 - `--expect value-or-file`: for `k-llvm-run`, compare the output value against expected value text.
 - `-h`, `--help`: show usage.
 

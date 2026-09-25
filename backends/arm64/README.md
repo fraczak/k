@@ -78,7 +78,6 @@ All tools accept `--help`.
 
 - `-S, --assembly`: Emit GNU ARM64 assembly text (`.s`) instead of an ELF binary.
 - `-o, --output <file>`: Specify the output file path.
-- `--entry <name>`: Specify the entry relation (defaults to `__main__`).
 - `--lib <file>`: Load one `.klib` or `.k` library dependency.
 - `--export <spec>`: Export library symbols into source scope (`name` or `libname:localname`).
 - `--json`: Format output as JSON instead of binary wire format.

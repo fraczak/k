@@ -22,7 +22,6 @@ function usage(stream = console.error) {
   stream("Options:");
   stream("  -S, --assembly   Emit GNU ARM64 assembly (.s) instead of an executable binary.");
   stream("  -o, --output     Specify output file path explicitly.");
-  stream("  --entry name     Specify entry relation name.");
   stream("  --lib file       Load one .klib dependency before compiling.");
   stream("  --export spec    Export a library alias into source scope. May be repeated.");
   stream("                   spec is 'name' or 'libname:localname'.");
@@ -38,8 +37,6 @@ try {
 
   let emitAssembly = false;
   let explicitOutput = null;
-  let entry = null;
-
   // Extract ARM64-specific flags
   const remainingArgs = [];
   while (args.length > 0) {
@@ -51,10 +48,6 @@ try {
       args.shift();
       explicitOutput = args.shift();
       if (!explicitOutput) throw new Error("-o/--output requires a file argument");
-    } else if (arg === "--entry") {
-      args.shift();
-      entry = args.shift();
-      if (!entry) throw new Error("--entry requires a name argument");
     } else {
       remainingArgs.push(args.shift());
     }
@@ -71,7 +64,6 @@ try {
     libraries,
     exportSpecs,
     stdin,
-    entry,
     emit: emitAssembly ? "assembly" : null,
     outputPath: (!emitAssembly && outputPath) ? outputPath : null
   });
