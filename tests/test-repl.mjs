@@ -16,18 +16,21 @@ import {
   isMainEntrypoint,
   lineHasExplicitContinuation,
   lineTerminatesSnippet,
-  promptForState
+  promptForState,
+  registerCodec
 } from "../repl.mjs";
 import { decodeObject, objectToFunction } from "../object.mjs";
 import { Value } from "../Value.mjs";
 
 const state = createState();
 
-let output = await evaluateInput(":type nat = <{} zero, nat succ>", state);
-assert.match(output[0], /^\$ nat = @/);
+let output = await evaluateInput("$ nat = < {} zero, nat succ >;", state);
+output = await evaluateInput(":type nat", state);
+assert.match(output[0], /^\$ nat = /);
 
-output = await evaluateInput(":rel succ = |succ", state);
-assert.match(output[0], /^succ = @/);
+output = await evaluateInput("succ = | succ;", state);
+output = await evaluateInput(":d succ", state);
+assert.match(output[0], /^succ = /);
 
 output = await evaluateInput(":codes", state);
 assert.match(output[0], /^nat = @/m);
@@ -82,8 +85,8 @@ assert.equal(analyzeRawSnippet("a =").kind, "incomplete");
 assert.equal(analyzeRawSnippet("{} | succ").kind, "withMain");
 
 const offsetState = createState();
-await evaluateInput(":type ab = <{} 1, {} 2>", offsetState);
-await evaluateInput(":type bool = <{} true, {} false>", offsetState);
+await evaluateInput("$ ab = < {} 1, {} 2 >;", offsetState);
+await evaluateInput("$ bool = < {} true, {} false >;", offsetState);
 await assert.rejects(
   () => evaluateInput("$ab", offsetState),
   /Type Error in 'filter' \(lines 1:1\.\.\.1:4\)/
@@ -100,10 +103,10 @@ output = await evaluateInput(`:klib ${libPath}`, state);
 assert.equal(output[0], `saved ${libPath}`);
 
 const recursiveState = createState();
-await evaluateInput(":type $ nat = < {}_, nat 0, nat 1 >;", recursiveState);
-await evaluateInput(":rel 0? = $ nat < / _ {}|0, / 0 0? >;", recursiveState);
+await evaluateInput("$ nat = < {} _, nat 0, nat 1 >;", recursiveState);
+await evaluateInput("0? = $ nat < / _ {} | 0, / 0 0? >;", recursiveState);
 const staleZeroHash = recursiveState.relAliases["0?"];
-await evaluateInput(":rel 0? = $ nat < / _ {}|_, / 0 0? >;", recursiveState);
+await evaluateInput("0? = $ nat < / _ {} | _, / 0 0? >;", recursiveState);
 const zeroHash = recursiveState.relAliases["0?"];
 assert.notEqual(zeroHash, staleZeroHash);
 await evaluateInput("{}|_|0|0 $nat", recursiveState);
@@ -141,8 +144,7 @@ output = await evaluateInput(":C nat", loadedSource);
 assert.match(output[0], /^\$ nat = < nat succ, @[^ ]+ zero >;  -- @/);
 
 const codecState = createState();
-output = await evaluateInput(":type bool = <{} true, {} false>", codecState);
-assert.match(output[0], /^\$ bool = @/);
+output = await evaluateInput("$ bool = < {} true, {} false >;", codecState);
 const boolHash = codecState.typeAliases.bool;
 const valueModuleUrl = pathToFileURL(path.resolve("Value.mjs")).href;
 fs.writeFileSync(codecPath, `
@@ -196,8 +198,7 @@ output = await evaluateInput("hello", utf8State);
 assert.match(output[0], /utf8: hello/);
 
 const jsonState = createState();
-output = await evaluateInput(":type bool = <{} true, {} false>", jsonState);
-assert.match(output[0], /^\$ bool = @/);
+output = await evaluateInput("$ bool = < {} true, {} false >;", jsonState);
 output = await evaluateInput(":codec load ./codecs/json.mjs", jsonState);
 assert.match(output[0], /^loaded codec json for all types/);
 output = await evaluateInput(":codec list", jsonState);
@@ -256,7 +257,7 @@ assert.equal(output[0], "(none)");
 
 const shorthand = createState();
 output = await evaluateInput("$ nat = <{} zero, nat succ>\n; succ = |succ\n;", shorthand);
-assert.deepEqual(output, []);
+assert.match(output[0], /\/\* comp: .* \*\//);
 output = await evaluateInput(":codes", shorthand);
 assert.match(output[0], /^nat = @/m);
 output = await evaluateInput(":rels", shorthand);
@@ -266,7 +267,7 @@ assert.match(output[0], /^\{\}\|false \?</);
 assert.match(output[0], / false/);
 assert.match(output[0], / true/);
 output = await evaluateInput("$ maybe = <{} none, {} some>;", shorthand);
-assert.deepEqual(output, []);
+assert.match(output[0], /\/\* comp: .* \*\//);
 output = await evaluateInput(":codes", shorthand);
 assert.match(output[0], /^maybe = @/m);
 output = await evaluateInput("{} | true not", shorthand);
@@ -279,8 +280,8 @@ await assert.rejects(
 
 // Verify WebAssembly in-process backend supports TCO / stack safety on deep recursion
 const tcoState = createState();
-await evaluateInput(":type nat = <{} zero, nat succ>", tcoState);
-await evaluateInput(":rel countdown = $nat < /zero {}|zero, /succ countdown >", tcoState);
+await evaluateInput("$ nat = < {} zero, nat succ >;", tcoState);
+await evaluateInput("countdown = $ nat < / zero {} | zero, / succ countdown >;", tcoState);
 
 let deepNat = Value.variant("zero", Value.product({}, [["closed-product", []]]), [["open-union", [["zero", 1]]], ["closed-product", []]]);
 for (let i = 0; i < 5000; i++) {
@@ -301,7 +302,7 @@ assert.match(output[0], /^\{\}\|_\|0\|1\|0\|1/);
 output = await evaluateInput("{10 int x, 5 int y} plus", arithState);
 assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
 
-// Verify built-in codecs, :codecs, :codec define, and :codec unload
+// Verify built-in codecs, :codecs, and :codec unload
 const codecTestState = createState();
 output = await evaluateInput(":codecs", codecTestState);
 assert.equal(output[0], "(none)");
@@ -324,12 +325,14 @@ assert.equal(output[0], "unloaded codec int");
 output = await evaluateInput(":codecs", codecTestState);
 assert.equal(output[0], "(none)");
 
-output = await evaluateInput(":type bool = <{} true, {} false>", codecTestState);
-output = await evaluateInput(
-  `:codec define yn bool ({ parse: (text) => Value.variant(text.trim() === "yes" ? "true" : "false", Value.product({})), print: (v) => v.tag === "true" ? "YES" : "NO" })`,
-  codecTestState
-);
-assert.match(output[0], /^defined codec yn for @/);
+output = await evaluateInput("$ bool = < {} true, {} false >;", codecTestState);
+registerCodec(codecTestState, {
+  name: "yn",
+  codes: [codecTestState.typeAliases.bool],
+  universal: false,
+  parse: (text) => Value.variant(text.trim() === "yes" ? "true" : "false", Value.product({})),
+  print: (v) => v.tag === "true" ? "YES" : "NO"
+}, "<test>");
 
 output = await evaluateInput(":input bool yn", codecTestState);
 output = await evaluateInput("yes", codecTestState);
@@ -383,6 +386,61 @@ assert.match(output[0], /enter value text/);
 output = await evaluateInput('{"a":"Woj","n":123}', jsonInputState);
 assert.match(output[0], /json: \{"a":"Woj","n":123\}/);
 
+// Verify pattern expressions and standalone codec input
+const patternInputState = createState();
+await evaluateInput(":codec load json", patternInputState);
+
+// 1. Explicit pattern expression: ? {string a, float64 n} json
+output = await evaluateInput(":input ? {string a, float64 n} json", patternInputState);
+assert.match(output[0], /input \? \{string a, float64 n\} using json: enter value text/);
+output = await evaluateInput('{"a":"Woj","n":123}', patternInputState);
+assert.match(output[0], /json: \{"a":"Woj","n":123\}/);
+
+// 2. Wildcard pattern expression: ? (...) json
+output = await evaluateInput(":input ? (...) json", patternInputState);
+assert.match(output[0], /enter value text/);
+output = await evaluateInput('{"anything": [1, 2, 3]}', patternInputState);
+assert.match(output[0], /json: \{"anything":\[1,2,3\]\}/);
+
+// 3. Standalone codec input: :input json (no predefined type or pattern required)
+output = await evaluateInput(":input json", patternInputState);
+assert.match(output[0], /input json: enter value text/);
+output = await evaluateInput('{"hello":"world"}', patternInputState);
+assert.match(output[0], /json: \{"hello":"world"\}/);
+
+// 4. Pattern mismatch detection
+output = await evaluateInput(":input ? {string a, float64 n} json", patternInputState);
+await assert.rejects(
+  () => evaluateInput('{"wrong_key": 999}', patternInputState),
+  /Closed product pattern does not match value fields/
+);
+
+// 5. Bare :input defaults to :input (...) with auto-loaded json codec
+const bareInputState = createState();
+assert.equal(promptForState(bareInputState), "> ");
+output = await evaluateInput(":input", bareInputState);
+assert.deepEqual(output, ["input (...): enter value text"]);
+assert.equal(promptForState(bareInputState), "json> ");
+output = await evaluateInput('{"test": 123}', bareInputState);
+assert.match(output[0], /json: \{"test":123\}/);
+assert.equal(promptForState(bareInputState), "> ");
+
+// 6. Pattern as type prefixed by dollar
+const dollarPatternState = createState();
+await evaluateInput(":load arithmetics.k", dollarPatternState);
+output = await evaluateInput(":input $ int", dollarPatternState);
+assert.deepEqual(output, ["input $ int: enter value text"]);
+assert.equal(promptForState(dollarPatternState), "int> ");
+output = await evaluateInput("42", dollarPatternState);
+assert.match(output[0], /int: 42/);
+
+await evaluateInput("$ bool = <{} true, {} false>;", dollarPatternState);
+output = await evaluateInput(":input $ bool json", dollarPatternState);
+assert.deepEqual(output, ["input $ bool using json: enter value text"]);
+assert.equal(promptForState(dollarPatternState), "json> ");
+output = await evaluateInput("true", dollarPatternState);
+assert.match(output[0], /json: true/);
+
 const unitState = createState();
 output = await evaluateInput(":codec load unit", unitState);
 assert.match(output[0], /loaded codec unit/);
@@ -397,28 +455,20 @@ assert.equal(output[0], "loaded Examples/poly.k");
 assert.ok(polyAutoState.relAliases.reverse, "poly relations should be loaded");
 assert.ok(polyAutoState.typeAliases.int, "arithmetics int should be auto-loaded");
 
-// Verify :timing and :time commands
+// Verify timing reporting is always on and :time command
 const timingState = createState();
+assert.equal(timingState.showTiming, true);
+
+output = await evaluateInput("()", timingState);
+assert.equal(output[0], "{} ?{}");
+assert.match(output[1], /\/\* comp: .*, exec: .* \*\//);
+
 output = await evaluateInput(":time ()", timingState);
 assert.equal(output[0], "{} ?{}");
 assert.match(output[1], /\/\* comp: .*, exec: .* \*\//);
 assert.ok(timingState.lastTiming);
 assert.ok(typeof timingState.lastTiming.compileMs === "number");
 assert.ok(typeof timingState.lastTiming.executeMs === "number");
-
-output = await evaluateInput(":timing on", timingState);
-assert.equal(output[0], "timing reporting enabled");
-assert.equal(timingState.showTiming, true);
-output = await evaluateInput("()", timingState);
-assert.equal(output[0], "{} ?{}");
-assert.match(output[1], /\/\* comp: .*, exec: .* \*\//);
-
-output = await evaluateInput(":timing off", timingState);
-assert.equal(output[0], "timing reporting disabled");
-assert.equal(timingState.showTiming, false);
-output = await evaluateInput("()", timingState);
-assert.equal(output.length, 1);
-assert.equal(output[0], "{} ?{}");
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });

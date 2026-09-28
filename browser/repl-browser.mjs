@@ -3,19 +3,18 @@ import {
   evaluateInput,
   createCompleter,
   promptForState,
-  helpText,
   analyzeRawSnippet,
   lineTerminatesSnippet,
   lineHasExplicitContinuation,
   savedLibrary,
-  listCodecs,
-  loadCodecModule,
   registerCodec,
   unregisterCodec,
   resolveCodec,
   codeHashToPattern,
-  BUILTIN_CODECS,
-  formatDuration
+  formatDuration,
+  resolveInputTypeHash,
+  resolveInputPattern,
+  valueForPattern
 } from "../repl.mjs";
 import { Value, isProduct, isVariant } from "../Value.mjs";
 import { encodeLibrary } from "../object.mjs";
@@ -71,6 +70,7 @@ let inputPopupCodec;
 let inputPopupText;
 let inputPopupStatus;
 let inputPopupHint;
+let inputPopupCodecHint;
 let inputSamplesList;
 
 function escapeHtml(str) {
@@ -569,19 +569,19 @@ function exportKlib() {
 const CODEC_PRESETS = {
   yn: {
     name: "yn",
-    type: "bool",
+    type: "yes_no",
     universal: false,
-    parse: `// Parse 'yes', 'no', 'true', 'false' into $bool
+    parse: `// Parse 'yes', 'no', 'true', 'false' into $yes_no (< {} yes, {} no >)
 const tag = text.trim().toLowerCase();
 if (tag === "yes" || tag === "true" || tag === "1") {
-  return Value.variant("true", Value.product({}));
+  return Value.variant("yes", Value.product({}));
 }
 if (tag === "no" || tag === "false" || tag === "0") {
-  return Value.variant("false", Value.product({}));
+  return Value.variant("no", Value.product({}));
 }
 throw new Error("Expected yes/no or true/false");`,
-    print: `// Serialize boolean value to YES / NO
-return value.tag === "true" ? "YES" : "NO";`
+    print: `// Serialize yes_no value to YES / NO
+return value.tag === "yes" ? "YES" : "NO";`
   },
   hex: {
     name: "hex",
@@ -652,8 +652,9 @@ return "$" + dollars.toString() + "." + cents;`
     parse: `// Parse text string and return a K Value
 // Available: Value.product({ field: val }), Value.variant("tag", val)
 return Value.product({});`,
-    print: `// Serialize K Value into string or Buffer
-return JSON.stringify(value);`
+    print: `// Serialize K Value into string
+// value is a Value instance: inspect value.fields or value.tag & value.value
+return String(value);`
   }
 };
 
@@ -696,7 +697,7 @@ function renderCodecsModal() {
     for (const [alias, hash] of aliases) {
       const opt = document.createElement("option");
       opt.value = alias;
-      opt.textContent = `$${alias} (${hash.slice(0, 10)}...)`;
+      opt.textContent = `$ ${alias} (${hash.slice(0, 10)}...)`;
       typeGroup.appendChild(opt);
     }
     codecTypeSelect.appendChild(typeGroup);
@@ -838,9 +839,9 @@ function registerCustomCodecFromForm() {
       );
     }
 
-    let codeHash = rawType === "*" ? "*" : state.typeAliases[rawType] || rawType;
-    if (!codeHash.startsWith("@") && codeHash !== "*") {
-      throw new Error(`Cannot resolve type '${rawType}' to a canonical code hash. Define the type first (e.g. :type ${rawType} = ...).`);
+    let codeHash = "*";
+    if (rawType !== "*") {
+      codeHash = resolveInputTypeHash(state, rawType);
     }
 
     registerCodec(state, {
@@ -945,8 +946,8 @@ export function print(value, context) {
 
 const CODEC_SAMPLES = {
   int: ["0", "10", "42", "-15", "1000000"],
-  utf8: ["hello", "hello world", "k repl", "λ"],
-  json: ['{"name":"Alice"}', '{"x":10,"y":20}', 'true', '[1, 2, 3]'],
+  utf8: ["hello", "hello world", "k repl", "abc"],
+  json: ['{"x":12,"n":"Woj"}', '{"name":"Alice"}', 'true', '[1, 2, 3]'],
   ieee: ["0.0", "3.14159", "-2.718", "1e6"],
   yn: ["yes", "no", "true", "false"],
   hex: ["0x2A", "0xFF", "0x1000", "-0x10"],
@@ -997,6 +998,10 @@ function renderInputSamples(codecName) {
     btn.onclick = () => {
       if (inputPopupText) {
         inputPopupText.value = s;
+        if (codecName === "json" && s === '{"x":12,"n":"Woj"}' && (!inputPopupType?.value || inputPopupType.value === "*")) {
+          inputPopupType.value = "{float64 x, string n}";
+          updateInputPopupCodecs();
+        }
         inputPopupText.focus();
         updateLiveValidation();
       }
@@ -1007,19 +1012,36 @@ function renderInputSamples(codecName) {
 
 function updateInputPopupHint() {
   if (!inputPopupHint) return;
+  const rawPattern = inputPopupType ? inputPopupType.value.trim() : "(...)";
+  const codecName = inputPopupCodec?.value || state.pendingInput?.codecName;
   if (state.pendingInput) {
-    const rawType = inputPopupType?.value || state.pendingInput.codeHash;
-    const codecName = inputPopupCodec?.value || state.pendingInput.codecName;
-    inputPopupHint.innerHTML = `Enter input value for <b>$${escapeHtml(rawType)}</b> using codec <b>${escapeHtml(codecName || "default")}</b>:`;
+    const displayPattern = rawPattern || state.pendingInput.rawExpr || "(...)";
+    inputPopupHint.innerHTML = `Enter input value for <b>${escapeHtml(displayPattern)}</b> using codec <b>${escapeHtml(codecName || "default")}</b>:`;
   } else {
-    inputPopupHint.innerHTML = `Choose target type &amp; deserializer, then enter input string:`;
+    inputPopupHint.innerHTML = `Choose target pattern &amp; deserializer, then enter input string:`;
+  }
+
+  if (inputPopupCodecHint) {
+    if (codecName === "json") {
+      inputPopupCodecHint.textContent = "Parameterized codec: deserializes JSON into the specified Target Pattern.";
+    } else {
+      inputPopupCodecHint.textContent = "";
+    }
   }
 }
 
 function updateInputPopupCodecs() {
   if (!inputPopupCodec) return;
-  const rawType = inputPopupType?.value || "*";
-  const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+  const rawPattern = inputPopupType ? inputPopupType.value.trim() : "(...)";
+  let codeHash = null;
+  if (rawPattern && rawPattern !== "*" && rawPattern !== "(...)") {
+    try {
+      const resolved = resolveInputPattern(state, rawPattern);
+      codeHash = resolved.codeHash;
+    } catch {
+      codeHash = null;
+    }
+  }
   const prev = inputPopupCodec.value;
 
   inputPopupCodec.innerHTML = "";
@@ -1027,8 +1049,8 @@ function updateInputPopupCodecs() {
   const store = state.codecs || {};
 
   const candidates = [
-    ...(store[codeHash] || []),
-    ...(codeHash !== "*" ? (store["*"] || []) : [])
+    ...(codeHash ? (store[codeHash] || []) : []),
+    ...(store["*"] || [])
   ];
 
   const seen = new Set();
@@ -1039,11 +1061,26 @@ function updateInputPopupCodecs() {
     }
   }
 
-  if (matchingCodecs.length === 0) {
-    if (rawType === "int") matchingCodecs.push("int");
-    if (rawType === "bool") matchingCodecs.push("yn");
-    if (rawType === "string") matchingCodecs.push("utf8");
+  const bareName = rawPattern.replace(/^(\?|\$)\s*/, "").trim();
+  if (!seen.has("json")) {
     matchingCodecs.push("json");
+    seen.add("json");
+  }
+  if ((bareName === "int" || (codeHash && codeHash === state.typeAliases?.int)) && !seen.has("int")) {
+    matchingCodecs.push("int");
+    seen.add("int");
+  }
+  if ((bareName === "string" || bareName === "utf8" || (codeHash && (codeHash === state.typeAliases?.string || codeHash === state.typeAliases?.utf8))) && !seen.has("utf8")) {
+    matchingCodecs.push("utf8");
+    seen.add("utf8");
+  }
+  if ((bareName === "float64" || bareName === "ieee" || (codeHash && codeHash === state.typeAliases?.float64)) && !seen.has("ieee")) {
+    matchingCodecs.push("ieee");
+    seen.add("ieee");
+  }
+  if ((bareName === "yes_no" || bareName === "bool" || (codeHash && codeHash === state.typeAliases?.yes_no)) && !seen.has("yn")) {
+    matchingCodecs.push("yn");
+    seen.add("yn");
   }
 
   for (const name of matchingCodecs) {
@@ -1064,39 +1101,38 @@ function updateInputPopupCodecs() {
   updateLiveValidation();
 }
 
-function populateInputPopupDropdowns(preselectedType = null, preselectedCodec = null) {
+function populateInputPopupDropdowns(preselectedPattern = null, preselectedCodec = null) {
   if (!inputPopupType) return;
 
-  let prevType = preselectedType;
-  if (!prevType && state.pendingInput) {
-    const foundAlias = Object.entries(state.typeAliases || {}).find(([, h]) => h === state.pendingInput.codeHash);
-    prevType = foundAlias ? foundAlias[0] : state.pendingInput.codeHash;
-  }
-  if (!prevType) {
-    prevType = inputPopupType.value;
-  }
-
-  inputPopupType.innerHTML = "";
-
-  const aliases = Object.entries(state.typeAliases || {}).sort(([a], [b]) => a.localeCompare(b));
-  for (const [alias, hash] of aliases) {
-    const opt = document.createElement("option");
-    opt.value = alias;
-    opt.textContent = `$${alias} (${hash.slice(0, 10)}...)`;
-    inputPopupType.appendChild(opt);
+  const datalist = document.getElementById("input-popup-type-list");
+  if (datalist) {
+    datalist.innerHTML = "";
+    const aliases = Object.entries(state.typeAliases || {}).sort(([a], [b]) => a.localeCompare(b));
+    for (const [alias, hash] of aliases) {
+      const opt = document.createElement("option");
+      opt.value = `$ ${alias}`;
+      opt.textContent = `$ ${alias} (${hash.slice(0, 10)}...)`;
+      datalist.appendChild(opt);
+    }
+    const universalOpt = document.createElement("option");
+    universalOpt.value = "(...)";
+    universalOpt.textContent = "(...) (Any document)";
+    datalist.appendChild(universalOpt);
   }
 
-  const universalOpt = document.createElement("option");
-  universalOpt.value = "*";
-  universalOpt.textContent = "* (Universal / Any)";
-  inputPopupType.appendChild(universalOpt);
-
-  if (prevType && (aliases.some(([a]) => a === prevType) || prevType === "*")) {
-    inputPopupType.value = prevType;
-  } else if (aliases.length > 0) {
-    inputPopupType.value = aliases[0][0];
+  let prevPattern = preselectedPattern;
+  if (!prevPattern && state.pendingInput) {
+    prevPattern = state.pendingInput.rawExpr;
+    if (!prevPattern && state.pendingInput.codeHash) {
+      const foundAlias = Object.entries(state.typeAliases || {}).find(([, h]) => h === state.pendingInput.codeHash);
+      prevPattern = foundAlias ? `$ ${foundAlias[0]}` : state.pendingInput.codeHash;
+    }
+  }
+  if (!prevPattern) {
+    prevPattern = inputPopupType.value || "(...)";
   }
 
+  inputPopupType.value = prevPattern;
   updateInputPopupCodecs();
 
   const targetCodec = preselectedCodec || state.pendingInput?.codecName;
@@ -1114,26 +1150,39 @@ function updateLiveValidation() {
     return;
   }
 
-  const rawType = inputPopupType?.value;
+  const rawPattern = inputPopupType ? inputPopupType.value.trim() : "(...)";
   const codecName = inputPopupCodec?.value;
-  if (!rawType) {
-    inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">Select a target type first.</span>`;
+  if (!rawPattern && !codecName) {
+    inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">Specify a target pattern or codec first.</span>`;
     return;
   }
 
-  const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+  let pattern = null;
+  let codeHash = null;
+  if (rawPattern && rawPattern !== "*" && rawPattern !== "(...)") {
+    try {
+      const resolved = resolveInputPattern(state, rawPattern);
+      pattern = resolved.pattern;
+      codeHash = resolved.codeHash;
+    } catch (err) {
+      inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">⚠ Pattern Error: ${escapeHtml(err.message || String(err))}</span>`;
+      return;
+    }
+  }
+
   try {
     const codec = resolveCodec(state, codeHash, codecName || null, "parse");
-    const pattern = codeHashToPattern(codeHash, (h) => state.codes?.[h]);
+    const resolvedPattern = pattern || (codeHash && codeHash !== "*" ? codeHashToPattern(codeHash, (h) => state.codes?.[h]) : null);
     const parsed = codec.parse(text, {
       codeHash,
-      pattern,
+      pattern: resolvedPattern,
       state,
       Value,
       isProduct,
       isVariant
     });
-    const repr = parsed instanceof Value ? parsed.toJSON() : (typeof parsed === "object" ? JSON.stringify(parsed) : String(parsed));
+    const validated = valueForPattern(parsed, resolvedPattern, text, codec.name);
+    const repr = validated instanceof Value ? validated.toJSON() : (typeof validated === "object" ? JSON.stringify(validated) : String(validated));
     inputPopupStatus.innerHTML = `<span class="line-output" style="margin:0;padding:2px 6px;">✓ Valid: <code>${escapeHtml(String(repr))}</code></span>`;
   } catch (err) {
     inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">⚠ ${escapeHtml(err.message || String(err))}</span>`;
@@ -1142,23 +1191,41 @@ function updateLiveValidation() {
 
 export async function submitInputPopup() {
   const text = inputPopupText?.value ?? "";
+  const rawPattern = inputPopupType ? inputPopupType.value.trim() : "(...)";
+  const codecName = inputPopupCodec?.value;
 
-  // If state.pendingInput is not set, configure it from the popup selections
-  if (!state.pendingInput) {
-    const rawType = inputPopupType?.value;
-    const codecName = inputPopupCodec?.value;
-    if (!rawType) {
-      if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">Please select a target type.</span>`;
-      return;
-    }
-    const codeHash = rawType === "*" ? "*" : state.typeAliases?.[rawType] || rawType;
+  if (!rawPattern && !codecName) {
+    if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">Please specify a target pattern or codec.</span>`;
+    return;
+  }
+
+  let pattern = null;
+  let codeHash = null;
+  let rawExpr = rawPattern || "(...)";
+  if (rawPattern && rawPattern !== "*" && rawPattern !== "(...)") {
     try {
-      const codec = resolveCodec(state, codeHash, codecName || null, "parse");
-      state.pendingInput = { codeHash, codecName: codec.name, promptName: codec.name };
+      const resolved = resolveInputPattern(state, rawPattern);
+      pattern = resolved.pattern;
+      codeHash = resolved.codeHash;
+      rawExpr = rawPattern;
     } catch (err) {
-      if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">${escapeHtml(err.message)}</span>`;
+      if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">Pattern Error: ${escapeHtml(err.message || String(err))}</span>`;
       return;
     }
+  }
+
+  try {
+    const codec = resolveCodec(state, codeHash, codecName || null, "parse");
+    state.pendingInput = {
+      pattern,
+      codeHash,
+      codecName: codec.name,
+      promptName: codec.name,
+      rawExpr: rawExpr || codec.name
+    };
+  } catch (err) {
+    if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">${escapeHtml(err.message || String(err))}</span>`;
+    return;
   }
 
   closeInputPopup();
@@ -1190,6 +1257,7 @@ export function initRepl() {
   inputPopupText = document.getElementById("input-popup-text");
   inputPopupStatus = document.getElementById("input-popup-status");
   inputPopupHint = document.getElementById("input-popup-hint");
+  inputPopupCodecHint = document.getElementById("input-popup-codec-hint");
   inputSamplesList = document.getElementById("input-samples-list");
 
   updatePrompt();
@@ -1197,16 +1265,7 @@ export function initRepl() {
   // Welcome message
   appendSystemMessage(`
 <div class="welcome-banner">
-  <div class="welcome-title">λ k interactive repl</div>
-  <div class="welcome-desc">First-order partial functions over algebraic data types &bull; WebAssembly execution engine &bull; Custom Serializers &amp; Deserializers (:codecs)</div>
-  <div class="welcome-tips">
-    <span>💡 Try: <a href="javascript:void(0)" class="quick-link" data-code=":load core.k">:load core.k</a></span>
-    <span>• <a href="javascript:void(0)" class="quick-link" data-code=":codec load int">:codec load int</a></span>
-    <span>• <a href="javascript:void(0)" class="quick-link" data-code="10 int">10 int</a></span>
-    <span>• <a href="javascript:void(0)" class="quick-link" data-code="{10 int x, 5 int y} plus">{10 int x, 5 int y} plus</a></span>
-    <span>• <a href="javascript:void(0)" class="quick-link" data-code=":codecs">:codecs</a></span>
-    <span>• <a href="javascript:void(0)" class="quick-link" data-code=":help">:help</a></span>
-  </div>
+  <div class="welcome-title">k interactive repl</div>
 </div>
 `, false, true);
 
@@ -1365,14 +1424,6 @@ export function initRepl() {
   const clearBtn = document.getElementById("btn-clear");
   if (clearBtn) clearBtn.onclick = clearOutput;
 
-  // Reset button
-  const resetBtn = document.getElementById("btn-reset");
-  if (resetBtn) {
-    resetBtn.onclick = () => {
-      executeCommand(":reset");
-    };
-  }
-
   // Help button
   const helpBtn = document.getElementById("btn-help");
   if (helpBtn) {
@@ -1458,6 +1509,7 @@ export function initRepl() {
 
   if (inputPopupType) {
     inputPopupType.addEventListener("change", updateInputPopupCodecs);
+    inputPopupType.addEventListener("input", updateInputPopupCodecs);
   }
 
   if (inputPopupCodec) {

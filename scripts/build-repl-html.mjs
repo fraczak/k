@@ -28,8 +28,8 @@ if (fs.existsSync(coreKPath)) {
   vfsFiles["core.k"] = fs.readFileSync(coreKPath, "utf8");
 }
 
-// Add verified k-code files: arithmetics.k, ieee.k
-const verifiedExamples = ["arithmetics.k", "ieee.k"];
+// Add verified k-code files: arithmetics.k, ieee.k, poly.k
+const verifiedExamples = ["arithmetics.k", "ieee.k", "poly.k"];
 const examplesDir = path.join(projectRoot, "Examples");
 for (const filename of verifiedExamples) {
   const fullPath = path.join(examplesDir, filename);
@@ -173,21 +173,24 @@ const htmlContent = `<!DOCTYPE html>
 
     /* Header */
     .navbar {
-      height: 48px;
+      min-height: 48px;
+      height: auto;
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border-color);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 16px;
+      padding: 6px 16px;
       flex-shrink: 0;
-      gap: 12px;
+      flex-wrap: wrap;
+      gap: 8px 12px;
     }
 
     .nav-left {
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
     }
 
     .brand {
@@ -197,12 +200,6 @@ const htmlContent = `<!DOCTYPE html>
       font-weight: 700;
       font-size: 16px;
       user-select: none;
-    }
-
-    .brand-lambda {
-      color: var(--color-prompt);
-      font-size: 20px;
-      line-height: 1;
     }
 
     .brand-name {
@@ -253,8 +250,11 @@ const htmlContent = `<!DOCTYPE html>
     .nav-right {
       display: flex;
       align-items: center;
-      gap: 8px;
-      flex-wrap: nowrap;
+      gap: 6px 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
     .control-group {
@@ -320,7 +320,8 @@ const htmlContent = `<!DOCTYPE html>
 
     /* Terminal */
     .terminal-main {
-      flex: 1;
+      flex: 1 1 auto;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -758,7 +759,7 @@ const htmlContent = `<!DOCTYPE html>
 
     /* Welcome banner */
     .welcome-banner {
-      padding: 16px;
+      padding: 12px 16px;
       background: var(--bg-surface);
       border: 1px solid var(--border-color);
       border-radius: 8px;
@@ -766,10 +767,10 @@ const htmlContent = `<!DOCTYPE html>
     }
 
     .welcome-title {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 700;
       color: var(--color-prompt);
-      margin-bottom: 4px;
+      margin-bottom: 0;
     }
 
     .welcome-desc {
@@ -990,6 +991,17 @@ const htmlContent = `<!DOCTYPE html>
       font-size: 13px;
     }
 
+    .help-table th {
+      text-align: left;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
     .help-table td {
       padding: 6px 10px;
       border-bottom: 1px solid rgba(48, 54, 61, 0.4);
@@ -999,6 +1011,27 @@ const htmlContent = `<!DOCTYPE html>
       width: 35%;
       font-family: var(--font-mono);
       color: var(--color-cyan);
+    }
+
+    .help-bridge-box {
+      background: rgba(88, 166, 255, 0.08);
+      border: 1px solid rgba(88, 166, 255, 0.25);
+      border-left: 3px solid var(--color-prompt);
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin: 12px 0 16px 0;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .help-category-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin: 16px 0 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .help-section ul {
@@ -1312,6 +1345,12 @@ const htmlContent = `<!DOCTYPE html>
       border-color: rgba(210, 153, 34, 0.3);
     }
 
+    .badge-type.parameterized {
+      background: rgba(187, 128, 179, 0.15);
+      color: var(--color-purple);
+      border-color: rgba(187, 128, 179, 0.3);
+    }
+
     .codecs-table-container {
       background: var(--bg-base);
       border: 1px solid var(--border-color);
@@ -1600,14 +1639,27 @@ const htmlContent = `<!DOCTYPE html>
     /* Responsive */
     @media (max-width: 768px) {
       .navbar {
-        height: auto;
-        flex-direction: column;
         padding: 8px 12px;
-        align-items: stretch;
+        gap: 8px;
+      }
+      .nav-left {
+        width: 100%;
+        justify-content: space-between;
       }
       .nav-right {
-        overflow-x: auto;
-        padding-bottom: 4px;
+        width: 100%;
+        justify-content: flex-start;
+        overflow-x: visible;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .control-group {
+        flex: 1 1 180px;
+      }
+      .control-group select {
+        flex: 1 1 auto;
+        max-width: 100%;
+        min-width: 120px;
       }
       .vfs-body {
         flex-direction: column;
@@ -1627,7 +1679,6 @@ const htmlContent = `<!DOCTYPE html>
     <header class="navbar">
       <div class="nav-left">
         <div class="brand">
-          <span class="brand-lambda">λ</span>
           <span class="brand-name">k repl</span>
           <span class="engine-badge">wasm-in-process</span>
         </div>
@@ -1646,27 +1697,27 @@ const htmlContent = `<!DOCTYPE html>
               <option value="core.k">core.k</option>
               <option value="arithmetics.k">arithmetics.k</option>
               <option value="ieee.k">ieee.k</option>
+              <option value="poly.k">poly.k</option>
             </optgroup>
             <optgroup label="Quick Expressions">
-              <option value="expr:10">10</option>
-              <option value="expr:{10 int x, 5 int y} plus">{10 int x, 5 int y} plus</option>
+              <option value="expr:{} | ok">{} | ok</option>
+              <option value="expr:()">()</option>
+              <option value="expr:$ bool = &lt; {} true, {} false &gt;; not = $ bool &lt; / true | false, {} | true &gt; $ bool; {} | true not">not (boolean relation with fallback)</option>
+              <option value="expr:{10 x, 5 y} plus">{10 x, 5 y} plus (bits)</option>
               <option value="expr:1 succ">1 succ</option>
-              <option value="expr:() ()">()</option>
-              <option value="expr::t plus">:t plus</option>
-              <option value="expr::d plus">:d plus</option>
-              <option value="expr::codes">:codes</option>
-              <option value="expr::rels">:rels</option>
-              <option value="expr::val">:val</option>
+              <option value="expr:{10 int x, 5 int y} plus">{10 int x, 5 int y} plus (int)</option>
+              <option value="expr::codes">:codes (list types)</option>
+              <option value="expr::rels">:rels (list relations)</option>
             </optgroup>
-            <optgroup label="Codecs &amp; Serializers">
+            <optgroup label="Codecs &amp; Format Adapters">
               <option value="expr::codecs">:codecs</option>
-              <option value="expr::input">:input (codec popup)</option>
+              <option value="expr::input">:input (interactive dialog)</option>
               <option value="expr::codec load int">:codec load int</option>
-              <option value="expr:10 int">10 int</option>
               <option value="expr::codec load utf8">:codec load utf8</option>
               <option value="expr::codec load json">:codec load json</option>
               <option value="expr::codec load ieee">:codec load ieee</option>
               <option value="expr::codec load unit">:codec load unit</option>
+              <option value="expr::input {float64 x, string n} json">:input {float64 x, string n} json</option>
             </optgroup>
           </select>
           <button id="btn-load-example" class="btn btn-primary">Load</button>
@@ -1689,9 +1740,6 @@ const htmlContent = `<!DOCTYPE html>
 
         <!-- Clear -->
         <button id="btn-clear" class="btn btn-secondary" title="Clear terminal screen (Ctrl+L)">⌫ Clear</button>
-
-        <!-- Reset -->
-        <button id="btn-reset" class="btn btn-secondary" title="Reset REPL state (:reset)">↺ Reset</button>
 
         <!-- Export -->
         <button id="btn-export" class="btn btn-secondary" title="Export session to .klib">💾 Save .klib</button>
@@ -1757,17 +1805,17 @@ const htmlContent = `<!DOCTYPE html>
       <div class="modal-dialog codecs-dialog">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <h3>Codecs &amp; Custom Serializers / Deserializers</h3>
+            <h3>Format Codecs &amp; Custom Serializers / Deserializers</h3>
             <span class="engine-badge">:codecs subsystem</span>
           </div>
           <button id="btn-close-codecs" class="btn-close">&times;</button>
         </div>
         <div class="modal-body codecs-body">
-          <!-- Section 1: Standard Built-in Codecs -->
+          <!-- Section 1: Available Format Codecs -->
           <div class="codecs-section">
             <div class="codecs-section-header">
-              <h4>Standard Built-in Codecs</h4>
-              <span class="section-subtitle">Click 'Load' to activate bidirectional serialization in the REPL session</span>
+              <h4>Available Format Codecs</h4>
+              <span class="section-subtitle">External adapters translating between text formats and typed <code>(filter, tree)</code> values. Click 'Load' to activate in current session.</span>
             </div>
             <div class="codec-grid">
               <!-- int card -->
@@ -1778,8 +1826,8 @@ const htmlContent = `<!DOCTYPE html>
                     <span class="codec-name">int</span>
                     <span id="codec-badge-int" class="codec-status-badge">Inactive</span>
                   </div>
-                  <div class="codec-types">Target: <span class="badge-type">$int</span></div>
-                  <div class="codec-desc">Arbitrary-precision signed integers serialized to/from sign-magnitude bit sequences.</div>
+                  <div class="codec-types">Target: <span class="badge-type">$ int</span></div>
+                  <div class="codec-desc">Converts decimal integers to/from <code>$ int = &lt; bits '+', bits '-' &gt;</code>.</div>
                 </div>
                 <div class="codec-card-footer">
                   <div class="codec-caps">
@@ -1798,8 +1846,8 @@ const htmlContent = `<!DOCTYPE html>
                     <span class="codec-name">utf8</span>
                     <span id="codec-badge-utf8" class="codec-status-badge">Inactive</span>
                   </div>
-                  <div class="codec-types">Target: <span class="badge-type">$list $byte</span></div>
-                  <div class="codec-desc">UTF-8 strings serialized to/from linked lists of 8-bit bytes ($byte).</div>
+                  <div class="codec-types">Target: <span class="badge-type">$ string ($ utf8)</span></div>
+                  <div class="codec-desc">Converts text to/from <code>$ string</code>, a list of Unicode scalar values (<code>$ unicode</code>) partitioned by Unicode planes.</div>
                 </div>
                 <div class="codec-card-footer">
                   <div class="codec-caps">
@@ -1818,8 +1866,8 @@ const htmlContent = `<!DOCTYPE html>
                     <span class="codec-name">json</span>
                     <span id="codec-badge-json" class="codec-status-badge">Inactive</span>
                   </div>
-                  <div class="codec-types">Target: <span class="badge-type universal">Universal (*)</span></div>
-                  <div class="codec-desc">Arbitrary algebraic products and variants mapped to standard JSON objects and values.</div>
+                  <div class="codec-types">Target: <span class="badge-type parameterized">Pattern / Universal</span></div>
+                  <div class="codec-desc">Universal / pattern-driven codec. Deserializes JSON text into <i>k</i> values using a pattern expression (e.g. <code>:input ? {float64 x, string n} json</code> or <code>:input json</code>), or serializes <i>k</i> values to JSON.</div>
                 </div>
                 <div class="codec-card-footer">
                   <div class="codec-caps">
@@ -1838,8 +1886,8 @@ const htmlContent = `<!DOCTYPE html>
                     <span class="codec-name">ieee</span>
                     <span id="codec-badge-ieee" class="codec-status-badge">Inactive</span>
                   </div>
-                  <div class="codec-types">Target: <span class="badge-type">$float</span></div>
-                  <div class="codec-desc">IEEE 754 floating point numbers serialized to sign, exponent, and mantissa fields.</div>
+                  <div class="codec-types">Target: <span class="badge-type">$ float64</span></div>
+                  <div class="codec-desc">IEEE 754 floating point numbers serialized to/from sign, exponent, and fraction fields.</div>
                 </div>
                 <div class="codec-card-footer">
                   <div class="codec-caps">
@@ -1880,7 +1928,7 @@ const htmlContent = `<!DOCTYPE html>
           <div class="codecs-section">
             <div class="codecs-section-header">
               <h4>Custom Serializer &amp; Deserializer Studio</h4>
-              <span class="section-subtitle">Create and test custom domain formats (e.g. Yes/No booleans, Hex, Currency, Dates)</span>
+              <span class="section-subtitle">Codecs convert external text representations to/from <i>k</i> values defined as pairs <code>(filter, tree)</code>.</span>
             </div>
 
             <div class="codec-studio-box">
@@ -1888,9 +1936,9 @@ const htmlContent = `<!DOCTYPE html>
                 <div class="studio-field">
                   <label for="codec-preset-select">Preset Template:</label>
                   <select id="codec-preset-select">
-                    <option value="yn">Yes / No ($bool)</option>
-                    <option value="hex">Hexadecimal 0x... ($int)</option>
-                    <option value="currency">Currency $XX.YY ($int cents)</option>
+                    <option value="yn">Yes / No ($ yes_no)</option>
+                    <option value="hex">Hexadecimal 0x... ($ int)</option>
+                    <option value="currency">Currency $XX.YY ($ int cents)</option>
                     <option value="blank">Blank / Custom</option>
                   </select>
                 </div>
@@ -1932,7 +1980,7 @@ const htmlContent = `<!DOCTYPE html>
                   <input type="text" id="codec-test-input" placeholder="e.g. yes or 0xFF or $42.50" value="yes">
                 </div>
                 <button id="btn-test-parse" class="btn btn-secondary btn-sm" title="Test parse function against test input">🧪 Test Parse</button>
-                <button id="btn-test-print" class="btn btn-secondary btn-sm" title="Test print function against current REPL value (:val)">🖨 Test Print</button>
+                <button id="btn-test-print" class="btn btn-secondary btn-sm" title="Test print function against current REPL value">🖨 Test Print</button>
                 <button id="btn-register-codec" class="btn btn-primary btn-sm" title="Register codec in active REPL state">✓ Register in REPL</button>
                 <button id="btn-save-codec-vfs" class="btn btn-secondary btn-sm" title="Export as standalone .mjs file to VFS">💾 Save to VFS</button>
               </div>
@@ -1949,28 +1997,28 @@ const htmlContent = `<!DOCTYPE html>
       <div class="modal-dialog input-popup-dialog">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <h3>📥 Codec Input</h3>
+            <h3>📥 Code Input</h3>
             <span class="engine-badge">:input directive</span>
           </div>
           <button id="btn-close-input-popup" class="btn-close">&times;</button>
         </div>
         <div class="modal-body input-popup-body">
           <div id="input-popup-banner" class="input-popup-banner">
-            <span id="input-popup-hint">Enter input string to deserialize into a K algebraic value:</span>
+            <span id="input-popup-hint">Enter input string to deserialize into a K value:</span>
           </div>
 
           <div class="input-popup-form-row">
             <div class="studio-field" style="flex: 1;">
-              <label for="input-popup-type">Target Type:</label>
-              <select id="input-popup-type">
-                <!-- populated dynamically -->
-              </select>
+              <label for="input-popup-type">Target Pattern:</label>
+              <input type="text" id="input-popup-type" list="input-popup-type-list" placeholder="e.g. (...) or $ int or ? {float64 x, string n}" autocomplete="off">
+              <datalist id="input-popup-type-list"></datalist>
             </div>
             <div class="studio-field" style="flex: 1;">
               <label for="input-popup-codec">Deserializer Codec:</label>
               <select id="input-popup-codec">
                 <!-- populated dynamically -->
               </select>
+              <div id="input-popup-codec-hint" class="input-popup-codec-hint" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
             </div>
           </div>
 
@@ -2006,21 +2054,111 @@ const htmlContent = `<!DOCTYPE html>
         </div>
         <div class="modal-body help-body">
           <div class="help-section">
+            <h4>Language Overview</h4>
+            <p style="margin-bottom: 8px; color: var(--text-muted); line-height: 1.45;">
+              <b>k</b> is a concise language of <b>types</b> and <b>relations</b> (functions) over tree-like (JSON-like) documents. Every expression denotes a relation that transforms an input document into an output document.
+            </p>
+            <p style="margin-bottom: 10px; color: var(--text-muted); line-height: 1.45;">
+              <b>Content-Addressed:</b> Functions and types are identified by their canonical content hash (<code>@...</code>) derived directly from their structure. Local names are just temporary aliases used for recursion and readability.
+            </p>
+
+            <div class="help-category-title">1. Definitions (Local Aliases)</div>
+            <p style="margin-bottom: 6px; color: var(--text-muted); font-size: 12px;">Definitions introduce local aliases for recursion and convenience (terminated by <code>;</code>):</p>
+            <table class="help-table">
+              <thead>
+                <tr><th style="width: 38%;">Syntax</th><th>Description &amp; Example</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>name = relExpr;</code></td>
+                  <td><b>Relation Alias:</b> Defines a local alias for a relation expression.<br><i>e.g.</i> <code>swap = { . y x, . x y };</code></td>
+                </tr>
+                <tr>
+                  <td><code>$ name = typeExpr;</code></td>
+                  <td><b>Type Alias:</b> Defines a local alias for a type schema.<br><i>e.g.</i> <code>$ bool = &lt; {} true, {} false &gt;;</code></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="help-category-title">2. Type Expressions (<code>typeExpr</code>)</div>
+            <p style="margin-bottom: 6px; color: var(--text-muted); font-size: 12px;">Schemas describing tree-like documents:</p>
+            <table class="help-table">
+              <thead>
+                <tr><th style="width: 45%;">Syntax</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>{ Type_1 label_1, ..., Type_k label_k }</code></td>
+                  <td><b>Product Type:</b> Labeled record of arity <i>k</i> (e.g. <code>{float64 x, string n}</code>; special case: <code>{}</code> is the 0-ary product)</td>
+                </tr>
+                <tr>
+                  <td><code>&lt; Type_1 tag_1, ..., Type_k tag_k &gt;</code></td>
+                  <td><b>Union Type:</b> Tagged sum of <i>k</i> variants (e.g. <code>&lt;int ok, string err&gt;</code>)</td>
+                </tr>
+                <tr>
+                  <td><code>name</code> / <code>@hash</code></td>
+                  <td><b>Type Reference:</b> References a type by local alias or canonical content hash</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="help-category-title">3. Relation Expressions (<code>relExpr</code>)</div>
+            <p style="margin-bottom: 6px; color: var(--text-muted); font-size: 12px;">Functions transforming an input document to an output document:</p>
+            <table class="help-table">
+              <thead>
+                <tr><th style="width: 45%;">Syntax</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>{ rel_1 label_1, ..., rel_k label_k }</code></td>
+                  <td><b>Product:</b> Evaluates <i>k</i> relations into record fields (special case: <code>{}</code> evaluates 0 relations, producing empty record <code>{}</code>)</td>
+                </tr>
+                <tr>
+                  <td><code>&lt; rel_1, ..., rel_k &gt;</code></td>
+                  <td><b>Union (Choice):</b> Evaluates relations in order of arity <i>k</i> (tries <code>rel_1</code>; if it fails, tries <code>rel_2</code>, ..., <code>rel_k</code>)</td>
+                </tr>
+                <tr>
+                  <td><code>( rel_1 ... rel_k )</code></td>
+                  <td><b>Composition:</b> Sequentially composes <i>k</i> relations (special case: <code>()</code> is the 0-ary composition, denoting identity; parentheses may be omitted when non-empty: <code>f g</code>)</td>
+                </tr>
+                <tr>
+                  <td><code>. label</code></td>
+                  <td><b>Field Projection:</b> Extracts field <code>label</code> from a record</td>
+                </tr>
+                <tr>
+                  <td><code>/ tag</code></td>
+                  <td><b>Variant Branch:</b> Extracts payload of variant <code>tag</code> (fails if tag differs)</td>
+                </tr>
+                <tr>
+                  <td><code>| tag</code></td>
+                  <td><b>Variant Constructor:</b> Wraps document into variant <code>tag</code></td>
+                </tr>
+                <tr>
+                  <td><code>$ typeExpr</code></td>
+                  <td><b>Type Constraint:</b> Asserts input matches <code>typeExpr</code> (compile-time Type Error on mismatch)</td>
+                </tr>
+                <tr>
+                  <td><code>name</code> / <code>@hash</code></td>
+                  <td><b>Relation Reference:</b> Calls a relation by local alias or canonical content hash</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="help-section">
             <h4>REPL Commands</h4>
             <table class="help-table">
               <tr><td><code>:load &lt;file&gt;</code></td><td>Load a <code>.k</code> source or <code>.klib</code> library into current state</td></tr>
               <tr><td><code>:t &lt;name&gt;</code></td><td>Display the derived type of relation <code>&lt;name&gt;</code></td></tr>
               <tr><td><code>:d &lt;name&gt;</code></td><td>Display definition of relation <code>&lt;name&gt;</code></td></tr>
-              <tr><td><code>:type &lt;name&gt;</code></td><td>Show or define a type (<code>:type name = &lt;...&gt;</code>)</td></tr>
-              <tr><td><code>:rel &lt;name&gt; = expr</code></td><td>Define a relation alias</td></tr>
-              <tr><td><code>:codes</code></td><td>List all type aliases</td></tr>
+              <tr><td><code>:type &lt;name&gt;</code></td><td>Display definition of type <code>&lt;name&gt;</code></td></tr>
+              <tr><td><code>:codes</code></td><td>List all type aliases and canonical hashes</td></tr>
               <tr><td><code>:rels</code></td><td>List all relation aliases</td></tr>
-              <tr><td><code>:codecs</code></td><td>List all loaded codecs / serializers</td></tr>
-              <tr><td><code>:codec load &lt;name|file&gt;</code></td><td>Load a built-in codec (<code>int</code>, <code>utf8</code>, <code>json</code>, <code>ieee</code>) or file</td></tr>
-              <tr><td><code>:codec define n t b</code></td><td>Define inline custom codec: <code>name type { parse: ..., print: ... }</code></td></tr>
+              <tr><td><code>:codecs</code></td><td>List all registered format codecs</td></tr>
+              <tr><td><code>:codec load &lt;name|file&gt;</code></td><td>Load a format codec (<code>int</code>, <code>utf8</code>, <code>json</code>, <code>ieee</code>, <code>unit</code>) or file</td></tr>
               <tr><td><code>:codec unload &lt;name&gt;</code></td><td>Unload a registered codec</td></tr>
-              <tr><td><code>:input &lt;type&gt; [codec]</code></td><td>Read next input line using specified codec</td></tr>
-              <tr><td><code>:val</code></td><td>Print current accumulator value</td></tr>
+              <tr><td><code>:input [&lt;filter=(...)&gt; [codec]]</code></td><td>Read next input line using specified codec (opens dialog in browser)</td></tr>
+              <tr><td><code>:time &lt;expr&gt;</code></td><td>Evaluate <code>&lt;expr&gt;</code> and report execution time</td></tr>
               <tr><td><code>:klib &lt;file&gt;</code></td><td>Export current state as a <code>.klib</code> binary file</td></tr>
               <tr><td><code>:reset</code></td><td>Clear state and reset to initial environment</td></tr>
               <tr><td><code>:help</code></td><td>Show command reference</td></tr>
@@ -2031,10 +2169,13 @@ const htmlContent = `<!DOCTYPE html>
             <h4>Expressions &amp; Snippets</h4>
             <p style="margin-bottom: 8px; color: var(--text-muted);">Any raw K expression entered at the prompt is compiled and evaluated on top of the current state using WebAssembly.</p>
             <ul>
-              <li><code>10</code> &mdash; Integer literal (encodes to bit-path via arithmetics)</li>
-              <li><code>{10 int x, 5 int y} plus</code> &mdash; Composition / function call</li>
-              <li><code>succ = {inv x, _ y} _inc;</code> &mdash; Define a relation (ends with <code>;</code>)</li>
-              <li><code>$ bit = &lt; {} 0, {} 1 &gt;;</code> &mdash; Define a type</li>
+              <li><code>{} | ok</code> &mdash; Constant relation producing variant <code>ok</code> with empty document payload <code>{}</code></li>
+              <li><code>not = &lt; / true | false, / false | true &gt;;</code> &mdash; Polymorphic negation via branch projections and ordered choice</li>
+              <li><code>{} | true not</code> &mdash; Compose constant relation <code>{} | true</code> with <code>not</code> (evaluates to <code>{} | false</code>)</li>
+              <li><code>$ bool = &lt; {} true, {} false &gt;;</code> &mdash; Define a boolean union type schema</li>
+              <li><code>not = $ bool &lt; / true | false, {} | true &gt; $ bool;</code> &mdash; Typed boolean negation: guarded by <code>$ bool</code>, defaulting to <code>{} | true</code></li>
+              <li><code>swap = { . y x, . x y };</code> &mdash; Define a product field-swapping relation</li>
+              <li><code>{ {} | ok x, {} | nil y } swap</code> &mdash; Construct a product and pass it through <code>swap</code></li>
             </ul>
           </div>
 

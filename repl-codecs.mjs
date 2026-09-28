@@ -11,6 +11,7 @@ import * as utf8Codec from "./codecs/utf8.mjs";
 import * as jsonCodec from "./codecs/json.mjs";
 import * as ieeeCodec from "./codecs/ieee.mjs";
 import * as unitCodec from "./codecs/unit.mjs";
+import { patternFromJsonValue } from "./codecs/json-codec.mjs";
 
 const BUILTIN_CODECS = {
   int: intCodec,
@@ -72,9 +73,23 @@ function codeHashToPattern(codeHash, findCode) {
   return patternToPropertyList(deriveClosedPattern(codeHash, code, resolveType));
 }
 
+function valueForPattern(value, pattern = null, rawInput = null, codecName = null) {
+  if (pattern) {
+    return decodeWire(encodeToWire(value, pattern)).value;
+  }
+  if (codecName === "json" && rawInput != null) {
+    try {
+      const json = JSON.parse(rawInput);
+      const jsonPattern = patternFromJsonValue(json);
+      return decodeWire(encodeToWire(value, jsonPattern)).value;
+    } catch {}
+  }
+  return decodeWire(encodeToWire(value)).value;
+}
+
 function valueForCode(value, codeHash, findCode) {
   const pattern = codeHashToPattern(codeHash, findCode);
-  return decodeWire(encodeToWire(value, pattern)).value;
+  return valueForPattern(value, pattern);
 }
 
 function normalizeCodecModule(mod, fallbackName) {
@@ -255,17 +270,21 @@ function resolveCodec(state, codeHash, codecName = null, capability = null) {
   const matchesCodec = (codec) =>
     (codecName == null || codec.name === codecName) &&
     (capability == null || typeof codec[capability] === "function");
-  const exactMatches = (store[codeHash] || []).filter(matchesCodec);
+  const exactMatches = (codeHash ? store[codeHash] || [] : []).filter(matchesCodec);
   const universalMatches = (store[UNIVERSAL_CODE] || []).filter(matchesCodec);
   const matches = codecName == null && exactMatches.length > 0
     ? exactMatches
     : [...exactMatches, ...universalMatches];
   if (matches.length === 0) {
+    if (codecName) {
+      const namedMatches = Object.values(store).flat().filter(matchesCodec);
+      if (namedMatches.length > 0) return namedMatches[0];
+    }
     const suffix = codecName ? ` named '${codecName}'` : "";
-    throw new Error(`No ${capability || "usable"} codec${suffix} for ${codeHash}`);
+    throw new Error(`No ${capability || "usable"} codec${suffix}${codeHash ? ` for ${codeHash}` : ""}`);
   }
   if (matches.length > 1 && codecName == null) {
-    throw new Error(`Multiple codecs for ${codeHash}; specify one of: ${matches.map((codec) => codec.name).join(", ")}`);
+    throw new Error(`Multiple codecs for ${codeHash || "target"}; specify one of: ${matches.map((codec) => codec.name).join(", ")}`);
   }
   return matches[0];
 }
@@ -282,5 +301,7 @@ export {
   unregisterCodec,
   closedPatternToCodeHash,
   UNIVERSAL_CODE,
-  valueForCode
+  valueForCode,
+  valueForPattern,
+  matchBuiltinCodec
 };

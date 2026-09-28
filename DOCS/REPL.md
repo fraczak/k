@@ -33,29 +33,23 @@ complete.
 | Command | Meaning |
 | --- | --- |
 | `:help` | Show command summary |
-| `:type name = <...>` | Define a type alias |
 | `:type name` | Show the canonical definition of a type |
 | `:code name` | Alias for `:C name` |
-| `:rel name = expr` | Define a relation alias |
-| `:def name = expr` | Alias for `:rel` |
 | `:run expr` | Evaluate `expr` on the current value |
 | `:eval expr` | Alias for `:run` |
 | `:time expr` | Evaluate `expr` and report compilation and execution time |
-| `:timing [on\|off]` | Toggle compilation and execution timing reporting for all evaluations |
 | `:t name` | Show relation input/output filters |
 | `:d name` | Show relation definition |
 | `:C name` | Show canonical code definition |
 | `:codes` | List type aliases |
 | `:rels` | List relation aliases |
 | `:codec load name\|file` | Load a built-in codec (`int`, `utf8`, `json`, `ieee`, `unit`) or an ES module file |
-| `:codec define n t b` | Define an inline custom codec: `name type { parse: ..., print: ... }` |
 | `:codec unload name` | Unload a registered codec |
 | `:codec list` | List loaded REPL codecs (alias: `:codecs`) |
-| `:input type [codec]` | Read the next line as codec input for a type |
+| `:input [<filter=(...)> [codec]]` | Read next input line using specified codec (opens dialog in browser) |
 | `:load [--no-alias] file` | Load `.k` source or `.klib` into the current state |
 | `:klib file` | Export the active relation closure as a `.klib` library |
 | `:ko file expr` | Export a `.ko` executable with `expr` as main |
-| `:val` | Print current value and JSON form |
 | `:reset` | Reset interpreter state |
 | `:quit` / `:exit` | Exit |
 
@@ -143,8 +137,8 @@ Tab completion covers:
 Type aliases also complete in `$name` position inside raw k input.
 
 For codec commands, completion covers `:codec load`, `:codec list`, file paths
-after `:codec load`, type names after `:input`, and loaded codec names
-after the input type.
+after `:codec load`, type names or codec names after `:input`, and loaded codec names
+after the input pattern or type.
 
 ## Loading
 
@@ -193,44 +187,39 @@ property-list pattern that can be canonicalized to a code hash, and that hash is
 recalculated by the REPL. A universal codec exports `universal = true` instead
 of `codes` or `patterns`.
 
-### `:codec define name type { parse: ..., print: ... }`
-
-Registers a dynamic custom codec directly from the REPL:
-
-```k
-> :type bool = <{} true, {} false>
-> :codec define yn bool ({ parse: (t) => Value.variant(t.trim() === 'yes' ? 'true' : 'false', Value.product({})), print: (v) => v.tag === 'true' ? 'YES' : 'NO' })
-```
 
 ### `:codec unload name`
 
 Unloads a previously registered codec by name.
 
-### `:input type [codec]`
+### `:input [<filter=(...)> [codec]]`
 
-Resolves `type` to a canonical code hash, selects the registered codec, and
-consumes the next line verbatim as codec input. `type` may be a type alias, a
-canonical code hash, or an inline type expression such as
-`<{} true, {} false>`. The parsed value is validated against that type before
-becoming the current value.
+Resolves a pattern expression (e.g. `? {string a, float64 n}`, `? (...)`, `? <{} true, {} false>`), a type alias, or a canonical code hash, selects the registered codec, and consumes the next line verbatim as codec input.
+
+If only a universal codec is specified (e.g. `:input json`), no pre-declared type or pattern is required; input is parsed directly and derives its pattern from the input payload.
+
+When a pattern expression or type is provided, the parsed value is validated and constrained against that pattern before becoming the current value:
+
+```text
+> :input ? {string a, float64 n} json
+input ? {string a, float64 n} using json: enter value text
+json> {"a": "Woj", "n": 123}
+```
 
 ## Timing and Profiling
 
-### `:time expr`
-
-Evaluates `expr` and reports the elapsed time broken down into compilation
-(type derivation + WebAssembly lowering/compilation) and runtime execution:
+Timing reporting is enabled by default for all evaluations, reporting elapsed time
+broken down into compilation (type derivation + WebAssembly lowering/compilation) and runtime execution:
 
 ```text
-> :time {10 int x, 5 int y} plus
+> {10 int x, 5 int y} plus
 {}|_|1|1|1|1|+ ?<{} _, ...>
 /* comp: 12.4ms, exec: 0.8ms */
 ```
 
-### `:timing [on|off]`
+### `:time expr`
 
-Toggles automatic timing reporting for every snippet or expression evaluated in
-the session.
+Evaluates `expr` with explicit timing and records performance metrics in session state.
 
 ## Web REPL (Studio)
 
@@ -279,11 +268,9 @@ Evaluated values print in k syntax together with the inferred envelope:
 ## Example Session
 
 ```text
-> :type nat = <{} 0, nat +1>
-$ nat = @...
-> :rel inc = |+1
-inc = @...
-> {} |0
+> $ nat = < {} 0, nat +1 >;
+> inc = | +1;
+> {} | 0
 {}|0 ?<{} 0, ...>
 > :t inc
 inc : ?X0  -->  ?<X0 +1, ...>  (@...)

@@ -145,6 +145,7 @@ if (chromiumBin) {
       "ieee.mjs",
       "int.mjs",
       "json.mjs",
+      "poly.k",
       "unit.mjs",
       "utf8.mjs"
     ].sort();
@@ -202,14 +203,16 @@ if (chromiumBin) {
     })()`);
     assert(formattedVal.includes("int: 10"), `Expected 'int: 10' in output, got: ${formattedVal}`);
 
-    // Test defining inline custom codec via :codec define
-    await evaluateAsync(`window.kRepl.executeCommand(":type bool = <{} true, {} false>")`);
+    // Test defining custom codec via Custom Codec Studio UI
+    await evaluateAsync(`window.kRepl.executeCommand("$ yes_no = < {} yes, {} no >;");`);
     const defineCodecOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":codec define yn bool ({ parse: (t) => Value.variant(t.trim() === 'yes' ? 'true' : 'false', Value.product({})), print: (v) => v.tag === 'true' ? 'YES' : 'NO' })");
-      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
-      return lines[lines.length - 1];
+      window.kRepl.openCodecsModal();
+      const typeSelect = document.getElementById("codec-custom-type");
+      if (typeSelect) typeSelect.value = "yes_no";
+      document.getElementById("btn-register-codec").click();
+      return document.getElementById("codec-studio-status")?.textContent || "";
     })()`);
-    assert(defineCodecOut.includes("defined codec yn"), `Expected defined codec yn, got: ${defineCodecOut}`);
+    assert(defineCodecOut.includes("Successfully registered codec yn"), `Expected defined codec yn, got: ${defineCodecOut}`);
 
     // Test modal interaction via openCodecsModal
     const modalIsOpen = await evaluateAsync(`(() => {
@@ -272,6 +275,32 @@ if (chromiumBin) {
       return lines[lines.length - 1];
     })()`);
     assert(jsonResult.includes('json: {"a":"Woj","n":123}'), `Expected json: {"a":"Woj","n":123}, got: ${jsonResult}`);
+
+    // Verify Reset button is removed from navbar
+    const hasResetBtn = await evaluateAsync(`Boolean(document.getElementById("btn-reset"))`);
+    assert.strictEqual(hasResetBtn, false, "Reset button should be removed from navbar");
+
+    // Test explicit pattern expression :input ? {string a, float64 n} json
+    await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":input ? {string a, float64 n} json");
+      await window.kRepl.executeCommand('{"a":"Test","n":456}');
+    })()`);
+    const patternResult = await evaluateAsync(`(() => {
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(patternResult.includes('json: {"a":"Test","n":456}'), `Expected json: {"a":"Test","n":456}, got: ${patternResult}`);
+
+    // Test standalone codec input :input json without pre-declared type
+    await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":input json");
+      await window.kRepl.executeCommand('{"foo":"bar"}');
+    })()`);
+    const standaloneResult = await evaluateAsync(`(() => {
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(standaloneResult.includes('json: {"foo":"bar"}'), `Expected json: {"foo":"bar"}, got: ${standaloneResult}`);
 
     // Verify text selection holds in output element
     const selectionCheck = await evaluateAsync(`(() => {
@@ -427,6 +456,55 @@ if (chromiumBin) {
     assert.strictEqual(variantDepthAndActionsCheck.v4Collapsed, true, "Variant level 4 must be collapsed by default");
     assert.strictEqual(variantDepthAndActionsCheck.allOpenAfterExpand, true, "Expand button should expand collapsed nodes");
     assert.strictEqual(variantDepthAndActionsCheck.v4CollapsedAgain, true, "Collapse button should reset deeper nodes to collapsed");
+
+    // 4. Verify shortened welcome banner
+    const bannerCheck = await evaluateAsync(`(() => {
+      const banner = document.querySelector(".welcome-banner");
+      const title = banner?.querySelector(".welcome-title")?.textContent.trim();
+      const desc = banner?.querySelector(".welcome-desc");
+      const tips = banner?.querySelector(".welcome-tips");
+      return { hasBanner: !!banner, title, hasDesc: !!desc, hasTips: !!tips };
+    })()`);
+    assert.strictEqual(bannerCheck.hasBanner, true, "Welcome banner should be present");
+    assert.strictEqual(bannerCheck.title, "k interactive repl", "Welcome banner title should be 'k interactive repl'");
+    assert.strictEqual(bannerCheck.hasDesc, false, "Welcome banner description should be removed");
+    assert.strictEqual(bannerCheck.hasTips, false, "Welcome banner tips should be removed");
+
+    // 5. Test narrow viewport rendering (e.g. 600px width)
+    await send("Emulation.setDeviceMetricsOverride", { width: 600, height: 800, deviceScaleFactor: 1, mobile: false });
+    const narrowNavbarCheck = await evaluateAsync(`(() => {
+      const btnHelp = document.getElementById("btn-help");
+      if (!btnHelp) return { found: false };
+      const rect = btnHelp.getBoundingClientRect();
+      const isVisible = rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= window.innerWidth;
+      btnHelp.click();
+      const helpModalOpen = document.getElementById("help-modal")?.classList.contains("open");
+      const modalText = document.getElementById("help-modal")?.textContent || "";
+      const hasRel = modalText.includes(":rel ");
+      const hasVal = modalText.includes(":val");
+      const hasTiming = modalText.includes(":timing");
+      const hasCodecDefine = modalText.includes(":codec define");
+      const hasType = modalText.includes(":type <name>");
+      return {
+        found: true,
+        isVisible,
+        rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+        helpModalOpen,
+        hasRel,
+        hasVal,
+        hasTiming,
+        hasCodecDefine,
+        hasType
+      };
+    })()`);
+    assert.strictEqual(narrowNavbarCheck.found, true, "#btn-help should exist");
+    assert.strictEqual(narrowNavbarCheck.isVisible, true, "#btn-help should be visible within narrow viewport");
+    assert.strictEqual(narrowNavbarCheck.helpModalOpen, true, "Clicking #btn-help in narrow viewport should open help modal");
+    assert.strictEqual(narrowNavbarCheck.hasRel, false, "Help modal should not contain :rel");
+    assert.strictEqual(narrowNavbarCheck.hasVal, false, "Help modal should not contain :val");
+    assert.strictEqual(narrowNavbarCheck.hasTiming, false, "Help modal should not contain :timing");
+    assert.strictEqual(narrowNavbarCheck.hasCodecDefine, false, "Help modal should not contain :codec define");
+    assert.strictEqual(narrowNavbarCheck.hasType, true, "Help modal should contain :type <name>");
 
     ws.close();
     console.log("   Browser execution verified successfully!");

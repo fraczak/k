@@ -36,26 +36,24 @@ import {
   codeHashToPattern,
   listCodecs,
   loadCodecModule,
-  normalizeCodecModule,
   registerCodec,
   resolveCodec,
   unregisterCodec,
   BUILTIN_CODECS,
   closedPatternToCodeHash,
   UNIVERSAL_CODE,
-  valueForCode
+  valueForPattern,
+  matchBuiltinCodec
 } from "./repl-codecs.mjs";
 
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
-const TYPE_DEF_RE = /^\s*\$\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
-const REL_DEF_RE = /^\s*([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)\s*=/;
 const COMMAND_NAMES = [
-  "help", "type", "code", "rel", "def", "run", "eval", "t", "d", "C",
-  "codes", "codecs", "rels", "val", "codec", "input", "reset", "klib", "ko", "load",
-  "timing", "time",
+  "help", "type", "code", "run", "eval", "t", "d", "C",
+  "codes", "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
+  "time",
   "quit", "exit"
 ];
-const CODEC_COMMAND_NAMES = ["load", "unload", "list", "define"];
+const CODEC_COMMAND_NAMES = ["load", "unload", "list"];
 const PATH_COMMANDS = new Set(["klib", "ko", "load"]);
 const INPUT_TYPE_NAME = "__input__";
 const initialCodes = codes.dump();
@@ -90,7 +88,7 @@ function createState() {
     lastResult: null,
     lastMain: null,
     lastTiming: null,
-    showTiming: false
+    showTiming: true
   };
 }
 
@@ -360,12 +358,11 @@ function printValue(value, state = null) {
   if (!state || value === undefined) return lines[0];
 
   const codeHash = closedPatternToCodeHash(value.pattern);
-  if (!codeHash) return lines[0];
-
   const codecs = [
-    ...(state.codecs?.[codeHash] || []),
+    ...(codeHash ? state.codecs?.[codeHash] || [] : []),
     ...(state.codecs?.[UNIVERSAL_CODE] || [])
   ];
+  if (codecs.length === 0) return lines[0];
   for (const codec of codecs) {
     if (typeof codec.print !== "function") continue;
     try {
@@ -663,14 +660,14 @@ function completeCodecCommand(line, argStart, arg, state) {
 
 function resolveTypeHash(state, rawName) {
   const token = rawName.trim();
-  const bareName = token.startsWith("$") ? token.slice(1) : token;
+  const bareName = token.startsWith("$") ? token.slice(1).trim() : token;
   const hash = state.typeAliases[bareName] || (token.startsWith("@") ? token : null);
   if (!hash || !(hash in state.codes)) throw new Error(`Unknown type '${rawName}'`);
   return hash;
 }
 
 function isSimpleTypeReference(rawType) {
-  return /^\$?[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/.test(rawType.trim());
+  return /^\$?\s*[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/.test(rawType.trim());
 }
 
 function resolveTypeExpressionHash(state, rawType) {
@@ -703,28 +700,117 @@ function resolveInputTypeHash(state, rawType) {
   return resolveTypeExpressionHash(state, rawType);
 }
 
+function resolvePatternExpression(state, patternExpr) {
+  restoreCodes(state);
+  const preamble = aliasPreamble(state);
+  const source = [
+    preamble,
+    patternExpr
+  ].filter(Boolean).join("\n");
+  try {
+    const annotated = annotate(source, { libraries: [stateLibrary(state)] });
+    const mainRel = annotated.rels.__main__;
+    if (!mainRel || !mainRel.typePatternGraph) {
+      throw new Error(`Invalid pattern expression '${patternExpr}'`);
+    }
+    if (mainRel.def.op !== "filter" && mainRel.def.op !== "code") {
+      throw new Error(`Expected a pattern expression, got ${mainRel.def.op}`);
+    }
+    const rootPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
+    const pattern = patternToPropertyList(exportPatternGraph(mainRel.typePatternGraph, rootPatternId));
+    const codeHash = closedPatternToCodeHash(pattern);
+    state.codes = codes.dump();
+    return { pattern, codeHash, display: codeHash || patternExpr };
+  } catch (error) {
+    restoreCodes(state);
+    throw remapError(error, preambleLineCount(preamble));
+  }
+}
+
+function resolveInputPattern(state, rawExpr) {
+  const token = (rawExpr || "").trim();
+  if (!token || token === "*" || token === "(...)") {
+    return { pattern: [["any", []]], codeHash: null, display: "(...)" };
+  }
+
+  // 1. Explicit filter / pattern expression
+  if (token.startsWith("?")) {
+    const res = resolvePatternExpression(state, token);
+    return { ...res, display: token };
+  }
+
+  // 2. Pattern as type prefixed by dollar: $ name, $ {typeExpr}, $ <typeExpr>
+  if (token.startsWith("$")) {
+    const bare = token.slice(1).trim();
+    if (bare in (state.typeAliases || {})) {
+      const hash = state.typeAliases[bare];
+      const pattern = codeHashToPattern(hash, (h) => state.codes?.[h] || codes.find(h));
+      return { pattern, codeHash: hash, display: `$ ${bare}` };
+    }
+    try {
+      const res = resolvePatternExpression(state, `? ${token}`);
+      return { ...res, display: token };
+    } catch {}
+  }
+
+  // 3. Known type alias or canonical code hash
+  try {
+    const hash = resolveTypeHash(state, token);
+    const pattern = codeHashToPattern(hash, (h) => state.codes?.[h] || codes.find(h));
+    return { pattern, codeHash: hash, display: hash };
+  } catch (aliasErr) {
+    if (isSimpleTypeReference(token)) {
+      try {
+        const res = resolvePatternExpression(state, `? ${token}`);
+        return { ...res, display: token };
+      } catch {}
+      throw aliasErr;
+    }
+  }
+
+  // 4. Composite expression ({...}, <...>): try type expression first
+  try {
+    const hash = resolveTypeExpressionHash(state, token);
+    const pattern = codeHashToPattern(hash, (h) => state.codes?.[h] || codes.find(h));
+    return { pattern, codeHash: hash, display: hash };
+  } catch (typeErr) {
+    // 5. Fall back to pattern expression: ? <expr>
+    try {
+      const res = resolvePatternExpression(state, `? ${token}`);
+      return { ...res, display: token };
+    } catch {
+      throw typeErr;
+    }
+  }
+}
+
 function completeInputCommand(line, state, argStart, arg) {
   const match = arg.match(/^(\s*)(\S+)?(\s+)?(\S*)?$/);
   if (!match) return [[], line];
-  const [, leading, typeToken = "", afterTypeWhitespace = "", codecPartial = ""] = match;
+  const [, leading, firstToken = "", afterWhitespace = "", secondPartial = ""] = match;
 
-  if (!typeToken || !afterTypeWhitespace) {
+  if (!firstToken || !afterWhitespace) {
     if (/@[A-Za-z0-9_?!+-]*$/.test(line)) return completeCanonicalCode(line, state);
-    return completeTypeIdentifier(line, state);
+    const [types] = completeTypeIdentifier(line, state);
+    const prefix = line.slice(0, argStart + leading.length);
+    const codecMatches = codecNames(state)
+      .filter((name) => name.startsWith(firstToken))
+      .map((name) => `${prefix}${name}`);
+    return [[...new Set([...types, ...codecMatches])], line];
   }
 
-  if (typeToken) {
-    const prefix = line.slice(0, argStart + leading.length + typeToken.length + afterTypeWhitespace.length);
+  if (firstToken) {
+    const prefix = line.slice(0, argStart + leading.length + firstToken.length + afterWhitespace.length);
     const names = (() => {
       try {
-        return codecNames(state, resolveTypeHash(state, typeToken));
+        return codecNames(state, resolveTypeHash(state, firstToken));
       } catch {
         return codecNames(state);
       }
     })();
     return [
       names
-        .filter((name) => name.startsWith(codecPartial))
+        .filter((name) => name.startsWith(secondPartial))
         .map((name) => `${prefix}${name}`),
       line
     ];
@@ -981,57 +1067,6 @@ function compileSnippetArtifacts(source, state, sourceName = "<repl>") {
   }
 }
 
-async function defineType(input, state) {
-  const typeMatch = input.match(TYPE_DEF_RE);
-  if (!typeMatch) {
-    throw new Error("Type definitions use: :type name = <...>");
-  }
-
-  const name = typeMatch[1];
-  restoreCodes(state);
-  const preamble = aliasPreamble(state, name);
-  const source = [preamble, ensureSemicolon(input), "()"].filter(Boolean).join("\n");
-  let annotated;
-  try {
-    annotated = annotate(source, { libraries: [stateLibrary(state)] });
-  } catch (error) {
-    throw remapError(error, preambleLineCount(preamble));
-  }
-  const hash = annotated.representatives[name];
-  if (!hash) throw new Error(`Type definition did not produce an alias for '${name}'`);
-  state.codes = codes.dump();
-  state.typeAliases[name] = hash;
-  rememberOrigin(state, hash, name, "code");
-  return [`$ ${name} = ${hash}`];
-}
-
-async function defineRelation(input, state) {
-  const relMatch = input.match(REL_DEF_RE);
-  if (!relMatch) {
-    throw new Error("Relation definitions use: :rel name = expression");
-  }
-
-  const name = relMatch[1];
-  restoreCodes(state);
-  const preamble = aliasPreamble(state, name);
-  const source = [preamble, ensureSemicolon(input), name].filter(Boolean).join("\n");
-  let lib;
-  try {
-    lib = hydrateObject(compileLibrary(source, { source: "<repl>", libraries: [stateLibrary(state)] }));
-  } catch (error) {
-    throw remapError(error, preambleLineCount(preamble));
-  }
-  const hash = lib.relAlias?.[name];
-  if (!hash || !lib.rels?.[hash]) throw new Error(`Relation definition did not produce an alias for '${name}'`);
-  state.codes = codes.dump();
-  state.rels[hash] = lib.rels[hash];
-  state.relAliases[name] = hash;
-  state.lastMain = name;
-  mergeMeta(state, lib.meta);
-  rememberOrigin(state, hash, name, "rel");
-  return [`${name} = ${hash}`];
-}
-
 async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
   const mainRel = annotated.rels.__main__;
   if (!mainRel) return { result: undefined, wasmCompileMs: 0, executeMs: 0 };
@@ -1186,27 +1221,8 @@ async function loadCodec(input, state) {
       if (removed === 0) throw new Error(`Codec '${codecName}' is not loaded`);
       return [`unloaded codec ${codecName}`];
     }
-    case "define": {
-      const match = rest.join(" ").match(/^([a-zA-Z0-9_+-]+)\s+(\S+)\s+([\s\S]+)$/);
-      if (!match) {
-        throw new Error(":codec define requires: name type { parse: ..., print: ... }");
-      }
-      const [, name, rawType, bodyStr] = match;
-      const fn = new Function("Value", "isProduct", "isVariant", "state", `return (${bodyStr});`);
-      const obj = fn(Value, isProduct, isVariant, state);
-      const codeHash = rawType === "*" ? UNIVERSAL_CODE : resolveInputTypeHash(state, rawType);
-      const codec = normalizeCodecModule({
-        name,
-        codes: [codeHash],
-        universal: codeHash === UNIVERSAL_CODE,
-        parse: obj.parse,
-        print: obj.print
-      }, name);
-      const registered = registerCodec(state, codec, "<inline>");
-      return registered.map(({ name, codeHash }) =>
-        `defined codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}`
-      );
-    }
+    case "define":
+      throw new Error(":codec define has been removed; use :codec load <name|file> or the Custom Codec Studio UI");
     case "list":
       if (rest.length > 0) throw new Error(":codec list does not accept arguments");
       return [listCodecs(state)];
@@ -1221,29 +1237,105 @@ async function loadCodec(input, state) {
 }
 
 async function requestCodecInput(input, state) {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    throw new Error(":input requires a type and optional codec name");
+  const trimmed = input.trim() || "(...)";
+
+  let pattern = null;
+  let codeHash = null;
+  let codecName = null;
+  let targetDisplay = null;
+  let rawExpr = trimmed;
+
+  const isJustCodec = (() => {
+    if (trimmed.startsWith("?") || trimmed.startsWith("$") || trimmed.startsWith("{") || trimmed.startsWith("<") || trimmed.startsWith("(")) {
+      return false;
+    }
+    const allCodecs = codecNames(state);
+    const builtin = matchBuiltinCodec(trimmed);
+    const isCodecName = allCodecs.includes(trimmed) || builtin != null;
+    const isTypeAlias = Boolean(state.typeAliases && state.typeAliases[trimmed]);
+    return isCodecName && !isTypeAlias;
+  })();
+
+  if (isJustCodec) {
+    codecName = trimmed;
+    targetDisplay = trimmed;
+    ensureCodecDependencies(state, codecName);
+    if (!state.codecs?.[codecName] && matchBuiltinCodec(codecName)) {
+      await loadCodecModule(state, codecName);
+    }
+    if (state.typeAliases?.[codecName]) {
+      codeHash = state.typeAliases[codecName];
+      pattern = codeHashToPattern(codeHash, codes.find);
+      targetDisplay = codeHash;
+    }
+  } else {
+    let splitPattern = null;
+    let splitCodec = null;
+
+    const split = trimmed.match(/^(.*\S)\s+([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)$/);
+    if (split && split[1].trim() !== "?" && split[1].trim() !== "$") {
+      splitPattern = split[1];
+      splitCodec = split[2];
+    }
+
+    if (splitCodec) {
+      try {
+        const resolved = resolveInputPattern(state, splitPattern);
+        pattern = resolved.pattern;
+        codeHash = resolved.codeHash;
+        codecName = splitCodec;
+        targetDisplay = resolved.display;
+        rawExpr = splitPattern;
+      } catch (patternErr) {
+        const resolved = resolveInputPattern(state, trimmed);
+        pattern = resolved.pattern;
+        codeHash = resolved.codeHash;
+        targetDisplay = resolved.display;
+        rawExpr = trimmed;
+      }
+    } else {
+      const resolved = resolveInputPattern(state, trimmed);
+      pattern = resolved.pattern;
+      codeHash = resolved.codeHash;
+      targetDisplay = resolved.display;
+      rawExpr = trimmed;
+    }
   }
 
-  let codeHash;
-  let codecName = null;
-  try {
-    codeHash = resolveInputTypeHash(state, trimmed);
-  } catch (wholeError) {
-    const split = trimmed.match(/^(.*\S)\s+([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)$/);
-    if (!split) throw wholeError;
-    try {
-      codeHash = resolveInputTypeHash(state, split[1]);
-      codecName = split[2];
-    } catch (typeError) {
-      throw typeError;
+  const explicitCodec = Boolean(codecName);
+  if (!codecName && codeHash) {
+    for (const [alias, hash] of Object.entries(state.typeAliases || {})) {
+      if (hash === codeHash && (matchBuiltinCodec(alias) || codecNames(state).includes(alias))) {
+        codecName = alias;
+        break;
+      }
+    }
+  }
+
+  if (codecName) {
+    ensureCodecDependencies(state, codecName);
+    if (!state.codecs?.[codecName] && matchBuiltinCodec(codecName)) {
+      await loadCodecModule(state, codecName);
+    }
+  } else {
+    const hasExactCodec = Boolean(codeHash && state.codecs?.[codeHash]?.some((c) => typeof c.parse === "function"));
+    const hasUniversal = Boolean(state.codecs?.[UNIVERSAL_CODE]?.some((c) => typeof c.parse === "function"));
+    if (!hasExactCodec && !hasUniversal && matchBuiltinCodec("json")) {
+      await loadCodecModule(state, "json");
     }
   }
 
   const codec = resolveCodec(state, codeHash, codecName, "parse");
-  state.pendingInput = { codeHash, codecName, promptName: codec.name };
-  return [`input ${codeHash}${codecName ? ` using ${codecName}` : ""}: enter value text`];
+  state.pendingInput = {
+    pattern,
+    codeHash,
+    codecName: codec.name,
+    promptName: codec.name,
+    rawExpr
+  };
+
+  const usingPart = explicitCodec && codecName && codecName !== targetDisplay ? ` using ${codecName}` : "";
+  return [`input ${targetDisplay}${usingPart}: enter value text`];
 }
 
 async function consumeCodecInput(input, state) {
@@ -1253,13 +1345,13 @@ async function consumeCodecInput(input, state) {
 
   restoreCodes(state);
   const codec = resolveCodec(state, pending.codeHash, pending.codecName, "parse");
-  const pattern = codeHashToPattern(pending.codeHash, codes.find);
+  const pattern = pending.pattern || (pending.codeHash ? codeHashToPattern(pending.codeHash, codes.find) : null);
   const parsed = await codec.parse(input, {
     codeHash: pending.codeHash,
     pattern,
     state
   });
-  const value = valueForCode(parsed, pending.codeHash, codes.find);
+  const value = valueForPattern(parsed, pattern, input, codec.name);
   state.value = value;
   state.lastResult = value;
   return [printValue(value, state)];
@@ -1298,34 +1390,16 @@ async function evaluateCommand(line, state) {
       exit(0);
     case "help":
       return [helpText()];
-    case "timing": {
-      const trimmed = arg.trim().toLowerCase();
-      if (trimmed === "on" || trimmed === "true" || trimmed === "1") {
-        state.showTiming = true;
-      } else if (trimmed === "off" || trimmed === "false" || trimmed === "0") {
-        state.showTiming = false;
-      } else if (!trimmed) {
-        state.showTiming = !state.showTiming;
-      } else {
-        throw new Error(":timing accepts 'on', 'off', or no arguments to toggle");
-      }
-      return [`timing reporting ${state.showTiming ? "enabled" : "disabled"}`];
-    }
+    case "timing":
+      throw new Error(":timing has been removed; timing is now always enabled");
     case "time": {
       if (!arg) throw new Error(":time requires an expression");
-      const wasTiming = state.showTiming;
-      state.showTiming = true;
-      try {
-        return await evaluateInput(arg, state);
-      } finally {
-        state.showTiming = wasTiming;
-      }
+      return evaluateInput(arg, state);
     }
     case "type": {
-      if (!arg) throw new Error(":type requires a name or definition");
+      if (!arg) throw new Error(":type requires a type name");
       if (arg.includes("=")) {
-        const definition = arg.trim().startsWith("$") ? arg : `$ ${arg}`;
-        return defineType(definition, state);
+        throw new Error("Type definitions use syntax: $ name = typeExpr; Use :type <name> to show a type definition");
       }
       return evaluateCommand(`:C ${arg}`, state);
     }
@@ -1333,8 +1407,7 @@ async function evaluateCommand(line, state) {
       return evaluateCommand(`:C ${arg}`, state);
     case "rel":
     case "def":
-      if (!arg) throw new Error(`:${command} requires a relation definition`);
-      return defineRelation(arg, state);
+      throw new Error("Relation definitions use syntax: name = relExpr;");
     case "run":
     case "eval":
       return runExpression(arg, state);
@@ -1342,11 +1415,6 @@ async function evaluateCommand(line, state) {
       return [listAliases(state.typeAliases)];
     case "rels":
       return [listAliases(state.relAliases)];
-    case "val":
-      return [
-        printValue(state.value, state),
-        JSON.stringify(state.value, null, 2)
-      ];
     case "codec":
     case "codecs":
       return loadCodec(arg, state);
@@ -1403,26 +1471,21 @@ async function evaluateCommand(line, state) {
 
 function helpText() {
   return [
-    ":type name = <...>   define a type",
-    ":rel name = expr     define a relation",
     ":run expr            run an expression on the current value",
     ":time expr           run an expression and report compilation/execution time",
-    ":timing [on|off]     toggle timing reporting after every evaluation",
     ":t name              show relation type",
     ":d name              show relation definition",
     ":type name           show type definition",
     ":codes               list type aliases",
     ":rels                list relation aliases",
-    ":codec load file     load a REPL codec module (or built-in: int, utf8, json, ieee)",
-    ":codec define n t b  define a custom codec: name type { parse: ..., print: ... }",
+    ":codec load file     load a REPL codec module (or built-in: int, utf8, json, ieee, unit)",
     ":codec unload name   unload a registered codec",
     ":codec list          list loaded codecs (or simply :codecs)",
-    ":input type [codec]  read next line as codec input",
+    ":input [<filter=(...)> [codec]]  read next line as codec input",
     ":load [--no-alias] file",
     "                     load .k source or .klib",
     ":klib file           export state as a library",
     ":ko file expr        export executable .ko using expr as main",
-    ":val                 print current value",
     ":reset               clear state",
     ":help                show this help",
     "",
@@ -1568,6 +1631,9 @@ export {
   registerCodec,
   unregisterCodec,
   resolveCodec,
+  resolveInputTypeHash,
+  resolveInputPattern,
+  valueForPattern,
   codeHashToPattern,
   BUILTIN_CODECS,
   printValue,
