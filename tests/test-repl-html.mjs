@@ -215,11 +215,61 @@ if (chromiumBin) {
     assert(defineCodecOut.includes("Successfully registered codec yn"), `Expected defined codec yn, got: ${defineCodecOut}`);
 
     // Test modal interaction via openCodecsModal
-    const modalIsOpen = await evaluateAsync(`(() => {
+    const modalCheck = await evaluateAsync(`(() => {
       window.kRepl.openCodecsModal();
-      return document.getElementById("codecs-modal")?.classList.contains("open");
+      const modal = document.getElementById("codecs-modal");
+      const hasAllCards = ["int", "utf8", "json", "ieee", "unit"].every(name =>
+        Boolean(document.getElementById("card-codec-" + name)) &&
+        Boolean(document.getElementById("btn-toggle-codec-" + name))
+      );
+      const tableHeaders = Array.from(modal.querySelectorAll(".codec-table th")).map(th => th.textContent.trim());
+      const hasPatternHeader = tableHeaders.includes("Pattern / Target Family");
+      const hasLoadBar = Boolean(document.getElementById("codec-load-input")) && Boolean(document.getElementById("btn-codec-load-custom"));
+
+      return {
+        open: modal?.classList.contains("open"),
+        hasAllCards,
+        hasPatternHeader,
+        hasLoadBar
+      };
     })()`);
-    assert.strictEqual(modalIsOpen, true, "Codecs modal should open");
+    assert.strictEqual(modalCheck.open, true, "Codecs modal should open");
+    assert.strictEqual(modalCheck.hasAllCards, true, "All 5 format codec cards (int, utf8, json, ieee, unit) should exist");
+    assert.strictEqual(modalCheck.hasPatternHeader, true, "Codec table should have 'Pattern / Target Family' header");
+    assert.strictEqual(modalCheck.hasLoadBar, true, "Codec load bar input and button should exist");
+
+    // Test loading 'unit' via direct toggle button
+    const unitToggleCheck = await evaluateAsync(`(async () => {
+      const btn = document.getElementById("btn-toggle-codec-unit");
+      btn.click();
+      await new Promise(r => setTimeout(r, 50));
+      const badge = document.getElementById("codec-badge-unit");
+      const activeRows = Array.from(document.querySelectorAll("#active-codecs-tbody tr")).map(r => r.textContent);
+      const hasUnitInTable = activeRows.some(r => r.includes("unit") && r.includes("{}"));
+      return {
+        isActive: badge?.textContent === "Active",
+        hasUnitInTable
+      };
+    })()`);
+    assert.strictEqual(unitToggleCheck.isActive, true, "unit badge should be Active after clicking Load");
+    assert.strictEqual(unitToggleCheck.hasUnitInTable, true, "active codecs table should list unit with {}");
+
+    // Unload unit
+    await evaluateAsync(`(() => {
+      document.getElementById("btn-toggle-codec-unit").click();
+    })()`);
+
+    // Test direct codec loader input bar with 'unit'
+    const directLoadCheck = await evaluateAsync(`(async () => {
+      const input = document.getElementById("codec-load-input");
+      const loadBtn = document.getElementById("btn-codec-load-custom");
+      input.value = "unit";
+      loadBtn.click();
+      await new Promise(r => setTimeout(r, 50));
+      const badge = document.getElementById("codec-badge-unit");
+      return badge?.textContent === "Active";
+    })()`);
+    assert.strictEqual(directLoadCheck, true, "Direct codec loader input bar should load unit");
 
     // Close codecs modal
     await evaluateAsync(`(() => {

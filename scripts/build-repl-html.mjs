@@ -1717,7 +1717,8 @@ const htmlContent = `<!DOCTYPE html>
               <option value="expr::codec load json">:codec load json</option>
               <option value="expr::codec load ieee">:codec load ieee</option>
               <option value="expr::codec load unit">:codec load unit</option>
-              <option value="expr::input {float64 x, string n} json">:input {float64 x, string n} json</option>
+              <option value="expr::input json {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input json {"a":12,"b":"hello"}</option>
+              <option value="expr::input int [0,1,2]">:input int [0,1,2]</option>
             </optgroup>
           </select>
           <button id="btn-load-example" class="btn btn-primary">Load</button>
@@ -1815,7 +1816,7 @@ const htmlContent = `<!DOCTYPE html>
           <div class="codecs-section">
             <div class="codecs-section-header">
               <h4>Available Format Codecs</h4>
-              <span class="section-subtitle">External adapters translating between text formats and typed <code>(filter, tree)</code> values. Click 'Load' to activate in current session.</span>
+              <span class="section-subtitle">Predefined translation recipes between external text and enveloped <i>k</i> values. Click 'Load' to activate in current session.</span>
             </div>
             <div class="codec-grid">
               <!-- int card -->
@@ -1826,8 +1827,8 @@ const htmlContent = `<!DOCTYPE html>
                     <span class="codec-name">int</span>
                     <span id="codec-badge-int" class="codec-status-badge">Inactive</span>
                   </div>
-                  <div class="codec-types">Target: <span class="badge-type">$ int</span></div>
-                  <div class="codec-desc">Converts decimal integers to/from <code>$ int = &lt; bits '+', bits '-' &gt;</code>.</div>
+                  <div class="codec-types">Target: <span class="badge-type">Pattern Family: $ int &amp; lists</span></div>
+                  <div class="codec-desc">Translates decimal integers (e.g. <code>42</code>, <code>-15</code>) and bracketed integer lists (e.g. <code>[0,1,2]</code>) to/from <i>k</i> binary pattern envelopes.</div>
                 </div>
                 <div class="codec-card-footer">
                   <div class="codec-caps">
@@ -1847,7 +1848,7 @@ const htmlContent = `<!DOCTYPE html>
                     <span id="codec-badge-utf8" class="codec-status-badge">Inactive</span>
                   </div>
                   <div class="codec-types">Target: <span class="badge-type">$ string ($ utf8)</span></div>
-                  <div class="codec-desc">Converts text to/from <code>$ string</code>, a list of Unicode scalar values (<code>$ unicode</code>) partitioned by Unicode planes.</div>
+                  <div class="codec-desc">Translates text strings to/from <code>$ string</code>, a list of Unicode scalar values (<code>$ unicode</code>) partitioned by Unicode planes.</div>
                 </div>
                 <div class="codec-card-footer">
                   <div class="codec-caps">
@@ -1866,8 +1867,8 @@ const htmlContent = `<!DOCTYPE html>
                     <span class="codec-name">json</span>
                     <span id="codec-badge-json" class="codec-status-badge">Inactive</span>
                   </div>
-                  <div class="codec-types">Target: <span class="badge-type parameterized">Pattern / Universal</span></div>
-                  <div class="codec-desc">Universal / pattern-driven codec. Deserializes JSON text into <i>k</i> values using a pattern expression (e.g. <code>:input ? {float64 x, string n} json</code> or <code>:input json</code>), or serializes <i>k</i> values to JSON.</div>
+                  <div class="codec-types">Target: <span class="badge-type parameterized">Self-describing JSON</span></div>
+                  <div class="codec-desc">Translates arbitrary JSON objects, arrays, numbers, strings, and booleans to/from enveloped <i>k</i> values.</div>
                 </div>
                 <div class="codec-card-footer">
                   <div class="codec-caps">
@@ -1897,6 +1898,26 @@ const htmlContent = `<!DOCTYPE html>
                   <button id="btn-toggle-codec-ieee" class="btn btn-sm btn-primary">Load</button>
                 </div>
               </div>
+
+              <!-- unit card -->
+              <div class="codec-card" id="card-codec-unit">
+                <div class="codec-card-top">
+                  <div class="codec-card-title">
+                    <span class="codec-icon">🔘</span>
+                    <span class="codec-name">unit</span>
+                    <span id="codec-badge-unit" class="codec-status-badge">Inactive</span>
+                  </div>
+                  <div class="codec-types">Target: <span class="badge-type">{}</span></div>
+                  <div class="codec-desc">Translates unit representations to/from empty product <code>{}</code>.</div>
+                </div>
+                <div class="codec-card-footer">
+                  <div class="codec-caps">
+                    <span class="cap-badge print">Serializer</span>
+                    <span class="cap-badge parse">Deserializer</span>
+                  </div>
+                  <button id="btn-toggle-codec-unit" class="btn btn-sm btn-primary">Load</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1904,14 +1925,18 @@ const htmlContent = `<!DOCTYPE html>
           <div class="codecs-section">
             <div class="codecs-section-header">
               <h4>Active Registered Codecs in Current Session</h4>
-              <span class="section-subtitle">Active codecs intercept evaluation formatting and :input commands</span>
+              <span class="section-subtitle">Active codecs format evaluation results and are available for <code>:input &lt;codec&gt; [text]</code> commands</span>
+            </div>
+            <div class="codecs-load-bar" style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <input type="text" id="codec-load-input" placeholder="Load codec by name (e.g. unit, int) or VFS file path..." style="flex: 1; font-family: monospace; font-size: 12px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-base); color: var(--text-main);">
+              <button id="btn-codec-load-custom" class="btn btn-primary btn-sm">Load Codec</button>
             </div>
             <div class="codecs-table-container">
               <table class="codec-table">
                 <thead>
                   <tr>
                     <th>Codec Name</th>
-                    <th>Target Type Binding</th>
+                    <th>Pattern / Target Family</th>
                     <th>Capabilities</th>
                     <th>Source</th>
                     <th>Action</th>
@@ -1928,7 +1953,7 @@ const htmlContent = `<!DOCTYPE html>
           <div class="codecs-section">
             <div class="codecs-section-header">
               <h4>Custom Serializer &amp; Deserializer Studio</h4>
-              <span class="section-subtitle">Codecs convert external text representations to/from <i>k</i> values defined as pairs <code>(filter, tree)</code>.</span>
+              <span class="section-subtitle">Define a custom codec recipe with <code>parse(text)</code> and <code>print(value)</code> functions to translate custom <i>k</i> values.</span>
             </div>
 
             <div class="codec-studio-box">
@@ -1949,7 +1974,7 @@ const htmlContent = `<!DOCTYPE html>
                 </div>
 
                 <div class="studio-field" style="flex: 1;">
-                  <label for="codec-custom-type">Target Type:</label>
+                  <label for="codec-custom-type">Target Type (Optional):</label>
                   <select id="codec-custom-type">
                     <!-- populated dynamically from state.typeAliases -->
                   </select>
@@ -2157,7 +2182,7 @@ const htmlContent = `<!DOCTYPE html>
               <tr><td><code>:codecs</code></td><td>List all registered format codecs</td></tr>
               <tr><td><code>:codec load &lt;name|file&gt;</code></td><td>Load a format codec (<code>int</code>, <code>utf8</code>, <code>json</code>, <code>ieee</code>, <code>unit</code>) or file</td></tr>
               <tr><td><code>:codec unload &lt;name&gt;</code></td><td>Unload a registered codec</td></tr>
-              <tr><td><code>:input [&lt;filter=(...)&gt; [codec]]</code></td><td>Read next input line using specified codec (opens dialog in browser)</td></tr>
+              <tr><td><code>:input &lt;codec&gt; [text]</code></td><td>Parse input using specified codec (opens dialog if text omitted)</td></tr>
               <tr><td><code>:time &lt;expr&gt;</code></td><td>Evaluate <code>&lt;expr&gt;</code> and report execution time</td></tr>
               <tr><td><code>:klib &lt;file&gt;</code></td><td>Export current state as a <code>.klib</code> binary file</td></tr>
               <tr><td><code>:reset</code></td><td>Clear state and reset to initial environment</td></tr>
