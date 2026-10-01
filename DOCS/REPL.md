@@ -136,9 +136,8 @@ Tab completion covers:
 
 Type aliases also complete in `$name` position inside raw k input.
 
-For codec commands, completion covers `:codec load`, `:codec list`, file paths
-after `:codec load`, type names or codec names after `:input`, and loaded codec names
-after the input pattern or type.
+For codec commands, completion covers `:codec load`, `:codec unload`, `:codec list`,
+file paths after `:codec load`, and codec names after `:input`.
 
 ## Loading
 
@@ -156,10 +155,18 @@ unless `--no-alias` is used.
 
 ## Codecs
 
-REPL codecs are usually keyed by canonical code hashes. Patterns are not used
-for codec dispatch. A codec may also export `universal = true` to make it
-available for any type selected by `:input`; the parsed value is still validated
-against the requested type before it enters the session.
+A codec is a recipe for translating between external text and enveloped *k* values:
+- `parse(text)`: parses an external string into an enveloped *k* value.
+- `print(value)`: serializes an enveloped *k* value to external string, throwing an `Error` if the value is not representable.
+
+Codecs can define a family of target patterns (e.g. `int` parses/prints single integers as well as lists like `[0,1,2]`).
+
+For printing in the REPL, every value is printed with the standard *k* envelope representation, followed by lines for all loaded codecs that can format it:
+```text
+> 42 int
+{}|_|0|1|0|1|0|1|+ ?<{} _, ...>
+int: 42
+```
 
 For a complete guide to writing a new codec module, see
 [`CODECS.md`](./CODECS.md).
@@ -173,38 +180,39 @@ Loads either a built-in codec by name (`int`, `utf8`, `json`, `ieee`, `unit`) or
 
 Loading a codec also creates code aliases matching the codec name (e.g. `$ int = @...`, `$ float64 = @...`, `$ utf8 = @...`).
 
-An external codec module exports:
-
-```js
-export const name = "utf8";
-export const codes = ["@..."];
-export function parse(text) { /* text -> Value */ }
-export function print(value) { /* Value -> text */ }
-```
-
-A codec may export `patterns` instead of `codes`; each pattern must be a closed
-property-list pattern that can be canonicalized to a code hash, and that hash is
-recalculated by the REPL. A universal codec exports `universal = true` instead
-of `codes` or `patterns`.
-
-
 ### `:codec unload name`
 
 Unloads a previously registered codec by name.
 
-### `:input [<filter=(...)> [codec]]`
+### `:codec list` (or `:codecs`)
 
-Resolves a pattern expression (e.g. `? {string a, float64 n}`, `? (...)`, `? <{} true, {} false>`), a type alias, or a canonical code hash, selects the registered codec, and consumes the next line verbatim as codec input.
+Lists all currently loaded codecs and their origins.
 
-If only a universal codec is specified (e.g. `:input json`), no pre-declared type or pattern is required; input is parsed directly and derives its pattern from the input payload.
+### `:input <codec> [text]`
 
-When a pattern expression or type is provided, the parsed value is validated and constrained against that pattern before becoming the current value:
+Parses external input using the specified `<codec>` recipe.
 
-```text
-> :input ? {string a, float64 n} json
-input ? {string a, float64 n} using json: enter value text
-json> {"a": "Woj", "n": 123}
-```
+- **Interactive mode**: `:input <codec>` switches the REPL prompt to `<codec>> `, and the next input line is parsed using that codec:
+  ```text
+  > :input json
+  json> {"hello": "world"}
+  {...} ?<{...}>
+  json: {"hello":"world"}
+  ```
+
+- **One-line mode**: `:input <codec> <text>` immediately parses `<text>`:
+  ```text
+  > :input int 42
+  {}|_|0|1|0|1|0|1|+ ?<{} _, ...>
+  int: 42
+
+  > :input int [0,1,2]
+  {...} ?<{...}>
+  int: [0,1,2]
+  ```
+
+Prefixing `<codec>` with a `$` (e.g. `:input $int 42` or `:input $ int 42`) is also supported.
+Entering `:input` with no arguments displays usage and a list of available codecs. In the Web REPL, `:input` opens an interactive input modal.
 
 ## Timing and Profiling
 

@@ -160,6 +160,9 @@ export function parse(text) {
 }
 
 export function print(value) {
+  if (!value || (value.tag !== "true" && value.tag !== "false")) {
+    throw new Error("expected true or false");
+  }
   return value.tag;
 }
 `);
@@ -172,57 +175,47 @@ assert(completions.includes(":codec list"));
 completions = completeInput(`:codec load ${tmpDir}/bool`, codecState)[0];
 assert(completions.includes(`:codec load ${codecPath}`));
 output = await evaluateInput(`:codec load ${codecPath}`, codecState);
-assert.equal(output[0], `loaded codec yn for ${boolHash}`);
+assert.equal(output[0], `loaded codec yn`);
 output = await evaluateInput(":codec list", codecState);
-assert.match(output[0], new RegExp(`^yn ${boolHash.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-completions = completeInput(":input bo", codecState)[0];
-assert(completions.includes(":input bool"));
-completions = completeInput(":input bool y", codecState)[0];
-assert(completions.includes(":input bool yn"));
-output = await evaluateInput(":input bool yn", codecState);
-assert.equal(output[0], `input ${boolHash} using yn: enter value text`);
+assert.match(output[0], /^yn/);
+completions = completeInput(":input y", codecState)[0];
+assert(completions.includes(":input yn"));
+output = await evaluateInput(":input yn", codecState);
+assert.equal(promptForState(codecState), "yn> ");
 output = await evaluateInput("true", codecState);
 assert.match(output[0], /\{\}\|true \?</);
 assert.match(output[0], /yn: true/);
 output = await evaluateInput("{} | false", codecState);
-assert.doesNotMatch(output[0], /yn: false/);
+assert.match(output[0], /yn: false/);
+output = await evaluateInput("{}", codecState);
+assert.doesNotMatch(output[0], /yn:/);
 
 const utf8State = createState();
 output = await evaluateInput(":load core.k", utf8State);
 assert.equal(output[0], "loaded core.k");
 output = await evaluateInput(":codec load ./codecs/utf8.mjs", utf8State);
-assert.equal(output[0], `loaded codec utf8 for ${utf8State.typeAliases.string}`);
-output = await evaluateInput(":input string utf8", utf8State);
-assert.equal(output[0], `input ${utf8State.typeAliases.string} using utf8: enter value text`);
-output = await evaluateInput("hello", utf8State);
+assert.equal(output[0], `loaded codec utf8`);
+output = await evaluateInput(":input utf8 hello", utf8State);
 assert.match(output[0], /utf8: hello/);
 
 const jsonState = createState();
-output = await evaluateInput("$ bool = < {} true, {} false >;", jsonState);
 output = await evaluateInput(":codec load ./codecs/json.mjs", jsonState);
-assert.match(output[0], /^loaded codec json for all types/);
+assert.match(output[0], /^loaded codec json/);
 output = await evaluateInput(":codec list", jsonState);
-assert.match(output[0], /^json all /);
-completions = completeInput(":input bool j", jsonState)[0];
-assert(completions.includes(":input bool json"));
-output = await evaluateInput(":input bool", jsonState);
-assert.equal(output[0], `input ${jsonState.typeAliases.bool}: enter value text`);
+assert.match(output[0], /^json/);
+completions = completeInput(":input j", jsonState)[0];
+assert(completions.includes(":input json"));
+output = await evaluateInput(":input json", jsonState);
 assert.equal(promptForState(jsonState), "json> ");
 output = await evaluateInput("true", jsonState);
 assert.match(output[0], /\{\}\|true \?</);
 assert.match(output[0], /json: true/);
 assert.equal(promptForState(jsonState), "> ");
-output = await evaluateInput(":input <{}true,{}false>", jsonState);
-assert.equal(output[0], `input ${jsonState.typeAliases.bool}: enter value text`);
-assert.equal(promptForState(jsonState), "json> ");
-output = await evaluateInput("false", jsonState);
+output = await evaluateInput(":input json false", jsonState);
 assert.match(output[0], /\{\}\|false \?</);
 assert.match(output[0], /json: false/);
 assert.equal(promptForState(jsonState), "> ");
-output = await evaluateInput(":input {bool left, bool right} json", jsonState);
-assert.match(output[0], /^input @[^ ]+ using json: enter value text$/);
-assert.equal(promptForState(jsonState), "json> ");
-output = await evaluateInput('{"left":true,"right":false}', jsonState);
+output = await evaluateInput(':input json {"left":true,"right":false}', jsonState);
 assert.match(output[0], /json: \{"left":true,"right":false\}/);
 assert.equal(promptForState(jsonState), "> ");
 
@@ -308,10 +301,10 @@ output = await evaluateInput(":codecs", codecTestState);
 assert.equal(output[0], "(none)");
 
 output = await evaluateInput(":codec load int", codecTestState);
-assert.match(output[0], /^loaded codec int for @/);
+assert.match(output[0], /^loaded codec int/);
 
 output = await evaluateInput(":codecs", codecTestState);
-assert.match(output[0], /^int @/);
+assert.match(output[0], /^int/);
 
 completions = completeInput(":codec un", codecTestState)[0];
 assert(completions.includes(":codec unload"));
@@ -328,15 +321,19 @@ assert.equal(output[0], "(none)");
 output = await evaluateInput("$ bool = < {} true, {} false >;", codecTestState);
 registerCodec(codecTestState, {
   name: "yn",
-  codes: [codecTestState.typeAliases.bool],
-  universal: false,
   parse: (text) => Value.variant(text.trim() === "yes" ? "true" : "false", Value.product({})),
-  print: (v) => v.tag === "true" ? "YES" : "NO"
+  print: (v) => {
+    if (v.tag !== "true" && v.tag !== "false") throw new Error("not a bool");
+    return v.tag === "true" ? "YES" : "NO";
+  }
 }, "<test>");
 
-output = await evaluateInput(":input bool yn", codecTestState);
+output = await evaluateInput(":input yn", codecTestState);
+assert.equal(promptForState(codecTestState), "yn> ");
 output = await evaluateInput("yes", codecTestState);
 assert.match(output[0], /yn: YES/);
+output = await evaluateInput(":input yn no", codecTestState);
+assert.match(output[0], /yn: NO/);
 
 // Projection on product with variant field (avoids filter variable collisions)
 const projState = createState();
@@ -359,6 +356,9 @@ assert.ok(autoLoadState.typeAliases.int, "int type alias should be registered");
 output = await evaluateInput(":input int", autoLoadState);
 output = await evaluateInput("123", autoLoadState);
 assert.match(output[0], /int: 123/);
+output = await evaluateInput(":input int", autoLoadState);
+output = await evaluateInput("[0,1,2]", autoLoadState);
+assert.match(output[0], /int: \[0,1,2\]/);
 
 const utf8AutoState = createState();
 output = await evaluateInput(":codec load utf8", utf8AutoState);
@@ -381,71 +381,56 @@ const jsonInputState = createState();
 await evaluateInput(":load core.k", jsonInputState);
 await evaluateInput(":load ieee.k", jsonInputState);
 await evaluateInput(":codec load json", jsonInputState);
-output = await evaluateInput(":input {string a, float64 n}", jsonInputState);
-assert.match(output[0], /enter value text/);
-output = await evaluateInput('{"a":"Woj","n":123}', jsonInputState);
+output = await evaluateInput(':input json {"a":"Woj","n":123}', jsonInputState);
 assert.match(output[0], /json: \{"a":"Woj","n":123\}/);
 
-// Verify pattern expressions and standalone codec input
-const patternInputState = createState();
-await evaluateInput(":codec load json", patternInputState);
+// Verify standalone codec input, one-line and interactive modes, and multi-codec printing
+const multiCodecState = createState();
+await evaluateInput(":codec load json", multiCodecState);
+await evaluateInput(":codec load utf8", multiCodecState);
+await evaluateInput(":codec load int", multiCodecState);
 
-// 1. Explicit pattern expression: ? {string a, float64 n} json
-output = await evaluateInput(":input ? {string a, float64 n} json", patternInputState);
-assert.match(output[0], /input \? \{string a, float64 n\} using json: enter value text/);
-output = await evaluateInput('{"a":"Woj","n":123}', patternInputState);
-assert.match(output[0], /json: \{"a":"Woj","n":123\}/);
-
-// 2. Wildcard pattern expression: ? (...) json
-output = await evaluateInput(":input ? (...) json", patternInputState);
-assert.match(output[0], /enter value text/);
-output = await evaluateInput('{"anything": [1, 2, 3]}', patternInputState);
-assert.match(output[0], /json: \{"anything":\[1,2,3\]\}/);
-
-// 3. Standalone codec input: :input json (no predefined type or pattern required)
-output = await evaluateInput(":input json", patternInputState);
-assert.match(output[0], /input json: enter value text/);
-output = await evaluateInput('{"hello":"world"}', patternInputState);
+// 1. One-line JSON input: :input json {"hello":"world"}
+output = await evaluateInput(':input json {"hello":"world"}', multiCodecState);
 assert.match(output[0], /json: \{"hello":"world"\}/);
 
-// 4. Pattern mismatch detection
-output = await evaluateInput(":input ? {string a, float64 n} json", patternInputState);
-await assert.rejects(
-  () => evaluateInput('{"wrong_key": 999}', patternInputState),
-  /Closed product pattern does not match value fields/
-);
+// 2. Interactive JSON input: :input json then {"anything": [1, 2, 3]}
+output = await evaluateInput(":input json", multiCodecState);
+assert.equal(promptForState(multiCodecState), "json> ");
+output = await evaluateInput('{"anything": [1, 2, 3]}', multiCodecState);
+assert.match(output[0], /json: \{"anything":\[1,2,3\]\}/);
+assert.equal(promptForState(multiCodecState), "> ");
 
-// 5. Bare :input defaults to :input (...) with auto-loaded json codec
-const bareInputState = createState();
-assert.equal(promptForState(bareInputState), "> ");
-output = await evaluateInput(":input", bareInputState);
-assert.deepEqual(output, ["input (...): enter value text"]);
-assert.equal(promptForState(bareInputState), "json> ");
-output = await evaluateInput('{"test": 123}', bareInputState);
-assert.match(output[0], /json: \{"test":123\}/);
-assert.equal(promptForState(bareInputState), "> ");
-
-// 6. Pattern as type prefixed by dollar
-const dollarPatternState = createState();
-await evaluateInput(":load arithmetics.k", dollarPatternState);
-output = await evaluateInput(":input $ int", dollarPatternState);
-assert.deepEqual(output, ["input $ int: enter value text"]);
-assert.equal(promptForState(dollarPatternState), "int> ");
-output = await evaluateInput("42", dollarPatternState);
+// 3. Integer scalar and list input
+output = await evaluateInput(":input int 42", multiCodecState);
 assert.match(output[0], /int: 42/);
 
-await evaluateInput("$ bool = <{} true, {} false>;", dollarPatternState);
-output = await evaluateInput(":input $ bool json", dollarPatternState);
-assert.deepEqual(output, ["input $ bool using json: enter value text"]);
-assert.equal(promptForState(dollarPatternState), "json> ");
-output = await evaluateInput("true", dollarPatternState);
-assert.match(output[0], /json: true/);
+output = await evaluateInput(":input int [0,1,2]", multiCodecState);
+assert.match(output[0], /int: \[0,1,2\]/);
+
+// 4. Bare :input displays usage and available codecs
+const bareInputState = createState();
+output = await evaluateInput(":input", bareInputState);
+assert.match(output[0], /^Usage: :input <codec> \[text\]/);
+assert.match(output[1], /Available codecs:/);
+
+// 5. Codec with leading dollar sign is accepted
+output = await evaluateInput(":input $ int 42", multiCodecState);
+assert.match(output[0], /int: 42/);
+output = await evaluateInput(":input $int 100", multiCodecState);
+assert.match(output[0], /int: 100/);
+
+// 6. Unknown codec throws descriptive error
+await assert.rejects(
+  () => evaluateInput(":input nonexistent 123", multiCodecState),
+  /Codec 'nonexistent' is not loaded/
+);
 
 const unitState = createState();
 output = await evaluateInput(":codec load unit", unitState);
 assert.match(output[0], /loaded codec unit/);
 output = await evaluateInput(":input unit", unitState);
-assert.match(output[0], /enter value text/);
+assert.equal(promptForState(unitState), "unit> ");
 output = await evaluateInput("{}", unitState);
 assert.match(output[0], /unit: \{\}/);
 

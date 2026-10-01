@@ -2,6 +2,7 @@
 
 import { stdin, stdout, argv, exit } from "node:process";
 import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
+import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
 import {
   STRING_PATTERN_PROPERTY_LIST,
   encodeText,
@@ -14,7 +15,8 @@ const name = "utf8";
 const patterns = [STRING_PATTERN_PROPERTY_LIST];
 
 function parse(text) {
-  return textToStringValue(text);
+  const value = textToStringValue(text);
+  return decodeWire(encodeToWire(value, STRING_PATTERN_PROPERTY_LIST)).value;
 }
 
 function print(value) {

@@ -126,4 +126,48 @@ async function evalK(snippet) {
   console.log("Test 9 (zip): Passed");
 }
 
+// Test 10: Split, Merge, and Merge Sort
+{
+  const resNil = await evalK(`nil sort`);
+  assert.match(resNil, /\|nil/);
+
+  const resSingle = await evalK(`
+    l = {1 int car, nil cdr} cons;
+    l sort
+  `);
+  assert.match(resSingle, /1/);
+
+  const resSplit = await evalK(`
+    l4 = {1 int car, {2 int car, {3 int car, {4 int car, nil cdr} cons cdr} cons cdr} cons cdr} cons;
+    l4 split
+  `);
+  assert.match(resSplit, /first.*second/);
+
+  const resSorted = await evalK(`
+    gt_int? = { { .x /"+" x, .y /"+" y } GT if, () then } .then;
+    _merge = <
+      {.xs /nil if, .ys then} .then,
+      {.ys /nil if, .xs then} .then,
+      {
+        {.xs car x, .ys car y} gt_int? if,
+        {.ys car car, {.xs xs, .ys cdr ys} _merge cdr} cons then
+      } .then,
+      {.xs car car, {.xs cdr xs, .ys ys} _merge cdr} cons
+    >;
+    _sort = list? <
+      /nil nil,
+      /cons <
+        {.cdr /nil if, .car singleton then} .then,
+        |cons split {.first _sort xs, .second _sort ys} _merge
+      >
+    > list?;
+    l = {5 int car, {2 int car, {4 int car, {1 int car, {3 int car, nil cdr} cons cdr} cons cdr} cons cdr} cons cdr} cons;
+    l _sort
+  `);
+  assert.match(resSorted, /\|1.*\|0\|1.*\|1\|1.*\|0\|0\|1.*\|1\|0\|1/);
+  console.log("Test 10 (split, merge, sort): Passed");
+}
+
 console.log("==> All Polymorphic List Tests Passed Successfully!");
+
+

@@ -43,7 +43,8 @@ import {
   closedPatternToCodeHash,
   UNIVERSAL_CODE,
   valueForPattern,
-  matchBuiltinCodec
+  matchBuiltinCodec,
+  ensureEnveloped
 } from "./repl-codecs.mjs";
 
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
@@ -357,19 +358,16 @@ function printValue(value, state = null) {
   const lines = [valueWithEnvelopeToK(value)];
   if (!state || value === undefined) return lines[0];
 
-  const codeHash = closedPatternToCodeHash(value.pattern);
-  const codecs = [
-    ...(codeHash ? state.codecs?.[codeHash] || [] : []),
-    ...(state.codecs?.[UNIVERSAL_CODE] || [])
-  ];
-  if (codecs.length === 0) return lines[0];
-  for (const codec of codecs) {
+  const store = state.codecs || {};
+  for (const codec of Object.values(store)) {
     if (typeof codec.print !== "function") continue;
     try {
-      lines.push(`${codec.name}: ${formatCodecOutput(codec.print(value, { codeHash, state }))}`);
-    } catch (error) {
-      if (codec.universal) continue;
-      lines.push(`${codec.name}: <error: ${error.message || String(error)}>`);
+      const output = codec.print(value, { state });
+      if (output != null) {
+        lines.push(`${codec.name}: ${formatCodecOutput(output)}`);
+      }
+    } catch {
+      // Codec cannot format this value; silently skip
     }
   }
   return lines.join("\n");
@@ -785,37 +783,16 @@ function resolveInputPattern(state, rawExpr) {
 }
 
 function completeInputCommand(line, state, argStart, arg) {
-  const match = arg.match(/^(\s*)(\S+)?(\s+)?(\S*)?$/);
-  if (!match) return [[], line];
-  const [, leading, firstToken = "", afterWhitespace = "", secondPartial = ""] = match;
-
-  if (!firstToken || !afterWhitespace) {
-    if (/@[A-Za-z0-9_?!+-]*$/.test(line)) return completeCanonicalCode(line, state);
-    const [types] = completeTypeIdentifier(line, state);
+  const match = arg.match(/^(\s*)(\S*)$/);
+  if (match) {
+    const [, leading, partial] = match;
     const prefix = line.slice(0, argStart + leading.length);
-    const codecMatches = codecNames(state)
-      .filter((name) => name.startsWith(firstToken))
+    const names = codecNames(state);
+    const matches = names
+      .filter((name) => name.startsWith(partial))
       .map((name) => `${prefix}${name}`);
-    return [[...new Set([...types, ...codecMatches])], line];
+    return [matches, line];
   }
-
-  if (firstToken) {
-    const prefix = line.slice(0, argStart + leading.length + firstToken.length + afterWhitespace.length);
-    const names = (() => {
-      try {
-        return codecNames(state, resolveTypeHash(state, firstToken));
-      } catch {
-        return codecNames(state);
-      }
-    })();
-    return [
-      names
-        .filter((name) => name.startsWith(secondPartial))
-        .map((name) => `${prefix}${name}`),
-      line
-    ];
-  }
-
   return [[], line];
 }
 
@@ -1210,8 +1187,8 @@ async function loadCodec(input, state) {
       if (!filePath) throw new Error(":codec load requires a file path or codec name");
       const autoLoaded = ensureCodecDependencies(state, filePath);
       const registered = await loadCodecModule(state, expandHome(filePath));
-      return registered.map(({ name, codeHash }) =>
-        `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}${autoLoaded ? ` (auto-loaded ${autoLoaded})` : ""}`
+      return registered.map(({ name }) =>
+        `loaded codec ${name}${autoLoaded ? ` (auto-loaded ${autoLoaded})` : ""}`
       );
     }
     case "unload": {
@@ -1229,113 +1206,53 @@ async function loadCodec(input, state) {
     default: {
       const autoLoaded = ensureCodecDependencies(state, trimmed);
       const registered = await loadCodecModule(state, expandHome(trimmed));
-      return registered.map(({ name, codeHash }) =>
-        `loaded codec ${name} for ${codeHash === UNIVERSAL_CODE ? "all types" : codeHash}${autoLoaded ? ` (auto-loaded ${autoLoaded})` : ""}`
+      return registered.map(({ name }) =>
+        `loaded codec ${name}${autoLoaded ? ` (auto-loaded ${autoLoaded})` : ""}`
       );
     }
   }
 }
 
 async function requestCodecInput(input, state) {
-  const trimmed = input.trim() || "(...)";
-
-  let pattern = null;
-  let codeHash = null;
-  let codecName = null;
-  let targetDisplay = null;
-  let rawExpr = trimmed;
-
-  const isJustCodec = (() => {
-    if (trimmed.startsWith("?") || trimmed.startsWith("$") || trimmed.startsWith("{") || trimmed.startsWith("<") || trimmed.startsWith("(")) {
-      return false;
-    }
-    const allCodecs = codecNames(state);
-    const builtin = matchBuiltinCodec(trimmed);
-    const isCodecName = allCodecs.includes(trimmed) || builtin != null;
-    const isTypeAlias = Boolean(state.typeAliases && state.typeAliases[trimmed]);
-    return isCodecName && !isTypeAlias;
-  })();
-
-  if (isJustCodec) {
-    codecName = trimmed;
-    targetDisplay = trimmed;
-    ensureCodecDependencies(state, codecName);
-    if (!state.codecs?.[codecName] && matchBuiltinCodec(codecName)) {
-      await loadCodecModule(state, codecName);
-    }
-    if (state.typeAliases?.[codecName]) {
-      codeHash = state.typeAliases[codecName];
-      pattern = codeHashToPattern(codeHash, codes.find);
-      targetDisplay = codeHash;
-    }
-  } else {
-    let splitPattern = null;
-    let splitCodec = null;
-
-    const split = trimmed.match(/^(.*\S)\s+([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)$/);
-    if (split && split[1].trim() !== "?" && split[1].trim() !== "$") {
-      splitPattern = split[1];
-      splitCodec = split[2];
-    }
-
-    if (splitCodec) {
-      try {
-        const resolved = resolveInputPattern(state, splitPattern);
-        pattern = resolved.pattern;
-        codeHash = resolved.codeHash;
-        codecName = splitCodec;
-        targetDisplay = resolved.display;
-        rawExpr = splitPattern;
-      } catch (patternErr) {
-        const resolved = resolveInputPattern(state, trimmed);
-        pattern = resolved.pattern;
-        codeHash = resolved.codeHash;
-        targetDisplay = resolved.display;
-        rawExpr = trimmed;
-      }
-    } else {
-      const resolved = resolveInputPattern(state, trimmed);
-      pattern = resolved.pattern;
-      codeHash = resolved.codeHash;
-      targetDisplay = resolved.display;
-      rawExpr = trimmed;
-    }
+  let trimmed = input.trim();
+  if (!trimmed) {
+    const loaded = Object.keys(state.codecs || {});
+    const avail = codecNames(state);
+    const loadedStr = loaded.length > 0 ? `Loaded: ${loaded.join(", ")}` : "None loaded";
+    return [
+      "Usage: :input <codec> [text]",
+      `Available codecs: ${avail.join(", ")} (${loadedStr})`
+    ];
   }
 
-  const explicitCodec = Boolean(codecName);
-  if (!codecName && codeHash) {
-    for (const [alias, hash] of Object.entries(state.typeAliases || {})) {
-      if (hash === codeHash && (matchBuiltinCodec(alias) || codecNames(state).includes(alias))) {
-        codecName = alias;
-        break;
-      }
-    }
+  if (trimmed.startsWith("$")) {
+    trimmed = trimmed.slice(1).trim();
   }
 
-  if (codecName) {
-    ensureCodecDependencies(state, codecName);
-    if (!state.codecs?.[codecName] && matchBuiltinCodec(codecName)) {
-      await loadCodecModule(state, codecName);
-    }
-  } else {
-    const hasExactCodec = Boolean(codeHash && state.codecs?.[codeHash]?.some((c) => typeof c.parse === "function"));
-    const hasUniversal = Boolean(state.codecs?.[UNIVERSAL_CODE]?.some((c) => typeof c.parse === "function"));
-    if (!hasExactCodec && !hasUniversal && matchBuiltinCodec("json")) {
-      await loadCodecModule(state, "json");
-    }
+  const match = trimmed.match(/^([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)(?:\s+([\s\S]*))?$/);
+  if (!match) {
+    throw new Error("Invalid :input syntax. Usage: :input <codec> [text]");
   }
 
-  const codec = resolveCodec(state, codeHash, codecName, "parse");
+  const codecName = match[1];
+  const inlineText = match[2];
+
+  ensureCodecDependencies(state, codecName);
+  const codec = resolveCodec(state, codecName, "parse");
+
+  if (inlineText !== undefined) {
+    const parsed = await codec.parse(inlineText, { state, codecName: codec.name });
+    const value = ensureEnveloped(parsed, codec);
+    state.value = value;
+    state.lastResult = value;
+    return [printValue(value, state)];
+  }
+
   state.pendingInput = {
-    pattern,
-    codeHash,
     codecName: codec.name,
-    promptName: codec.name,
-    rawExpr
+    promptName: codec.name
   };
-
-  const usingPart = explicitCodec && codecName && codecName !== targetDisplay ? ` using ${codecName}` : "";
-  return [`input ${targetDisplay}${usingPart}: enter value text`];
+  return [];
 }
 
 async function consumeCodecInput(input, state) {
@@ -1344,14 +1261,12 @@ async function consumeCodecInput(input, state) {
   state.pendingInput = null;
 
   restoreCodes(state);
-  const codec = resolveCodec(state, pending.codeHash, pending.codecName, "parse");
-  const pattern = pending.pattern || (pending.codeHash ? codeHashToPattern(pending.codeHash, codes.find) : null);
+  const codec = resolveCodec(state, pending.codecName, "parse");
   const parsed = await codec.parse(input, {
-    codeHash: pending.codeHash,
-    pattern,
-    state
+    state,
+    codecName: codec.name
   });
-  const value = valueForPattern(parsed, pattern, input, codec.name);
+  const value = ensureEnveloped(parsed, codec);
   state.value = value;
   state.lastResult = value;
   return [printValue(value, state)];
@@ -1481,7 +1396,7 @@ function helpText() {
     ":codec load file     load a REPL codec module (or built-in: int, utf8, json, ieee, unit)",
     ":codec unload name   unload a registered codec",
     ":codec list          list loaded codecs (or simply :codecs)",
-    ":input [<filter=(...)> [codec]]  read next line as codec input",
+    ":input <codec> [text]  parse input using specified codec",
     ":load [--no-alias] file",
     "                     load .k source or .klib",
     ":klib file           export state as a library",
@@ -1643,5 +1558,7 @@ export {
   loadSourceOrKlib,
   ensureCodecDependencies,
   valueToK,
-  formatDuration
+  formatDuration,
+  codecNames,
+  ensureEnveloped
 };

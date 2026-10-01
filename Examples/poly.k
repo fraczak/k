@@ -65,3 +65,49 @@ zip = <
     {.xs cdr xs, .ys cdr ys} zip cdr
   } cons
 >;
+
+-- Gen list of intgers: n -> [0, 1, ..., n]
+gen_list = {() n, nil list} gen_list_; 
+gen_list_ = <
+  {.n neg? if, .list then} .then, 
+  {.n dec n, {.n car, .list cdr} cons list} gen_list_
+>;
+
+-- Identity filter on {x, y} when x is greater than y: ?{X x, X y}=Y -> ?Y
+gt? =
+  <
+    {.x/- if1, .y/+ if2, () then} .then,
+    {{.x/- y, .y/- x} GT if, () then} .then,
+    {{.x/+ x, .y/+ y} GT if, () then} .then
+  >
+;
+
+-- Split list into two halves by alternating elements: xs -> {first, second}
+split = {() xs, nil first, nil second} _split;
+_split = <
+  {.xs /nil if, {.first first, .second second} then} .then,
+  {.xs cdr /nil if, {{.xs car car, .first cdr} cons first, .second second} then} .then,
+  {.xs cdr cdr xs, {.xs car car, .first cdr} cons first, {.xs cdr car car, .second cdr} cons second} _split
+>;
+
+-- Merge two sorted lists: {xs, ys} -> list
+merge = <
+  {.xs /nil if, .ys then} .then,
+  {.ys /nil if, .xs then} .then,
+  {
+    {.xs car x, .ys car y} gt? if,
+    {.ys car car, {.xs xs, .ys cdr ys} merge cdr} cons then
+  } .then,
+  {.xs car car, {.xs cdr xs, .ys ys} merge cdr} cons
+>;
+
+-- Sort a list in ascending order (merge sort): xs -> list
+sort = list? <
+  /nil nil,
+  /cons <
+    {.cdr /nil if, .car singleton then} .then,
+    |cons split {.first sort xs, .second sort ys} merge
+  >
+> list?;
+
+

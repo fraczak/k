@@ -6,7 +6,6 @@ import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { fromJsonValue, toJsonValue, patternFromJsonValue } from "./json-codec.mjs";
 
 const name = "json";
-const universal = true;
 
 function usage(stream = console.error) {
   stream(`Usage: ${argv[1]} --parse | --print`);
@@ -25,7 +24,10 @@ function readAll(stream) {
 }
 
 function parse(text) {
-  return fromJsonValue(JSON.parse(text));
+  const json = JSON.parse(text);
+  const value = fromJsonValue(json);
+  const pattern = patternFromJsonValue(json);
+  return decodeWire(encodeToWire(value, pattern)).value;
 }
 
 function print(value) {
@@ -48,9 +50,8 @@ async function main() {
 
   if (args[0] === "--parse") {
     const text = buf.toString("utf8");
-    const json = JSON.parse(text);
-    const value = fromJsonValue(json);
-    stdout.write(encodeToWire(value, patternFromJsonValue(json)));
+    const value = parse(text);
+    stdout.write(encodeToWire(value, value.pattern));
   } else {
     const { value } = decodeWire(buf);
     stdout.write(`${print(value)}\n`);
@@ -64,4 +65,4 @@ if (isMainEntrypoint(import.meta.url, argv[1])) {
   });
 }
 
-export { name, universal, parse, print };
+export { name, parse, print };

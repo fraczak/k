@@ -92,6 +92,7 @@ _fromBitList =
 
 --------------------------------------
 $ int = < bits '+', bits '-' >;
+$ ints = <{int car, ints cdr} cons, {} nil>;
 
 remove_leading_zeros = <
   /0 remove_leading_zeros, 

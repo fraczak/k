@@ -14,7 +14,9 @@ import {
   formatDuration,
   resolveInputTypeHash,
   resolveInputPattern,
-  valueForPattern
+  valueForPattern,
+  codecNames,
+  ensureEnveloped
 } from "../repl.mjs";
 import { Value, isProduct, isVariant } from "../Value.mjs";
 import { encodeLibrary } from "../object.mjs";
@@ -115,17 +117,7 @@ function ansiToHtml(str) {
 
 function countActiveCodecs() {
   const store = state.codecs || {};
-  let count = 0;
-  const seen = new Set();
-  for (const list of Object.values(store)) {
-    for (const c of list) {
-      if (!seen.has(c.name)) {
-        seen.add(c.name);
-        count++;
-      }
-    }
-  }
-  return count;
+  return Object.keys(store).length;
 }
 
 function updateCodecsBadge() {
@@ -714,24 +706,13 @@ function renderCodecsModal() {
   if (activeCodecsTbody) {
     activeCodecsTbody.innerHTML = "";
     const store = state.codecs || {};
-    const entries = [];
-    for (const [codeHash, list] of Object.entries(store)) {
-      for (const c of list) {
-        entries.push({ codeHash, ...c });
-      }
-    }
+    const entries = Object.values(store).sort((a, b) => a.name.localeCompare(b.name));
 
     if (entries.length === 0) {
       const tr = document.createElement("tr");
       tr.innerHTML = `<td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">No codecs currently loaded. Load a built-in codec or register a custom serializer/deserializer below.</td>`;
       activeCodecsTbody.appendChild(tr);
       return;
-    }
-
-    // Invert type aliases for display
-    const hashToAlias = {};
-    for (const [name, hash] of Object.entries(state.typeAliases || {})) {
-      hashToAlias[hash] = name;
     }
 
     for (const entry of entries) {
@@ -744,11 +725,12 @@ function renderCodecsModal() {
 
       const typeTd = document.createElement("td");
       typeTd.className = "codec-cell-type";
-      if (entry.codeHash === "*") {
-        typeTd.innerHTML = `<span class="badge-type universal">Universal (*)</span>`;
+      if (entry.pattern) {
+        typeTd.innerHTML = `<span class="badge-type">Closed Pattern</span>`;
+      } else if (Array.isArray(entry.patterns) && entry.patterns.length > 0) {
+        typeTd.innerHTML = `<span class="badge-type">Pattern Family (${entry.patterns.length})</span>`;
       } else {
-        const alias = hashToAlias[entry.codeHash];
-        typeTd.innerHTML = `<span class="badge-type">${alias ? `$${alias} ` : ""}<code title="${entry.codeHash}">${entry.codeHash.slice(0, 10)}...</code></span>`;
+        typeTd.innerHTML = `<span class="badge-type universal">Self-describing</span>`;
       }
       tr.appendChild(typeTd);
 
@@ -782,10 +764,7 @@ function renderCodecsModal() {
 
 function isCodecRegistered(name) {
   const store = state.codecs || {};
-  for (const list of Object.values(store)) {
-    if (list.some(c => c.name === name)) return true;
-  }
-  return false;
+  return Boolean(store[name]);
 }
 
 function applyCodecPreset(presetKey) {
@@ -846,17 +825,15 @@ function registerCustomCodecFromForm() {
 
     registerCodec(state, {
       name,
-      codes: [codeHash],
-      universal: codeHash === "*",
       parse: parseFn,
       print: printFn
     }, "<custom-studio>");
 
     if (statusBox) {
-      statusBox.innerHTML = `<span class="line-output">✓ Successfully registered codec <b>${name}</b> for ${codeHash === "*" ? "all types" : codeHash}!</span>`;
+      statusBox.innerHTML = `<span class="line-output">✓ Successfully registered codec <b>${name}</b>!</span>`;
     }
 
-    appendSystemMessage(`⚙ Registered custom codec <b>${name}</b> (serializer/deserializer) for ${codeHash === "*" ? "all types" : codeHash}.`);
+    appendSystemMessage(`⚙ Registered custom codec <b>${name}</b>.`);
     renderCodecsModal();
   } catch (err) {
     if (statusBox) {
@@ -1012,88 +989,37 @@ function renderInputSamples(codecName) {
 
 function updateInputPopupHint() {
   if (!inputPopupHint) return;
-  const rawPattern = inputPopupType ? inputPopupType.value.trim() : "(...)";
   const codecName = inputPopupCodec?.value || state.pendingInput?.codecName;
   if (state.pendingInput) {
-    const displayPattern = rawPattern || state.pendingInput.rawExpr || "(...)";
-    inputPopupHint.innerHTML = `Enter input value for <b>${escapeHtml(displayPattern)}</b> using codec <b>${escapeHtml(codecName || "default")}</b>:`;
+    inputPopupHint.innerHTML = `Enter input value using codec <b>${escapeHtml(codecName || "default")}</b>:`;
   } else {
-    inputPopupHint.innerHTML = `Choose target pattern &amp; deserializer, then enter input string:`;
+    inputPopupHint.innerHTML = `Choose codec, then enter input string:`;
   }
 
   if (inputPopupCodecHint) {
-    if (codecName === "json") {
-      inputPopupCodecHint.textContent = "Parameterized codec: deserializes JSON into the specified Target Pattern.";
-    } else {
-      inputPopupCodecHint.textContent = "";
-    }
+    inputPopupCodecHint.textContent = "";
   }
 }
 
 function updateInputPopupCodecs() {
   if (!inputPopupCodec) return;
-  const rawPattern = inputPopupType ? inputPopupType.value.trim() : "(...)";
-  let codeHash = null;
-  if (rawPattern && rawPattern !== "*" && rawPattern !== "(...)") {
-    try {
-      const resolved = resolveInputPattern(state, rawPattern);
-      codeHash = resolved.codeHash;
-    } catch {
-      codeHash = null;
-    }
-  }
   const prev = inputPopupCodec.value;
-
   inputPopupCodec.innerHTML = "";
-  const matchingCodecs = [];
-  const store = state.codecs || {};
+  const names = codecNames(state);
 
-  const candidates = [
-    ...(codeHash ? (store[codeHash] || []) : []),
-    ...(store["*"] || [])
-  ];
-
-  const seen = new Set();
-  for (const c of candidates) {
-    if (typeof c.parse === "function" && !seen.has(c.name)) {
-      seen.add(c.name);
-      matchingCodecs.push(c.name);
-    }
-  }
-
-  const bareName = rawPattern.replace(/^(\?|\$)\s*/, "").trim();
-  if (!seen.has("json")) {
-    matchingCodecs.push("json");
-    seen.add("json");
-  }
-  if ((bareName === "int" || (codeHash && codeHash === state.typeAliases?.int)) && !seen.has("int")) {
-    matchingCodecs.push("int");
-    seen.add("int");
-  }
-  if ((bareName === "string" || bareName === "utf8" || (codeHash && (codeHash === state.typeAliases?.string || codeHash === state.typeAliases?.utf8))) && !seen.has("utf8")) {
-    matchingCodecs.push("utf8");
-    seen.add("utf8");
-  }
-  if ((bareName === "float64" || bareName === "ieee" || (codeHash && codeHash === state.typeAliases?.float64)) && !seen.has("ieee")) {
-    matchingCodecs.push("ieee");
-    seen.add("ieee");
-  }
-  if ((bareName === "yes_no" || bareName === "bool" || (codeHash && codeHash === state.typeAliases?.yes_no)) && !seen.has("yn")) {
-    matchingCodecs.push("yn");
-    seen.add("yn");
-  }
-
-  for (const name of matchingCodecs) {
+  for (const name of names) {
     const opt = document.createElement("option");
     opt.value = name;
     opt.textContent = name;
     inputPopupCodec.appendChild(opt);
   }
 
-  if (prev && matchingCodecs.includes(prev)) {
+  if (prev && names.includes(prev)) {
     inputPopupCodec.value = prev;
-  } else if (matchingCodecs.length > 0) {
-    inputPopupCodec.value = matchingCodecs[0];
+  } else if (state.pendingInput?.codecName && names.includes(state.pendingInput.codecName)) {
+    inputPopupCodec.value = state.pendingInput.codecName;
+  } else if (names.length > 0) {
+    inputPopupCodec.value = names[0];
   }
 
   renderInputSamples(inputPopupCodec.value);
@@ -1150,38 +1076,16 @@ function updateLiveValidation() {
     return;
   }
 
-  const rawPattern = inputPopupType ? inputPopupType.value.trim() : "(...)";
-  const codecName = inputPopupCodec?.value;
-  if (!rawPattern && !codecName) {
-    inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">Specify a target pattern or codec first.</span>`;
+  const codecName = inputPopupCodec?.value || state.pendingInput?.codecName;
+  if (!codecName) {
+    inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">Select a codec first.</span>`;
     return;
   }
 
-  let pattern = null;
-  let codeHash = null;
-  if (rawPattern && rawPattern !== "*" && rawPattern !== "(...)") {
-    try {
-      const resolved = resolveInputPattern(state, rawPattern);
-      pattern = resolved.pattern;
-      codeHash = resolved.codeHash;
-    } catch (err) {
-      inputPopupStatus.innerHTML = `<span class="line-warning" style="margin:0;padding:2px 6px;">⚠ Pattern Error: ${escapeHtml(err.message || String(err))}</span>`;
-      return;
-    }
-  }
-
   try {
-    const codec = resolveCodec(state, codeHash, codecName || null, "parse");
-    const resolvedPattern = pattern || (codeHash && codeHash !== "*" ? codeHashToPattern(codeHash, (h) => state.codes?.[h]) : null);
-    const parsed = codec.parse(text, {
-      codeHash,
-      pattern: resolvedPattern,
-      state,
-      Value,
-      isProduct,
-      isVariant
-    });
-    const validated = valueForPattern(parsed, resolvedPattern, text, codec.name);
+    const codec = resolveCodec(state, codecName, "parse");
+    const parsed = codec.parse(text, { state, codecName: codec.name });
+    const validated = ensureEnveloped(parsed, codec);
     const repr = validated instanceof Value ? validated.toJSON() : (typeof validated === "object" ? JSON.stringify(validated) : String(validated));
     inputPopupStatus.innerHTML = `<span class="line-output" style="margin:0;padding:2px 6px;">✓ Valid: <code>${escapeHtml(String(repr))}</code></span>`;
   } catch (err) {
@@ -1191,45 +1095,25 @@ function updateLiveValidation() {
 
 export async function submitInputPopup() {
   const text = inputPopupText?.value ?? "";
-  const rawPattern = inputPopupType ? inputPopupType.value.trim() : "(...)";
-  const codecName = inputPopupCodec?.value;
+  const codecName = inputPopupCodec?.value || state.pendingInput?.codecName;
 
-  if (!rawPattern && !codecName) {
-    if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">Please specify a target pattern or codec.</span>`;
+  if (state.pendingInput) {
+    closeInputPopup();
+    await executeCommand(text);
     return;
   }
 
-  let pattern = null;
-  let codeHash = null;
-  let rawExpr = rawPattern || "(...)";
-  if (rawPattern && rawPattern !== "*" && rawPattern !== "(...)") {
-    try {
-      const resolved = resolveInputPattern(state, rawPattern);
-      pattern = resolved.pattern;
-      codeHash = resolved.codeHash;
-      rawExpr = rawPattern;
-    } catch (err) {
-      if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">Pattern Error: ${escapeHtml(err.message || String(err))}</span>`;
-      return;
-    }
-  }
-
-  try {
-    const codec = resolveCodec(state, codeHash, codecName || null, "parse");
-    state.pendingInput = {
-      pattern,
-      codeHash,
-      codecName: codec.name,
-      promptName: codec.name,
-      rawExpr: rawExpr || codec.name
-    };
-  } catch (err) {
-    if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">${escapeHtml(err.message || String(err))}</span>`;
+  if (!codecName) {
+    if (inputPopupStatus) inputPopupStatus.innerHTML = `<span class="line-error">Please select a codec.</span>`;
     return;
   }
 
   closeInputPopup();
-  await executeCommand(text);
+  if (text.trim() === "") {
+    await executeCommand(`:input ${codecName}`);
+  } else {
+    await executeCommand(`:input ${codecName} ${text}`);
+  }
 }
 
 // Initialization on DOMContentLoaded

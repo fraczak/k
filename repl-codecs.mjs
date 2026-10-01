@@ -11,7 +11,6 @@ import * as utf8Codec from "./codecs/utf8.mjs";
 import * as jsonCodec from "./codecs/json.mjs";
 import * as ieeeCodec from "./codecs/ieee.mjs";
 import * as unitCodec from "./codecs/unit.mjs";
-import { patternFromJsonValue } from "./codecs/json-codec.mjs";
 
 const BUILTIN_CODECS = {
   int: intCodec,
@@ -73,16 +72,9 @@ function codeHashToPattern(codeHash, findCode) {
   return patternToPropertyList(deriveClosedPattern(codeHash, code, resolveType));
 }
 
-function valueForPattern(value, pattern = null, rawInput = null, codecName = null) {
+function valueForPattern(value, pattern = null) {
   if (pattern) {
     return decodeWire(encodeToWire(value, pattern)).value;
-  }
-  if (codecName === "json" && rawInput != null) {
-    try {
-      const json = JSON.parse(rawInput);
-      const jsonPattern = patternFromJsonValue(json);
-      return decodeWire(encodeToWire(value, jsonPattern)).value;
-    } catch {}
   }
   return decodeWire(encodeToWire(value)).value;
 }
@@ -92,22 +84,32 @@ function valueForCode(value, codeHash, findCode) {
   return valueForPattern(value, pattern);
 }
 
+function ensureEnveloped(value, codec = null) {
+  if (!value || typeof value !== "object") return value;
+  if (value.pattern) return value;
+  if (codec?.pattern) {
+    try {
+      return decodeWire(encodeToWire(value, codec.pattern)).value;
+    } catch {}
+  }
+  if (Array.isArray(codec?.patterns) && codec.patterns.length > 0) {
+    for (const pat of codec.patterns) {
+      try {
+        return decodeWire(encodeToWire(value, pat)).value;
+      } catch {}
+    }
+  }
+  try {
+    return decodeWire(encodeToWire(value)).value;
+  } catch {}
+  return value;
+}
+
 function normalizeCodecModule(mod, fallbackName) {
   const codec = mod.replCodec || mod.codec || mod.default || mod;
   const name = codec.name || mod.name || fallbackName;
-  const universal = codec.universal === true;
-  const patterns = codec.patterns || (codec.pattern ? [codec.pattern] : null);
-  const codes = codec.codes || codec.codeHashes || (codec.code ? [codec.code] : null) ||
-    patterns?.map((pattern, index) => {
-      const codeHash = closedPatternToCodeHash(pattern);
-      if (!codeHash) throw new Error(`Codec '${name}' pattern ${index} must be a closed property-list pattern`);
-      return codeHash;
-    });
   if (!name || typeof name !== "string") {
     throw new Error("Codec module must export a string name");
-  }
-  if (!universal && (!Array.isArray(codes) || codes.length === 0)) {
-    throw new Error(`Codec '${name}' must export a non-empty codes array`);
   }
   if (codec.parse != null && typeof codec.parse !== "function") {
     throw new Error(`Codec '${name}' parse export must be a function`);
@@ -117,10 +119,10 @@ function normalizeCodecModule(mod, fallbackName) {
   }
   return {
     name,
-    codes: universal ? [UNIVERSAL_CODE] : codes,
-    universal,
     parse: codec.parse,
-    print: codec.print
+    print: codec.print,
+    pattern: codec.pattern,
+    patterns: codec.patterns
   };
 }
 
@@ -129,64 +131,35 @@ function codecStore(state) {
   return state.codecs;
 }
 
-function resolveCanonicalCodeHash(codeHash, state = null) {
-  if (codeHash === UNIVERSAL_CODE) return UNIVERSAL_CODE;
-  if (isCanonicalCodeName(codeHash)) return codeHash;
-  if (state?.typeAliases) {
-    const clean = codeHash.startsWith("$") ? codeHash.slice(1) : codeHash;
-    if (state.typeAliases[clean]) return state.typeAliases[clean];
-  }
-  return codeHash;
-}
-
-function registerCodec(state, codec, source = null) {
-  const registered = [];
+function registerCodec(state, rawCodec, source = null) {
+  const codec = normalizeCodecModule(rawCodec, rawCodec.name);
   const store = codecStore(state);
-  for (const rawCodeHash of codec.codes) {
-    const codeHash = resolveCanonicalCodeHash(rawCodeHash, state);
-    const universal = codeHash === UNIVERSAL_CODE;
-    if (!universal && !isCanonicalCodeName(codeHash)) {
-      throw new Error(`Codec '${codec.name}' has non-canonical code '${codeHash}'`);
-    }
-    if (!store[codeHash]) store[codeHash] = [];
-    const entry = {
-      name: codec.name,
-      source,
-      universal,
-      parse: codec.parse,
-      print: codec.print
-    };
-    const existingIndex = store[codeHash].findIndex((existing) =>
-      existing.name === entry.name && existing.source === entry.source
-    );
-    if (existingIndex === -1) {
-      store[codeHash].push(entry);
-    } else {
-      store[codeHash][existingIndex] = entry;
-    }
-    if (!universal && isCanonicalCodeName(codeHash) && state?.typeAliases && codec.name && NAME_RE.test(codec.name)) {
-      state.typeAliases[codec.name] = codeHash;
-    }
-    registered.push({ codeHash, ...entry });
-  }
-  return registered;
+  store[codec.name] = {
+    ...codec,
+    source
+  };
+  return [{ name: codec.name, source }];
 }
 
 function unregisterCodec(state, codecName) {
   const store = codecStore(state);
-  let removedCount = 0;
-  for (const [codeHash, codecs] of Object.entries(store)) {
-    const remaining = codecs.filter((c) => c.name !== codecName);
-    if (remaining.length !== codecs.length) {
-      removedCount += codecs.length - remaining.length;
-      if (remaining.length === 0) {
-        delete store[codeHash];
-      } else {
-        store[codeHash] = remaining;
-      }
-    }
-  }
-  return removedCount;
+  if (!store[codecName]) return 0;
+  delete store[codecName];
+  return 1;
+}
+
+function listCodecs(state) {
+  const store = codecStore(state);
+  const entries = Object.values(store).sort((a, b) => a.name.localeCompare(b.name));
+  if (entries.length === 0) return "(none)";
+  return entries.map((c) => `${c.name}${c.source ? ` (${c.source})` : ""}`).join("\n");
+}
+
+function codecNames(state) {
+  const store = codecStore(state);
+  const loaded = Object.keys(store);
+  const builtins = Object.keys(BUILTIN_CODECS);
+  return [...new Set([...loaded, ...builtins])].sort();
 }
 
 function matchBuiltinCodec(target) {
@@ -196,14 +169,34 @@ function matchBuiltinCodec(target) {
   return null;
 }
 
+function resolveCodec(state, codecName, capability = null) {
+  if (!codecName) {
+    throw new Error("Codec name is required");
+  }
+  const store = codecStore(state);
+  let codec = store[codecName];
+  if (!codec) {
+    const builtin = matchBuiltinCodec(codecName);
+    if (builtin) {
+      registerCodec(state, builtin.mod, "built-in");
+      codec = store[builtin.name];
+    }
+  }
+  if (!codec) {
+    throw new Error(`Codec '${codecName}' is not loaded`);
+  }
+  if (capability && typeof codec[capability] !== "function") {
+    throw new Error(`Codec '${codecName}' does not support ${capability}`);
+  }
+  return codec;
+}
+
 async function loadCodecModule(state, filePath) {
   const builtin = matchBuiltinCodec(filePath);
   if (builtin) {
-    const codec = normalizeCodecModule(builtin.mod, builtin.name);
-    return registerCodec(state, codec, "built-in");
+    return registerCodec(state, builtin.mod, "built-in");
   }
 
-  // Check if file exists on disk or in VFS
   let source = null;
   try {
     if (fs.existsSync(filePath)) {
@@ -218,7 +211,6 @@ async function loadCodecModule(state, filePath) {
     } catch {}
   }
 
-  // If in Node environment with a real physical file on disk, try native dynamic import
   if (typeof process !== "undefined" && process?.versions?.node && fs.existsSync(resolved)) {
     try {
       const url = pathToFileURL(resolved);
@@ -227,8 +219,7 @@ async function loadCodecModule(state, filePath) {
         if (stats?.mtimeMs) url.searchParams.set("mtime", String(stats.mtimeMs));
       } catch {}
       const mod = await import(url.href);
-      const codec = normalizeCodecModule(mod, path.basename(resolved, path.extname(resolved)));
-      return registerCodec(state, codec, resolved);
+      return registerCodec(state, mod, resolved);
     } catch (nodeErr) {
       if (!source) throw nodeErr;
     }
@@ -238,55 +229,13 @@ async function loadCodecModule(state, filePath) {
     throw new Error(`Cannot find codec file '${filePath}'`);
   }
 
-  // Universal data URL loader (works in browser & Node, and in VFS)
   const sanitized = source.replace(
     /import\s+[^;]*from\s+['"][^'"]*['"];?/g,
     "const { Value, isProduct, isVariant, NODE_KIND } = globalThis;"
   );
   const dataUrl = "data:text/javascript;charset=utf-8," + encodeURIComponent(sanitized);
   const mod = await import(dataUrl);
-  const codec = normalizeCodecModule(mod, path.basename(filePath, path.extname(filePath)));
-  return registerCodec(state, codec, filePath);
-}
-
-function listCodecs(state) {
-  const entries = Object.entries(codecStore(state))
-    .flatMap(([codeHash, codecs]) => codecs.map((codec) => ({ codeHash, ...codec })))
-    .sort((a, b) => a.name.localeCompare(b.name) || a.codeHash.localeCompare(b.codeHash));
-  if (entries.length === 0) return "(none)";
-  return entries.map((entry) => `${entry.name} ${entry.codeHash === UNIVERSAL_CODE ? "all" : entry.codeHash}${entry.source ? ` (${entry.source})` : ""}`).join("\n");
-}
-
-function codecNames(state, codeHash = null) {
-  const store = codecStore(state);
-  const codecs = codeHash
-    ? [...(store[codeHash] || []), ...(store[UNIVERSAL_CODE] || [])]
-    : Object.values(store).flat();
-  return [...new Set(codecs.map((codec) => codec.name))].sort();
-}
-
-function resolveCodec(state, codeHash, codecName = null, capability = null) {
-  const store = codecStore(state);
-  const matchesCodec = (codec) =>
-    (codecName == null || codec.name === codecName) &&
-    (capability == null || typeof codec[capability] === "function");
-  const exactMatches = (codeHash ? store[codeHash] || [] : []).filter(matchesCodec);
-  const universalMatches = (store[UNIVERSAL_CODE] || []).filter(matchesCodec);
-  const matches = codecName == null && exactMatches.length > 0
-    ? exactMatches
-    : [...exactMatches, ...universalMatches];
-  if (matches.length === 0) {
-    if (codecName) {
-      const namedMatches = Object.values(store).flat().filter(matchesCodec);
-      if (namedMatches.length > 0) return namedMatches[0];
-    }
-    const suffix = codecName ? ` named '${codecName}'` : "";
-    throw new Error(`No ${capability || "usable"} codec${suffix}${codeHash ? ` for ${codeHash}` : ""}`);
-  }
-  if (matches.length > 1 && codecName == null) {
-    throw new Error(`Multiple codecs for ${codeHash || "target"}; specify one of: ${matches.map((codec) => codec.name).join(", ")}`);
-  }
-  return matches[0];
+  return registerCodec(state, mod, filePath);
 }
 
 export {
@@ -303,5 +252,6 @@ export {
   UNIVERSAL_CODE,
   valueForCode,
   valueForPattern,
-  matchBuiltinCodec
+  matchBuiltinCodec,
+  ensureEnveloped
 };

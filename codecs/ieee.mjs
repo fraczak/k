@@ -116,7 +116,8 @@ function printFloatText(number) {
 }
 
 function parse(text) {
-  return encodeNumberToValue(parseFloatText(text));
+  const value = encodeNumberToValue(parseFloatText(text));
+  return decodeWire(encodeToWire(value, FLOAT64_PATTERN)).value;
 }
 
 function print(value) {

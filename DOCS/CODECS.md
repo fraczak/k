@@ -10,34 +10,26 @@ The command-line entry point reads or writes the binary pattern+value stream.
 The REPL entry point exports `name`, type metadata, `parse`, and `print`
 functions.
 
-## Choose The Shape
+## Architecture & Mental Model
 
-Use a type-specific codec when the external format belongs to one k type. The
-module exports either `codes` or `patterns`.
+A codec is a recipe for translating between external text and enveloped *k* values:
 
-```js
-export const name = "unit";
-export const patterns = [[
-  ["closed-product", []]
-]];
-```
+- `parse(text)` translates external text to an enveloped *k* value (a `Value` with an associated closed pattern envelope).
+- `print(value)` translates an enveloped *k* value into formatted external text, throwing an `Error` if the value is not representable.
 
-Use a universal codec when the external format can describe many k types. A
-universal codec is available for any type named by `:input`; the REPL validates
-the parsed value against that requested type before accepting it.
+Codecs are not restricted to a single code hash or type: a single codec file can define a family of target patterns (for example, `int.mjs` handles both scalar integers and integer lists like `[0,1,2]`, and `json.mjs` converts between arbitrary JSON structures and enveloped *k* values).
 
-```js
-export const name = "json";
-export const universal = true;
-```
-
-Prefer `patterns` for codecs that live in the source tree because the REPL
-recomputes the canonical code hash. Use `codes` only when the codec is tied to a
-known canonical hash:
-
-```js
-export const codes = ["@..."];
-```
+In the REPL:
+- **Input**: The user explicitly chooses which codec to parse with:
+  - Interactive mode: `:input <codec>` sets the prompt to `<codec>> `, and the next entered line is parsed with `<codec>`.
+  - One-line mode: `:input <codec> <text>` immediately parses `<text>` using `<codec>`.
+- **Output**: Any evaluated *k* value is displayed in its standard *k* envelope representation, followed by formatting from **all loaded codecs** that can represent it:
+  ```text
+  > 42 int
+  {}|_|0|1|0|1|0|1|+ ?<{} _, ...>
+  int: 42
+  ```
+  Every loaded codec attempts `codec.print(value)`. If it succeeds, the REPL prints `<name>: <formatted>`. If it throws, the codec is silently ignored for that value.
 
 ## Implement The REPL API
 
@@ -45,31 +37,22 @@ A REPL codec exports:
 
 ```js
 export const name = "mycodec";
-export const patterns = [MY_PATTERN]; // or codes = ["@..."], or universal = true
+export const patterns = [MY_PATTERN_1, MY_PATTERN_2]; // optional pattern family metadata
 
 export function parse(text, context) {
-  // text is the line entered after :input
-  // return a k Value
+  // text is the line entered with :input
+  // return an enveloped k Value
 }
 
 export function print(value, context) {
   // return text shown under normal REPL output
+  // throw Error if value is not representable
 }
 ```
 
-`context` contains:
+`context` contains `{ state, codecName }`.
 
-- `codeHash`: the canonical code hash selected by `:input`,
-- `pattern`: the closed property-list pattern for that type,
-- `state`: the current REPL state.
-
-Most codecs do not need `context`. Universal codecs can use it when the same
-text syntax needs to adapt to the requested type.
-
-`parse` should throw an `Error` for invalid external text. `print` should throw
-when the value is not representable by the external format. For universal
-codecs, REPL output suppresses `print` errors so a generic codec does not add
-noise to every value.
+`parse` should throw an `Error` for invalid external text. `print` should throw when the value is not representable by the external format. REPL output suppresses `print` errors so loaded codecs only output when they recognize the value.
 
 ## Build Values
 
@@ -123,10 +106,17 @@ Load it in the REPL:
 
 ```text
 > :codec load ./codecs/yesno.mjs
-loaded codec yesno for @...
-> :input <{} true, {} false> yesno
-input @... using yesno: enter value text
+loaded codec yesno
+> :input yesno
 yesno> yes
+{}|true ?<{} false, {} true>
+yesno: yes
+```
+
+Or using the one-line syntax:
+
+```text
+> :input yesno yes
 {}|true ?<{} false, {} true>
 yesno: yes
 ```
@@ -193,27 +183,6 @@ Installed codec binaries use the `k-` prefix plus the source basename without
 `.mjs`. For example, `codecs/yesno.mjs` installs as `k-yesno` when added to
 `package.json`.
 
-## Universal Codecs
-
-Universal codecs omit `codes` and `patterns`:
-
-```js
-export const name = "json";
-export const universal = true;
-
-export function parse(text) {
-  // Convert external text to a Value.
-}
-
-export function print(value) {
-  // Convert a Value to external text.
-}
-```
-
-The built-in [`../codecs/json.mjs`](../codecs/json.mjs) codec is the reference
-example. It derives a pattern for command-line `--parse`, but in the REPL the
-requested `:input` type supplies the target type.
-
 ## Test A Codec
 
 For CLI codecs, test both directions:
@@ -227,11 +196,13 @@ For REPL codecs, add a focused case to [`../tests/test-repl.mjs`](../tests/test-
 ```js
 const state = createState();
 let output = await evaluateInput(":codec load ./codecs/yesno.mjs", state);
-assert.match(output[0], /^loaded codec yesno for @/);
-output = await evaluateInput(":input <{} true, {} false> yesno", state);
-assert.match(output[0], /^input @[^ ]+ using yesno: enter value text$/);
+assert.match(output[0], /^loaded codec yesno/);
+output = await evaluateInput(":input yesno", state);
+assert.equal(promptForState(state), "yesno> ");
 output = await evaluateInput("yes", state);
 assert.match(output[0], /yesno: yes/);
+output = await evaluateInput(":input yesno no", state);
+assert.match(output[0], /yesno: no/);
 ```
 
 Run the targeted test first:
@@ -248,11 +219,11 @@ npm test
 
 ## Checklist
 
-- Export a stable `name`.
-- Export exactly one dispatch shape: `patterns`, `codes`, or `universal = true`.
+- Export a stable string `name`.
+- Optionally export `pattern` or `patterns` for pattern family metadata.
 - Keep `parse` and `print` deterministic.
-- Return structural `Value` objects from `parse`.
-- Validate shapes in `print` and throw clear errors.
+- Return enveloped structural `Value` objects from `parse`.
+- Validate shapes in `print` and throw clear errors when not representable.
 - Keep command-line `--parse` stdout binary-only.
 - Add `-h` and `--help` for installed commands.
 - Add REPL coverage for `:codec load` and `:input`.

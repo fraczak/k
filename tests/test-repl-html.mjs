@@ -255,22 +255,23 @@ if (chromiumBin) {
     const modalClosedAfterCancel = await evaluateAsync(`!document.getElementById("input-popup-modal")?.classList.contains("open")`);
     assert.strictEqual(modalClosedAfterCancel, true, "Input modal should close on cancel");
 
-    // Test JSON codec with float64 in browser: :input {string a, float64 n} then {"a":"Woj","n":123}
+    // Test JSON codec with float64 in browser: :input json then {"a":"Woj","n":123}
     await evaluateAsync(`(async () => {
       await window.kRepl.executeCommand(":load core.k");
       await window.kRepl.executeCommand(":load ieee.k");
       await window.kRepl.executeCommand(":codec load json");
     })()`);
-    const inputPromptOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":input {string a, float64 n}");
-      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
-      return lines[lines.length - 1];
+    const inputPromptOpen = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":input json");
+      return document.getElementById("input-popup-modal")?.classList.contains("open");
     })()`);
-    assert(inputPromptOut.includes("enter value text"), `Expected input prompt, got: ${inputPromptOut}`);
+    assert.strictEqual(inputPromptOpen, true, "Executing :input json should open input popup");
 
     // Enter JSON value with float64
     const jsonResult = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand('{"a":"Woj","n":123}');
+      const textEl = document.getElementById("input-popup-text");
+      textEl.value = '{"a":"Woj","n":123}';
+      await window.kRepl.submitInputPopup();
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
@@ -280,10 +281,9 @@ if (chromiumBin) {
     const hasResetBtn = await evaluateAsync(`Boolean(document.getElementById("btn-reset"))`);
     assert.strictEqual(hasResetBtn, false, "Reset button should be removed from navbar");
 
-    // Test explicit pattern expression :input ? {string a, float64 n} json
+    // Test one-line codec input: :input json {"a":"Test","n":456}
     await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":input ? {string a, float64 n} json");
-      await window.kRepl.executeCommand('{"a":"Test","n":456}');
+      await window.kRepl.executeCommand(':input json {"a":"Test","n":456}');
     })()`);
     const patternResult = await evaluateAsync(`(() => {
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
@@ -291,16 +291,15 @@ if (chromiumBin) {
     })()`);
     assert(patternResult.includes('json: {"a":"Test","n":456}'), `Expected json: {"a":"Test","n":456}, got: ${patternResult}`);
 
-    // Test standalone codec input :input json without pre-declared type
+    // Test integer list input: :input int [0,1,2]
     await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":input json");
-      await window.kRepl.executeCommand('{"foo":"bar"}');
+      await window.kRepl.executeCommand(":input int [0,1,2]");
     })()`);
-    const standaloneResult = await evaluateAsync(`(() => {
+    const listResult = await evaluateAsync(`(() => {
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(standaloneResult.includes('json: {"foo":"bar"}'), `Expected json: {"foo":"bar"}, got: ${standaloneResult}`);
+    assert(listResult.includes('int: [0,1,2]'), `Expected int: [0,1,2], got: ${listResult}`);
 
     // Verify text selection holds in output element
     const selectionCheck = await evaluateAsync(`(() => {

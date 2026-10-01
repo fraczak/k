@@ -32,7 +32,7 @@ function unitEncoding() {
 }
 
 function parse() {
-  return Value.product({});
+  return decodeWire(encodeToWire(Value.product({}), UNIT_PATTERN)).value;
 }
 
 function print(value) {
