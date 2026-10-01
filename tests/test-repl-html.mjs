@@ -38,8 +38,8 @@ assert(html.includes("arithmetics.k"), "repl.html must embed standard examples")
 assert(html.includes("btn-codecs"), "repl.html must contain Codecs button");
 assert(html.includes("codecs-modal"), "repl.html must contain Codecs modal");
 assert(html.includes("enabled-codecs-grid"), "repl.html must contain enabled codecs grid");
-assert(html.includes("btn-input-popup"), "repl.html must contain input button");
-assert(html.includes("input-popup-modal"), "repl.html must contain input popup modal");
+assert(!html.includes("btn-input-popup"), "repl.html must NOT contain input button");
+assert(!html.includes("input-popup-modal"), "repl.html must NOT contain input popup modal");
 console.log("   repl.html is valid, self-contained, and has size:", (html.length / 1024).toFixed(1), "KB");
 
 // 3. If Chromium is available, run end-to-end browser test
@@ -254,58 +254,59 @@ if (chromiumBin) {
       document.getElementById("codecs-modal")?.classList.remove("open");
     })()`);
 
-    // Test :input opens input popup modal
-    await evaluateAsync(`window.kRepl.executeCommand(":input int.mjs")`);
-    const inputModalOpen = await evaluateAsync(`document.getElementById("input-popup-modal")?.classList.contains("open")`);
-    assert.strictEqual(inputModalOpen, true, "Executing :input int.mjs should open input popup modal");
+    // Test :input directive without args outputs usage in terminal
+    await evaluateAsync(`window.kRepl.executeCommand(":input")`);
+    const inputUsageCheck = await evaluateAsync(`(() => {
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines.slice(-2).join(" ");
+    })()`);
+    assert(inputUsageCheck.includes("Usage: :input <codec.mjs> [text]"), `Expected usage text, got: ${inputUsageCheck}`);
 
-    // Enter value '55' in popup and submit
+    // Test :input int.mjs sets prompt to int.mjs>
+    await evaluateAsync(`window.kRepl.executeCommand(":input int.mjs")`);
+    const promptAfterInput = await evaluateAsync(`document.getElementById("prompt-label")?.textContent`);
+    assert.strictEqual(promptAfterInput, "int.mjs> ", `Expected prompt label 'int.mjs> ', got: '${promptAfterInput}'`);
+
+    // Enter value '55' at the prompt
     const submitResult = await evaluateAsync(`(async () => {
-      const textEl = document.getElementById("input-popup-text");
-      textEl.value = "55";
-      await window.kRepl.submitInputPopup();
+      await window.kRepl.executeCommand("55");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(submitResult.includes("int.mjs: 55"), `Expected int.mjs: 55 after submitting input popup, got: ${submitResult}`);
+    assert(submitResult.includes("int.mjs: 55"), `Expected int.mjs: 55 after entering value, got: ${submitResult}`);
 
-    // Verify modal is closed after submission
-    const modalClosedAfterSubmit = await evaluateAsync(`!document.getElementById("input-popup-modal")?.classList.contains("open")`);
-    assert.strictEqual(modalClosedAfterSubmit, true, "Input modal should be closed after submit");
+    // Verify prompt is restored to '> '
+    const promptAfterValue = await evaluateAsync(`document.getElementById("prompt-label")?.textContent`);
+    assert.strictEqual(promptAfterValue, "> ", `Expected prompt label '> ', got: '${promptAfterValue}'`);
 
-    // Test :input directive without args opens input popup
-    await evaluateAsync(`window.kRepl.executeCommand(":input")`);
-    const inputWithoutArgsOpensModal = await evaluateAsync(`document.getElementById("input-popup-modal")?.classList.contains("open")`);
-    assert.strictEqual(inputWithoutArgsOpensModal, true, "Executing :input without args should open input popup");
-
-    // Test cancelInputPopup
-    await evaluateAsync(`window.kRepl.cancelInputPopup()`);
-    const modalClosedAfterCancel = await evaluateAsync(`!document.getElementById("input-popup-modal")?.classList.contains("open")`);
-    assert.strictEqual(modalClosedAfterCancel, true, "Input modal should close on cancel");
+    // Test Tab autocompletion for :input: typing ":input " and pressing Tab does NOT repeat :input
+    const tabCompletionCheck = await evaluateAsync(`(() => {
+      const inputEl = document.getElementById("repl-input");
+      inputEl.value = ":input ";
+      inputEl.selectionStart = inputEl.selectionEnd = 7;
+      const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+      inputEl.dispatchEvent(event);
+      return {
+        value: inputEl.value,
+        hasDuplicates: inputEl.value.includes(":input :input")
+      };
+    })()`);
+    assert.strictEqual(tabCompletionCheck.hasDuplicates, false, `:input Tab completion duplicated command: '${tabCompletionCheck.value}'`);
+    assert(tabCompletionCheck.value.startsWith(":input int.mjs"), `Expected completion to start with ':input int.mjs', got: '${tabCompletionCheck.value}'`);
 
     // Test JSON codec with float64 in browser: :input json.mjs then {"a":"Woj","n":123}
     await evaluateAsync(`(async () => {
       await window.kRepl.executeCommand(":load core.k");
       await window.kRepl.executeCommand(":load ieee.k");
       await window.kRepl.executeCommand(":codec load json.mjs");
-    })()`);
-    const inputPromptCheck = await evaluateAsync(`(async () => {
       await window.kRepl.executeCommand(":input json.mjs");
-      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
-      return {
-        open: document.getElementById("input-popup-modal")?.classList.contains("open"),
-        lastLine: lines[lines.length - 1],
-        codecs: Object.keys(window.kRepl.getState().codecs || {}),
-        pending: window.kRepl.getState().pendingInput
-      };
     })()`);
-    assert.strictEqual(inputPromptCheck.open, true, "Executing :input json.mjs should open input popup");
+    const jsonPromptCheck = await evaluateAsync(`document.getElementById("prompt-label")?.textContent`);
+    assert.strictEqual(jsonPromptCheck, "json.mjs> ", `Expected prompt 'json.mjs> ', got: '${jsonPromptCheck}'`);
 
     // Enter JSON value with float64
     const jsonResult = await evaluateAsync(`(async () => {
-      const textEl = document.getElementById("input-popup-text");
-      textEl.value = '{"a":"Woj","n":123}';
-      await window.kRepl.submitInputPopup();
+      await window.kRepl.executeCommand('{"a":"Woj","n":123}');
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);

@@ -212,7 +212,7 @@ Parses external input using the specified `<codec>` recipe.
   ```
 
 Prefixing `<codec>` with a `$` (e.g. `:input $int 42` or `:input $ int 42`) is also supported.
-Entering `:input` with no arguments displays usage and a list of available codecs. In the Web REPL, `:input` opens an interactive input modal.
+Entering `:input` with no arguments displays usage and a list of available codecs.
 
 ## Timing and Profiling
 
