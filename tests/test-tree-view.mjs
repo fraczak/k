@@ -172,6 +172,7 @@ assert.strictEqual(patTree.open, true, "Root pattern node must be open");
 assert(patTree.textContent.includes("recursive"), "Recursive cycle must be detected and marked 'recursive'");
 
 // 5. Test createOutputEntryElement
+variantVal.pattern = recursivePattern;
 const entryEl = createOutputEntryElement({
   value: variantVal,
   rawText: "{}|_|1|0|1|+ ?<<X0 0, X0 1, {} _>=X0 +, X0 ->\nint: 11",
@@ -180,6 +181,8 @@ const entryEl = createOutputEntryElement({
 
 assert(entryEl.querySelector(".k-tree-view"), "Tree view container must exist");
 assert(entryEl.querySelector(".k-raw-view"), "Raw view container must exist");
+assert.strictEqual(entryEl.querySelector(".k-tree-value-section")?.open, false, "Value section must be collapsed by default");
+assert.strictEqual(entryEl.querySelector(".k-tree-pat-section")?.open, false, "Pattern section must be collapsed by default");
 assert(entryEl.textContent.includes("int: 11"), "Codec output must be visible in container");
 
 console.log("OK - All tree view unit tests passed.");

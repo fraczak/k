@@ -482,7 +482,7 @@ export function createOutputEntryElement({
   // Value Section
   const valSection = document.createElement("details");
   valSection.className = "k-tree-section k-tree-value-section";
-  valSection.open = true;
+  valSection.open = false;
 
   const valSummary = document.createElement("summary");
   valSummary.className = "k-tree-section-summary";
@@ -500,7 +500,7 @@ export function createOutputEntryElement({
   if (value && value.pattern) {
     const patSection = document.createElement("details");
     patSection.className = "k-tree-section k-tree-pat-section";
-    patSection.open = true;
+    patSection.open = false;
 
     const patSummary = document.createElement("summary");
     patSummary.className = "k-tree-section-summary";
@@ -587,6 +587,9 @@ export function createOutputEntryElement({
   };
 
   collapseAllBtn.onclick = () => {
+    valSection.open = false;
+    const patSec = treeWrapper.querySelector(".k-tree-pat-section");
+    if (patSec) patSec.open = false;
     valBody.innerHTML = "";
     valBody.appendChild(renderValueNode(value, 1, 3));
     if (value && value.pattern && patBody) {

@@ -370,6 +370,7 @@ if (chromiumBin) {
       // Check Value section
       const valSection = container.querySelector(".k-tree-value-section");
       if (!valSection) return { error: "No value section" };
+      if (valSection.open) return { error: "Value section should be collapsed by default (open === false)" };
 
       // Check product details nodes hierarchy
       // Level 1: root product (depth 1)
@@ -389,9 +390,10 @@ if (chromiumBin) {
       if (!level4) return { error: "Level 4 product node missing" };
       if (level4.open) return { error: "Level 4 product should be collapsed (open === false)" };
 
-      // Check pattern section exists and has cycle or vardef
+      // Check pattern section exists and is collapsed by default
       const patSection = container.querySelector(".k-tree-pat-section");
       if (!patSection) return { error: "No pattern section" };
+      if (patSection.open) return { error: "Pattern section should be collapsed by default (open === false)" };
 
       // Test Mode Toggle: click Raw
       rawBtn.click();
