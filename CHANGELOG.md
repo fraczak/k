@@ -5,6 +5,16 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.9.0] — 2026-10-01 — Reusable Codecs, Dynamic Pattern Derivation & Unified SDK
+
+### Codecs & Type System
+
+- **Dynamic Pattern Derivation**: All codecs derive their closed pattern graphs through `k`'s type system from filter and type expressions via `patternFromFilter`. Handwritten property-list JSON arrays have been completely eliminated from codecs.
+- **Unified Codec SDK**: Added `codecs/runtime/codec-sdk.mjs` exporting a standard CLI harness (`runCodecCLI`), `Value` API, wire codecs, and `patternFromFilter`.
+- **Recipe-Based REPL Codecs**: Refactored the REPL to use explicit recipe-driven input syntax (`:input <codec.mjs> [text]`) and multi-codec output formatting. Removed universal catch-all fallback and ungrounded types.
+- **Self-Contained Web REPL VFS**: The browser REPL compiler (`scripts/build-repl-html.mjs`) bundles verified codecs into zero-import ES modules for the virtual file system, delegating `patternFromFilter` dynamically to the browser's bundled `k` engine.
+- **Dead Code Clean-Up**: Removed dead files (`ieee-pattern.mjs`, `test-codec.mjs`, `typeFromValue.mjs`, `example-pipeline.mjs`).
+
 ---
 
 ## [6.5.0] — 2026-09-22 — Tail-loop arena compaction & OOM diagnostics
