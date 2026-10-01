@@ -37,8 +37,7 @@ assert(html.includes("wasm-in-process"), "repl.html must mention wasm-in-process
 assert(html.includes("arithmetics.k"), "repl.html must embed standard examples");
 assert(html.includes("btn-codecs"), "repl.html must contain Codecs button");
 assert(html.includes("codecs-modal"), "repl.html must contain Codecs modal");
-assert(html.includes("active-codecs-tbody"), "repl.html must contain active codecs table");
-assert(html.includes("codec-preset-select"), "repl.html must contain codec preset templates");
+assert(html.includes("enabled-codecs-grid"), "repl.html must contain enabled codecs grid");
 assert(html.includes("btn-input-popup"), "repl.html must contain input button");
 assert(html.includes("input-popup-modal"), "repl.html must contain input popup modal");
 console.log("   repl.html is valid, self-contained, and has size:", (html.length / 1024).toFixed(1), "KB");
@@ -183,93 +182,72 @@ if (chromiumBin) {
     })()`);
     assert.strictEqual(codecsOut, "(none)");
 
-    // Test :codec load int
+    // Test :codec load int.mjs
     const loadIntOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":codec load int");
+      await window.kRepl.executeCommand(":codec load int.mjs");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(loadIntOut.includes("loaded codec int"), `Expected loaded codec int, got: ${loadIntOut}`);
+    assert(loadIntOut.includes("loaded codec int.mjs"), `Expected loaded codec int.mjs, got: ${loadIntOut}`);
 
     // Check codecs badge updated to 1
     const badgeCount = await evaluateAsync(`document.getElementById("codecs-count-badge")?.textContent`);
-    assert.strictEqual(badgeCount, "1", "Codecs badge count should be 1 after loading int codec");
+    assert.strictEqual(badgeCount, "1", "Codecs badge count should be 1 after loading int.mjs codec");
 
-    // Test evaluating 10 int with int codec active -> output should format using int serializer
+    // Test evaluating 10 int with int.mjs codec active -> output should format using int.mjs serializer
     const formattedVal = await evaluateAsync(`(async () => {
       await window.kRepl.executeCommand("10 int");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(formattedVal.includes("int: 10"), `Expected 'int: 10' in output, got: ${formattedVal}`);
+    assert(formattedVal.includes("int.mjs: 10"), `Expected 'int.mjs: 10' in output, got: ${formattedVal}`);
 
-    // Test defining custom codec via Custom Codec Studio UI
-    await evaluateAsync(`window.kRepl.executeCommand("$ yes_no = < {} yes, {} no >;");`);
-    const defineCodecOut = await evaluateAsync(`(async () => {
-      window.kRepl.openCodecsModal();
-      const typeSelect = document.getElementById("codec-custom-type");
-      if (typeSelect) typeSelect.value = "yes_no";
-      document.getElementById("btn-register-codec").click();
-      return document.getElementById("codec-studio-status")?.textContent || "";
-    })()`);
-    assert(defineCodecOut.includes("Successfully registered codec yn"), `Expected defined codec yn, got: ${defineCodecOut}`);
-
-    // Test modal interaction via openCodecsModal
+    // Test modal interaction via openCodecsModal (only enabled codecs shown)
     const modalCheck = await evaluateAsync(`(() => {
       window.kRepl.openCodecsModal();
       const modal = document.getElementById("codecs-modal");
-      const hasAllCards = ["int", "utf8", "json", "ieee", "unit"].every(name =>
-        Boolean(document.getElementById("card-codec-" + name)) &&
-        Boolean(document.getElementById("btn-toggle-codec-" + name))
-      );
-      const tableHeaders = Array.from(modal.querySelectorAll(".codec-table th")).map(th => th.textContent.trim());
-      const hasPatternHeader = tableHeaders.includes("Pattern / Target Family");
-      const hasLoadBar = Boolean(document.getElementById("codec-load-input")) && Boolean(document.getElementById("btn-codec-load-custom"));
+      const cardInt = document.getElementById("card-codec-int_mjs");
+      const grid = document.getElementById("enabled-codecs-grid");
+      const cards = grid ? Array.from(grid.querySelectorAll(".codec-card")) : [];
 
       return {
         open: modal?.classList.contains("open"),
-        hasAllCards,
-        hasPatternHeader,
-        hasLoadBar
+        hasIntCard: Boolean(cardInt),
+        cardCount: cards.length
       };
     })()`);
     assert.strictEqual(modalCheck.open, true, "Codecs modal should open");
-    assert.strictEqual(modalCheck.hasAllCards, true, "All 5 format codec cards (int, utf8, json, ieee, unit) should exist");
-    assert.strictEqual(modalCheck.hasPatternHeader, true, "Codec table should have 'Pattern / Target Family' header");
-    assert.strictEqual(modalCheck.hasLoadBar, true, "Codec load bar input and button should exist");
+    assert.strictEqual(modalCheck.hasIntCard, true, "Card for enabled int.mjs codec should exist");
+    assert.strictEqual(modalCheck.cardCount, 1, "Only 1 enabled codec card should exist");
 
-    // Test loading 'unit' via direct toggle button
-    const unitToggleCheck = await evaluateAsync(`(async () => {
-      const btn = document.getElementById("btn-toggle-codec-unit");
-      btn.click();
-      await new Promise(r => setTimeout(r, 50));
-      const badge = document.getElementById("codec-badge-unit");
-      const activeRows = Array.from(document.querySelectorAll("#active-codecs-tbody tr")).map(r => r.textContent);
-      const hasUnitInTable = activeRows.some(r => r.includes("unit") && r.includes("{}"));
+    // Test loading unit.mjs via REPL command
+    const loadUnitOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":codec load unit.mjs");
+      window.kRepl.openCodecsModal();
+      const cardUnit = document.getElementById("card-codec-unit_mjs");
+      const badge = document.getElementById("codecs-count-badge");
       return {
-        isActive: badge?.textContent === "Active",
-        hasUnitInTable
+        hasUnitCard: Boolean(cardUnit),
+        badgeCount: badge?.textContent
       };
     })()`);
-    assert.strictEqual(unitToggleCheck.isActive, true, "unit badge should be Active after clicking Load");
-    assert.strictEqual(unitToggleCheck.hasUnitInTable, true, "active codecs table should list unit with {}");
+    assert.strictEqual(loadUnitOut.hasUnitCard, true, "card-codec-unit_mjs should exist after loading unit.mjs");
+    assert.strictEqual(loadUnitOut.badgeCount, "2", "Badge count should be 2 after loading unit.mjs");
 
-    // Unload unit
-    await evaluateAsync(`(() => {
-      document.getElementById("btn-toggle-codec-unit").click();
+    // Test unloading unit.mjs via card Unload button
+    const unloadUnitCheck = await evaluateAsync(`(async () => {
+      const unloadBtn = document.querySelector("#card-codec-unit_mjs .btn-danger");
+      unloadBtn.click();
+      await new Promise(r => setTimeout(r, 60));
+      const cardUnit = document.getElementById("card-codec-unit_mjs");
+      const badge = document.getElementById("codecs-count-badge");
+      return {
+        hasUnitCard: Boolean(cardUnit),
+        badgeCount: badge?.textContent
+      };
     })()`);
-
-    // Test direct codec loader input bar with 'unit'
-    const directLoadCheck = await evaluateAsync(`(async () => {
-      const input = document.getElementById("codec-load-input");
-      const loadBtn = document.getElementById("btn-codec-load-custom");
-      input.value = "unit";
-      loadBtn.click();
-      await new Promise(r => setTimeout(r, 50));
-      const badge = document.getElementById("codec-badge-unit");
-      return badge?.textContent === "Active";
-    })()`);
-    assert.strictEqual(directLoadCheck, true, "Direct codec loader input bar should load unit");
+    assert.strictEqual(unloadUnitCheck.hasUnitCard, false, "card-codec-unit_mjs should be removed after Unload");
+    assert.strictEqual(unloadUnitCheck.badgeCount, "1", "Badge count should be 1 after unloading unit.mjs");
 
     // Close codecs modal
     await evaluateAsync(`(() => {
@@ -277,9 +255,9 @@ if (chromiumBin) {
     })()`);
 
     // Test :input opens input popup modal
-    await evaluateAsync(`window.kRepl.executeCommand(":input int")`);
+    await evaluateAsync(`window.kRepl.executeCommand(":input int.mjs")`);
     const inputModalOpen = await evaluateAsync(`document.getElementById("input-popup-modal")?.classList.contains("open")`);
-    assert.strictEqual(inputModalOpen, true, "Executing :input int should open input popup modal");
+    assert.strictEqual(inputModalOpen, true, "Executing :input int.mjs should open input popup modal");
 
     // Enter value '55' in popup and submit
     const submitResult = await evaluateAsync(`(async () => {
@@ -289,7 +267,7 @@ if (chromiumBin) {
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(submitResult.includes("int: 55"), `Expected int: 55 after submitting input popup, got: ${submitResult}`);
+    assert(submitResult.includes("int.mjs: 55"), `Expected int.mjs: 55 after submitting input popup, got: ${submitResult}`);
 
     // Verify modal is closed after submission
     const modalClosedAfterSubmit = await evaluateAsync(`!document.getElementById("input-popup-modal")?.classList.contains("open")`);
@@ -305,17 +283,23 @@ if (chromiumBin) {
     const modalClosedAfterCancel = await evaluateAsync(`!document.getElementById("input-popup-modal")?.classList.contains("open")`);
     assert.strictEqual(modalClosedAfterCancel, true, "Input modal should close on cancel");
 
-    // Test JSON codec with float64 in browser: :input json then {"a":"Woj","n":123}
+    // Test JSON codec with float64 in browser: :input json.mjs then {"a":"Woj","n":123}
     await evaluateAsync(`(async () => {
       await window.kRepl.executeCommand(":load core.k");
       await window.kRepl.executeCommand(":load ieee.k");
-      await window.kRepl.executeCommand(":codec load json");
+      await window.kRepl.executeCommand(":codec load json.mjs");
     })()`);
-    const inputPromptOpen = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":input json");
-      return document.getElementById("input-popup-modal")?.classList.contains("open");
+    const inputPromptCheck = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":input json.mjs");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return {
+        open: document.getElementById("input-popup-modal")?.classList.contains("open"),
+        lastLine: lines[lines.length - 1],
+        codecs: Object.keys(window.kRepl.getState().codecs || {}),
+        pending: window.kRepl.getState().pendingInput
+      };
     })()`);
-    assert.strictEqual(inputPromptOpen, true, "Executing :input json should open input popup");
+    assert.strictEqual(inputPromptCheck.open, true, "Executing :input json.mjs should open input popup");
 
     // Enter JSON value with float64
     const jsonResult = await evaluateAsync(`(async () => {
@@ -325,31 +309,31 @@ if (chromiumBin) {
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(jsonResult.includes('json: {"a":"Woj","n":123}'), `Expected json: {"a":"Woj","n":123}, got: ${jsonResult}`);
+    assert(jsonResult.includes('json.mjs: {"a":"Woj","n":123}'), `Expected json.mjs: {"a":"Woj","n":123}, got: ${jsonResult}`);
 
     // Verify Reset button is removed from navbar
     const hasResetBtn = await evaluateAsync(`Boolean(document.getElementById("btn-reset"))`);
     assert.strictEqual(hasResetBtn, false, "Reset button should be removed from navbar");
 
-    // Test one-line codec input: :input json {"a":"Test","n":456}
+    // Test one-line codec input: :input json.mjs {"a":"Test","n":456}
     await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(':input json {"a":"Test","n":456}');
+      await window.kRepl.executeCommand(':input json.mjs {"a":"Test","n":456}');
     })()`);
     const patternResult = await evaluateAsync(`(() => {
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(patternResult.includes('json: {"a":"Test","n":456}'), `Expected json: {"a":"Test","n":456}, got: ${patternResult}`);
+    assert(patternResult.includes('json.mjs: {"a":"Test","n":456}'), `Expected json.mjs: {"a":"Test","n":456}, got: ${patternResult}`);
 
-    // Test integer list input: :input int [0,1,2]
+    // Test integer list input: :input int.mjs [0,1,2]
     await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":input int [0,1,2]");
+      await window.kRepl.executeCommand(":input int.mjs [0,1,2]");
     })()`);
     const listResult = await evaluateAsync(`(() => {
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(listResult.includes('int: [0,1,2]'), `Expected int: [0,1,2], got: ${listResult}`);
+    assert(listResult.includes('int.mjs: [0,1,2]'), `Expected int.mjs: [0,1,2], got: ${listResult}`);
 
     // Verify text selection holds in output element
     const selectionCheck = await evaluateAsync(`(() => {

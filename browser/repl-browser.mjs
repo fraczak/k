@@ -19,15 +19,41 @@ import {
   ensureEnveloped
 } from "../repl.mjs";
 import { Value, isProduct, isVariant } from "../Value.mjs";
+import { NODE_KIND } from "../codecs/runtime/codec.mjs";
 import { encodeLibrary } from "../object.mjs";
 import { setVfsFile, getVfsFile, getAllVfsFiles } from "./shims/fs.mjs";
 import { createOutputEntryElement } from "./tree-view.mjs";
+import { encodeToWire, decodeWire } from "../codecs/runtime/prefix-codec.mjs";
+import {
+  STRING_PATTERN_PROPERTY_LIST,
+  encodeText,
+  decodeText,
+  textToStringValue,
+  stringValueToText
+} from "../codecs/string-codec.mjs";
+import { FLOAT64_PATTERN } from "../codecs/runtime/ieee-pattern.mjs";
+import { fromJsonValue, toJsonValue, patternFromJsonValue } from "../codecs/json-codec.mjs";
 
 // Make Value and helpers globally available for custom codecs
 if (typeof window !== "undefined") {
-  window.Value = Value;
-  window.isProduct = isProduct;
-  window.isVariant = isVariant;
+  Object.assign(window, {
+    Value,
+    isProduct,
+    isVariant,
+    NODE_KIND,
+    encodeToWire,
+    decodeWire,
+    isMainEntrypoint: () => false,
+    STRING_PATTERN_PROPERTY_LIST,
+    encodeText,
+    decodeText,
+    textToStringValue,
+    stringValueToText,
+    FLOAT64_PATTERN,
+    fromJsonValue,
+    toJsonValue,
+    patternFromJsonValue
+  });
 }
 
 // Global REPL state
@@ -62,8 +88,7 @@ let helpModal;
 let dropOverlay;
 let codecsModal;
 let codecsBadgeEl;
-let activeCodecsTbody;
-let codecTypeSelect;
+let enabledCodecsGrid;
 
 // Input Popup Modal Elements
 let inputPopupModal;
@@ -558,98 +583,6 @@ function exportKlib() {
 // CODECS SUBSYSTEM UI & CONTROLS
 // ==========================================
 
-const CODEC_PRESETS = {
-  yn: {
-    name: "yn",
-    type: "yes_no",
-    universal: false,
-    parse: `// Parse 'yes', 'no', 'true', 'false' into $yes_no (< {} yes, {} no >)
-const tag = text.trim().toLowerCase();
-if (tag === "yes" || tag === "true" || tag === "1") {
-  return Value.variant("yes", Value.product({}));
-}
-if (tag === "no" || tag === "false" || tag === "0") {
-  return Value.variant("no", Value.product({}));
-}
-throw new Error("Expected yes/no or true/false");`,
-    print: `// Serialize yes_no value to YES / NO
-return value.tag === "yes" ? "YES" : "NO";`
-  },
-  hex: {
-    name: "hex",
-    type: "int",
-    universal: false,
-    parse: `// Parse decimal or hex (e.g. 0x2a, 42, -0x10) into $int
-let str = text.trim();
-let sign = "+";
-if (str.startsWith("-")) { sign = "-"; str = str.slice(1).trim(); }
-else if (str.startsWith("+")) { str = str.slice(1).trim(); }
-
-const num = str.startsWith("0x") || str.startsWith("0X") ? BigInt(str) : BigInt(str);
-if (num === 0n) sign = "+";
-
-const bitChars = num === 0n ? ["0"] : num.toString(2).split("");
-let v = Value.variant("_", Value.product({}));
-for (let i = bitChars.length - 1; i >= 0; i--) {
-  v = Value.variant(bitChars[i], v);
-}
-return Value.variant(sign, v);`,
-    print: `// Serialize $int to hexadecimal string (0x...)
-if (!isVariant(value) || (value.tag !== "+" && value.tag !== "-")) {
-  throw new Error("Not a valid int value");
-}
-let bits = "";
-let node = value.value;
-while (isVariant(node) && node.tag !== "_") {
-  bits += node.tag;
-  node = node.value;
-}
-const n = bits === "" ? 0n : BigInt("0b" + bits);
-const hex = "0x" + n.toString(16).toUpperCase();
-return (value.tag === "-" && n !== 0n ? "-" : "") + hex;`
-  },
-  currency: {
-    name: "currency",
-    type: "int",
-    universal: false,
-    parse: `// Parse currency e.g. $42.50 or $100 into cents int
-const clean = text.trim().replace(/^\\$/, "").trim();
-const parts = clean.split(".");
-const dollars = BigInt(parts[0] || "0");
-const cents = BigInt((parts[1] || "0").padEnd(2, "0").slice(0, 2));
-const total = dollars * 100n + cents;
-
-const bitChars = total === 0n ? ["0"] : total.toString(2).split("");
-let v = Value.variant("_", Value.product({}));
-for (let i = bitChars.length - 1; i >= 0; i--) {
-  v = Value.variant(bitChars[i], v);
-}
-return Value.variant("+", v);`,
-    print: `// Format cents int as currency string ($X.XX)
-let bits = "";
-let node = value.value;
-while (isVariant(node) && node.tag !== "_") {
-  bits += node.tag;
-  node = node.value;
-}
-const n = bits === "" ? 0n : BigInt("0b" + bits);
-const dollars = n / 100n;
-const cents = (n % 100n).toString().padStart(2, "0");
-return "$" + dollars.toString() + "." + cents;`
-  },
-  blank: {
-    name: "custom",
-    type: "",
-    universal: false,
-    parse: `// Parse text string and return a K Value
-// Available: Value.product({ field: val }), Value.variant("tag", val)
-return Value.product({});`,
-    print: `// Serialize K Value into string
-// value is a Value instance: inspect value.fields or value.tag & value.value
-return String(value);`
-  }
-};
-
 function openCodecsModal() {
   if (!codecsModal) return;
   renderCodecsModal();
@@ -662,108 +595,96 @@ function closeCodecsModal() {
 
 function renderCodecsModal() {
   updateCodecsBadge();
+  const grid = enabledCodecsGrid || document.getElementById("enabled-codecs-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
 
-  // 1. Built-in codec buttons state
-  const standardCodecs = ["int", "utf8", "json", "ieee", "unit"];
-  for (const name of standardCodecs) {
-    const btn = document.getElementById(`btn-toggle-codec-${name}`);
-    const badge = document.getElementById(`codec-badge-${name}`);
-    const isLoaded = isCodecRegistered(name);
-    if (btn) {
-      btn.textContent = isLoaded ? "Unload" : "Load";
-      btn.className = isLoaded ? "btn btn-sm btn-secondary" : "btn btn-sm btn-primary";
-    }
-    if (badge) {
-      badge.textContent = isLoaded ? "Active" : "Inactive";
-      badge.className = isLoaded ? "codec-status-badge active" : "codec-status-badge";
-    }
+  const store = state.codecs || {};
+  const entries = Object.values(store).sort((a, b) => a.name.localeCompare(b.name));
+
+  if (entries.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "codecs-empty-state";
+    empty.style.gridColumn = "1 / -1";
+    empty.style.padding = "32px 16px";
+    empty.style.textAlign = "center";
+    empty.style.color = "var(--text-muted)";
+    empty.style.background = "var(--bg-base)";
+    empty.style.border = "1px dashed var(--border-color)";
+    empty.style.borderRadius = "6px";
+    empty.innerHTML = `
+      <div style="font-size: 24px; margin-bottom: 8px;">📦</div>
+      <div style="font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 6px;">No codecs currently loaded</div>
+      <div style="font-size: 12px; line-height: 1.5;">Codecs are ordinary <code>.mjs</code> files.<br>Load a codec using <code>:codec load &lt;file.mjs&gt;</code> in the terminal, or select a codec file in <b>Files</b> and click <b>Load into REPL</b>.</div>
+    `;
+    grid.appendChild(empty);
+    return;
   }
 
-  // 2. Populate target type dropdown
-  if (codecTypeSelect) {
-    const prev = codecTypeSelect.value;
-    codecTypeSelect.innerHTML = `<option value="">-- None (Self-describing / Custom) --</option>`;
-    const typeGroup = document.createElement("optgroup");
-    typeGroup.label = "Available Type Aliases in State";
-    const aliases = Object.entries(state.typeAliases || {}).sort(([a], [b]) => a.localeCompare(b));
-    for (const [alias, hash] of aliases) {
-      const opt = document.createElement("option");
-      opt.value = alias;
-      opt.textContent = `$ ${alias} (${hash.slice(0, 10)}...)`;
-      typeGroup.appendChild(opt);
+  for (const entry of entries) {
+    const card = document.createElement("div");
+    card.className = "codec-card active";
+    card.id = `card-codec-${entry.name.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "codec-card-title";
+    titleEl.innerHTML = `
+      <span class="codec-icon">📦</span>
+      <span class="codec-name">${escapeHtml(entry.name)}</span>
+      <span class="codec-status-badge active">Active</span>
+    `;
+    card.appendChild(titleEl);
+
+    let targetDesc = "Self-describing";
+    if (entry.name === "int.mjs") {
+      targetDesc = "Pattern Family: $ int & lists";
+    } else if (entry.name === "utf8.mjs") {
+      targetDesc = "$ string";
+    } else if (entry.name === "ieee.mjs") {
+      targetDesc = "$ float64";
+    } else if (entry.name === "unit.mjs") {
+      targetDesc = "{}";
+    } else if (entry.name === "json.mjs") {
+      targetDesc = "Self-describing JSON";
+    } else if (Array.isArray(entry.patterns) && entry.patterns.length > 0) {
+      targetDesc = `Pattern Family (${entry.patterns.length})`;
+    } else if (entry.pattern) {
+      targetDesc = "Pattern Recipe";
     }
-    codecTypeSelect.appendChild(typeGroup);
 
-    if (prev) codecTypeSelect.value = prev;
-  }
+    const typeDiv = document.createElement("div");
+    typeDiv.className = "codec-types";
+    typeDiv.innerHTML = `Target: <span class="badge-type">${escapeHtml(targetDesc)}</span>`;
+    card.appendChild(typeDiv);
 
-  // 3. Render active codecs table
-  if (activeCodecsTbody) {
-    activeCodecsTbody.innerHTML = "";
-    const store = state.codecs || {};
-    const entries = Object.values(store).sort((a, b) => a.name.localeCompare(b.name));
+    const descDiv = document.createElement("div");
+    descDiv.className = "codec-desc";
+    const src = entry.source || entry.name;
+    descDiv.innerHTML = `Source: <code>${escapeHtml(src)}</code>`;
+    card.appendChild(descDiv);
 
-    if (entries.length === 0) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">No codecs currently loaded. Load a built-in codec or register a custom serializer/deserializer below.</td>`;
-      activeCodecsTbody.appendChild(tr);
-      return;
-    }
+    const footer = document.createElement("div");
+    footer.className = "codec-card-footer";
 
-    for (const entry of entries) {
-      const tr = document.createElement("tr");
+    const capsDiv = document.createElement("div");
+    capsDiv.className = "codec-caps";
+    const caps = [];
+    if (typeof entry.print === "function") caps.push('<span class="cap-badge print">Serializer</span>');
+    if (typeof entry.parse === "function") caps.push('<span class="cap-badge parse">Deserializer</span>');
+    capsDiv.innerHTML = caps.join(" ");
+    footer.appendChild(capsDiv);
 
-      const nameTd = document.createElement("td");
-      nameTd.className = "codec-cell-name";
-      nameTd.textContent = entry.name;
-      tr.appendChild(nameTd);
+    const unloadBtn = document.createElement("button");
+    unloadBtn.className = "btn btn-sm btn-danger";
+    unloadBtn.textContent = "Unload";
+    unloadBtn.onclick = async () => {
+      await executeCommand(`:codec unload ${entry.name}`);
+      renderCodecsModal();
+    };
+    footer.appendChild(unloadBtn);
 
-      const typeTd = document.createElement("td");
-      typeTd.className = "codec-cell-type";
-      if (entry.name === "int") {
-        typeTd.innerHTML = `<span class="badge-type">Pattern Family: $ int &amp; lists</span>`;
-      } else if (entry.name === "utf8") {
-        typeTd.innerHTML = `<span class="badge-type">$ string</span>`;
-      } else if (entry.name === "ieee") {
-        typeTd.innerHTML = `<span class="badge-type">$ float64</span>`;
-      } else if (entry.name === "unit") {
-        typeTd.innerHTML = `<span class="badge-type">{}</span>`;
-      } else if (entry.name === "json") {
-        typeTd.innerHTML = `<span class="badge-type universal">Self-describing JSON</span>`;
-      } else if (Array.isArray(entry.patterns) && entry.patterns.length > 0) {
-        typeTd.innerHTML = `<span class="badge-type">Pattern Family (${entry.patterns.length})</span>`;
-      } else if (entry.pattern) {
-        typeTd.innerHTML = `<span class="badge-type">Pattern Recipe</span>`;
-      } else {
-        typeTd.innerHTML = `<span class="badge-type universal">Self-describing</span>`;
-      }
-      tr.appendChild(typeTd);
-
-      const capTd = document.createElement("td");
-      const caps = [];
-      if (typeof entry.print === "function") caps.push(`<span class="cap-badge print">Serializer</span>`);
-      if (typeof entry.parse === "function") caps.push(`<span class="cap-badge parse">Deserializer</span>`);
-      capTd.innerHTML = caps.join(" ");
-      tr.appendChild(capTd);
-
-      const srcTd = document.createElement("td");
-      srcTd.className = "codec-cell-src";
-      srcTd.textContent = entry.source ? (entry.source === "built-in" ? "Built-in" : entry.source.split("/").pop()) : "Custom";
-      tr.appendChild(srcTd);
-
-      const actTd = document.createElement("td");
-      const unloadBtn = document.createElement("button");
-      unloadBtn.className = "btn btn-sm btn-danger";
-      unloadBtn.textContent = "Unload";
-      unloadBtn.onclick = () => {
-        executeCommand(`:codec unload ${entry.name}`);
-        renderCodecsModal();
-      };
-      actTd.appendChild(unloadBtn);
-      tr.appendChild(actTd);
-
-      activeCodecsTbody.appendChild(tr);
-    }
+    card.appendChild(footer);
+    grid.appendChild(card);
   }
 }
 
@@ -772,186 +693,16 @@ function isCodecRegistered(name) {
   return Boolean(store[name]);
 }
 
-function applyCodecPreset(presetKey) {
-  const preset = CODEC_PRESETS[presetKey];
-  if (!preset) return;
-  const nameInput = document.getElementById("codec-custom-name");
-  const parseArea = document.getElementById("codec-custom-parse");
-  const printArea = document.getElementById("codec-custom-print");
-
-  if (nameInput) nameInput.value = preset.name;
-  if (parseArea) parseArea.value = preset.parse;
-  if (printArea) printArea.value = preset.print;
-  if (codecTypeSelect) {
-    if (preset.type) {
-      codecTypeSelect.value = preset.type;
-    }
-  }
-}
-
-function registerCustomCodecFromForm() {
-  const nameInput = document.getElementById("codec-custom-name");
-  const parseArea = document.getElementById("codec-custom-parse");
-  const printArea = document.getElementById("codec-custom-print");
-  const statusBox = document.getElementById("codec-studio-status");
-
-  const name = nameInput?.value.trim();
-  const rawType = codecTypeSelect?.value.trim() || "";
-  const parseCode = parseArea?.value.trim();
-  const printCode = printArea?.value.trim();
-
-  if (!name) {
-    if (statusBox) statusBox.innerHTML = `<span class="line-error">Codec name is required.</span>`;
-    return;
-  }
-
-  try {
-    let parseFn = null;
-    let printFn = null;
-
-    if (parseCode) {
-      parseFn = new Function(
-        "text", "context",
-        `const { Value, isProduct, isVariant } = globalThis;\n${parseCode}`
-      );
-    }
-
-    if (printCode) {
-      printFn = new Function(
-        "value", "context",
-        `const { Value, isProduct, isVariant } = globalThis;\n${printCode}`
-      );
-    }
-
-    let pattern = null;
-    if (rawType && rawType !== "*") {
-      try {
-        const resolved = resolveInputPattern(state, rawType);
-        pattern = resolved.pattern;
-      } catch (err) {
-        if (statusBox) statusBox.innerHTML = `<span class="line-error">Target type error: ${escapeHtml(err.message)}</span>`;
-        return;
-      }
-    }
-
-    const codecDef = {
-      name,
-      parse: parseFn,
-      print: printFn
-    };
-    if (pattern) {
-      codecDef.pattern = pattern;
-    }
-
-    registerCodec(state, codecDef, "<custom-studio>");
-
-    if (statusBox) {
-      statusBox.innerHTML = `<span class="line-output">✓ Successfully registered codec <b>${name}</b>!</span>`;
-    }
-
-    appendSystemMessage(`⚙ Registered custom codec <b>${name}</b>.`);
-    renderCodecsModal();
-  } catch (err) {
-    if (statusBox) {
-      statusBox.innerHTML = `<span class="line-error">Error: ${escapeHtml(err.message)}</span>`;
-    }
-  }
-}
-
-function testCustomParse() {
-  const parseArea = document.getElementById("codec-custom-parse");
-  const testInput = document.getElementById("codec-test-input");
-  const statusBox = document.getElementById("codec-studio-status");
-
-  try {
-    const parseFn = new Function(
-      "text", "context",
-      `const { Value, isProduct, isVariant } = globalThis;\n${parseArea.value}`
-    );
-    const result = parseFn(testInput.value, { Value, isProduct, isVariant, state });
-    if (statusBox) {
-      statusBox.innerHTML = `<span class="line-output"><b>Parse Result:</b> ${escapeHtml(JSON.stringify(result, null, 2))}</span>`;
-    }
-  } catch (err) {
-    if (statusBox) {
-      statusBox.innerHTML = `<span class="line-error">Parse Error: ${escapeHtml(err.message)}</span>`;
-    }
-  }
-}
-
-function testCustomPrint() {
-  const printArea = document.getElementById("codec-custom-print");
-  const statusBox = document.getElementById("codec-studio-status");
-
-  try {
-    const printFn = new Function(
-      "value", "context",
-      `const { Value, isProduct, isVariant } = globalThis;\n${printArea.value}`
-    );
-    const result = printFn(state.value, { Value, isProduct, isVariant, state });
-    if (statusBox) {
-      statusBox.innerHTML = `<span class="line-output"><b>Print Output:</b> ${escapeHtml(String(result))}</span>`;
-    }
-  } catch (err) {
-    if (statusBox) {
-      statusBox.innerHTML = `<span class="line-error">Print Error: ${escapeHtml(err.message)}</span>`;
-    }
-  }
-}
-
-function saveCustomCodecToVfs() {
-  const nameInput = document.getElementById("codec-custom-name");
-  const parseArea = document.getElementById("codec-custom-parse");
-  const printArea = document.getElementById("codec-custom-print");
-  const statusBox = document.getElementById("codec-studio-status");
-
-  const name = nameInput?.value.trim() || "custom";
-  const rawType = codecTypeSelect?.value.trim() || "";
-  const fileName = `codecs/${name}-codec.mjs`;
-
-  let patternExport = "";
-  if (rawType && rawType !== "*") {
-    try {
-      const resolved = resolveInputPattern(state, rawType);
-      if (resolved.pattern) {
-        patternExport = `\nexport const pattern = ${JSON.stringify(resolved.pattern)};\n`;
-      }
-    } catch {}
-  }
-
-  const fileContent = `// Custom K Codec: ${name}
-import { Value, isProduct, isVariant } from "../Value.mjs";
-
-export const name = ${JSON.stringify(name)};${patternExport}
-export function parse(text, context) {
-  ${parseArea?.value || ""}
-}
-
-export function print(value, context) {
-  ${printArea?.value || ""}
-}
-`;
-
-  setVfsFile(fileName, fileContent);
-  if (statusBox) {
-    statusBox.innerHTML = `<span class="line-output">💾 Saved codec file to VFS as <b>${fileName}</b></span>`;
-  }
-  appendSystemMessage(`💾 Saved codec file to VFS: <b>${fileName}</b>. You can reload it anytime via <code>:codec load ${fileName}</code>.`);
-}
-
 // ==========================================
 // CODEC INPUT POPUP SUBSYSTEM (:input)
 // ==========================================
 
 const CODEC_SAMPLES = {
-  int: ["0", "10", "42", "-15", "[0, 1, 2]"],
-  utf8: ["hello", "hello world", "k repl", "abc"],
-  json: ['{"x":12,"n":"Woj"}', '{"name":"Alice"}', 'true', '[1, 2, 3]'],
-  ieee: ["0.0", "3.14159", "-2.718", "1e6"],
-  unit: ["()", "{}"],
-  yn: ["yes", "no", "true", "false"],
-  hex: ["0x2A", "0xFF", "0x1000", "-0x10"],
-  currency: ["$10.00", "$42.50", "$99.99"]
+  "int.mjs": ["0", "10", "42", "-15", "[0, 1, 2]"],
+  "utf8.mjs": ["hello", "hello world", "k repl", "abc"],
+  "json.mjs": ['{"x":12,"n":"Woj"}', '{"name":"Alice"}', 'true', '[1, 2, 3]'],
+  "ieee.mjs": ["0.0", "3.14159", "-2.718", "1e6"],
+  "unit.mjs": ["()", "{}"]
 };
 
 export function openInputPopup(preselectedType = null, preselectedCodec = null) {
@@ -1151,8 +902,7 @@ export function initRepl() {
   dropOverlay = document.getElementById("drop-overlay");
   codecsModal = document.getElementById("codecs-modal");
   codecsBadgeEl = document.getElementById("codecs-count-badge");
-  activeCodecsTbody = document.getElementById("active-codecs-tbody");
-  codecTypeSelect = document.getElementById("codec-custom-type");
+  enabledCodecsGrid = document.getElementById("enabled-codecs-grid");
 
   inputPopupModal = document.getElementById("input-popup-modal");
   inputPopupType = document.getElementById("input-popup-type");
@@ -1362,62 +1112,6 @@ export function initRepl() {
   const closeCodecsBtn = document.getElementById("btn-close-codecs");
   if (closeCodecsBtn) closeCodecsBtn.onclick = closeCodecsModal;
 
-  // Toggle built-in codecs buttons
-  ["int", "utf8", "json", "ieee", "unit"].forEach(name => {
-    const btn = document.getElementById(`btn-toggle-codec-${name}`);
-    if (btn) {
-      btn.onclick = () => {
-        if (isCodecRegistered(name)) {
-          executeCommand(`:codec unload ${name}`);
-        } else {
-          executeCommand(`:codec load ${name}`);
-        }
-        renderCodecsModal();
-      };
-    }
-  });
-
-  // Direct codec loader bar
-  const btnCodecLoadCustom = document.getElementById("btn-codec-load-custom");
-  const codecLoadInput = document.getElementById("codec-load-input");
-  if (btnCodecLoadCustom && codecLoadInput) {
-    const doLoad = () => {
-      const val = codecLoadInput.value.trim();
-      if (val) {
-        executeCommand(`:codec load ${val}`);
-        codecLoadInput.value = "";
-        renderCodecsModal();
-      }
-    };
-    btnCodecLoadCustom.onclick = doLoad;
-    codecLoadInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        doLoad();
-      }
-    });
-  }
-
-  // Codec Studio controls
-  const presetSelect = document.getElementById("codec-preset-select");
-  if (presetSelect) {
-    presetSelect.addEventListener("change", () => {
-      if (presetSelect.value) applyCodecPreset(presetSelect.value);
-    });
-  }
-
-  const btnRegisterCodec = document.getElementById("btn-register-codec");
-  if (btnRegisterCodec) btnRegisterCodec.onclick = registerCustomCodecFromForm;
-
-  const btnTestParse = document.getElementById("btn-test-parse");
-  if (btnTestParse) btnTestParse.onclick = testCustomParse;
-
-  const btnTestPrint = document.getElementById("btn-test-print");
-  if (btnTestPrint) btnTestPrint.onclick = testCustomPrint;
-
-  const btnSaveCodecVfs = document.getElementById("btn-save-codec-vfs");
-  if (btnSaveCodecVfs) btnSaveCodecVfs.onclick = saveCustomCodecToVfs;
-
   // Codec Input Popup controls
   const btnInputNavbar = document.getElementById("btn-input-popup");
   if (btnInputNavbar) btnInputNavbar.onclick = () => openInputPopup();
@@ -1538,9 +1232,6 @@ export function initRepl() {
       inputEl.focus();
     }
   });
-
-  // Apply initial yn preset to custom form
-  applyCodecPreset("yn");
 
   inputEl.focus();
 }

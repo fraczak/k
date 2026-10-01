@@ -39,11 +39,9 @@ import {
   registerCodec,
   resolveCodec,
   unregisterCodec,
-  BUILTIN_CODECS,
   closedPatternToCodeHash,
   UNIVERSAL_CODE,
   valueForPattern,
-  matchBuiltinCodec,
   ensureEnveloped
 } from "./repl-codecs.mjs";
 
@@ -350,7 +348,8 @@ function listAliases(aliases) {
 }
 
 function formatCodecOutput(output) {
-  if (Buffer.isBuffer(output)) return output.toString("utf8");
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(output)) return output.toString("utf8");
+  if (typeof Uint8Array !== "undefined" && output instanceof Uint8Array) return new TextDecoder().decode(output);
   return String(output);
 }
 
@@ -647,13 +646,7 @@ function completeCodecCommand(line, argStart, arg, state) {
   const tokenStart = codecLoadPathCompletionStart(argStart, arg);
   if (tokenStart == null) return [[], line];
   const [pathMatches] = completePath(line, tokenStart);
-  const match = arg.match(/^(\s*)load(?:\s+(.*))?$/);
-  const partial = match && match[2] != null ? match[2].trim() : "";
-  const prefix = line.slice(0, tokenStart);
-  const builtinMatches = ["int", "utf8", "json", "ieee"]
-    .filter((name) => name.startsWith(partial))
-    .map((name) => `${prefix}${name}`);
-  return [[...builtinMatches, ...pathMatches], line];
+  return [pathMatches, line];
 }
 
 function resolveTypeHash(state, rawName) {
@@ -882,14 +875,6 @@ function parseLoadArgs(arg, usagePrefix = ":") {
   return { path: arg.trim(), loadAliases: true };
 }
 
-const CODEC_FILES = {
-  int: "arithmetics.k",
-  utf8: "core.k",
-  json: "core.k",
-  ieee: "ieee.k",
-  unit: "core.k"
-};
-
 function normalizeFilePath(p) {
   return p.replace(/\\/g, "/").replace(/^\.\//, "");
 }
@@ -958,24 +943,6 @@ function loadSourceOrKlib(state, targetPath, options = {}) {
   }
   state.loadedFiles.add(normKey);
   return targetPath;
-}
-
-function ensureCodecDependencies(state, codecTarget) {
-  const norm = normalizeFilePath(codecTarget).toLowerCase();
-  const base = path.basename(norm, path.extname(norm));
-  const depFile = CODEC_FILES[base] || CODEC_FILES[norm];
-  if (!depFile) return null;
-  if (!state.loadedFiles) state.loadedFiles = new Set();
-  const depNormKey = normalizeFilePath(depFile);
-  const baseName = path.basename(depNormKey);
-  const alreadyLoaded = state.loadedFiles.has(depNormKey) ||
-    state.loadedFiles.has(`Examples/${depNormKey}`) ||
-    Array.from(state.loadedFiles).some(f => path.basename(f) === baseName);
-  if (!alreadyLoaded) {
-    loadSourceOrKlib(state, depFile);
-    return depFile;
-  }
-  return null;
 }
 
 function lineForContinuation(line) {
@@ -1183,13 +1150,10 @@ async function loadCodec(input, state) {
   const [subcommand, ...rest] = trimmed.split(/\s+/);
   switch (subcommand) {
     case "load": {
-      const filePath = rest.join(" ");
-      if (!filePath) throw new Error(":codec load requires a file path or codec name");
-      const autoLoaded = ensureCodecDependencies(state, filePath);
+      const filePath = rest.join(" ").trim();
+      if (!filePath) throw new Error(":codec load requires a file path");
       const registered = await loadCodecModule(state, expandHome(filePath));
-      return registered.map(({ name }) =>
-        `loaded codec ${name}${autoLoaded ? ` (auto-loaded ${autoLoaded})` : ""}`
-      );
+      return registered.map(({ name }) => `loaded codec ${name}`);
     }
     case "unload": {
       const codecName = rest.join(" ").trim();
@@ -1199,16 +1163,13 @@ async function loadCodec(input, state) {
       return [`unloaded codec ${codecName}`];
     }
     case "define":
-      throw new Error(":codec define has been removed; use :codec load <name|file> or the Custom Codec Studio UI");
+      throw new Error(":codec define has been removed; all codecs are loaded from files via :codec load <file.mjs>");
     case "list":
       if (rest.length > 0) throw new Error(":codec list does not accept arguments");
       return [listCodecs(state)];
     default: {
-      const autoLoaded = ensureCodecDependencies(state, trimmed);
       const registered = await loadCodecModule(state, expandHome(trimmed));
-      return registered.map(({ name }) =>
-        `loaded codec ${name}${autoLoaded ? ` (auto-loaded ${autoLoaded})` : ""}`
-      );
+      return registered.map(({ name }) => `loaded codec ${name}`);
     }
   }
 }
@@ -1217,11 +1178,10 @@ async function requestCodecInput(input, state) {
   let trimmed = input.trim();
   if (!trimmed) {
     const loaded = Object.keys(state.codecs || {});
-    const avail = codecNames(state);
     const loadedStr = loaded.length > 0 ? `Loaded: ${loaded.join(", ")}` : "None loaded";
     return [
-      "Usage: :input <codec> [text]",
-      `Available codecs: ${avail.join(", ")} (${loadedStr})`
+      "Usage: :input <codec.mjs> [text]",
+      `Loaded codecs: ${loadedStr}`
     ];
   }
 
@@ -1229,15 +1189,14 @@ async function requestCodecInput(input, state) {
     trimmed = trimmed.slice(1).trim();
   }
 
-  const match = trimmed.match(/^([a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*)(?:\s+([\s\S]*))?$/);
+  const match = trimmed.match(/^([a-zA-Z0-9_?!+.-]+)(?:\s+([\s\S]*))?$/);
   if (!match) {
-    throw new Error("Invalid :input syntax. Usage: :input <codec> [text]");
+    throw new Error("Invalid :input syntax. Usage: :input <codec.mjs> [text]");
   }
 
   const codecName = match[1];
   const inlineText = match[2];
 
-  ensureCodecDependencies(state, codecName);
   const codec = resolveCodec(state, codecName, "parse");
 
   if (inlineText !== undefined) {
@@ -1393,10 +1352,10 @@ function helpText() {
     ":type name           show type definition",
     ":codes               list type aliases",
     ":rels                list relation aliases",
-    ":codec load file     load a REPL codec module (or built-in: int, utf8, json, ieee, unit)",
+    ":codec load file     load a codec module from file (e.g. :codec load codecs/int.mjs)",
     ":codec unload name   unload a registered codec",
     ":codec list          list loaded codecs (or simply :codecs)",
-    ":input <codec> [text]  parse input using specified codec",
+    ":input <codec.mjs> [text]  parse input using specified codec",
     ":load [--no-alias] file",
     "                     load .k source or .klib",
     ":klib file           export state as a library",
@@ -1550,13 +1509,11 @@ export {
   resolveInputPattern,
   valueForPattern,
   codeHashToPattern,
-  BUILTIN_CODECS,
   printValue,
   promptForState,
   propertyListToFilter,
   savedLibrary,
   loadSourceOrKlib,
-  ensureCodecDependencies,
   valueToK,
   formatDuration,
   codecNames,

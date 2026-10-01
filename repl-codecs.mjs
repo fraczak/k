@@ -6,19 +6,6 @@ import { encodeToWire, decodeWire } from "./codecs/runtime/prefix-codec.mjs";
 import { deriveClosedPattern } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { finalize } from "./codes.mjs";
-import * as intCodec from "./codecs/int.mjs";
-import * as utf8Codec from "./codecs/utf8.mjs";
-import * as jsonCodec from "./codecs/json.mjs";
-import * as ieeeCodec from "./codecs/ieee.mjs";
-import * as unitCodec from "./codecs/unit.mjs";
-
-const BUILTIN_CODECS = {
-  int: intCodec,
-  utf8: utf8Codec,
-  json: jsonCodec,
-  ieee: ieeeCodec,
-  unit: unitCodec
-};
 
 const UNIVERSAL_CODE = "*";
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
@@ -105,18 +92,8 @@ function ensureEnveloped(value, codec = null) {
   return value;
 }
 
-function normalizeCodecModule(mod, fallbackName) {
+function normalizeCodecModule(mod, name) {
   const codec = mod.replCodec || mod.codec || mod.default || mod;
-  const name = codec.name || mod.name || fallbackName;
-  if (!name || typeof name !== "string") {
-    throw new Error("Codec module must export a string name");
-  }
-  if (codec.parse != null && typeof codec.parse !== "function") {
-    throw new Error(`Codec '${name}' parse export must be a function`);
-  }
-  if (codec.print != null && typeof codec.print !== "function") {
-    throw new Error(`Codec '${name}' print export must be a function`);
-  }
   return {
     name,
     parse: codec.parse,
@@ -131,14 +108,15 @@ function codecStore(state) {
   return state.codecs;
 }
 
-function registerCodec(state, rawCodec, source = null) {
-  const codec = normalizeCodecModule(rawCodec, rawCodec.name);
+function registerCodec(state, rawCodec, filePath) {
+  const name = path.basename(filePath);
+  const codec = normalizeCodecModule(rawCodec, name);
   const store = codecStore(state);
   store[codec.name] = {
     ...codec,
-    source
+    source: filePath
   };
-  return [{ name: codec.name, source }];
+  return [{ name: codec.name, source: filePath }];
 }
 
 function unregisterCodec(state, codecName) {
@@ -157,16 +135,7 @@ function listCodecs(state) {
 
 function codecNames(state) {
   const store = codecStore(state);
-  const loaded = Object.keys(store);
-  const builtins = Object.keys(BUILTIN_CODECS);
-  return [...new Set([...loaded, ...builtins])].sort();
-}
-
-function matchBuiltinCodec(target) {
-  const normalized = target.replace(/\\/g, "/").replace(/^\.\//, "").toLowerCase();
-  const base = path.basename(normalized, path.extname(normalized));
-  if (BUILTIN_CODECS[base]) return { name: base, mod: BUILTIN_CODECS[base] };
-  return null;
+  return Object.keys(store).sort();
 }
 
 function resolveCodec(state, codecName, capability = null) {
@@ -174,14 +143,7 @@ function resolveCodec(state, codecName, capability = null) {
     throw new Error("Codec name is required");
   }
   const store = codecStore(state);
-  let codec = store[codecName];
-  if (!codec) {
-    const builtin = matchBuiltinCodec(codecName);
-    if (builtin) {
-      registerCodec(state, builtin.mod, "built-in");
-      codec = store[builtin.name];
-    }
-  }
+  const codec = store[codecName];
   if (!codec) {
     throw new Error(`Codec '${codecName}' is not loaded`);
   }
@@ -192,54 +154,38 @@ function resolveCodec(state, codecName, capability = null) {
 }
 
 async function loadCodecModule(state, filePath) {
-  const builtin = matchBuiltinCodec(filePath);
-  if (builtin) {
-    return registerCodec(state, builtin.mod, "built-in");
-  }
-
-  let source = null;
-  try {
-    if (fs.existsSync(filePath)) {
-      source = fs.readFileSync(filePath, "utf8");
-    }
-  } catch {}
-
-  const resolved = path.resolve(filePath);
-  if (!source && fs.existsSync(resolved)) {
+  let mod;
+  if (typeof process !== "undefined" && process?.versions?.node) {
+    const fullPath = path.resolve(filePath);
+    const url = pathToFileURL(fullPath);
     try {
-      source = fs.readFileSync(resolved, "utf8");
+      const stats = fs.statSync(fullPath);
+      if (stats?.mtimeMs) url.searchParams.set("mtime", String(stats.mtimeMs));
     } catch {}
-  }
-
-  if (typeof process !== "undefined" && process?.versions?.node && fs.existsSync(resolved)) {
+    mod = await import(url.href);
+  } else {
+    const rawSource = fs.readFileSync(filePath, "utf8");
+    const source = rawSource.replace(/^#![^\n]*\n/, "");
+    const stripped = source.replace(/import\s+[^;]*from\s+['"][^'"]*['"];?/g, "");
+    const prelude = "const { " +
+      "Value, isProduct, isVariant, NODE_KIND, encodeToWire, decodeWire, isMainEntrypoint, " +
+      "STRING_PATTERN_PROPERTY_LIST, encodeText, decodeText, textToStringValue, stringValueToText, " +
+      "FLOAT64_PATTERN, fromJsonValue, toJsonValue, patternFromJsonValue " +
+      "} = globalThis;\n" +
+      "const stdin = null, stdout = null, argv = [], exit = () => {};\n";
+    const blob = new Blob([prelude + stripped], { type: "text/javascript" });
+    const blobUrl = URL.createObjectURL(blob);
     try {
-      const url = pathToFileURL(resolved);
-      try {
-        const stats = fs.statSync(resolved);
-        if (stats?.mtimeMs) url.searchParams.set("mtime", String(stats.mtimeMs));
-      } catch {}
-      const mod = await import(url.href);
-      return registerCodec(state, mod, resolved);
-    } catch (nodeErr) {
-      if (!source) throw nodeErr;
+      mod = await import(blobUrl);
+    } finally {
+      URL.revokeObjectURL(blobUrl);
     }
   }
 
-  if (!source) {
-    throw new Error(`Cannot find codec file '${filePath}'`);
-  }
-
-  const sanitized = source.replace(
-    /import\s+[^;]*from\s+['"][^'"]*['"];?/g,
-    "const { Value, isProduct, isVariant, NODE_KIND } = globalThis;"
-  );
-  const dataUrl = "data:text/javascript;charset=utf-8," + encodeURIComponent(sanitized);
-  const mod = await import(dataUrl);
   return registerCodec(state, mod, filePath);
 }
 
 export {
-  BUILTIN_CODECS,
   codecNames,
   codeHashToPattern,
   listCodecs,
@@ -252,6 +198,5 @@ export {
   UNIVERSAL_CODE,
   valueForCode,
   valueForPattern,
-  matchBuiltinCodec,
   ensureEnveloped
 };
