@@ -2,11 +2,9 @@
 
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
-import k from "../index.mjs";
 import { parseValue } from "../valueIO.mjs";
 import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
-import { exportPatternGraph } from "./runtime/codec.mjs";
-import { patternToPropertyList } from "./runtime/pattern-json.mjs";
+import { patternFromFilter } from "./runtime/pattern-k.mjs";
 import { encodeToWire } from "./runtime/prefix-codec.mjs";
 
 function usage(prog) {
@@ -30,20 +28,6 @@ function readAll(stream) {
     stream.on("end", () => resolve(Buffer.concat(chunks.map((c) => Buffer.isBuffer(c) ? c : Buffer.from(c)))));
     stream.on("error", reject);
   });
-}
-
-function propertyListFromScript(script) {
-  const annotated = k.annotate(script);
-  const mainRel = annotated.rels.__main__;
-  if (!mainRel || !mainRel.typePatternGraph) {
-    throw new Error("Could not resolve __main__ relation");
-  }
-  if (mainRel.def.op !== "filter" && mainRel.def.op !== "code") {
-    throw new Error("Input script must end with a filter or a type name");
-  }
-  const rootPatternId = mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
-  const pattern = exportPatternGraph(mainRel.typePatternGraph, rootPatternId);
-  return patternToPropertyList(pattern);
 }
 
 async function main() {
@@ -82,8 +66,8 @@ async function main() {
   const value = parseValue(inputText, null, null);
 
   const propertyList = (() => {
-    if (inputTypeArg != null) return propertyListFromScript(maybeReadFile(inputTypeArg));
-    if (inputPatternArg != null) return propertyListFromScript(maybeReadFile(inputPatternArg));
+    if (inputTypeArg != null) return patternFromFilter(maybeReadFile(inputTypeArg));
+    if (inputPatternArg != null) return patternFromFilter(maybeReadFile(inputPatternArg));
     return null;
   })();
 

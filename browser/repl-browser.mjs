@@ -16,43 +16,22 @@ import {
   resolveInputPattern,
   valueForPattern,
   codecNames,
-  ensureEnveloped
+  ensureEnveloped,
+  patternFromFilter
 } from "../repl.mjs";
-import { Value, isProduct, isVariant } from "../Value.mjs";
-import { NODE_KIND } from "../codecs/runtime/codec.mjs";
+import { Value, isProduct, isVariant, withPattern } from "../Value.mjs";
 import { encodeLibrary } from "../object.mjs";
 import { setVfsFile, getVfsFile, getAllVfsFiles } from "./shims/fs.mjs";
 import { createOutputEntryElement } from "./tree-view.mjs";
-import { encodeToWire, decodeWire } from "../codecs/runtime/prefix-codec.mjs";
-import {
-  STRING_PATTERN_PROPERTY_LIST,
-  encodeText,
-  decodeText,
-  textToStringValue,
-  stringValueToText
-} from "../codecs/string-codec.mjs";
-import { FLOAT64_PATTERN } from "../codecs/runtime/ieee-pattern.mjs";
-import { fromJsonValue, toJsonValue, patternFromJsonValue } from "../codecs/json-codec.mjs";
 
-// Make Value and helpers globally available for custom codecs
+// Make Value and helpers globally available in browser console
 if (typeof window !== "undefined") {
   Object.assign(window, {
     Value,
     isProduct,
     isVariant,
-    NODE_KIND,
-    encodeToWire,
-    decodeWire,
-    isMainEntrypoint: () => false,
-    STRING_PATTERN_PROPERTY_LIST,
-    encodeText,
-    decodeText,
-    textToStringValue,
-    stringValueToText,
-    FLOAT64_PATTERN,
-    fromJsonValue,
-    toJsonValue,
-    patternFromJsonValue
+    withPattern,
+    patternFromFilter
   });
 }
 

@@ -14,10 +14,12 @@ import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import codes from "./codes.mjs";
 import { Value, isProduct, isVariant } from "./Value.mjs";
+import { patternFromFilter } from "./codecs/runtime/pattern-k.mjs";
 if (typeof globalThis !== "undefined") {
   globalThis.Value = Value;
   globalThis.isProduct = isProduct;
   globalThis.isVariant = isVariant;
+  globalThis.patternFromFilter = patternFromFilter;
 }
 import { patterns2filters, prettyCode, prettyRel } from "./pretty.mjs";
 import {
@@ -40,7 +42,6 @@ import {
   resolveCodec,
   unregisterCodec,
   closedPatternToCodeHash,
-  UNIVERSAL_CODE,
   valueForPattern,
   ensureEnveloped
 } from "./repl-codecs.mjs";
@@ -1517,5 +1518,6 @@ export {
   valueToK,
   formatDuration,
   codecNames,
-  ensureEnveloped
+  ensureEnveloped,
+  patternFromFilter
 };

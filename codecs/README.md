@@ -79,6 +79,8 @@ notation for k values. That notation is documented in
 [`../DOCS/TEXTUAL_VALUES.md`](../DOCS/TEXTUAL_VALUES.md). It is a readable
 notation for k values, not a separate JSON container format.
 
+For the codec architecture and specification, see
+[`../DOCS/CODEC_ARCHITECTURE.md`](../DOCS/CODEC_ARCHITECTURE.md).
 For the contributor-facing guide to writing a new external codec module, see
 [`../DOCS/CODECS.md`](../DOCS/CODECS.md).
 
@@ -238,6 +240,10 @@ The new codec work is split into layers:
 
 ## Files
 
+- [`../DOCS/CODEC_ARCHITECTURE.md`](../DOCS/CODEC_ARCHITECTURE.md):
+  comprehensive architecture specification for k codecs.
+- [`../DOCS/CODECS.md`](../DOCS/CODECS.md):
+  practical guide to writing, running, and testing codecs.
 - [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md):
   main design document for the new pattern-plus-prefix-tree codec.
 - [`BINARY_FORMAT.md`](./BINARY_FORMAT.md):
@@ -247,3 +253,4 @@ The new codec work is split into layers:
 
 The active command-line pipeline emits and consumes the self-hosted binary
 pattern+value stream.
+

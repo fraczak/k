@@ -1,44 +1,20 @@
 #!/usr/bin/env node
 
-import { stdin, stdout, argv, exit } from "node:process";
-import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
+import { withPattern, runCodecCLI } from "./runtime/codec-sdk.mjs";
 import {
   STRING_PATTERN_PROPERTY_LIST,
-  encodeText,
-  decodeText,
   textToStringValue,
   stringValueToText
 } from "./string-codec.mjs";
 
-const name = "utf16";
-const patterns = [STRING_PATTERN_PROPERTY_LIST];
+export const doc = `
+UTF-16 text codec (BOM-aware).
 
-function parse(text) {
-  return textToStringValue(text);
-}
-
-function print(value) {
-  return stringValueToText(value);
-}
-
-function usage(stream = console.error) {
-  stream(`Usage: ${argv[1]} --parse | --print`);
-  stream("  --parse      Read UTF-16 text from stdin (BOM-aware), write binary pattern+value stream of k string.");
-  stream("  --print      Read binary pattern+value stream of k string, write UTF-16LE text with BOM.");
-  stream("  -h, --help   Show this help.");
-}
-
-function readAll(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
-    stream.on("error", reject);
-  });
-}
+Reads UTF-16 text (LE/BE with BOM or LE without BOM), outputs UTF-16LE with BOM.
+`;
 
 function decodeUtf16Input(buf) {
-  if (buf.length === 0) return "";
+  if (!buf || buf.length === 0) return "";
 
   if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
     const src = buf.subarray(2);
@@ -66,33 +42,14 @@ function encodeUtf16Output(text) {
   return Buffer.concat([bomLe, Buffer.from(text, "utf16le")]);
 }
 
-async function main() {
-  const args = argv.slice(2);
-  if (args.includes("-h") || args.includes("--help")) {
-    usage(console.log);
-    exit(0);
-  }
-
-  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    usage();
-    exit(1);
-  }
-
-  const buf = await readAll(stdin);
-
-  if (args[0] === "--parse") {
-    const text = decodeUtf16Input(buf);
-    stdout.write(encodeText(text));
-  } else {
-    stdout.write(encodeUtf16Output(decodeText(buf)));
-  }
+export function parse(input) {
+  const text = Buffer.isBuffer(input) ? decodeUtf16Input(input) : String(input);
+  return withPattern(textToStringValue(text), STRING_PATTERN_PROPERTY_LIST);
 }
 
-if (isMainEntrypoint(import.meta.url, argv[1])) {
-  main().catch(err => {
-    console.error(err.message || String(err));
-    exit(1);
-  });
+export function print(value) {
+  const text = stringValueToText(value);
+  return encodeUtf16Output(text);
 }
 
-export { name, patterns, parse, print };
+runCodecCLI(import.meta.url, { parse, print, doc, readBuffer: true, addNewline: false });

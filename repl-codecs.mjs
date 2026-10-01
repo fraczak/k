@@ -7,12 +7,6 @@ import { deriveClosedPattern } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { finalize } from "./codes.mjs";
 
-const UNIVERSAL_CODE = "*";
-const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
-
-function isCanonicalCodeName(name) {
-  return typeof name === "string" && name.startsWith("@");
-}
 
 function closedPatternToCodeHash(pattern) {
   if (!Array.isArray(pattern) || pattern.length === 0) {
@@ -79,13 +73,6 @@ function ensureEnveloped(value, codec = null) {
       return decodeWire(encodeToWire(value, codec.pattern)).value;
     } catch {}
   }
-  if (Array.isArray(codec?.patterns) && codec.patterns.length > 0) {
-    for (const pat of codec.patterns) {
-      try {
-        return decodeWire(encodeToWire(value, pat)).value;
-      } catch {}
-    }
-  }
   try {
     return decodeWire(encodeToWire(value)).value;
   } catch {}
@@ -98,8 +85,7 @@ function normalizeCodecModule(mod, name) {
     name,
     parse: codec.parse,
     print: codec.print,
-    pattern: codec.pattern,
-    patterns: codec.patterns
+    pattern: codec.pattern
   };
 }
 
@@ -166,14 +152,7 @@ async function loadCodecModule(state, filePath) {
   } else {
     const rawSource = fs.readFileSync(filePath, "utf8");
     const source = rawSource.replace(/^#![^\n]*\n/, "");
-    const stripped = source.replace(/import\s+[^;]*from\s+['"][^'"]*['"];?/g, "");
-    const prelude = "const { " +
-      "Value, isProduct, isVariant, NODE_KIND, encodeToWire, decodeWire, isMainEntrypoint, " +
-      "STRING_PATTERN_PROPERTY_LIST, encodeText, decodeText, textToStringValue, stringValueToText, " +
-      "FLOAT64_PATTERN, fromJsonValue, toJsonValue, patternFromJsonValue " +
-      "} = globalThis;\n" +
-      "const stdin = null, stdout = null, argv = [], exit = () => {};\n";
-    const blob = new Blob([prelude + stripped], { type: "text/javascript" });
+    const blob = new Blob([source], { type: "text/javascript" });
     const blobUrl = URL.createObjectURL(blob);
     try {
       mod = await import(blobUrl);
@@ -195,7 +174,6 @@ export {
   resolveCodec,
   unregisterCodec,
   closedPatternToCodeHash,
-  UNIVERSAL_CODE,
   valueForCode,
   valueForPattern,
   ensureEnveloped

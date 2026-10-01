@@ -2,9 +2,7 @@
 
 import fs from "node:fs";
 import { argv, exit, stdin, stdout } from "node:process";
-import k from "../index.mjs";
-import { exportPatternGraph } from "../codecs/runtime/codec.mjs";
-import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
+import { patternFromFilter } from "../codecs/runtime/pattern-k.mjs";
 
 function usage(prog) {
   console.error(`Usage: ${prog} [script-or-file]`);
@@ -33,20 +31,6 @@ function readAll(stream) {
   });
 }
 
-function rootPatternIdFromMainRel(mainRel) {
-  if (!mainRel || !mainRel.typePatternGraph) {
-    throw new Error("Could not resolve __main__ relation");
-  }
-
-  switch (mainRel.def.op) {
-    case "filter":
-    case "code":
-      return mainRel.typePatternGraph.find(mainRel.def.patterns[0]);
-    default:
-      throw new Error("Main expression must be a filter or a type name");
-  }
-}
-
 async function main() {
   const prog = argv[1];
   const args = argv.slice(2);
@@ -60,11 +44,7 @@ async function main() {
   }
 
   const script = args.length === 1 ? maybeReadFile(args[0]) : await readAll(stdin);
-  const annotated = k.annotate(script);
-  const mainRel = annotated.rels.__main__;
-  const rootPatternId = rootPatternIdFromMainRel(mainRel);
-  const pattern = exportPatternGraph(mainRel.typePatternGraph, rootPatternId);
-  const propertyList = patternToPropertyList(pattern);
+  const propertyList = patternFromFilter(script);
 
   stdout.write(`${JSON.stringify(propertyList)}\n`);
 }

@@ -1,20 +1,28 @@
 #!/usr/bin/env node
 
-import { stdin, stdout, argv, exit } from "node:process";
-import { Value, isProduct, isVariant } from "../Value.mjs";
-import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
-import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
-import { FLOAT64_PATTERN } from "./runtime/ieee-pattern.mjs";
-const UNIT = Value.product({});
-const name = "ieee";
-const patterns = [FLOAT64_PATTERN];
+import { Value, isProduct, isVariant, withPattern, patternFromFilter, runCodecCLI } from "./runtime/codec-sdk.mjs";
 
-function usage(stream = console.error) {
-  stream(`Usage: ${argv[1]} --parse | --print`);
-  stream("  --parse      Read a float literal from stdin, write binary pattern+value stream.");
-  stream("  --print      Read binary pattern+value stream from stdin, write a float literal.");
-  stream("  -h, --help   Show this help.");
-}
+export const doc = `
+IEEE 754 64-bit float codec.
+
+Parses decimal floats, Infinity, -Infinity, NaN to 64-bit IEEE products.
+`;
+
+const FLOAT64_PATTERN = patternFromFilter(`
+$bit  = < {} 0, {} 1 >;
+$sign = < {} "+", {} "-" >;
+$exp11  = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9, bit 10};
+$frac52 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
+           bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
+           bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29,
+           bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39,
+           bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49,
+           bit 50, bit 51};
+$float64 = {sign sign, exp11 exponent, frac52 fraction};
+?$float64
+`);
+
+const UNIT = Value.product({});
 
 function bitValue(bit) {
   return Value.variant(bit === 0 ? "0" : "1", UNIT);
@@ -29,10 +37,11 @@ function bitsProduct(width, value) {
   return Value.product(product);
 }
 
-function encodeNumberToValue(number) {
-  const buf = Buffer.alloc(8);
-  buf.writeDoubleBE(number, 0);
-  const bits = buf.readBigUInt64BE(0);
+const floatView = new DataView(new ArrayBuffer(8));
+
+export function encodeNumberToValue(number) {
+  floatView.setFloat64(0, number, false);
+  const bits = floatView.getBigUint64(0, false);
   const sign = Number((bits >> 63n) & 1n);
   const exponent = Number((bits >> 52n) & 0x7ffn);
   const fraction = bits & ((1n << 52n) - 1n);
@@ -71,7 +80,7 @@ function parseBitsProduct(value, maxBit, where) {
   return n;
 }
 
-function decodeValueToNumber(value) {
+export function decodeValueToNumber(value) {
   const product = requireProduct(value, "float64");
   const sign = requireVariant(product.sign, "float64.sign");
   if (sign.tag !== "+" && sign.tag !== "-") {
@@ -85,9 +94,8 @@ function decodeValueToNumber(value) {
     (exponent << 52n) |
     fraction;
 
-  const buf = Buffer.alloc(8);
-  buf.writeBigUInt64BE(bits, 0);
-  return buf.readDoubleBE(0);
+  floatView.setBigUint64(0, bits, false);
+  return floatView.getFloat64(0, false);
 }
 
 function parseFloatText(text) {
@@ -98,69 +106,35 @@ function parseFloatText(text) {
 
   if (/^[+-]?nan$/i.test(trimmed)) return NaN;
   if (/^[+]?inf(inity)?$/i.test(trimmed)) return Infinity;
-  if (/^-inf(inity)?$/i.test(trimmed)) return -Infinity;
+  if (/^[-](inf|infinity)$/i.test(trimmed)) return -Infinity;
 
-  const value = Number(trimmed);
-  if (Number.isNaN(value)) {
-    throw new Error(`Invalid floating-point literal: ${JSON.stringify(trimmed)}`);
+  const n = Number(trimmed);
+  if (Number.isNaN(n)) {
+    throw new Error(`Invalid float literal ${JSON.stringify(trimmed)}`);
   }
-  return value;
+  return n;
 }
 
-function printFloatText(number) {
-  if (Number.isNaN(number)) return "NaN";
-  if (number === Infinity) return "Infinity";
-  if (number === -Infinity) return "-Infinity";
-  if (Object.is(number, -0)) return "-0";
-  return String(number);
+function printFloatText(n) {
+  if (Number.isNaN(n)) return "NaN";
+  if (n === Infinity) return "Infinity";
+  if (n === -Infinity) return "-Infinity";
+  if (Object.is(n, -0)) return "-0";
+  return String(n);
 }
 
-function parse(text) {
-  const value = encodeNumberToValue(parseFloatText(text));
-  return decodeWire(encodeToWire(value, FLOAT64_PATTERN)).value;
+export function parse(text) {
+  const n = parseFloatText(text);
+  const value = encodeNumberToValue(n);
+  return withPattern(value, FLOAT64_PATTERN);
 }
 
-function print(value) {
+export function print(value) {
   return printFloatText(decodeValueToNumber(value));
 }
 
-function readAll(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
-    stream.on("error", reject);
-  });
-}
+runCodecCLI(import.meta.url, { parse, print, doc });
 
-async function main() {
-  const args = argv.slice(2);
-  if (args.includes("-h") || args.includes("--help")) {
-    usage(console.log);
-    exit(0);
-  }
-
-  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    usage();
-    exit(1);
-  }
-
-  const buf = await readAll(stdin);
-
-  if (args[0] === "--parse") {
-    const value = encodeNumberToValue(parseFloatText(buf.toString("utf8")));
-    stdout.write(encodeToWire(value, FLOAT64_PATTERN));
-  } else {
-    const { value } = decodeWire(buf);
-    stdout.write(`${printFloatText(decodeValueToNumber(value))}\n`);
-  }
-}
-
-if (isMainEntrypoint(import.meta.url, argv[1])) {
-  main().catch((error) => {
-    console.error(error.message || String(error));
-    exit(1);
-  });
-}
-
-export { FLOAT64_PATTERN, name, patterns, parse, print };
+export {
+  FLOAT64_PATTERN
+};

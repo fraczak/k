@@ -17,6 +17,12 @@ export const stdout = {
   }
 };
 
+export const stderr = {
+  write(chunk) {
+    console.error(chunk);
+  }
+};
+
 export const hrtime = function() {
   const now = performance.now();
   const sec = Math.floor(now / 1000);
@@ -33,6 +39,7 @@ export const processShim = {
   exit,
   stdin,
   stdout,
+  stderr,
   hrtime,
   versions: { wabt_browser: "1.0" }
 };

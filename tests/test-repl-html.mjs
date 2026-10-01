@@ -336,6 +336,29 @@ if (chromiumBin) {
     })()`);
     assert(listResult.includes('int.mjs: [0,1,2]'), `Expected int.mjs: [0,1,2], got: ${listResult}`);
 
+    // Test utf8.mjs input: :input utf8.mjs Hello world
+    await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":codec load utf8.mjs");
+      await window.kRepl.executeCommand(":input utf8.mjs Hello world");
+    })()`);
+    const utf8Result = await evaluateAsync(`(() => {
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(utf8Result.includes('utf8.mjs: Hello world'), `Expected utf8.mjs: Hello world, got: ${utf8Result}`);
+
+    // Test ieee.mjs input: :input ieee.mjs 3.14159
+    await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":codec load ieee.mjs");
+      await window.kRepl.executeCommand(":input ieee.mjs 3.14159");
+    })()`);
+    const ieeeResult = await evaluateAsync(`(() => {
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(ieeeResult.includes('ieee.mjs: 3.14159'), `Expected ieee.mjs: 3.14159, got: ${ieeeResult}`);
+
+
     // Verify text selection holds in output element
     const selectionCheck = await evaluateAsync(`(() => {
       const output = document.getElementById("terminal-output");

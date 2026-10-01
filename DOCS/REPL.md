@@ -43,10 +43,10 @@ complete.
 | `:C name` | Show canonical code definition |
 | `:codes` | List type aliases |
 | `:rels` | List relation aliases |
-| `:codec load name\|file` | Load a built-in codec (`int`, `utf8`, `json`, `ieee`, `unit`) or an ES module file |
+| `:codec load file` | Load a codec from an ES module file (e.g. `:codec load codecs/int.mjs`) |
 | `:codec unload name` | Unload a registered codec |
 | `:codec list` | List loaded REPL codecs (alias: `:codecs`) |
-| `:input [<filter=(...)> [codec]]` | Read next input line using specified codec (opens dialog in browser) |
+| `:input <codec.mjs> [text]` | Read next input line or parse inline text using specified codec |
 | `:load [--no-alias] file` | Load `.k` source or `.klib` into the current state |
 | `:klib file` | Export the active relation closure as a `.klib` library |
 | `:ko file expr` | Export a `.ko` executable with `expr` as main |
@@ -171,48 +171,42 @@ int: 42
 For a complete guide to writing a new codec module, see
 [`CODECS.md`](./CODECS.md).
 
-### `:codec load name|file`
+### `:codec load file`
 
-Loads either a built-in codec by name (`int`, `utf8`, `json`, `ieee`, `unit`) or an ES module file. Loading a built-in codec automatically loads its corresponding `.k` definition file if not already present:
-- `int` auto-loads `Examples/arithmetics.k`
-- `ieee` auto-loads `Examples/ieee.k`
-- `utf8`, `json`, `unit` auto-load `Examples/core.k`
-
-Loading a codec also creates code aliases matching the codec name (e.g. `$ int = @...`, `$ float64 = @...`, `$ utf8 = @...`).
+Loads a codec module from an ES module file (e.g. `:codec load codecs/int.mjs`). Codecs are identified by their file name, and export `parse(text)` and `print(value)` functions.
 
 ### `:codec unload name`
 
-Unloads a previously registered codec by name.
+Unloads a previously loaded codec by name (e.g. `:codec unload int.mjs`).
 
 ### `:codec list` (or `:codecs`)
 
-Lists all currently loaded codecs and their origins.
+Lists all currently loaded codecs and their source files.
 
-### `:input <codec> [text]`
+### `:input <codec.mjs> [text]`
 
-Parses external input using the specified `<codec>` recipe.
+Parses external input using the specified codec file.
 
-- **Interactive mode**: `:input <codec>` switches the REPL prompt to `<codec>> `, and the next input line is parsed using that codec:
+- **Interactive mode**: `:input <codec.mjs>` switches the REPL prompt to `<codec.mjs>> `, and the next input line is parsed using that codec:
   ```text
-  > :input json
-  json> {"hello": "world"}
+  > :input json.mjs
+  json.mjs> {"hello": "world"}
   {...} ?<{...}>
-  json: {"hello":"world"}
+  json.mjs: {"hello":"world"}
   ```
 
-- **One-line mode**: `:input <codec> <text>` immediately parses `<text>`:
+- **One-line mode**: `:input <codec.mjs> <text>` immediately parses `<text>`:
   ```text
-  > :input int 42
+  > :input int.mjs 42
   {}|_|0|1|0|1|0|1|+ ?<{} _, ...>
-  int: 42
+  int.mjs: 42
 
-  > :input int [0,1,2]
+  > :input int.mjs [0,1,2]
   {...} ?<{...}>
-  int: [0,1,2]
+  int.mjs: [0,1,2]
   ```
 
-Prefixing `<codec>` with a `$` (e.g. `:input $int 42` or `:input $ int 42`) is also supported.
-Entering `:input` with no arguments displays usage and a list of available codecs.
+Entering `:input` with no arguments displays usage and a list of loaded codecs.
 
 ## Timing and Profiling
 

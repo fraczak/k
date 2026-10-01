@@ -73,15 +73,48 @@ for (const filename of verifiedExamples) {
   }
 }
 
-// Add verified codecs: json.mjs, utf8.mjs, int.mjs, unit.mjs, ieee.mjs
+// Bundle verified codecs for browser VFS as 100% self-contained ES modules
 const verifiedCodecs = ["json.mjs", "utf8.mjs", "int.mjs", "unit.mjs", "ieee.mjs"];
 const codecsDir = path.join(projectRoot, "codecs");
+
+const browserCodecSdkShim = `
+export { Value, isProduct, isVariant, withPattern } from "../../Value.mjs";
+export function runCodecCLI() {}
+export function encodeToWire() {}
+export function decodeWire() {}
+export function patternFromFilter(script, options) {
+  if (typeof globalThis !== "undefined" && typeof globalThis.patternFromFilter === "function") {
+    return globalThis.patternFromFilter(script, options);
+  }
+  throw new Error("patternFromFilter is not available in browser environment");
+}
+`;
+
 for (const filename of verifiedCodecs) {
   const fullPath = path.join(codecsDir, filename);
   if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
-    const content = fs.readFileSync(fullPath, "utf8");
-    vfsFiles[filename] = content;
-    vfsFiles[`codecs/${filename}`] = content;
+    const buildRes = await esbuild.build({
+      entryPoints: [fullPath],
+      bundle: true,
+      format: "esm",
+      write: false,
+      plugins: [{
+        name: "codec-sdk-shim",
+        setup(build) {
+          build.onResolve({ filter: /(codec-sdk|pattern-k)\.mjs$/ }, (args) => ({
+            path: args.path,
+            namespace: "codec-sdk-shim"
+          }));
+          build.onLoad({ filter: /.*/, namespace: "codec-sdk-shim" }, () => ({
+            contents: browserCodecSdkShim,
+            resolveDir: path.join(codecsDir, "runtime")
+          }));
+        }
+      }]
+    });
+    const bundledContent = buildRes.outputFiles[0].text;
+    vfsFiles[filename] = bundledContent;
+    vfsFiles[`codecs/${filename}`] = bundledContent;
   }
 }
 

@@ -1,61 +1,31 @@
 #!/usr/bin/env node
 
 /**
- * int: parse/print integers and integer lists in the k 'int' binary pattern+value stream.
+ * int: parse/print integers and integer lists as enveloped k values.
  *
  * $ bits = < {} _, bits 0, bits 1 >;
  * $ int  = < bits '+', bits '-' >;
  * list   = < {} nil, {int car, list cdr} cons >;
- *
- * Bits are stored MSB-outermost (remove_leading_zeros strips outermost 0s).
- *
- * Usage:
- *   echo "-21"     | int.mjs --parse   # decimal → binary pattern+value stream
- *   echo "[0,1,2]" | int.mjs --parse   # integer list → binary pattern+value stream
- *   <wire>         | int.mjs --print   # binary pattern+value stream → decimal / list
  */
 
-import { stdin, stdout, argv, exit } from "node:process";
-import { Value, isProduct, isVariant } from "../Value.mjs";
-import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
-import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
+import { Value, isProduct, isVariant, withPattern, patternFromFilter, runCodecCLI } from "./runtime/codec-sdk.mjs";
 
-function usage(stream = console.error) {
-  stream(`Usage: ${argv[1]} --parse | --print`);
-  stream("  --parse      Read a decimal integer or list from stdin, write binary pattern+value stream.");
-  stream("  --print      Read binary pattern+value stream from stdin, write decimal integer or list.");
-  stream("  -h, --help   Show this help.");
-}
+export const doc = `
+Decimal integers and integer lists.
+
+Syntax:
+  Decimal integer (e.g. 42, -15) or bracketed integer list (e.g. [0, 1, 2], []).
+`;
 
 // Closed pattern for $ int = < bits '+', bits '-' >
 // with $ bits = < {} _, bits 0, bits 1 >
-const INT_PATTERN = [
-  ["closed-union", [["+", 1], ["-", 1]]],
-  ["closed-union", [["0", 1], ["1", 1], ["_", 2]]],
-  ["closed-product", []]
-];
+const INT_PATTERN = patternFromFilter('?< <bits 0, bits 1, {} _>=bits "+", bits "-">');
 
 // Closed pattern for list of int:
 // list = < {} nil, {int car, list cdr} cons >
-const INT_LIST_PATTERN = [
-  ["closed-union", [["cons", 1], ["nil", 4]]],
-  ["closed-product", [["car", 2], ["cdr", 0]]],
-  ["closed-union", [["+", 3], ["-", 3]]],
-  ["closed-union", [["0", 3], ["1", 3], ["_", 4]]],
-  ["closed-product", []]
-];
-
-const name = "int";
-const patterns = [INT_PATTERN, INT_LIST_PATTERN];
-
-function readAll(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
-    stream.on("error", reject);
-  });
-}
+const INT_LIST_PATTERN = patternFromFilter(
+  '$ bits = < bits 0, bits 1, {} _ >; $ int = < bits "+", bits "-" >; ?< {} nil, { $int car, list cdr } cons > = list'
+);
 
 // Build bits Value (MSB outermost) from a non-negative BigInt.
 function buildBits(n) {
@@ -67,7 +37,7 @@ function buildBits(n) {
   return v;
 }
 
-// Parse a decimal integer string ([-+]?[ ]*[1-9][0-9]*|0) into a k int Value.
+// Parse a decimal integer string into a k int Value.
 function parseIntStr(str) {
   str = str.trim();
   let sign = "+";
@@ -77,7 +47,7 @@ function parseIntStr(str) {
     throw new Error(`Invalid integer syntax: ${JSON.stringify(str)}`);
   }
   const n = BigInt(str);
-  if (n === 0n) sign = "+"; // zero is always '+'
+  if (n === 0n) sign = "+";
   return Value.variant(sign, buildBits(n));
 }
 
@@ -103,17 +73,17 @@ function parseIntListStr(str) {
   return result;
 }
 
-// Parse a decimal integer string or integer list into a k Value.
-function parse(str) {
+// Parse a decimal integer string or integer list into an enveloped k Value.
+export function parse(str) {
   str = str.trim();
   const raw = str.startsWith("[") ? parseIntListStr(str) : parseIntStr(str);
   const pattern = isVariant(raw) && (raw.tag === "nil" || raw.tag === "cons")
     ? INT_LIST_PATTERN
     : INT_PATTERN;
-  return decodeWire(encodeToWire(raw, pattern)).value;
+  return withPattern(raw, pattern);
 }
 
-// Walk a decoded int Value (Variant sign → bits) and return a decimal string.
+// Walk a decoded int Value and return a decimal string.
 function printSingleInt(value) {
   if (!isVariant(value) || (value.tag !== "+" && value.tag !== "-")) {
     throw new Error("Not a valid k int value");
@@ -125,7 +95,6 @@ function printSingleInt(value) {
     bits += node.tag;
     node = node.value;
   }
-  // bits is MSB-first binary string (may be empty for zero represented as "0")
   const n = bits === "" ? 0n : BigInt("0b" + bits);
   const digits = n.toString(10);
   if (n === 0n) return "0";
@@ -151,7 +120,7 @@ function printIntList(value) {
 }
 
 // Walk a decoded int or int list Value and return a formatted string.
-function printIntValue(value) {
+export function print(value) {
   if (isVariant(value)) {
     if (value.tag === "nil" || value.tag === "cons") {
       return printIntList(value);
@@ -163,48 +132,11 @@ function printIntValue(value) {
   throw new Error("Not a valid k int or int list value");
 }
 
-async function main() {
-  const args = argv.slice(2);
-  if (args.includes("-h") || args.includes("--help")) {
-    usage(console.log);
-    exit(0);
-  }
-
-  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    usage();
-    exit(1);
-  }
-
-  const buf = await readAll(stdin);
-
-  if (args[0] === "--parse") {
-    const text = buf.toString("utf8").trim();
-    const value = parse(text);
-    const pattern = isVariant(value) && (value.tag === "nil" || value.tag === "cons")
-      ? INT_LIST_PATTERN
-      : INT_PATTERN;
-    stdout.write(encodeToWire(value, pattern));
-  } else {
-    const { value } = decodeWire(buf);
-    stdout.write(printIntValue(value) + "\n");
-  }
-}
-
-if (isMainEntrypoint(import.meta.url, argv[1])) {
-  main().catch(err => {
-    console.error(err.message || String(err));
-    exit(1);
-  });
-}
+runCodecCLI(import.meta.url, { parse, print, doc });
 
 export {
   INT_PATTERN,
   INT_LIST_PATTERN,
-  name,
-  patterns,
-  parse,
-  printIntValue as print,
   parseIntStr,
   parseIntListStr
 };
-

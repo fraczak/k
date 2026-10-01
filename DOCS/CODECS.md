@@ -1,96 +1,86 @@
 # Writing Codecs
 
-A codec is a small ES module that translates between some external text format
-and k `Value` objects. The same module may serve two entry points:
+A codec is an ES module that translates between an external domain format and enveloped **k** `Value` objects `(P, v)`. The same module serves two entry points:
 
-- a command-line codec such as `k-int --parse` or `k-int --print`,
-- a REPL codec loaded with `:codec load file`.
+- a standalone command-line filter supporting `--parse`, `--print`, and `--help`,
+- a REPL module loaded with `:codec load <file.mjs>`.
 
 The command-line entry point reads or writes the binary pattern+value stream.
-The REPL entry point exports `name`, type metadata, `parse`, and `print`
-functions.
+The REPL entry point provides interactive parsing (`:input <codec.mjs>`) and multi-codec output formatting.
 
 ## Architecture & Mental Model
 
-A codec is a recipe for translating between external text and enveloped *k* values:
+A codec maps between external text and enveloped *k* values:
 
-- `parse(text)` translates external text to an enveloped *k* value (a `Value` with an associated closed pattern envelope).
+- `parse(text)` translates external text to an enveloped *k* value (a `Value` with an associated closed pattern envelope `(P, v)`).
 - `print(value)` translates an enveloped *k* value into formatted external text, throwing an `Error` if the value is not representable.
+- `doc` (optional string) documents the accepted syntax and semantic representation.
 
-Codecs are not restricted to a single code hash or type: a single codec file can define a family of target patterns (for example, `int.mjs` handles both scalar integers and integer lists like `[0,1,2]`, and `json.mjs` converts between arbitrary JSON structures and enveloped *k* values).
+Codecs are identified directly by their file name. They do not export artificial identifiers like `name` or pattern registries like `patterns = [...]`.
 
 In the REPL:
 - **Input**: The user explicitly chooses which codec to parse with:
-  - Interactive mode: `:input <codec>` sets the prompt to `<codec>> `, and the next entered line is parsed with `<codec>`.
-  - One-line mode: `:input <codec> <text>` immediately parses `<text>` using `<codec>`.
+  - Interactive mode: `:input <codec.mjs>` sets the prompt to `<codec.mjs>> `, and the next entered line is parsed with that codec.
+  - One-line mode: `:input <codec.mjs> <text>` immediately parses `<text>` using that codec.
 - **Output**: Any evaluated *k* value is displayed in its standard *k* envelope representation, followed by formatting from **all loaded codecs** that can represent it:
   ```text
   > 42 int
   {}|_|0|1|0|1|0|1|+ ?<{} _, ...>
-  int: 42
+  int.mjs: 42
   ```
-  Every loaded codec attempts `codec.print(value)`. If it succeeds, the REPL prints `<name>: <formatted>`. If it throws, the codec is silently ignored for that value.
+  Every loaded codec attempts `codec.print(value)`. If it succeeds, the REPL prints `<codec.mjs>: <formatted>`. If it throws, the codec is silently ignored for that value.
 
-## Implement The REPL API
+## Module Interface
 
-A REPL codec exports:
+A codec module exports:
 
 ```js
-export const name = "mycodec";
-export const patterns = [MY_PATTERN_1, MY_PATTERN_2]; // optional pattern family metadata
+export const doc = "Description of syntax and usage.";
 
-export function parse(text, context) {
-  // text is the line entered with :input
-  // return an enveloped k Value
+export function parse(text) {
+  // parse text into an enveloped k Value (P, v) using withPattern(value, pattern)
 }
 
-export function print(value, context) {
-  // return text shown under normal REPL output
+export function print(value) {
+  // return formatted text
   // throw Error if value is not representable
 }
 ```
 
-`context` contains `{ state, codecName }`.
-
 `parse` should throw an `Error` for invalid external text. `print` should throw when the value is not representable by the external format. REPL output suppresses `print` errors so loaded codecs only output when they recognize the value.
 
-## Build Values
+## The Codec SDK & Runner
 
-Use the structural `Value` API:
+To eliminate CLI stream boilerplate, codecs import from `./runtime/codec-sdk.mjs` and invoke `runCodecCLI`:
 
 ```js
-import { Value, isProduct, isVariant } from "../Value.mjs";
-
-const unit = Value.product({});
-const yes = Value.variant("true", unit);
-const point = Value.product({
-  x: Value.variant("+", unit),
-  y: Value.variant("-", unit)
-});
+import { Value, isVariant, withPattern, runCodecCLI } from "./runtime/codec-sdk.mjs";
 ```
 
-Products are JavaScript objects whose keys are k field labels. Variants have a
-string tag and a payload value.
+`runCodecCLI(import.meta.url, { parse, print, doc })` automatically handles:
+1. Entrypoint detection (no-op when loaded as a module or in browsers).
+2. `-h` and `--help` CLI flag handling.
+3. `--parse` and `--print` stream piping and wire encoding/decoding.
 
-## Minimal Type-Specific Codec
+## Minimal Type-Specific Codec Example
 
-This codec accepts `yes` and `no` for the type `<{} true, {} false>`.
+This codec accepts `yes` and `no` for the type `<{} false, {} true>`. Patterns are derived by `k` from filter expressions via `patternFromFilter`:
 
 ```js
-import { Value, isVariant } from "../Value.mjs";
+#!/usr/bin/env node
 
-const BOOL_PATTERN = [
-  ["closed-union", [["false", 1], ["true", 1]]],
-  ["closed-product", []]
-];
+import { Value, isVariant, withPattern, patternFromFilter, runCodecCLI } from "./runtime/codec-sdk.mjs";
 
-export const name = "yesno";
-export const patterns = [BOOL_PATTERN];
+const BOOL_PATTERN = patternFromFilter("?< {} false, {} true >");
+
+export const doc = `
+Boolean codec: accepts 'yes' and 'no'.
+`;
 
 export function parse(text) {
   const word = text.trim();
-  if (word === "yes") return Value.variant("true", Value.product({}));
-  if (word === "no") return Value.variant("false", Value.product({}));
+  if (word === "yes") return withPattern(Value.variant("true", Value.product({})), BOOL_PATTERN);
+  if (word === "no") return withPattern(Value.variant("false", Value.product({})), BOOL_PATTERN);
   throw new Error("expected yes or no");
 }
 
@@ -100,92 +90,30 @@ export function print(value) {
   if (value.tag === "false") return "no";
   throw new Error("expected true or false");
 }
+
+runCodecCLI(import.meta.url, { parse, print, doc });
 ```
 
-Load it in the REPL:
+### Using in the REPL:
 
 ```text
 > :codec load ./codecs/yesno.mjs
-loaded codec yesno
-> :input yesno
-yesno> yes
+loaded codec yesno.mjs
+> :input yesno.mjs yes
 {}|true ?<{} false, {} true>
-yesno: yes
+yesno.mjs: yes
 ```
 
-Or using the one-line syntax:
+### Using as a CLI Pipeline Filter:
 
-```text
-> :input yesno yes
-{}|true ?<{} false, {} true>
-yesno: yes
+```sh
+printf 'yes\n' | ./codecs/yesno.mjs --parse | ./codecs/yesno.mjs --print
+# Output: yes
 ```
 
-## Add The CLI Boundary
+## Testing a Codec
 
-To make the same module usable as an installed command, add a `main` function
-that supports `--parse`, `--print`, and `--help`.
-
-```js
-#!/usr/bin/env node
-
-import { stdin, stdout, argv, exit } from "node:process";
-import { decodeWire, encodeToWire } from "./runtime/prefix-codec.mjs";
-import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
-
-function usage(stream = console.error) {
-  stream(`Usage: ${argv[1]} --parse | --print`);
-  stream("  --parse      Read yes/no text, write binary pattern+value stream.");
-  stream("  --print      Read binary pattern+value stream, write yes/no text.");
-  stream("  -h, --help   Show this help.");
-}
-
-function readAll(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on("data", c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
-    stream.on("error", reject);
-  });
-}
-
-async function main() {
-  const args = argv.slice(2);
-  if (args.includes("-h") || args.includes("--help")) {
-    usage(console.log);
-    exit(0);
-  }
-  if (args.length !== 1 || (args[0] !== "--parse" && args[0] !== "--print")) {
-    usage();
-    exit(1);
-  }
-
-  const input = await readAll(stdin);
-  if (args[0] === "--parse") {
-    stdout.write(encodeToWire(parse(input.toString("utf8")), BOOL_PATTERN));
-  } else {
-    stdout.write(`${print(decodeWire(input).value)}\n`);
-  }
-}
-
-if (isMainEntrypoint(import.meta.url, argv[1])) {
-  main().catch(error => {
-    console.error(error.message || String(error));
-    exit(1);
-  });
-}
-```
-
-The command-line interface must write only the binary stream to stdout in
-`--parse` mode. Diagnostics belong on stderr.
-
-Installed codec binaries use the `k-` prefix plus the source basename without
-`.mjs`. For example, `codecs/yesno.mjs` installs as `k-yesno` when added to
-`package.json`.
-
-## Test A Codec
-
-For CLI codecs, test both directions:
+For CLI codecs, test both directions in a pipeline:
 
 ```sh
 printf 'yes\n' | node codecs/yesno.mjs --parse | node codecs/yesno.mjs --print
@@ -196,19 +124,13 @@ For REPL codecs, add a focused case to [`../tests/test-repl.mjs`](../tests/test-
 ```js
 const state = createState();
 let output = await evaluateInput(":codec load ./codecs/yesno.mjs", state);
-assert.match(output[0], /^loaded codec yesno/);
-output = await evaluateInput(":input yesno", state);
-assert.equal(promptForState(state), "yesno> ");
+assert.match(output[0], /^loaded codec yesno\.mjs/);
+output = await evaluateInput(":input yesno.mjs", state);
+assert.equal(promptForState(state), "yesno.mjs> ");
 output = await evaluateInput("yes", state);
-assert.match(output[0], /yesno: yes/);
-output = await evaluateInput(":input yesno no", state);
-assert.match(output[0], /yesno: no/);
-```
-
-Run the targeted test first:
-
-```sh
-node tests/test-repl.mjs
+assert.match(output[0], /yesno\.mjs: yes/);
+output = await evaluateInput(":input yesno.mjs no", state);
+assert.match(output[0], /yesno\.mjs: no/);
 ```
 
 Then run the full suite before committing:
@@ -217,13 +139,19 @@ Then run the full suite before committing:
 npm test
 ```
 
+## Web REPL (VFS) Bundling
+
+When `repl.html` is generated (`npm run build:repl-html`):
+- Codecs (`int.mjs`, `json.mjs`, `utf8.mjs`, `unit.mjs`, `ieee.mjs`) are bundled into 100% self-contained ES modules with zero imports.
+- `runCodecCLI` is shimmed as a no-op, and `Value` helpers are directly inlined.
+- In the browser, the VFS serves these self-contained modules directly to native dynamic `import(blobUrl)`. No runtime helper files (`codecs/runtime/*`) need to be included in the VFS or exposed as globals.
+
 ## Checklist
 
-- Export a stable string `name`.
-- Optionally export `pattern` or `patterns` for pattern family metadata.
-- Keep `parse` and `print` deterministic.
-- Return enveloped structural `Value` objects from `parse`.
+- Return an enveloped `Value` from `parse` using `withPattern(val, pattern)`.
+- Keep `parse` and `print` deterministic and free of side effects.
 - Validate shapes in `print` and throw clear errors when not representable.
-- Keep command-line `--parse` stdout binary-only.
-- Add `-h` and `--help` for installed commands.
-- Add REPL coverage for `:codec load` and `:input`.
+- Use `runCodecCLI(import.meta.url, { parse, print, doc })` for CLI execution.
+- No artificial `name` or `patterns` exports required.
+- Add `-h` and `--help` support via `runCodecCLI`.
+
