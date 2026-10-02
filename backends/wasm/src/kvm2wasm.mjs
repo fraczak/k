@@ -397,6 +397,8 @@ export function lowerToWasm(relDef, name, options = {}) {
             }
             lines.push(`      local.get $tail_loop_mark`);
             lines.push(`      call $compact_finish`);
+            lines.push(`      global.get $arena_free`);
+            lines.push(`      local.set $tail_loop_mark`);
             lines.push(`    end`);
             for (let i = 0; i < N; i++) {
               const branch = sortedBranches[i];
@@ -598,6 +600,8 @@ export function lowerToWasm(relDef, name, options = {}) {
             lines.push(`      local.set $${callSrc}`);
             lines.push(`      local.get $tail_loop_mark`);
             lines.push(`      call $compact_finish`);
+            lines.push(`      global.get $arena_free`);
+            lines.push(`      local.set $tail_loop_mark`);
             lines.push(`    end`);
             lines.push(`    local.get $${callSrc}`);
             lines.push(`    local.set $in`);

@@ -237,4 +237,23 @@ assert.match(nestedUnionLLVM, /store ptr %union_value\d+, ptr %ptr_slot\d+/);
 assert.doesNotMatch(nestedUnionLLVM, /call void @k_product_set_at\(ptr %product\d+/);
 assert.doesNotMatch(nestedUnionLLVM, /ptr false/);
 
+const productRecurseObject = decodeObject(compileObjectBuffer(`
+  $ list = < {} nil, { {} car, list cdr } cons >;
+  foo = $list <
+    /nil |nil,
+    /cons { .car car, .cdr foo cdr } |cons
+  > $list;
+  foo
+`, { source: "llvm-product-recurse.k" }));
+const { llvm: productRecurseLLVM } = compileObjectToLLVM(productRecurseObject, {
+  relation: "foo",
+  inputPattern: [
+    ["closed-union", [["nil", 1], ["cons", 2]]],
+    ["closed-product", []],
+    ["closed-product", [["car", 1], ["cdr", 0]]]
+  ]
+});
+// Calls inside product fields must not return tail status (i32 2)
+assert.doesNotMatch(productRecurseLLVM, /insertvalue %k_result undef, i32 2, 0/);
+
 console.log("OK");

@@ -563,6 +563,7 @@ k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr) {
 
   if (!is_after_mark(rt, root, *mark_ptr)) {
     rt_rewind_and_free(rt, *mark_ptr);
+    *mark_ptr = k_rt_mark(rt);
     return root;
   }
 
@@ -580,6 +581,7 @@ k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr) {
   if (staging_used == 0) {
     free(staging);
     if (fixups.offsets != NULL) free(fixups.offsets);
+    *mark_ptr = k_rt_mark(rt);
     return staged_root;
   }
 
@@ -602,6 +604,8 @@ k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr) {
 
   free(staging);
   if (fixups.offsets != NULL) free(fixups.offsets);
+
+  *mark_ptr = k_rt_mark(rt);
 
   return new_root;
 }

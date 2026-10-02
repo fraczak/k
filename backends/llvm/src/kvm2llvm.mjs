@@ -438,7 +438,7 @@ function hasSelfTailCall(insts, funcName, isTail = true) {
   for (let i = 0; i < insts.length; i++) {
     const inst = insts[i];
     if (isTail && isSelfTailCall(insts, i, funcName)) return true;
-    if (inst.branches) {
+    if (inst.op === "union" && inst.branches) {
       const unionIsTail = isTail && tailValueAfter(insts, i + 1, inst.dest);
       for (let bIdx = 0; bIdx < inst.branches.length; bIdx++) {
         if (hasSelfTailCall(inst.branches[bIdx].body, funcName, unionIsTail)) return true;
@@ -721,7 +721,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
         }
         case "call": {
           const v = getReg(inst.src);
-          if (isSelfTailCall(insts, i, tailRef)) {
+          if (isTopLevel && !returnTarget && isSelfTailCall(insts, i, tailRef)) {
             if (ctx.catchTail) {
               const compacted = lowerRtCompact(ctx, v, "%tail_mark_slot");
               ctx.lines.push(`  store ptr ${compacted}, ptr %tail_input_slot`);

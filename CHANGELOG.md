@@ -5,6 +5,15 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.10.1] — 2026-10-02 — Fix Compaction Mark Reset and False Tail Calls in LLVM & WASM Backends
+
+### LLVM & WebAssembly Backends
+
+- **Compaction Mark Reset**: Fixed an issue in both LLVM (`krt.c`) and WebAssembly (`kvm2wasm.mjs`) where tail-loop compaction never reset the baseline arena mark after compacting live objects. Once the threshold was reached, compaction was erroneously triggered on every subsequent iteration, turning $O(N)$ execution into $O(N^2)$ and causing call-stack overflow on large inputs.
+- **Product Branch Tail-Call Fix**: Fixed LLVM lowering in `kvm2llvm.mjs` where recursive calls inside product constructor fields were incorrectly classified as self-tail calls.
+
+---
+
 ## [6.10.0] — 2026-10-02 — Dual Evaluation Engines (WASM & JS) and REPL Command Modernization
 
 ### REPL & Evaluation Engines

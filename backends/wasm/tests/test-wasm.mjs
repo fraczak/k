@@ -619,6 +619,10 @@ console.log("==> Running End-to-End Peano Addition & Serialization Tests");
   const deepRes = exports.add(deepInputPtr);
   assert.equal(deepRes[1], 1, "Tail-recursive Peano addition must handle deep inputs without overflowing the Wasm call stack");
 
+  const deeperInputPtr = writeAddInputPtrToArena(writeNatPtrToArena(20000), writeNatPtrToArena(0));
+  const deeperRes = exports.add(deeperInputPtr);
+  assert.equal(deeperRes[1], 1, "Tail-recursive Peano addition must handle 20000 inputs with compaction without call stack overflow");
+
   console.log("End-to-End Peano Addition & Serialization tests passed successfully!");
 }
 
