@@ -539,11 +539,17 @@ if (chromiumBin) {
       btnHelp.click();
       const helpModalOpen = document.getElementById("help-modal")?.classList.contains("open");
       const modalText = document.getElementById("help-modal")?.textContent || "";
-      const hasRel = modalText.includes(":rel ");
+      const hasRel = modalText.includes(":rel <name>");
       const hasVal = modalText.includes(":val");
       const hasTiming = modalText.includes(":timing");
+      const hasTime = modalText.includes(":time");
+      const hasT = modalText.includes(":t <name>");
       const hasCodecDefine = modalText.includes(":codec define");
       const hasType = modalText.includes(":type <name>");
+      const hasTypes = modalText.includes(":types");
+      const hasCodes = modalText.includes(":codes");
+      const hasD = modalText.includes(":d <name>");
+      const hasEngine = modalText.includes(":engine");
       return {
         found: true,
         isVisible,
@@ -552,18 +558,48 @@ if (chromiumBin) {
         hasRel,
         hasVal,
         hasTiming,
+        hasTime,
+        hasT,
         hasCodecDefine,
-        hasType
+        hasType,
+        hasTypes,
+        hasCodes,
+        hasD,
+        hasEngine
       };
     })()`);
     assert.strictEqual(narrowNavbarCheck.found, true, "#btn-help should exist");
     assert.strictEqual(narrowNavbarCheck.isVisible, true, "#btn-help should be visible within narrow viewport");
     assert.strictEqual(narrowNavbarCheck.helpModalOpen, true, "Clicking #btn-help in narrow viewport should open help modal");
-    assert.strictEqual(narrowNavbarCheck.hasRel, false, "Help modal should not contain :rel");
+    assert.strictEqual(narrowNavbarCheck.hasRel, true, "Help modal should contain :rel <name>");
+    assert.strictEqual(narrowNavbarCheck.hasType, true, "Help modal should contain :type <name>");
+    assert.strictEqual(narrowNavbarCheck.hasTypes, true, "Help modal should contain :types");
+    assert.strictEqual(narrowNavbarCheck.hasEngine, true, "Help modal should contain :engine");
+    assert.strictEqual(narrowNavbarCheck.hasCodes, false, "Help modal should not contain :codes");
+    assert.strictEqual(narrowNavbarCheck.hasTime, false, "Help modal should not contain :time");
+    assert.strictEqual(narrowNavbarCheck.hasT, false, "Help modal should not contain :t <name>");
+    assert.strictEqual(narrowNavbarCheck.hasD, false, "Help modal should not contain :d <name>");
     assert.strictEqual(narrowNavbarCheck.hasVal, false, "Help modal should not contain :val");
     assert.strictEqual(narrowNavbarCheck.hasTiming, false, "Help modal should not contain :timing");
     assert.strictEqual(narrowNavbarCheck.hasCodecDefine, false, "Help modal should not contain :codec define");
-    assert.strictEqual(narrowNavbarCheck.hasType, true, "Help modal should contain :type <name>");
+
+    // 6. Test dual engine switching in browser (wasm <-> js)
+    const engineCheck = await evaluateAsync(`(async () => {
+      const initialEngine = window.kRepl.getEngine();
+      await window.kRepl.executeCommand(":engine js");
+      const jsEngine = window.kRepl.getEngine();
+      const badgeJsText = document.getElementById("engine-badge")?.textContent;
+      await window.kRepl.executeCommand("() | ok");
+      await window.kRepl.executeCommand(":engine wasm");
+      const wasmEngine = window.kRepl.getEngine();
+      const badgeWasmText = document.getElementById("engine-badge")?.textContent;
+      return { initialEngine, jsEngine, wasmEngine, badgeJsText, badgeWasmText };
+    })()`);
+    assert.strictEqual(engineCheck.initialEngine, "wasm");
+    assert.strictEqual(engineCheck.jsEngine, "js");
+    assert.strictEqual(engineCheck.badgeJsText, "js-in-process");
+    assert.strictEqual(engineCheck.wasmEngine, "wasm");
+    assert.strictEqual(engineCheck.badgeWasmText, "wasm-in-process");
 
     ws.close();
     console.log("   Browser execution verified successfully!");

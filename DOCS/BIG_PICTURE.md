@@ -252,13 +252,11 @@ car = list? /cons .car;
 cdr = list? /cons .cdr;
 ```
 
-For example, the filter annotation for `car` is:
+For example, the definition for `car` is:
 
 ```text
-> :t car
-car : ?<{X1 car, X0 cdr} cons, $KL nil>=X0  -->  ?X1  (@...)
-> :C KL
-$ KL = {};  -- @...
+> :rel car
+car = list? /cons .car;  -- @...
 ```
 
 ## Universal Schema Registry

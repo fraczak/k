@@ -29,16 +29,16 @@ output = await evaluateInput(":type nat", state);
 assert.match(output[0], /^\$ nat = /);
 
 output = await evaluateInput("succ = | succ;", state);
-output = await evaluateInput(":d succ", state);
+output = await evaluateInput(":rel succ", state);
 assert.match(output[0], /^succ = /);
 
-output = await evaluateInput(":codes", state);
+output = await evaluateInput(":types", state);
 assert.match(output[0], /^nat = @/m);
 
 output = await evaluateInput(":rels", state);
 assert.match(output[0], /^succ = @/m);
 
-output = await evaluateInput(":run succ", state);
+output = await evaluateInput("succ", state);
 assert.equal(output[0], "{}|succ ?<{} succ, ...>");
 
 output = await evaluateInput("/zero", state);
@@ -48,24 +48,38 @@ assert.equal(state.value.toJSON(), "succ");
 output = await evaluateInput("succ", state);
 assert.match(output[0], /^\{\}\|succ\|succ \?</);
 
-output = await evaluateInput(":t succ", state);
-assert.match(output[0], /^succ : /);
-
-output = await evaluateInput(":d succ", state);
+output = await evaluateInput(":rel succ", state);
 assert.match(output[0], /^succ = /);
 
 let completions = completeInput(":he", state)[0];
 assert.deepEqual(completions, [":help"]);
 
 const canonicalPartial = state.typeAliases.nat.slice(0, 8);
-completions = completeInput(`:run ${canonicalPartial}`, state)[0];
+completions = completeInput(`:rel ${canonicalPartial}`, state)[0];
 assert(completions.some((line) => line.endsWith(state.typeAliases.nat)));
 
 completions = completeInput(`(${canonicalPartial}`, state)[0];
 assert(completions.includes(`(${state.typeAliases.nat}`));
 
-completions = completeInput(":run su", state)[0];
-assert(completions.includes(":run succ"));
+completions = completeInput(":rel su", state)[0];
+assert(completions.includes(":rel succ"));
+completions = completeInput(":ty", state)[0];
+assert(completions.includes(":types"));
+assert(completions.includes(":type"));
+
+await assert.rejects(
+  () => evaluateInput(":run succ", state),
+  /Unknown command ':run'/
+);
+await assert.rejects(
+  () => evaluateInput(":time ()", state),
+  /Unknown command ':time'/
+);
+await assert.rejects(
+  () => evaluateInput(":t succ", state),
+  /Unknown command ':t'/
+);
+
 completions = completeInput(":co", state)[0];
 assert(completions.includes(":codec"));
 
@@ -134,11 +148,11 @@ fs.writeFileSync(sourcePath, "$ nat = <{} zero, nat succ>;\nsucc = $nat |succ $n
 const loadedSource = createState();
 output = await evaluateInput(`:load ${sourcePath}`, loadedSource);
 assert.equal(output[0], `loaded ${sourcePath}`);
-output = await evaluateInput(":codes", loadedSource);
+output = await evaluateInput(":types", loadedSource);
 assert.match(output[0], /^nat = @/m);
 output = await evaluateInput(":rels", loadedSource);
 assert.match(output[0], /^succ = @/m);
-output = await evaluateInput(":d twice", loadedSource);
+output = await evaluateInput(":rel twice", loadedSource);
 assert.match(output[0], /^twice = \$nat succ succ \$nat;  -- @/);
 output = await evaluateInput(":C nat", loadedSource);
 assert.match(output[0], /^\$ nat = < nat succ, @[^ ]+ zero >;  -- @/);
@@ -235,7 +249,7 @@ const reloaded = createState();
 output = await evaluateInput(`:load ${libPath}`, reloaded);
 assert.equal(output[0], `loaded ${libPath}`);
 
-output = await evaluateInput(":codes", reloaded);
+output = await evaluateInput(":types", reloaded);
 assert.match(output[0], /^nat = @/m);
 
 output = await evaluateInput(":rels", reloaded);
@@ -247,7 +261,7 @@ assert.equal(output[0], "{}|succ ?<{} succ, ...>");
 const noAliasReloaded = createState();
 output = await evaluateInput(`:load --no-alias ${libPath}`, noAliasReloaded);
 assert.equal(output[0], `loaded ${libPath}`);
-output = await evaluateInput(":codes", noAliasReloaded);
+output = await evaluateInput(":types", noAliasReloaded);
 assert.equal(output[0], "(none)");
 output = await evaluateInput(":rels", noAliasReloaded);
 assert.equal(output[0], "(none)");
@@ -255,7 +269,7 @@ assert.equal(output[0], "(none)");
 const shorthand = createState();
 output = await evaluateInput("$ nat = <{} zero, nat succ>\n; succ = |succ\n;", shorthand);
 assert.match(output[0], /\/\* comp: .* \*\//);
-output = await evaluateInput(":codes", shorthand);
+output = await evaluateInput(":types", shorthand);
 assert.match(output[0], /^nat = @/m);
 output = await evaluateInput(":rels", shorthand);
 assert.match(output[0], /^succ = @/m);
@@ -265,7 +279,7 @@ assert.match(output[0], / false/);
 assert.match(output[0], / true/);
 output = await evaluateInput("$ maybe = <{} none, {} some>;", shorthand);
 assert.match(output[0], /\/\* comp: .* \*\//);
-output = await evaluateInput(":codes", shorthand);
+output = await evaluateInput(":types", shorthand);
 assert.match(output[0], /^maybe = @/m);
 output = await evaluateInput("{} | true not", shorthand);
 assert.match(output[0], /^\{\}\|false \?</);
@@ -441,20 +455,74 @@ assert.equal(output[0], "loaded Examples/poly.k");
 assert.ok(polyAutoState.relAliases.reverse, "poly relations should be loaded");
 assert.ok(polyAutoState.typeAliases.int, "arithmetics int should be auto-loaded");
 
-// Verify timing reporting is always on and :time command
+// Verify timing reporting is always on and reflects active engine
 const timingState = createState();
 assert.equal(timingState.showTiming, true);
+assert.equal(timingState.engine, "wasm");
 
 output = await evaluateInput("()", timingState);
 assert.equal(output[0], "{} ?{}");
-assert.match(output[1], /\/\* comp: .*, exec: .* \*\//);
-
-output = await evaluateInput(":time ()", timingState);
-assert.equal(output[0], "{} ?{}");
-assert.match(output[1], /\/\* comp: .*, exec: .* \*\//);
+assert.match(output[1], /\/\* comp: .*, exec: .* \(wasm\) \*\//);
 assert.ok(timingState.lastTiming);
+assert.equal(timingState.lastTiming.engine, "wasm");
 assert.ok(typeof timingState.lastTiming.compileMs === "number");
 assert.ok(typeof timingState.lastTiming.executeMs === "number");
+
+// Verify :engine command and switching between wasm and js engines
+output = await evaluateInput(":engine", timingState);
+assert.equal(output[0], "Current engine: wasm");
+
+output = await evaluateInput(":engine js", timingState);
+assert.equal(output[0], "engine set to js");
+assert.equal(timingState.engine, "js");
+
+output = await evaluateInput("()", timingState);
+assert.equal(output[0], "{} ?{}");
+assert.match(output[1], /\/\* comp: .*, exec: .* \(js\) \*\//);
+assert.equal(timingState.lastTiming.engine, "js");
+
+// Verify shortcuts :wasm and :js
+output = await evaluateInput(":wasm", timingState);
+assert.equal(output[0], "engine set to wasm");
+assert.equal(timingState.engine, "wasm");
+
+output = await evaluateInput(":js", timingState);
+assert.equal(output[0], "engine set to js");
+assert.equal(timingState.engine, "js");
+
+// Verify :reset preserves the active engine
+output = await evaluateInput(":reset", timingState);
+assert.equal(output[0], "reset");
+assert.equal(timingState.engine, "js");
+
+// Verify invalid engine error
+await assert.rejects(
+  () => evaluateInput(":engine invalid", timingState),
+  /Invalid engine 'invalid'\. Valid engines: wasm, js/
+);
+
+// Verify autocompletion for :engine
+completions = completeInput(":engine ", timingState)[0];
+assert(completions.includes(":engine wasm"));
+assert(completions.includes(":engine js"));
+
+// Verify evaluating expressions in JS engine
+const jsState = createState({ engine: "js" });
+assert.equal(jsState.engine, "js");
+
+output = await evaluateInput("$ nat = < {} zero, nat succ >;\nsucc = | succ;\n{} | zero succ succ", jsState);
+assert.match(output[0], /^\{\}\|zero\|succ\|succ/);
+assert.match(output[1], /\(js\)/);
+
+output = await evaluateInput("$ bool = < {} true, {} false >;\nnot = $bool </true | false, {} | true >;\n{} | true not", jsState);
+assert.match(output[0], /^\{\}\|false/);
+assert.match(output[1], /\(js\)/);
+
+output = await evaluateInput(":load Examples/arithmetics.k", jsState);
+assert.equal(output[0], "loaded Examples/arithmetics.k");
+output = await evaluateInput("{ 10 int x, 5 int y } plus", jsState);
+assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
+assert.match(output[1], /\(js\)/);
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });

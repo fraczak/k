@@ -33,16 +33,14 @@ complete.
 | Command | Meaning |
 | --- | --- |
 | `:help` | Show command summary |
+| `:engine [wasm\|js]` | Display or switch evaluation engine (`wasm` or `js`) |
+| `:wasm` / `:js` | Shortcut to switch engine |
+| `:rel name` | Show relation definition |
 | `:type name` | Show the canonical definition of a type |
-| `:code name` | Alias for `:C name` |
-| `:run expr` | Evaluate `expr` on the current value |
-| `:eval expr` | Alias for `:run` |
-| `:time expr` | Evaluate `expr` and report compilation and execution time |
-| `:t name` | Show relation input/output filters |
-| `:d name` | Show relation definition |
-| `:C name` | Show canonical code definition |
-| `:codes` | List type aliases |
+| `:types` | List type aliases |
 | `:rels` | List relation aliases |
+| `:code name` | Alias for `:C name` |
+| `:C name` | Show canonical code definition |
 | `:codec load file` | Load a codec from an ES module file (e.g. `:codec load codecs/int.mjs`) |
 | `:codec unload name` | Unload a registered codec |
 | `:codec list` | List loaded REPL codecs (alias: `:codecs`) |
@@ -208,20 +206,38 @@ Parses external input using the specified codec file.
 
 Entering `:input` with no arguments displays usage and a list of loaded codecs.
 
+## Evaluation Engines: WASM and JS
+
+The REPL supports two evaluation engines:
+
+- **`wasm`** (default): Compiles k expressions into WebAssembly bytecode via polymorphic kVM lowering. Provides near-native execution speed, tail-call optimization (TCO), and stack safety on deep recursion.
+- **`js`**: The tree-walking JavaScript interpreter. Provides near-zero compilation latency (interprets parsed definitions directly) and convenient runtime inspection.
+
+### Engine Commands
+
+- `:engine` &mdash; displays active engine (`wasm` or `js`)
+- `:engine wasm` (or `:wasm`) &mdash; switches to the WebAssembly engine
+- `:engine js` (or `:js`) &mdash; switches to the JavaScript engine
+
+### CLI Options
+
+When starting `k-repl`, choose the engine with:
+
+```bash
+k-repl --engine=js    # or k-repl --js
+k-repl --engine=wasm  # or k-repl --wasm (default)
+```
+
 ## Timing and Profiling
 
 Timing reporting is enabled by default for all evaluations, reporting elapsed time
-broken down into compilation (type derivation + WebAssembly lowering/compilation) and runtime execution:
+broken down into compilation and runtime execution, annotated with the active engine:
 
 ```text
 > {10 int x, 5 int y} plus
 {}|_|1|1|1|1|+ ?<{} _, ...>
-/* comp: 12.4ms, exec: 0.8ms */
+/* comp: 12.4ms, exec: 0.8ms (wasm) */
 ```
-
-### `:time expr`
-
-Evaluates `expr` with explicit timing and records performance metrics in session state.
 
 ## Web REPL (Studio)
 
@@ -274,8 +290,8 @@ Evaluated values print in k syntax together with the inferred envelope:
 > inc = | +1;
 > {} | 0
 {}|0 ?<{} 0, ...>
-> :t inc
-inc : ?X0  -->  ?<X0 +1, ...>  (@...)
+> :rel inc
+inc = | +1;  -- @...
 > :klib nat.klib
 saved nat.klib
 > :ko inc.ko inc

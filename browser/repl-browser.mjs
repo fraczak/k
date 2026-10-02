@@ -302,8 +302,21 @@ export async function executeCommand(input) {
   // Re-create completer with updated state
   completer = createCompleter(state);
   updateCodecsBadge();
+  updateEngineUI();
   if (codecsModal && codecsModal.classList.contains("open")) {
     renderCodecsModal();
+  }
+}
+
+function updateEngineUI() {
+  const badge = document.getElementById("engine-badge");
+  if (!badge) return;
+  badge.textContent = state.engine === "js" ? "js-in-process" : "wasm-in-process";
+  badge.title = `Engine: ${state.engine} (click to toggle wasm/js)`;
+  if (state.engine === "js") {
+    badge.classList.add("js-mode");
+  } else {
+    badge.classList.remove("js-mode");
   }
 }
 
@@ -949,6 +962,16 @@ export function initRepl() {
     }
   });
 
+  // Engine Badge toggle (wasm <-> js)
+  const engineBadge = document.getElementById("engine-badge");
+  if (engineBadge) {
+    engineBadge.onclick = () => {
+      const nextEngine = state.engine === "wasm" ? "js" : "wasm";
+      executeCommand(`:engine ${nextEngine}`);
+    };
+  }
+  updateEngineUI();
+
   inputEl.focus();
 }
 
@@ -965,6 +988,8 @@ if (typeof window !== "undefined") {
     executeCommand,
     initRepl,
     getState: () => state,
+    getEngine: () => state.engine,
+    setEngine: (engine) => executeCommand(`:engine ${engine}`),
     getVfsFile,
     setVfsFile,
     getAllVfsFiles,

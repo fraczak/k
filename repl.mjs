@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { argv, exit, stdin, stdout } from "node:process";
 
 import { annotate, parse } from "./index.mjs";
-import { constrainWithPattern } from "./run.mjs";
+import run, { constrainWithPattern, run_rel } from "./run.mjs";
 import { compileWasmArtifactFromObject, instantiateWasmArtifact } from "./backends/wasm/src/wasm.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
@@ -21,7 +21,7 @@ if (typeof globalThis !== "undefined") {
   globalThis.isVariant = isVariant;
   globalThis.patternFromFilter = patternFromFilter;
 }
-import { patterns2filters, prettyCode, prettyRel } from "./pretty.mjs";
+import { prettyCode } from "./pretty.mjs";
 import {
   compileObject,
   compileLibrary,
@@ -48,9 +48,9 @@ import {
 
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 const COMMAND_NAMES = [
-  "help", "type", "code", "run", "eval", "t", "d", "C",
-  "codes", "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
-  "time",
+  "help", "type", "code", "rel", "C",
+  "types", "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
+  "engine", "wasm", "js",
   "quit", "exit"
 ];
 const CODEC_COMMAND_NAMES = ["load", "unload", "list"];
@@ -73,9 +73,14 @@ function emptyValue() {
   return Value.product({}, [["closed-product", []]]);
 }
 
-function createState() {
+function createState(options = {}) {
   codes.load(cloneJSON(initialCodes));
+  const engine = (options.engine || "wasm").toLowerCase();
+  if (engine !== "wasm" && engine !== "js") {
+    throw new Error(`Invalid engine '${options.engine}'. Valid engines: wasm, js`);
+  }
   return {
+    engine,
     codes: codes.dump(),
     rels: {},
     relAliases: {},
@@ -335,11 +340,6 @@ function executableObject(state, mainExpression) {
 function resolveRel(state, name) {
   const hash = state.relAliases[name] || (name.startsWith("@") ? name : null);
   return hash ? { hash, rel: state.rels[hash] } : { hash: null, rel: null };
-}
-
-function relTypeString(rel) {
-  const filters = patterns2filters(rel.typePatternGraph, ...rel.def.patterns);
-  return filters.map((filter) => prettyRel({ op: "filter", filter })).join("  -->  ");
 }
 
 function listAliases(aliases) {
@@ -803,6 +803,10 @@ function completeCommandArgument(line, state) {
     return completeCodecCommand(line, argStart, arg, state);
   }
 
+  if (command === "engine") {
+    return completeCommandWord(line, argStart, arg, ["wasm", "js"]);
+  }
+
   if (command === "input") {
     return completeInputCommand(line, state, argStart, arg);
   }
@@ -1047,47 +1051,24 @@ async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
   return { result, wasmCompileMs, executeMs };
 }
 
-async function runExpression(input, state) {
-  const expression = input.trim();
-  if (!expression) throw new Error(":run requires an expression");
+function executeExpressionWithJs(annotated, state, lineOffset = 0) {
+  const mainRel = annotated.rels.__main__;
+  if (!mainRel) return { result: undefined, wasmCompileMs: 0, executeMs: 0 };
 
-  restoreCodes(state);
-  const preamble = aliasPreamble(state);
-  const lineOffset = preambleLineCount(preamble);
-  const source = [preamble, expression].filter(Boolean).join("\n");
-  const compileStart = performance.now();
-  let annotated;
-  try {
-    annotated = annotate(source, { libraries: [stateLibrary(state)] });
-  } catch (error) {
-    throw remapError(error, lineOffset);
+  let inputValue = state.value ?? emptyValue();
+  if (mainRel.typePatternGraph && mainRel.def.patterns) {
+    const graph = mainRel.typePatternGraph;
+    const nodeId = graph.find(mainRel.def.patterns[0]);
+    const inputPattern = patternToPropertyList(exportPatternGraph(graph, nodeId));
+    inputValue = constrainWithPattern(inputValue, inputPattern, mainRel.def);
   }
-  const snippetCompileMs = performance.now() - compileStart;
 
-  let execRes;
-  try {
-    execRes = await executeExpressionWithWasm(annotated, state, lineOffset);
-  } catch (error) {
-    throw remapError(error, lineOffset);
-  }
-  state.codes = codes.dump();
-  restoreCodes(state);
+  const executeStart = performance.now();
+  run.defs = { rels: annotated.rels };
+  const result = run_rel(codes.find, mainRel, inputValue, "__main__");
+  const executeMs = performance.now() - executeStart;
 
-  const compileMs = snippetCompileMs + execRes.wasmCompileMs;
-  const executeMs = execRes.executeMs;
-  state.lastTiming = {
-    compileMs,
-    executeMs,
-    totalMs: compileMs + executeMs,
-    snippetCompileMs,
-    wasmCompileMs: execRes.wasmCompileMs
-  };
-
-  const committed = commitResult(state, execRes.result, expression);
-  if (state.showTiming) {
-    committed.push(`/* comp: ${formatDuration(compileMs)}, exec: ${formatDuration(executeMs)} */`);
-  }
-  return committed;
+  return { result, wasmCompileMs: 0, executeMs };
 }
 
 async function runSnippet(input, state, options = {}) {
@@ -1108,7 +1089,8 @@ async function runSnippet(input, state, options = {}) {
       executeMs: 0,
       totalMs: snippetCompileMs,
       snippetCompileMs,
-      wasmCompileMs: 0
+      wasmCompileMs: 0,
+      engine: state.engine
     };
     if (state.showTiming) {
       return [`/* comp: ${formatDuration(snippetCompileMs)} */`];
@@ -1118,26 +1100,32 @@ async function runSnippet(input, state, options = {}) {
 
   let execRes;
   try {
-    execRes = await executeExpressionWithWasm(annotated, state, lineOffset);
+    if (state.engine === "js") {
+      execRes = executeExpressionWithJs(annotated, state, lineOffset);
+    } else {
+      execRes = await executeExpressionWithWasm(annotated, state, lineOffset);
+    }
   } catch (error) {
     throw remapError(error, lineOffset);
   }
   state.codes = codes.dump();
   restoreCodes(state);
 
-  const compileMs = snippetCompileMs + execRes.wasmCompileMs;
+  const wasmCompileMs = execRes.wasmCompileMs || 0;
+  const compileMs = snippetCompileMs + wasmCompileMs;
   const executeMs = execRes.executeMs;
   state.lastTiming = {
     compileMs,
     executeMs,
     totalMs: compileMs + executeMs,
     snippetCompileMs,
-    wasmCompileMs: execRes.wasmCompileMs
+    wasmCompileMs,
+    engine: state.engine
   };
 
   const committed = commitResult(state, execRes.result, snippet);
   if (state.showTiming) {
-    committed.push(`/* comp: ${formatDuration(compileMs)}, exec: ${formatDuration(executeMs)} */`);
+    committed.push(`/* comp: ${formatDuration(compileMs)}, exec: ${formatDuration(executeMs)} (${state.engine}) */`);
   }
   return committed;
 }
@@ -1267,10 +1255,6 @@ async function evaluateCommand(line, state) {
       return [helpText()];
     case "timing":
       throw new Error(":timing has been removed; timing is now always enabled");
-    case "time": {
-      if (!arg) throw new Error(":time requires an expression");
-      return evaluateInput(arg, state);
-    }
     case "type": {
       if (!arg) throw new Error(":type requires a type name");
       if (arg.includes("=")) {
@@ -1280,13 +1264,18 @@ async function evaluateCommand(line, state) {
     }
     case "code":
       return evaluateCommand(`:C ${arg}`, state);
-    case "rel":
     case "def":
       throw new Error("Relation definitions use syntax: name = relExpr;");
-    case "run":
-    case "eval":
-      return runExpression(arg, state);
-    case "codes":
+    case "rel": {
+      if (!arg) throw new Error(`${usagePrefix}rel requires a relation name`);
+      if (arg.includes("=")) {
+        throw new Error("Relation definitions use syntax: name = relExpr; Use :rel <name> to show a relation definition");
+      }
+      const { hash, rel } = resolveRel(state, arg);
+      if (!rel) throw new Error(`Unknown relation '${arg}'`);
+      return [`${arg} = ${prettyRelation(rel, displayAliases(state), state.relAliases)};  -- ${hash}`];
+    }
+    case "types":
       return [listAliases(state.typeAliases)];
     case "rels":
       return [listAliases(state.relAliases)];
@@ -1295,8 +1284,28 @@ async function evaluateCommand(line, state) {
       return loadCodec(arg, state);
     case "input":
       return requestCodecInput(arg, state);
+    case "engine": {
+      const mode = (arg || "").trim().toLowerCase();
+      if (!mode) {
+        return [`Current engine: ${state.engine}`];
+      }
+      if (mode !== "wasm" && mode !== "js") {
+        throw new Error(`Invalid engine '${arg.trim()}'. Valid engines: wasm, js`);
+      }
+      state.engine = mode;
+      return [`engine set to ${mode}`];
+    }
+    case "wasm": {
+      state.engine = "wasm";
+      return ["engine set to wasm"];
+    }
+    case "js": {
+      state.engine = "js";
+      return ["engine set to js"];
+    }
     case "reset": {
-      const fresh = createState();
+      const currentEngine = state.engine;
+      const fresh = createState({ engine: currentEngine });
       Object.assign(state, fresh);
       return ["reset"];
     }
@@ -1321,18 +1330,6 @@ async function evaluateCommand(line, state) {
       loadSourceOrKlib(state, loadPath, { loadAliases });
       return [`loaded ${loadPath}`];
     }
-    case "t": {
-      if (!arg) throw new Error(`${usagePrefix}t requires a relation name`);
-      const { hash, rel } = resolveRel(state, arg);
-      if (!rel) throw new Error(`Unknown relation '${arg}'`);
-      return [`${arg} : ${relTypeString(rel)}  (${hash})`];
-    }
-    case "d": {
-      if (!arg) throw new Error(`${usagePrefix}d requires a relation name`);
-      const { hash, rel } = resolveRel(state, arg);
-      if (!rel) throw new Error(`Unknown relation '${arg}'`);
-      return [`${arg} = ${prettyRelation(rel, displayAliases(state), state.relAliases)};  -- ${hash}`];
-    }
     case "C": {
       if (!arg) throw new Error(`${usagePrefix}C requires a type name`);
       const hash = state.typeAliases[arg] || (arg.startsWith("@") ? arg : null);
@@ -1346,12 +1343,10 @@ async function evaluateCommand(line, state) {
 
 function helpText() {
   return [
-    ":run expr            run an expression on the current value",
-    ":time expr           run an expression and report compilation/execution time",
-    ":t name              show relation type",
-    ":d name              show relation definition",
+    ":engine [wasm|js]    display or switch evaluation engine (wasm or js)",
+    ":rel name            show relation definition",
     ":type name           show type definition",
-    ":codes               list type aliases",
+    ":types               list type aliases",
     ":rels                list relation aliases",
     ":codec load file     load a codec module from file (e.g. :codec load codecs/int.mjs)",
     ":codec unload name   unload a registered codec",
@@ -1376,17 +1371,19 @@ function promptForState(state) {
 }
 
 function cliUsage() {
-  console.log("Usage: k-repl");
-  console.log("       k-repl -h");
+  console.log("Usage: k-repl [options]");
   console.log("");
   console.log("Start the interactive k interpreter. Type :help inside the REPL for commands.");
   console.log("");
   console.log("Options:");
-  console.log("  -h, --help   Show this help.");
+  console.log("  --engine=<wasm|js>  Select evaluation engine (default: wasm)");
+  console.log("  --js                Shortcut for --engine=js");
+  console.log("  --wasm              Shortcut for --engine=wasm");
+  console.log("  -h, --help          Show this help.");
 }
 
-function startRepl() {
-  const state = createState();
+function startRepl(options = {}) {
+  const state = createState(options);
   const rl = readline.createInterface({
     input: stdin,
     output: stdout,
@@ -1397,7 +1394,7 @@ function startRepl() {
   let pending = Promise.resolve();
   let closed = false;
 
-  console.log("k interpreter (.klib-backed). Type :help for commands.");
+  console.log(`k interpreter (.klib-backed, ${state.engine}). Type :help for commands.`);
   rl.prompt();
   async function handleLine(line) {
     if (state.pendingInput && buffer.length === 0) {
@@ -1476,15 +1473,38 @@ function startRepl() {
 
 if (isMainEntrypoint()) {
   const args = argv.slice(2);
-  if (args.includes("-h") || args.includes("--help")) {
-    cliUsage();
-    exit(0);
+  let engine = "wasm";
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "-h" || arg === "--help") {
+      cliUsage();
+      exit(0);
+    } else if (arg === "--js") {
+      engine = "js";
+    } else if (arg === "--wasm") {
+      engine = "wasm";
+    } else if (arg.startsWith("--engine=")) {
+      const val = arg.slice("--engine=".length).toLowerCase();
+      if (val !== "wasm" && val !== "js") {
+        console.error(`Invalid engine '${val}'. Valid engines: wasm, js`);
+        exit(1);
+      }
+      engine = val;
+    } else if (arg === "--engine") {
+      i++;
+      const val = (args[i] || "").toLowerCase();
+      if (val !== "wasm" && val !== "js") {
+        console.error(`Invalid engine '${val}'. Valid engines: wasm, js`);
+        exit(1);
+      }
+      engine = val;
+    } else {
+      console.error(`Unknown option '${arg}'.`);
+      cliUsage();
+      exit(1);
+    }
   }
-  if (args.length > 0) {
-    cliUsage();
-    exit(1);
-  }
-  startRepl();
+  startRepl({ engine });
 }
 
 export {

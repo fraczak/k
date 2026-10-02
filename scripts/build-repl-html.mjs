@@ -247,6 +247,25 @@ const htmlContent = `<!DOCTYPE html>
       border: 1px solid rgba(88, 166, 255, 0.3);
       padding: 2px 8px;
       border-radius: 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .engine-badge:hover {
+      background: rgba(88, 166, 255, 0.3);
+      border-color: rgba(88, 166, 255, 0.6);
+    }
+
+    .engine-badge.js-mode {
+      background: rgba(240, 180, 41, 0.15);
+      color: #e3b341;
+      border-color: rgba(240, 180, 41, 0.4);
+    }
+
+    .engine-badge.js-mode:hover {
+      background: rgba(240, 180, 41, 0.3);
+      border-color: rgba(240, 180, 41, 0.7);
     }
 
     .status-indicator {
@@ -1609,7 +1628,7 @@ const htmlContent = `<!DOCTYPE html>
       <div class="nav-left">
         <div class="brand">
           <span class="brand-name">k repl</span>
-          <span class="engine-badge">wasm-in-process</span>
+          <span id="engine-badge" class="engine-badge" title="Click to toggle engine (wasm/js)">wasm-in-process</span>
         </div>
         <div class="status-indicator">
           <span id="status-dot" class="status-dot ready"></span>
@@ -1635,8 +1654,11 @@ const htmlContent = `<!DOCTYPE html>
               <option value="expr:{10 x, 5 y} plus">{10 x, 5 y} plus (bits)</option>
               <option value="expr:1 succ">1 succ</option>
               <option value="expr:{10 int x, 5 int y} plus">{10 int x, 5 int y} plus (int)</option>
-              <option value="expr::codes">:codes (list types)</option>
+              <option value="expr::types">:types (list types)</option>
               <option value="expr::rels">:rels (list relations)</option>
+              <option value="expr::engine">:engine (show engine)</option>
+              <option value="expr::engine wasm">:engine wasm</option>
+              <option value="expr::engine js">:engine js</option>
             </optgroup>
             <optgroup label="Codecs &amp; Format Adapters">
               <option value="expr::codecs">:codecs</option>
@@ -1856,17 +1878,16 @@ const htmlContent = `<!DOCTYPE html>
           <div class="help-section">
             <h4>REPL Commands</h4>
             <table class="help-table">
+              <tr><td><code>:engine [wasm|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code> or <code>js</code>)</td></tr>
               <tr><td><code>:load &lt;file&gt;</code></td><td>Load a <code>.k</code> source or <code>.klib</code> library into current state</td></tr>
-              <tr><td><code>:t &lt;name&gt;</code></td><td>Display the derived type of relation <code>&lt;name&gt;</code></td></tr>
-              <tr><td><code>:d &lt;name&gt;</code></td><td>Display definition of relation <code>&lt;name&gt;</code></td></tr>
+              <tr><td><code>:rel &lt;name&gt;</code></td><td>Display definition of relation <code>&lt;name&gt;</code></td></tr>
               <tr><td><code>:type &lt;name&gt;</code></td><td>Display definition of type <code>&lt;name&gt;</code></td></tr>
-              <tr><td><code>:codes</code></td><td>List all type aliases and canonical hashes</td></tr>
+              <tr><td><code>:types</code></td><td>List all type aliases and canonical hashes</td></tr>
               <tr><td><code>:rels</code></td><td>List all relation aliases</td></tr>
               <tr><td><code>:codecs</code></td><td>List all loaded format codecs</td></tr>
               <tr><td><code>:codec load &lt;file.mjs&gt;</code></td><td>Load a codec from file (or load through Files)</td></tr>
               <tr><td><code>:codec unload &lt;file.mjs&gt;</code></td><td>Unload a loaded codec</td></tr>
               <tr><td><code>:input &lt;codec.mjs&gt; [text]</code></td><td>Parse input using specified codec (opens dialog if text omitted)</td></tr>
-              <tr><td><code>:time &lt;expr&gt;</code></td><td>Evaluate <code>&lt;expr&gt;</code> and report execution time</td></tr>
               <tr><td><code>:klib &lt;file&gt;</code></td><td>Export current state as a <code>.klib</code> binary file</td></tr>
               <tr><td><code>:reset</code></td><td>Clear state and reset to initial environment</td></tr>
               <tr><td><code>:help</code></td><td>Show command reference</td></tr>
