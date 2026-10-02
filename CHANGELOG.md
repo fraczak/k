@@ -5,6 +5,27 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.10.0] — 2026-10-02 — Dual Evaluation Engines (WASM & JS) and REPL Command Modernization
+
+### REPL & Evaluation Engines
+
+- **Dual Evaluation Engines**: The REPL now supports two evaluation modes:
+  - `wasm` (default): Lowers expressions via polymorphic kVM to WebAssembly AOT bytecode for near-native performance, tail-call optimization, and stack safety.
+  - `js`: Direct tree-walking JavaScript interpreter evaluating parsed relations via `run_rel` with pattern constraints for instant interpretation without compilation latency.
+- **Engine Switching & CLI**:
+  - REPL commands `:engine [wasm|js]`, `:wasm`, and `:js` dynamically inspect or switch the active evaluation engine.
+  - CLI options `--engine=wasm`, `--engine=js`, `--wasm`, and `--js` added to `k-repl`.
+  - Active engine displayed in execution timing annotations (`/* comp: Xms, exec: Yms (wasm) */` or `(js)`).
+- **Web REPL (`repl.html`) Integration**:
+  - Added clickable navbar engine badge (`wasm-in-process` <-> `js-in-process`) for one-click engine toggling in the browser.
+  - Exported `getEngine()` and `setEngine()` on `window.kRepl`.
+- **Command Modernization**:
+  - Removed deprecated REPL commands: `:run expr`, `:eval expr`, `:time expr`, and `:t name`.
+  - Renamed `:codes` to `:types` (listing type aliases).
+  - Renamed `:d name` to `:rel name` (displaying relation definitions).
+
+---
+
 ## [6.9.0] — 2026-10-01 — Reusable Codecs, Dynamic Pattern Derivation & Unified SDK
 
 ### Codecs & Type System
