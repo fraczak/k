@@ -358,6 +358,25 @@ if (chromiumBin) {
     })()`);
     assert(ieeeResult.includes('ieee.mjs: 3.14159'), `Expected ieee.mjs: 3.14159, got: ${ieeeResult}`);
 
+    // Test :load poly.k and evaluate '10 int (gen_list sort)' in WASM mode
+    const sortListResult = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":reset");
+      await window.kRepl.executeCommand(":load arithmetics.k");
+      await window.kRepl.executeCommand(":load poly.k");
+      await window.kRepl.executeCommand(":codec load int.mjs");
+      await window.kRepl.executeCommand("10 int (gen_list sort)");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(sortListResult.includes('int.mjs: [0,1,2,3,4,5,6,7,8,9,10]'), `Expected sorted int list in browser REPL output, got: ${sortListResult}`);
+
+    // Test deep tail-loop list generation and compaction (10,000 elements) in browser WASM mode
+    const deepWasmResult = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand("{{{10 int x, 10 int y} times x, 10 int y} times x, 10 int y} times (gen_list car)");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(deepWasmResult.includes('int.mjs: 0'), `Expected 0 from car of 10,000-element list in browser REPL, got: ${deepWasmResult}`);
 
     // Verify text selection holds in output element
     const selectionCheck = await evaluateAsync(`(() => {

@@ -5,6 +5,15 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.10.2] — 2026-10-03 — Stack-Safe Value Serializer for REPL and Web REPL
+
+### REPL & Codecs
+
+- **Stack-Safe `valueToK()` Serializer**: Rewrote `valueToK()` in `codecs/runtime/show-value.mjs` using an explicit iterative worklist stack instead of JavaScript call-stack recursion. This prevents `RangeError: Maximum call stack size exceeded` crashes when displaying or previewing large, deep data structures (such as long lists) in the terminal REPL and Web REPL (`repl.html`).
+- **Web REPL Tests**: Added end-to-end browser tests in `tests/test-repl-html.mjs` verifying list sorting (`poly.k`) and 10,000-element tail-loop compaction in `repl.html` under the `wasm` engine.
+
+---
+
 ## [6.10.1] — 2026-10-02 — Fix Compaction Mark Reset and False Tail Calls in LLVM & WASM Backends
 
 ### LLVM & WebAssembly Backends
