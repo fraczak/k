@@ -1,23 +1,29 @@
 # kVM Execution Model
 
-This note sketches a low-level execution model for `k`.  The goal is to place
-one abstraction exactly between the current JavaScript evaluator and concrete
-backends such as LLVM and WebAssembly.
+This note sketches a low-level execution model for `k`.  The goal is to
+place one abstraction exactly between the current JavaScript evaluator
+and concrete backends such as LLVM and WebAssembly.
 
-The working name is **kVM**.  It is not primarily a bytecode format.  It is an
-execution contract: a small value model, a small instruction set, and precise
-rules for partial failure, products, unions, calls, and safe scheduling.
+The working name is **kVM**.  It is not primarily a bytecode format.  It
+is an execution contract: a small value model, a small instruction set,
+and precise rules for partial failure, products, unions, calls, and safe
+scheduling.
 
 ## Position In The Pipeline
 
 The current design already points at three layers:
 
 - KIR-P: portable, polymorphic object IR.
-- Polymorphic kVM Template: unspecialized kVM instruction streams with principal pattern signatures.
-- Envelope-Specialized kVM: kVM functions instantiated for a concrete input envelope, with dead branches pruned and redundant guards eliminated.
-- Target Lowering: direct emission from specialized kVM to WebAssembly or native machine code.
+- Polymorphic kVM Template: unspecialized kVM instruction streams with
+  principal pattern signatures.
+- Envelope-Specialized kVM: kVM functions instantiated for a concrete
+  input envelope, with dead branches pruned and redundant guards
+  eliminated.
+- Target Lowering: direct emission from specialized kVM to WebAssembly
+  or native machine code.
 
-kVM bridges high-level relational expressions and concrete execution targets:
+kVM bridges high-level relational expressions and concrete execution
+targets:
 
 ```text
 [AOT Compilation Phase]
@@ -29,16 +35,20 @@ k source
 
 [Request / JIT Phase: Enveloped Value V = (v, Pv) arrives]
   kVM template + input envelope Pv
-  -> boundary type compatibility check (validates Pv against Pin; raises Type Error on contradiction)
-  -> fast kVM specialization (specializeKVM: guard folding, dead branch pruning, output pattern derivation)
+  -> boundary type compatibility check (validates Pv against Pin;
+     raises Type Error on contradiction)
+  -> fast kVM specialization (specializeKVM: guard folding, dead
+     branch pruning, output pattern derivation)
   -> specialized kVM function
   -> Tier 0: direct interpretation in kVM runtime (< 1 ms cold start)
-  -> Tier 1: single-pass lowering to WebAssembly (kvm2wasm) or native machine code (~17 ms peak speed)
+  -> Tier 1: single-pass lowering to WebAssembly (kvm2wasm) or native
+     machine code (~17 ms peak speed)
 ```
 
-KIR-P remains the portable semantic object format. The kVM lowerer compiles KIR-P into
-polymorphic kVM templates ahead of time. When concrete input envelopes arrive at runtime,
-`specializeKVM` instantiates and optimizes the kVM instruction stream in microseconds.
+KIR-P remains the portable semantic object format. The kVM lowerer
+compiles KIR-P into polymorphic kVM templates ahead of time. When
+concrete input envelopes arrive at runtime, `specializeKVM` instantiates
+and optimizes the kVM instruction stream in microseconds.
 
 ## Design Center
 
@@ -53,20 +63,22 @@ where:
 - `KRef` is a reference to an immutable runtime value;
 - `KResult` is either `ok(value)` or `fail`;
 - failure is ordinary partial-function undefinedness, not an exception;
-- user-level computation has no mutable environment and no observable effects.
+- user-level computation has no mutable environment and no observable
+  effects.
 
 This purity is central.  It means kVM can expose parallel product and
-speculative union execution while preserving exactly the same deterministic
-semantics as the interpreter.
+speculative union execution while preserving exactly the same
+deterministic semantics as the interpreter.
 
-Current debug or host operations such as `_log!` do not fit the pure backend
-contract.  They should either be excluded from kVM backend eligibility or marked
-as effectful intrinsics that create ordering barriers.
+Current debug or host operations such as `_log!` do not fit the pure
+backend contract.  They should either be excluded from kVM backend
+eligibility or marked as effectful intrinsics that create ordering
+barriers.
 
 ## Value Model
 
-A kVM value reference should be more abstract than an LLVM pointer but more
-explicit than the current JavaScript `Value` object.
+A kVM value reference should be more abstract than an LLVM pointer but
+more explicit than the current JavaScript `Value` object.
 
 ```text
 KRef {
@@ -79,33 +91,35 @@ KRef {
 }
 ```
 
-The important property is immutability.  A `KRef` may point into the original
-binary input stream, a materialized node, a constructed result, or an external
-host value.  Projections can often produce new `KRef`s without allocation.
-Construction creates new immutable values.
+The important property is immutability.  A `KRef` may point into the
+original binary input stream, a materialized node, a constructed result,
+or an external host value.  Projections can often produce new `KRef`s
+without allocation. Construction creates new immutable values.
 
 There are two valid execution modes:
 
-- **Envelope-aware mode**: each `KRef` may carry a runtime pattern, matching the
-  current interpreter and codec model.
-- **Envelope-free mode**: envelope specialization has proven the input and output patterns for
-  every call site, so inner operations use static layouts and attach the derived
-  output pattern only at the boundary.
+- **Envelope-aware mode**: each `KRef` may carry a runtime pattern,
+  matching the current interpreter and codec model.
+- **Envelope-free mode**: envelope specialization has proven the input
+  and output patterns for every call site, so inner operations use
+  static layouts and attach the derived output pattern only at the
+  boundary.
 
-The first mode is the reference path.  The second mode is the main LLVM/Wasm
-performance path.
+The first mode is the reference path.  The second mode is the main
+LLVM/Wasm performance path.
 
 ## Function Shape
 
-A kVM relation instance is specialized by relation hash plus input pattern hash:
+A kVM relation instance is specialized by relation hash plus input
+pattern hash:
 
 ```text
 fn @rel_hash__input_pattern_hash(%input: KRef) -> KResult<KRef>
 ```
 
-Recursive relations compile to mutually recursive kVM functions.  A single
-source relation may produce several kVM functions when called under different
-input patterns.
+Recursive relations compile to mutually recursive kVM functions.  A
+single source relation may produce several kVM functions when called
+under different input patterns.
 
 Each kVM function records:
 
@@ -117,13 +131,14 @@ Each kVM function records:
 - called relation instances;
 - required intrinsics.
 
-LLVM and Wasm backends should reject functions whose relation derivation is not
-`converged`, unless they intentionally target the envelope-aware reference mode.
+LLVM and Wasm backends should reject functions whose relation derivation
+is not `converged`, unless they intentionally target the envelope-aware
+reference mode.
 
 ## Core Instructions
 
-kVM should be register-based and block-oriented.  Backends can lower it to LLVM
-SSA, Wasm locals and blocks, C temporaries, or a JS interpreter.
+kVM should be register-based and block-oriented.  Backends can lower it
+to LLVM SSA, Wasm locals and blocks, C temporaries, or a JS interpreter.
 
 Primitive instructions:
 
@@ -141,24 +156,25 @@ call_intrinsic  @symbol, %value            -> ok(%result) | fail
 return          %value                     -> ok(%value)
 ```
 
-Composition is ordinary control flow: run the next instruction only after the
-previous one has returned `ok`.
+Composition is ordinary control flow: run the next instruction only
+after the previous one has returned `ok`.
 
-Filters lower either to `guard_pattern` or disappear after envelope specialization proves that
-the guard is redundant.  Type/code expressions lower to guards.  Variant
-introduction lowers to `make_variant`.  Product construction lowers to a
-product region plus `make_product`.
+Filters lower either to `guard_pattern` or disappear after envelope
+specialization proves that the guard is redundant.  Type/code
+expressions lower to guards.  Variant introduction lowers to
+`make_variant`.  Product construction lowers to a product region plus
+`make_product`.
 
 ## Structured Regions
 
-The two important high-level operations should survive lowering into kVM as
-structured regions.  They carry semantic information that is easy to lose if
-everything is flattened too early.
+The two important high-level operations should survive lowering into kVM
+as structured regions.  They carry semantic information that is easy to
+lose if everything is flattened too early.
 
 ### Product Region
 
-A product expression applies several functions to the same input and succeeds
-only if all of them succeed.
+A product expression applies several functions to the same input and
+succeeds only if all of them succeed.
 
 ```text
 %p = product %input [
@@ -170,21 +186,23 @@ only if all of them succeed.
 Semantics:
 
 1. Every field branch receives the same input `KRef`.
-2. If every branch succeeds, the join constructs a product in canonical field
-   order.
+2. If every branch succeeds, the join constructs a product in canonical
+   field order.
 3. If any branch fails, the whole product fails.
-4. For terminating pure branches, branch evaluation order is not observable.
+4. For terminating pure branches, branch evaluation order is not
+   observable.
 
 Scheduling:
 
 - A sequential backend may run branches left to right.
 - A parallel backend may fork all branches.
-- A result-oriented runtime may fail fast and cancel unfinished branches after
-  any failure, because failure has no observable payload in release semantics.
-- A strict operational runtime should preserve the chosen product evaluation
-  order for divergence-sensitive conformance.  It may still run later branches
-  speculatively, but it should not expose a later failure while an earlier
-  branch is still pending.
+- A result-oriented runtime may fail fast and cancel unfinished branches
+  after any failure, because failure has no observable payload in
+  release semantics.
+- A strict operational runtime should preserve the chosen product
+  evaluation order for divergence-sensitive conformance.  It may still
+  run later branches speculatively, but it should not expose a later
+  failure while an earlier branch is still pending.
 - A debug runtime may optionally wait for all branches to report better
   diagnostics.
 
@@ -192,8 +210,8 @@ This is the direct kVM form of parallel composition.
 
 ### Union Region
 
-A union expression tries several functions and returns the first successful
-branch in source order.
+A union expression tries several functions and returns the first
+successful branch in source order.
 
 ```text
 %u = union %input [
@@ -207,42 +225,47 @@ Semantics:
 
 1. Every branch receives the same input `KRef`.
 2. If no branch succeeds, the union fails.
-3. If one or more branches succeed, the result is the successful branch with
-   the lowest index.
+3. If one or more branches succeed, the result is the successful branch
+   with the lowest index.
 
 Scheduling:
 
-- A sequential backend may run branches in source order and stop at the first
-  success.
+- A sequential backend may run branches in source order and stop at the
+  first success.
 - A parallel backend may speculatively run branches concurrently.
-- A parallel backend may return branch `j` only after branch `j` has succeeded
-  and every branch `i < j` has failed.
-- Once branch `j` is known to be selected, branches `i > j` may be cancelled.
-- If any earlier branch is still pending, a later success remains provisional.
+- A parallel backend may return branch `j` only after branch `j` has
+  succeeded and every branch `i < j` has failed.
+- Once branch `j` is known to be selected, branches `i > j` may be
+  cancelled.
+- If any earlier branch is still pending, a later success remains
+  provisional.
 
-This gives concurrency without nondeterminism.  The fastest branch does not win;
-the lowest-index successful branch wins.
+This gives concurrency without nondeterminism.  The fastest branch does
+not win; the lowest-index successful branch wins.
 
 ## Partiality And Cancellation
 
-kVM failure is pure and unobservable except through product and union joins.
-That gives simple cancellation laws:
+kVM failure is pure and unobservable except through product and union
+joins. That gives simple cancellation laws:
 
 - In a product, one failure is enough to fail the product.
-- In a union, a later success is provisional until all earlier branches fail.
+- In a union, a later success is provisional until all earlier branches
+  fail.
 - Cancelling an unfinished pure branch cannot change the result.
-- Effectful intrinsics are not cancellable unless they declare that property.
+- Effectful intrinsics are not cancellable unless they declare that
+  property.
 
-These laws are the bridge between mathematical `k` semantics and practical task
-schedulers.
+These laws are the bridge between mathematical `k` semantics and
+practical task schedulers.
 
-There is one important caveat: purity does not by itself erase divergence.  If a
-backend must preserve exact operational behavior in the presence of
-nontermination, it should use the strict scheduling profile: sequential lowering
-is always valid, and speculative parallel work may not commit a result or
-failure that an earlier unresolved branch could have prevented.  If the
-contract is only result equivalence for terminating computations, product
-fail-fast and broader cancellation are valid optimizations.
+There is one important caveat: purity does not by itself erase
+divergence.  If a backend must preserve exact operational behavior in
+the presence of nontermination, it should use the strict scheduling
+profile: sequential lowering is always valid, and speculative parallel
+work may not commit a result or failure that an earlier unresolved
+branch could have prevented.  If the contract is only result equivalence
+for terminating computations, product fail-fast and broader cancellation
+are valid optimizations.
 
 ## Lowering From Envelope-Specialized KIR-P
 
@@ -262,51 +285,55 @@ Suggested lowering rules:
 | `product` | `product` region plus `make_product` |
 | `union` | `union` region with `first_success_by_index` join |
 
-The lowerer should preserve labels and tags as table ids, not strings in hot
-instructions.  Debug metadata may retain source labels.
+The lowerer should preserve labels and tags as table ids, not strings in
+hot instructions.  Debug metadata may retain source labels.
 
 ## Polymorphic kVM and JIT Specialization
 
-A `polymorphic kVM function` is an instruction stream derived from a polymorphic
-KIR-P relation before a concrete input envelope is known. Its input and output
-patterns contain pattern variables (open products, open unions, or type
-variables).
+A `polymorphic kVM function` is an instruction stream derived from a
+polymorphic KIR-P relation before a concrete input envelope is known.
+Its input and output patterns contain pattern variables (open products,
+open unions, or type variables).
 
 ### Specialization Contract (`specializeKVM`)
 
-When an `input enveloped value` $(v, P_V)$ arrives at runtime, `specializeKVM`:
+When an `input enveloped value` $(v, P_V)$ arrives at runtime,
+`specializeKVM`:
 
-1. **Validates Type Compatibility**:
-   Checks whether $P_V$ conforms to the function's principal input pattern.
-   If $P_V$ is disjoint or contradicts the input pattern, execution immediately
-   signals a **Type Error** (never partial failure) without compiling.
-2. **Substitutes Pattern Variables**:
-   Binds the open pattern variables of the principal input pattern to the concrete
-   subpatterns carried in $P_V$, deriving the concrete output envelope $P_D$.
+1. **Validates Type Compatibility**: Checks whether $P_V$ conforms to
+   the function's principal input pattern. If $P_V$ is disjoint or
+   contradicts the input pattern, execution immediately signals a **Type
+   Error** (never partial failure) without compiling.
+2. **Substitutes Pattern Variables**: Binds the open pattern variables
+   of the principal input pattern to the concrete subpatterns carried in
+   $P_V$, deriving the concrete output envelope $P_D$.
 3. **Optimizes Guards and Eliminates Dead Code**:
-   - `guard_pattern` instructions proven satisfied by $P_V$ are rewritten to `id`
-     or erased.
-   - `guard_pattern` instructions proven unsatisfiable by $P_V$ are rewritten to `fail`.
-   - In `union` regions, branches that unconditionally fail are pruned. If an
-     earlier branch is proven to always succeed, later branches are discarded.
-4. **Binds Concrete Layouts**:
-   Product field labels and variant tags are mapped to concrete memory offsets
-   matching $P_V$, enabling envelope-free execution in lower tiers.
+  `guard_pattern` instructions proven satisfied by $P_V$ are rewritten
+ to `id` or erased.
+  `guard_pattern` instructions proven unsatisfiable by $P_V$ are
+ rewritten to `fail`.
+  In `union` regions, branches that unconditionally fail are pruned. If
+ an earlier branch is proven to always succeed, later branches are
+ discarded.
+4. **Binds Concrete Layouts**: Product field labels and variant tags are
+   mapped to concrete memory offsets matching $P_V$, enabling envelope-
+   free execution in lower tiers.
 
 ## Layout Tables
 
-kVM should not hard-code one memory layout.  It should refer to layout tables
-generated from envelope-specialized patterns and canonical codes.
+kVM should not hard-code one memory layout.  It should refer to layout
+tables generated from envelope-specialized patterns and canonical codes.
 
 Useful tables:
 
 - label table: label string -> label id;
 - tag table: tag string -> tag id;
 - pattern table: canonical pattern graph ids;
-- layout table: product field offsets and union tag dispatch for each static
-  pattern/layout;
+- layout table: product field offsets and union tag dispatch for each
+  static pattern/layout;
 - intrinsic table: pure host functions and external types;
-- relation instance table: `relation hash + input pattern hash -> function id`.
+- relation instance table: `relation hash + input pattern hash ->
+  function id`.
 
 This keeps kVM stable while allowing experiments with serialized, lazy,
 materialized, and external value representations.
@@ -315,10 +342,10 @@ materialized, and external value representations.
 
 ### LLVM
 
-LLVM can lower each kVM function to a native function returning a `KResult`
-struct.  kVM registers map naturally to LLVM SSA values.  Product and union
-regions can lower first to ordinary blocks, then later to runtime task calls or
-LLVM parallelism experiments.
+LLVM can lower each kVM function to a native function returning a
+`KResult` struct.  kVM registers map naturally to LLVM SSA values.
+Product and union regions can lower first to ordinary blocks, then later
+to runtime task calls or LLVM parallelism experiments.
 
 Baseline product lowering:
 
@@ -345,19 +372,22 @@ Parallel lowering is an optimization, not a semantic requirement.
 
 ### WebAssembly
 
-Wasm can use the same kVM control-flow shape with locals and blocks.  The MVP
-path should be sequential.  Wasm threads, shared memory, or host promises can
-later implement product and union regions without changing kVM semantics.
+Wasm can use the same kVM control-flow shape with locals and blocks.
+The MVP path should be sequential.  Wasm threads, shared memory, or host
+promises can later implement product and union regions without changing
+kVM semantics.
 
-The key Wasm constraint is that the kVM instruction set should avoid relying on
-arbitrary pointer arithmetic in the IR itself.  Pointer/layout details should
-live behind runtime imports or explicit memory-layout helpers.
+The key Wasm constraint is that the kVM instruction set should avoid
+relying on arbitrary pointer arithmetic in the IR itself.
+Pointer/layout details should live behind runtime imports or explicit
+memory-layout helpers.
 
 ### JS kVM Interpreter
 
-A JS kVM interpreter is valuable as a conformance oracle.  It can start with
-sequential product and union execution, compare results against `run.mjs` and
-`run_converged`, then add optional parallel scheduling later.
+A JS kVM interpreter is valuable as a conformance oracle.  It can start
+with sequential product and union execution, compare results against
+`run.mjs` and `run_converged`, then add optional parallel scheduling
+later.
 
 ## Validation Rules
 
@@ -368,10 +398,11 @@ A valid kVM function should satisfy:
 3. Every failure path is explicit.
 4. Product field labels are unique and canonical.
 5. Union branch order is preserved.
-6. Calls target concrete relation instances, not unspecialized source names.
+6. Calls target concrete relation instances, not unspecialized source
+   names.
 7. Layout hints match the input pattern expected by the instruction.
-8. Envelope-free functions are allowed only when every reachable relation
-   instance has converged type derivation.
+8. Envelope-free functions are allowed only when every reachable
+   relation instance has converged type derivation.
 9. Parallel scheduling is allowed only through pure/cancellable regions.
 
 ## Example
@@ -417,21 +448,22 @@ fn @choice(%in):
   return %out
 ```
 
-The runtime may evaluate `f`, `g`, and `h` concurrently, but it may return `g`
-only after `f` has failed.
+The runtime may evaluate `f`, `g`, and `h` concurrently, but it may
+return `g` only after `f` has failed.
 
 ## Open Questions
 
-- Should the first persisted kVM encoding be textual for inspection, compact
-  binary for embedding, or both?
-- Should product fail-fast be the only release behavior, or should there be a
-  standard diagnostic mode that collects all failed fields?
-- How should effectful debug intrinsics be represented so they cannot silently
-  enter parallel backend execution?
-- Is `guard_code` needed in the final envelope-free backend path, or should all
-  code/type checks be resolved into layout-specific projections and guards?
-- Should kVM expose a generic `match` instruction for union dispatch, or are
-  `project_variant` plus union regions enough?
+- Should the first persisted kVM encoding be textual for inspection,
+  compact binary for embedding, or both?
+- Should product fail-fast be the only release behavior, or should there
+  be a standard diagnostic mode that collects all failed fields?
+- How should effectful debug intrinsics be represented so they cannot
+  silently enter parallel backend execution?
+- Is `guard_code` needed in the final envelope-free backend path, or
+  should all code/type checks be resolved into layout-specific
+  projections and guards?
+- Should kVM expose a generic `match` instruction for union dispatch, or
+  are `project_variant` plus union regions enough?
 
 ## Implementation Order
 
@@ -439,12 +471,22 @@ only after `f` has failed.
 2. Define a kVM artifact schema for specialized relation instances.
 3. Lower KIR-P relation ops to kVM in envelope-aware mode.
 4. Add a sequential JS kVM interpreter and compare it against `run.mjs`.
-5. Lower envelope-specialized and converged relation instances to envelope-free kVM.
+5. Lower envelope-specialized and converged relation instances to
+   envelope-free kVM.
 6. Add kVM validation and conformance fixtures.
 7. Add a minimal C or Wasm backend for sequential kVM.
 8. Add LLVM lowering.
 9. Add optional runtime scheduling for product and union regions.
 
-The important first milestone is not parallel speed.  It is a stable execution
-contract that makes sequential LLVM and Wasm generation boring, while preserving
-the parallel structure that `k` gets from purity.
+The important first milestone is not parallel speed. It is a stable
+execution contract that makes sequential LLVM and Wasm generation
+boring, while preserving the parallel structure that `k` gets from
+purity.
+
+## Further Reading
+
+- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) — guide to .k, .ko, .klib,
+  and .kvm formats
+- [DOCS/KIR_V1.md](./KIR_V1.md) — KIR-P inspection/export contract for
+  backends
+- [DOCS/DICTIONARY.md](./DICTIONARY.md) — concept names and terminology

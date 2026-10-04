@@ -88,7 +88,22 @@ implementation changes.
 
 ## Object And Library Containers
 
-The current executable `.ko` format is a small binary container:
+For a comprehensive specification of all file types, see
+[`DOCS/FILE_FORMATS.md`](./FILE_FORMATS.md).
+
+Both `.ko` and `.klib` are ahead-of-time (AOT) type-checked artifacts.
+In `k`, ahead-of-time type checking means parsing, relation expansion,
+structural type derivation, and constraint convergence are performed
+beforehand during compilation. The resulting artifact stores fully
+converged principal pattern graphs, allowing downstream execution to
+bypass cold-start type derivation.
+
+All relations and types are identified canonically by immutable
+content-addressed hashes (`@hash`). There is no global symbol namespace;
+human-readable names are local aliases recorded in `relAlias` and
+`typeAliases` metadata.
+
+The executable `.ko` format is a small binary container:
 
 ```text
 "KOBJ" 0x0a
@@ -98,9 +113,9 @@ utf8-json-payload
 
 Library files (`.klib`) are plain UTF-8 JSON with no binary header.
 
-Both containers use the same JSON payload shape. Executable `.ko` files set
-`main` to the entry relation name. Library `.klib` files set `main` to `null`.
-There is no payload version field.
+Both containers use the same JSON payload shape. Executable `.ko` files
+set `main` to the entry relation name (usually `"__main__"`). Library
+`.klib` files set `main` to `null`. There is no payload version field.
 
 The payload stores:
 
@@ -116,43 +131,46 @@ The payload stores:
 Relation `def` values do not store source `start` / `end` markers. Source
 locations live on `meta[hash].origins[]` entries. Each metadata entry has
 `type: "code"` or `type: "rel"`. Origin entries hold `source`, `name`,
-`compiledAt`, and optional `start` / `end`; origin entries do not have `kind`.
+`compiledAt`, and optional `start` / `end`; origin entries do not have
+`kind`.
 
-Relation `def` values also do not store the generated input/output filters.
+Relation `def` values also do not store generated input/output filters.
 Those filters are derived from `def.patterns` and `typePatternGraph` when
 printing or enforcing relation boundaries.
 
 Codes/types do not carry `typeDerivation`. Type derivation is a relation
-property, and the persisted `typeDerivation` object currently contains only
-`status`.
+property, and the persisted `typeDerivation` object currently contains
+only `status`.
 
 Loading an object hydrates the type-pattern graphs back into runtime
 `TypePatternGraph` instances and executes relation boundaries through
-`run.mjs`. This avoids source parsing and type derivation on the execution path.
+`run.mjs`. This avoids source parsing and type derivation on the
+execution path.
 
 Object execution through `k.mjs`:
 
 ```sh
-echo "..." | some-codec --parse | k path/to/program.ko | some-codec --print
+echo "..." | some-codec --parse | \
+  k path/to/program.ko | some-codec --print
 ```
 
-When the first positional argument names an existing file, `k.mjs` loads it as
-either an object file or a source `.k` file. It tries to load the file as an
-object first, then falls back to source parsing and compilation.
+When the first positional argument names an existing file, `k.mjs`
+loads it as either an object file or a source `.k` file. It tries to load
+the file as an object first, then falls back to source parsing and
+compilation.
 
 Standalone helpers live in `objects/`:
 
 ```sh
 k-compile path/to/program.k path/to/program.ko
 k-compile path/to/library.k path/to/library.klib
-k-compile --input-pattern '[["closed-product",[]]]' path/to/program.k path/to/program.kvm
-k-compile --input-type '$ bit = <{} off, {} on>; $bit' path/to/program.k path/to/program.kvm
+k-compile --format kvm path/to/program.k path/to/program.kvm
 k-decompile path/to/program.ko path/to/program.decompiled.k
 k-extract-aliases path/to/library.klib path/to/aliases.k
 ```
 
-`k-compile` also accepts inline source snippets. With no arguments, the helpers
-read from stdin and write to stdout:
+`k-compile` also accepts inline source snippets. With no arguments,
+the helpers read from stdin and write to stdout:
 
 ```sh
 k-compile 'x = |x; x x' > path/to/program.ko

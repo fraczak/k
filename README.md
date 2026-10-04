@@ -3,14 +3,15 @@
 **k is a small language for typed data transformations.**
 
 It describes data as algebraic shapes, programs as first-order partial
-functions, and runtime values as a binary `pattern + value` stream that can be
-parsed, transformed, printed, compiled, and inspected.
+functions, and runtime values as a binary `pattern + value` stream
+that can be parsed, transformed, printed, compiled, and inspected.
 
-Data descriptions and transformations share one syntax, so a k file can define
-both the shapes of values and the relations that move between them.
+Data descriptions and transformations share one syntax, so a k file can
+define both the shapes of values and the relations that move between them.
 
-k is experimental, but it already has a working parser, type-derivation engine,
-REPL, binary codec pipeline, object/library format, Node.js API, and test suite.
+k is experimental, but it already has a working parser, type-derivation
+engine, REPL, binary codec pipeline, object/library format, Node.js API,
+and test suite.
 
 ## Why k?
 
@@ -21,9 +22,10 @@ Many systems need to answer the same questions:
 - What does a program accept, produce, or reject?
 - Can this transformation be serialized, tested, reused, or inspected?
 
-k explores a compact answer: define algebraic data shapes, compose partial
-transformations over them, derive input/output patterns automatically, and move
-values across process boundaries with a canonical binary representation.
+k explores a compact answer: define algebraic data shapes, compose
+partial transformations over them, derive input/output patterns
+automatically, and move values across process boundaries with a canonical
+binary representation.
 
 That makes k interesting as a foundation for:
 
@@ -35,8 +37,8 @@ That makes k interesting as a foundation for:
 
 ## A Small Example
 
-k can define recursive data and transformations in the same file. Peano natural
-numbers are either `0` or one more than another natural number:
+k can define recursive data and transformations in the same file. Peano
+natural numbers are either `0` or one more than another natural number:
 
 ```k
 $ nat = < {} 0, nat +1 >;
@@ -49,8 +51,9 @@ add = $ { nat x, nat y } <
 >;
 ```
 
-`add` takes a product `{ x, y }`. If `x` has a `+1`, it moves that successor
-from `x` to `y` and recurses. When that no longer applies, it returns `y`.
+`add` takes a product `{ x, y }`. If `x` has a `+1`, it moves that
+successor from `x` to `y` and recurses. When that no longer applies, it
+returns `y`.
 
 In the REPL:
 
@@ -59,8 +62,8 @@ In the REPL:
 {}|0|+1|+1|+1 ?<X0 +1, {} 0>=X0
 ```
 
-That evaluates `2 + 1` to `3`: a value starts at `0`, and each `+1` tag adds
-one successor. The REPL also prints the inferred value envelope.
+That evaluates `2 + 1` to `3`: a value starts at `0`, and each `+1` tag
+adds one successor. The REPL also prints the inferred value envelope.
 
 ## Try It
 
@@ -69,7 +72,9 @@ one successor. The REPL also prints the inferred value envelope.
 Try k directly in your browser without installing anything:
 **[https://fraczak.github.io/k/](https://fraczak.github.io/k/)**
 
-The Web REPL is self-contained, powered by an in-process WebAssembly compiler and execution engine with built-in codecs, autocompletion, interactive input, and standard libraries.
+The Web REPL is self-contained, powered by an in-process WebAssembly
+compiler and execution engine with built-in codecs, autocompletion,
+interactive input, and standard libraries.
 
 ### From Source
 
@@ -121,8 +126,8 @@ $ byte = { bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7 };
 $ bits = < {} _, bits 0, bits 1 >;
 ```
 
-There are no built-in primitive values. The empty product `{}` is the only leaf
-in a non-recursive definition.
+There are no built-in primitive values. The empty product `{}` is the
+only leaf in a non-recursive definition.
 
 **Composable partial functions**
 
@@ -142,8 +147,9 @@ Core expressions are deliberately small:
 
 **Derived input/output patterns**
 
-k derives structural constraints for expressions. Those patterns become useful
-for diagnostics, REPL output, binary encoding, and object metadata.
+k derives structural constraints for expressions. Those patterns become
+useful for diagnostics, REPL output, binary encoding, and object
+metadata.
 
 **Binary-friendly runtime values**
 
@@ -163,15 +169,27 @@ k-print   # binary pattern+value stream -> textual value
 
 **Inspectable objects and libraries**
 
-k programs can be compiled into:
+`k` programs can be authored, compiled, and linked across four main
+file formats:
 
-- `.klib`: library objects
-- `.ko`: executable binary object containers
-- `.kvm`: specialized kVM backend artifacts
+- `.k`: human-readable source code defining algebraic types and relations.
+- `.klib`: ahead-of-time (AOT) type-checked library objects (`main: null`)
+  storing canonical relation definitions, type codes, and local aliases.
+- `.ko`: ahead-of-time (AOT) type-checked executable containers (`KOBJ\n`
+  magic header) with entrypoint `main: "__main__"`, skipping parsing and
+  type derivation at runtime.
+- `.kvm`: polymorphic register-IR template artifacts (`layer: "KVM-P"`)
+  carrying principal pattern graphs for instant runtime specialization
+  (`specializeKVM`).
 
-Object and library files keep canonical code/relation definitions, aliases,
-metadata, and type-derivation status. The `.kvm` output is a lowered backend
-artifact for inspection and execution experiments.
+In `k`, all relations and types are identified canonically by immutable
+content-addressed hashes (`@hash`). There is no global symbol namespace;
+friendly names (such as `plus`, `int`, or `5`) are local aliases stored
+in metadata. Similarly, there are no primitive numbers: numerical
+identifiers like `5` or `10` are nullary relations mapping `${} -> $bits`.
+
+For a detailed guide to all four formats, commands, and workflows, see
+[DOCS/FILE_FORMATS.md](DOCS/FILE_FORMATS.md).
 
 ## CLI Tour
 
@@ -215,20 +233,22 @@ artifact for inspection and execution experiments.
 | `k-llvm-build` / `k-llvm-compile` / `k-llvm-run` | Compile and run via LLVM backend |
 | `k-arm64` / `k-arm64-compile` / `k-arm64-run` | Compile and run via Linux ARM64 native backend |
 
-Installed binary names are `k-` plus the source basename without `.mjs`, except
-for `k.mjs` itself. Source names that already include `k-`, such as
-`codecs/k-parse.mjs`, keep that name.
+Installed binary names are `k-` plus the source basename without
+`.mjs`, except for `k.mjs` itself. Source names that already include
+`k-`, such as `codecs/k-parse.mjs`, keep that name.
 
 ## Backends
 
 Backends live under [`backends/`](backends/) as npm workspaces:
 
-- [`backends/wasm`](backends/wasm/) lowers typed k programs through kVM into
-  WebAssembly artifacts. Powers both the CLI REPL (`wasm-in-process`) and the standalone Web REPL.
-- [`backends/llvm`](backends/llvm/) lowers polymorphic kVM programs into LLVM IR and
-  compiled native test executables.
-- [`backends/arm64`](backends/arm64/) lowers polymorphic kVM programs directly into
-  standalone Linux ARM64 native executables without external compiler dependencies.
+- [`backends/wasm`](backends/wasm/) lowers typed k programs through kVM
+  into WebAssembly artifacts. Powers both the CLI REPL (`wasm-in-process`)
+  and the standalone Web REPL.
+- [`backends/llvm`](backends/llvm/) lowers polymorphic kVM programs into
+  LLVM IR and compiled native test executables.
+- [`backends/arm64`](backends/arm64/) lowers polymorphic kVM programs
+  directly into standalone Linux ARM64 native executables without external
+  compiler dependencies.
 
 All backends integrate with the compiler and binary codecs through
 [`backend-api.mjs`](backend-api.mjs).
@@ -255,8 +275,8 @@ console.log(annotated.compileStats);
 
 ## Project Status
 
-k is usable as an experimental language and toolkit, not a stable production
-platform yet.
+k is usable as an experimental language and toolkit, not a stable
+production platform yet.
 
 Working today:
 
@@ -266,7 +286,8 @@ Working today:
 - binary pattern+value codec
 - object and library files
 - Node.js API
-- regression tests for runtime, codecs, objects, hashes, and type derivation
+- regression tests for runtime, codecs, objects, hashes, and type
+  derivation
 
 Still evolving:
 
@@ -281,20 +302,24 @@ Still evolving:
 
 k is small enough to study, but there are several useful directions:
 
-- examples: schema transformations, codecs, protocol examples, teaching tasks
+- examples: schema transformations, codecs, protocol examples, teaching
+  tasks
 - documentation: tutorials, diagrams, and clearer language walkthroughs
-- tooling: formatter, editor integration, better diagnostics, REPL ergonomics
+- tooling: formatter, editor integration, better diagnostics, REPL
+  ergonomics
 - compiler work: optimization, object inspection, backend experiments
 - theory: normalization, equivalence, convergence, and pattern derivation
-- applications: hardware modeling, asynchronous/synchronous test pipelines,
+- applications: hardware modeling, asynchronous/synchronous pipelines,
   schema repositories, and data migration tooling
 
-If you are interested in languages, compilers, data modeling, formal methods,
-serialization, or teaching tools, there is room to shape the project.
+If you are interested in languages, compilers, data modeling, formal
+methods, serialization, or teaching tools, there is room to shape the
+project.
 
 ## Examples
 
-The [`Examples/`](Examples/) directory contains language demonstrations and standard libraries:
+The [`Examples/`](Examples/) directory contains language demonstrations
+and standard libraries:
 
 | File | Contents |
 | --- | --- |
@@ -307,13 +332,14 @@ The [`Examples/`](Examples/) directory contains language demonstrations and stan
 | `bnat.k` | Binary natural numbers |
 | `buda.k` | Compact relational data transformations |
 
-`list.k` is also useful as a focused demonstration of filters and patterns.
+`list.k` is also useful as a focused demonstration of filters and
+patterns.
 
-`ieee.k` is a complete IEEE-754 binary64 model built from bit-level types
-upward with hierarchical significand adders, including comparison and
-floating-point `add`, `sub`, `mul`, and `div` relations. Those public aliases
-return `{ result, flags }`; compose with `.result` when only the floating-point
-value is needed.
+`ieee.k` is a complete IEEE-754 binary64 model built from bit-level
+types upward with hierarchical significand adders, including comparison
+and floating-point `add`, `sub`, `mul`, and `div` relations. Those public
+aliases return `{ result, flags }`; compose with `.result` when only the
+floating-point value is needed.
 
 ## Development
 
@@ -331,8 +357,9 @@ npm run perf:int        # run integer arithmetic benchmark across backends
 npm run perf:ieee       # run IEEE-754 arithmetic benchmark across backends
 ```
 
-The test runner prints each test before execution and reports its elapsed time
-afterward. It stops immediately when a test fails. The suite covers:
+The test runner prints each test before execution and reports its
+elapsed time afterward. It stops immediately when a test fails.
+The suite covers:
 
 - core runtime and parser behavior
 - type derivation cases in `tests/code-derivation/`
@@ -345,14 +372,21 @@ afterward. It stops immediately when a test fails. The suite covers:
 
 ## Further Reading
 
+- [DOCS/FILE_FORMATS.md](DOCS/FILE_FORMATS.md) - guide to
+  .k, .ko, .klib, and .kvm file formats and workflows
 - [DOCS/DICTIONARY.md](DOCS/DICTIONARY.md) - concept names and terminology
 - [DOCS/REPL.md](DOCS/REPL.md) - interactive interpreter and codec details
-- [DOCS/WEB_REPL_REQUIREMENTS.md](DOCS/WEB_REPL_REQUIREMENTS.md) - Web REPL architecture and requirements
-- [DOCS/KVM_EXECUTION_MODEL.md](DOCS/KVM_EXECUTION_MODEL.md) - kVM execution model and bytecode design
-- [DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md) - textual boundary notation
+- [DOCS/WEB_REPL_REQUIREMENTS.md](DOCS/WEB_REPL_REQUIREMENTS.md) -
+  Web REPL architecture and requirements
+- [DOCS/KVM_EXECUTION_MODEL.md](DOCS/KVM_EXECUTION_MODEL.md) -
+  kVM execution model and bytecode design
+- [DOCS/TEXTUAL_VALUES.md](DOCS/TEXTUAL_VALUES.md) -
+  textual boundary notation
 - [DOCS/PATTERNS.md](DOCS/PATTERNS.md) - pattern representation
-- [DOCS/OBJECT_FILE_AND_PATTERN.md](DOCS/OBJECT_FILE_AND_PATTERN.md) - object format
-- [DOCS/PROFILING_AND_TRACING.md](DOCS/PROFILING_AND_TRACING.md) - execution phase tracing and function call profiling across backends
+- [DOCS/OBJECT_FILE_AND_PATTERN.md](DOCS/OBJECT_FILE_AND_PATTERN.md) -
+  object format and pattern encoding
+- [DOCS/PROFILING_AND_TRACING.md](DOCS/PROFILING_AND_TRACING.md) -
+  execution phase tracing and function call profiling across backends
 - [DOCS/CODECS.md](DOCS/CODECS.md) - writing external codecs
 - [codecs/README.md](codecs/README.md) - binary codec internals
 - [objects/README.md](objects/README.md) - object/library tools

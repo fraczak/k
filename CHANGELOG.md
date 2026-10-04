@@ -5,6 +5,36 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.10.3] — 2026-10-04 — Unified File Formats Specification and Documentation Modernization
+
+### Documentation & Core Architecture
+
+- **Unified File Formats Specification (`DOCS/FILE_FORMATS.md`)**:
+  - Added comprehensive specification for all primary file formats: `.k`
+    (source), `.ko` (executable object), `.klib` (library object), and
+    `.kvm` (polymorphic register-IR template), plus target artifacts
+    (`.wasm`, native binary).
+  - Added Mermaid transformation flowchart mapping compilation, linking,
+    specialization, and execution workflows across CLI tools.
+- **AOT Type Checking & Canonical Content-Addressing**:
+  - Formally specified that AOT type checking performs relation expansion,
+    structural type derivation, and constraint convergence in advance.
+  - Clarified canonical content-addressed hashes (`@hash`) vs. local aliases,
+    confirming there is no global symbol namespace, and documented explicit
+    `--export` semantics for `--lib`.
+- **Relations as Values & Absence of Built-in Numbers**:
+  - Documented that numerical literals do not exist in `k`; names like `5`
+    or `10` are nullary relations mapping `${} -> $bits`. Arithmetic relations
+    operate on signed integer variants (`$int`), converting via `5 int`.
+  - Clarified stream transformers (open domain) vs. closed constant relations
+    (unit input domain `${}`).
+- **Documentation Reformatting**:
+  - Systematically updated and wrapped prose across `README.md` and all
+    documents in `DOCS/`, `codecs/`, `objects/`, and `tests/` to <= 74
+    characters per line.
+
+---
+
 ## [6.10.2] — 2026-10-03 — Stack-Safe Value Serializer for REPL and Web REPL
 
 ### REPL & Codecs

@@ -1,6 +1,7 @@
 # k Test Suite
 
-This directory contains the automated tests, type-derivation validation cases, and integration test scripts for the `k` compiler and runtime.
+This directory contains automated tests, type-derivation validation
+cases, and integration test scripts for the `k` compiler and runtime.
 
 ## Running the Tests
 
@@ -9,27 +10,37 @@ To run all core unit tests, type-derivation checks, and integration tests:
 ```bash
 npm test
 ```
-This executes `node scripts/run-tests.mjs`, which discovers and runs the test scripts sequentially.
+This executes `node scripts/run-tests.mjs`, which discovers and runs the
+test scripts sequentially.
 
 ## Test Directory Structure
 
 ### Core Test Files
-- **[test.mjs](file:///Users/wojtek/gits/k/tests/test.mjs)**: Verifies basic parser and runtime execution behavior.
-- **[test-kvm.mjs](file:///Users/wojtek/gits/k/tests/test-kvm.mjs)**: Comprehensive conformance testing for the kVM register compiler and interpreter under both envelope-aware and envelope-free modes.
-- **[test-ieee-arithmetic.mjs](file:///Users/wojtek/gits/k/tests/test-ieee-arithmetic.mjs)**: Verifies IEEE-754 double precision float arithmetic implementation (`Examples/ieee.k`).
-- **[test-repl.mjs](file:///Users/wojtek/gits/k/tests/test-repl.mjs)**: Tests interactive REPL commands, state transitions, imports, and auto-completions.
-- **[test-k-object.mjs](file:///Users/wojtek/gits/k/tests/test-k-object.mjs)**: Tests serialization, compilation, and loading of `.ko` binary objects.
-- **[test-fingerprint.mjs](file:///Users/wojtek/gits/k/tests/test-fingerprint.mjs)**: Tests semantic expression and relation hashing/fingerprinting.
-- **[test-hash-normalization.mjs](file:///Users/wojtek/gits/k/tests/test-hash-normalization.mjs)**: Verifies consistent normalization of type pattern graphs and hashes.
-- **[test-hash-fuzz.mjs](file:///Users/wojtek/gits/k/tests/test-hash-fuzz.mjs)**: Fuzzes expression/relation hashing to guard against collisions.
-
-### WebAssembly Benchmarks
-
-The WebAssembly execution benchmark moved to the separate
-[`fraczak/k-wasm`](https://github.com/fraczak/k-wasm) backend repository.
+- **[test.mjs](test.mjs)**: Verifies basic parser and runtime
+  execution behavior.
+- **[test-kvm.mjs](test-kvm.mjs)**: Conformance testing for the kVM
+  register compiler and interpreter in envelope-aware and envelope-free
+  modes.
+- **[test-kvm-polymorphic.mjs](test-kvm-polymorphic.mjs)**: Tests for
+  polymorphic `.kvm` templates (`layer: "KVM-P"`) and runtime input
+  envelope specialization (`specializeKVM`).
+- **[test-ieee-arithmetic.mjs](test-ieee-arithmetic.mjs)**: Verifies
+  IEEE-754 double precision float arithmetic (`Examples/ieee.k`).
+- **[test-repl.mjs](test-repl.mjs)**: Tests interactive REPL commands,
+  state transitions, imports, `.klib` and `.ko` exports.
+- **[test-k-object.mjs](test-k-object.mjs)**: Tests serialization,
+  compilation, and loading of `.ko` binary objects and `.klib` libraries.
+- **[test-fingerprint.mjs](test-fingerprint.mjs)**: Tests semantic
+  expression and relation hashing/fingerprinting (`@hash`).
+- **[test-hash-normalization.mjs](test-hash-normalization.mjs)**:
+  Verifies consistent normalization of type pattern graphs and hashes.
+- **[test-hash-fuzz.mjs](test-hash-fuzz.mjs)**: Fuzzes expression and
+  relation hashing to guard against collisions.
 
 ### Type Derivation Suites
-- **[code-derivation/](file:///Users/wojtek/gits/k/tests/code-derivation)**: Houses individual files (each containing a focused test scenario) validating type-derivation convergence and pattern-envelope generation.
+- **[code-derivation/](code-derivation/)**: Individual files validating
+  type-derivation convergence and pattern-envelope generation.
 
 ### Integration Scripts
-- **[integration.sh](file:///Users/wojtek/gits/k/tests/integration.sh)**: Shell script checking boundary data pipelines (`k-parse`, `k-show`, `k-print`) against binary outputs.
+- **[integration.sh](integration.sh)**: Shell script checking boundary
+  data pipelines (`k-parse`, `k-show`, `k-print`) against binary outputs.

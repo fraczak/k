@@ -1,35 +1,36 @@
 # K Codecs
 
-This directory is being rewritten around a new codec design:
+This directory is centered on the codec design:
 
 ```text
 abstract pattern graph + prefix-free tree encoding
 ```
 
-The default concrete format is now the binary encoding of a `$pattern` value,
-using the `$pattern` type from [`../core.k`](../core.k), immediately followed by
-the binary encoding of the value under that decoded pattern.
+The default concrete format is now the binary encoding of a `$pattern`
+value, using the `$pattern` type from [`../core.k`](../core.k),
+immediately followed by the binary encoding of the value under that
+decoded pattern.
 
-`core.k` is not loaded automatically as a library when user programs run. The
-codec only depends on the canonical `$pattern` definition from that file as the
-schema for the leading pattern value.
+`core.k` is not loaded automatically as a library when user programs
+run. The codec only depends on the canonical `$pattern` definition from
+that file as the schema for the leading pattern value.
 
 There is no separate JSON container format.
 
 ## Objectives
 
-The rewrite is guided by two hard requirements:
+The design is guided by two hard requirements:
 
 1. compactness close to the structural lower bound,
 2. efficient `k` projections, especially `.field` and `/tag`.
 
-The current target architecture is the pattern graph plus prefix-free value-tree
-stream described here and in
+The current target architecture is the pattern graph plus prefix-free
+value-tree stream described here and in
 [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md).
 
 ## Core Idea
 
-The semantic object serialized by the new codec is:
+The semantic object serialized by the codec is:
 
 ```text
 (P, v)
@@ -40,10 +41,11 @@ where:
 - `P` is an abstract rooted pattern graph,
 - `v` is a value tree compatible with `P`.
 
-The same pair is now the in-memory runtime model as well. Decoding a stream
-attaches `P` to the resulting `Value` as `value.pattern`; evaluation propagates
-that pattern through projections and constructors; encoding a `Value` uses its
-carried pattern unless an explicit pattern is supplied.
+The same pair is the in-memory runtime model as well. Decoding a stream
+attaches `P` to the resulting `Value` as `value.pattern`; evaluation
+propagates that pattern through projections and constructors; encoding
+a `Value` uses its carried pattern unless an explicit pattern is
+supplied.
 
 The base value encoding is:
 
@@ -52,9 +54,9 @@ The base value encoding is:
 - interpreted relative to the pattern graph,
 - free of repeated field names and tag names in the value payload.
 
-The base codec does **not** perform DAG compression. If sharing is desired, it
-should happen as a higher-level transform, not inside the primitive value
-format.
+The base codec does **not** perform DAG compression. If sharing is
+desired, it should happen as a higher-level transform, not inside the
+primitive value format.
 
 ## Wire Format
 
@@ -64,9 +66,9 @@ The default transport format is:
 encode($pattern_value : $pattern) encode(value : decoded_pattern)
 ```
 
-`$pattern_value` is a normal k value whose shape is defined in `core.k`. After
-that value is decoded, it becomes the pattern used to decode the remaining
-value payload.
+`$pattern_value` is a normal k value whose shape is defined in `core.k`.
+After that value is decoded, it becomes the pattern used to decode the
+remaining value payload.
 
 The runtime boundary is therefore:
 
@@ -74,25 +76,28 @@ The runtime boundary is therefore:
 binary pattern+value stream <-> Value(pattern, tree)
 ```
 
-At the command-line boundary, `k-parse` and `k-print` use a JSON-like textual
-notation for k values. That notation is documented in
-[`../DOCS/TEXTUAL_VALUES.md`](../DOCS/TEXTUAL_VALUES.md). It is a readable
-notation for k values, not a separate JSON container format.
+At the command-line boundary, `k-parse` and `k-print` use a JSON-like
+textual notation for k values. That notation is documented in
+[`../DOCS/TEXTUAL_VALUES.md`](../DOCS/TEXTUAL_VALUES.md). It is a
+readable notation for k values, not a separate JSON container format.
 
 For the codec architecture and specification, see
 [`../DOCS/CODEC_ARCHITECTURE.md`](../DOCS/CODEC_ARCHITECTURE.md).
-For the contributor-facing guide to writing a new external codec module, see
-[`../DOCS/CODECS.md`](../DOCS/CODECS.md).
+For the contributor-facing guide to writing a new external codec module,
+see [`../DOCS/CODECS.md`](../DOCS/CODECS.md).
+For the broader view of all artifacts and compilation targets, see
+[`../DOCS/FILE_FORMATS.md`](../DOCS/FILE_FORMATS.md).
 
-`k.mjs` is only the command-line adapter for that boundary. The operational
-runtime sees and preserves the pattern on the `Value` itself.
+`k.mjs` is only the command-line adapter for that boundary. The
+operational runtime sees and preserves the pattern on the `Value`
+itself.
 
 ## Command-Line Tools
 
-Installed codec binaries use the `k-` prefix followed by the source basename
-without `.mjs`. Source names that already include `k-`, such as
-`k-parse.mjs`, keep that name. Every installed codec binary supports `-h` and
-`--help`.
+Installed codec binaries use the `k-` prefix followed by the source
+basename without `.mjs`. Source names that already include `k-`, such
+as `k-parse.mjs`, keep that name. Every installed codec binary supports
+`-h` and `--help`.
 
 | Binary | Source | Purpose |
 | --- | --- | --- |
@@ -108,8 +113,8 @@ without `.mjs`. Source names that already include `k-`, such as
 
 ## Pattern Graph Representation
 
-For documentation and tests, a pattern graph may be shown as a property-list
-style vector of nodes:
+For documentation and tests, a pattern graph may be shown as a
+property-list style vector of nodes:
 
 ```text
 [kind, edges]
@@ -145,22 +150,23 @@ Canonical rules:
 - edge labels are unique within a node,
 - `"any"` must have no outgoing edges.
 
-This JSON-like graph is only a readable notation. The wire representation is
-the ordinary k `$pattern` value from `core.k`.
+This JSON-like graph is only a readable notation. The wire
+representation is the ordinary k `$pattern` value from `core.k`.
 
-For pattern export, see [`../DOCS/PATTERNS.md`](../DOCS/PATTERNS.md) and the
-repository helper `patterns/from-k.mjs`.
+For pattern export, see [`../DOCS/PATTERNS.md`](../DOCS/PATTERNS.md) and
+the repository helper `patterns/from-k.mjs`.
 
 ## Witness-Derived Patterns
 
-When `k-parse` is used without an explicit input pattern or type, the wire
-pattern is derived from the parsed value tree.
+When `k-parse` is used without an explicit input pattern or type, the
+wire pattern is derived from the parsed value tree.
 
 - An empty textual node is a closed product: `{}`.
 - A textual node with multiple children is a closed product.
-- A textual node with one child is interpreted as an open union by default.
-- An explicit product input pattern may force such a node to be treated as a
-  singleton product instead.
+- A textual node with one child is interpreted as an open union by
+  default.
+- An explicit product input pattern may force such a node to be
+  treated as a singleton product instead.
 
 For example, parsing:
 
@@ -179,18 +185,20 @@ without an input pattern derives:
 ]
 ```
 
-During this construction, finite closed pattern subtrees are hash-consed from
-the leaves upward. The starting closed leaf is `["closed-product", []]`. Two
-closed nodes collapse only when they have the same closed kind, the same labels,
-and the same already-collapsed child targets. Open nodes keep their identity,
-and recursive closed nodes are not collapsed by this witness-tree rule.
+During this construction, finite closed pattern subtrees are hash-consed
+from the leaves upward. The starting closed leaf is `["closed-product",
+[]]`. Two closed nodes collapse only when they have the same closed
+kind, the same labels, and the same already-collapsed child targets.
+Open nodes keep their identity, and recursive closed nodes are not
+collapsed by this witness-tree rule.
 
-This is canonicalization of the pattern graph carried in the wire stream. It is
-not DAG compression of the value payload.
+This is canonicalization of the pattern graph carried in the wire
+stream. It is not DAG compression of the value payload.
 
 ## Prefix-Free Value Encoding
 
-The value payload is a bitstream interpreted relative to the pattern graph.
+The value payload is a bitstream interpreted relative to the pattern
+graph.
 
 Base rules:
 
@@ -209,25 +217,27 @@ width = ceil(log2(cardinality))
 emit tag ordinal in width bits
 ```
 
-This is the simplest canonical prefix-free choice encoding. It is not the final
-word on compression, but it gives a regular and compact base encoding that can
-later be refined without changing the abstract pattern/value model.
+This is the simplest canonical prefix-free choice encoding. It is not
+the final word on compression, but it gives a regular and compact base
+encoding that can later be refined without changing the abstract
+pattern/value model.
 
 ## Projections
 
 The base tree encoding is chosen so that:
 
 - `/tag` only needs to read the union choice at the current node,
-- `.field` follows canonical product order and may later be accelerated by
-  higher-level indexes if necessary.
+- `.field` follows canonical product order and may later be accelerated
+  by higher-level indexes if necessary.
 
-In the materialized runtime, projections also project the carried pattern:
-`.field` returns the subpattern at that product field, and `/tag` returns the
-subpattern at that union tag. If no carried subpattern is available, later
-encoding can still derive a witness pattern from the result tree.
+In the materialized runtime, projections also project the carried
+pattern: `.field` returns the subpattern at that product field, and
+`/tag` returns the subpattern at that union tag. If no carried subpattern
+is available, later encoding can still derive a witness pattern from
+the result tree.
 
-The primitive codec stays minimal. Projection indexes, framing, or sharing
-schemes are explicitly separate concerns.
+The primitive codec stays minimal. Projection indexes, framing, or
+sharing schemes are explicitly separate concerns.
 
 ## Design Boundary
 
@@ -240,17 +250,18 @@ The new codec work is split into layers:
 
 ## Files
 
+- [`../DOCS/FILE_FORMATS.md`](../DOCS/FILE_FORMATS.md):
+  comprehensive guide to file formats and compilation pipelines.
 - [`../DOCS/CODEC_ARCHITECTURE.md`](../DOCS/CODEC_ARCHITECTURE.md):
   comprehensive architecture specification for k codecs.
 - [`../DOCS/CODECS.md`](../DOCS/CODECS.md):
   practical guide to writing, running, and testing codecs.
 - [`POLYMORPHIC_BINARY_FORMAT.md`](./POLYMORPHIC_BINARY_FORMAT.md):
-  main design document for the new pattern-plus-prefix-tree codec.
+  main design document for the pattern-plus-prefix-tree codec.
 - [`BINARY_FORMAT.md`](./BINARY_FORMAT.md):
   notes on future binary packaging of the same abstract semantics.
 
 ## Status
 
-The active command-line pipeline emits and consumes the self-hosted binary
-pattern+value stream.
-
+The active command-line pipeline emits and consumes the self-hosted
+binary pattern+value stream.

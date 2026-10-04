@@ -1,6 +1,7 @@
 # Convergence Strategies
 
-This note describes the current structure of the JavaScript type-derivation engine and the places intended for experimentation.
+This note describes the current structure of the JavaScript
+type-derivation engine and the places intended for experimentation.
 
 ## Current default
 
@@ -12,9 +13,11 @@ Type derivation operates on the SCC DAG of relation dependencies.
   - compact once
 - Recursive SCC:
   - use `fixed_point`
-  - iterate until signatures stabilize or the iteration budget is exhausted
+  - iterate until signatures stabilize or the iteration budget is
+    exhausted
 
-This split keeps acyclic modules fast while preserving the old behavior for recursive polymorphic definitions.
+This split keeps acyclic modules fast while preserving the old
+behavior for recursive polymorphic definitions.
 
 ## Public tuning hook
 
@@ -51,22 +54,37 @@ This is the supported inspection surface for convergence experiments.
 
 ## Why the current fast path works
 
-For an acyclic singleton SCC, every callee has already been fully derived by the time the current relation is processed. There is no need for repeated fixed-point propagation because:
+For an acyclic singleton SCC, every callee has already been fully
+derived by the time the current relation is processed. There is no
+need for repeated fixed-point propagation because:
 
 1. Callee boundary patterns are stable.
 2. The current relation only needs those stable input/output boundaries.
 3. One propagation pass plus one compaction is sufficient.
 
-`Examples/ieee.k` is exactly this shape: a large acyclic dependency graph. The major speedup comes from avoiding unnecessary fixed-point iteration there.
+`Examples/ieee.k` is exactly this shape: a large acyclic dependency
+graph. The major speedup comes from avoiding unnecessary fixed-point
+iteration there.
 
 ## Current implementation choices
 
 Two implementation changes matter for performance:
 
-1. Compaction now starts from the quotient graph of live representatives instead of cloning the full historical union-find forest.
-2. Singleton-pattern registration is incremental and no longer re-finalizes the entire global code repository on every compaction.
+1. Compaction now starts from the quotient graph of live
+   representatives instead of cloning the full historical union-find
+   forest.
+2. Singleton-pattern registration is incremental and no longer
+   re-finalizes the entire global code repository on every compaction.
 
-These two changes are what make `Examples/ieee.k` practical to type-check.
+These two changes are what make `Examples/ieee.k` practical to
+type-check.
+
+## Role in Ahead-Of-Time (AOT) Compilation
+
+Convergence strategies dictate the time spent during Ahead-Of-Time
+(AOT) type checking. Because compilation resolves and converges these
+dependency SCCs beforehand into `.ko`, `.klib`, and `.kvm` artifacts,
+runtime execution does not incur any convergence overhead.
 
 ## Where to experiment next
 
@@ -86,7 +104,20 @@ If you want to continue convergence work, these are the main seams:
 
 Promising next experiments:
 
-- Replace signature-string stabilization in `fixed_point` with structural change tracking.
+- Replace signature-string stabilization in `fixed_point` with
+  structural change tracking.
 - Add divergence heuristics for recursive polymorphic SCCs.
-- Cache cloned callee boundary graphs for repeated call sites within one relation.
-- Compare the current partition refinement in `compression.mjs` with a hash-consed canonical-form approach.
+- Cache cloned callee boundary graphs for repeated call sites within
+  one relation.
+- Compare the current partition refinement in `compression.mjs` with
+  a hash-consed canonical-form approach.
+
+## Further Reading
+
+- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) — guide to
+  .k, .ko, .klib, and .kvm formats
+- [DOCS/TYPE_DERIVATION.md](./TYPE_DERIVATION.md) — type derivation
+  algorithm and rules
+- [DOCS/OBJECT_FILE_AND_PATTERN.md](./OBJECT_FILE_AND_PATTERN.md) —
+  object format and pattern encoding
+- [DOCS/DICTIONARY.md](./DICTIONARY.md) — concept names and terminology

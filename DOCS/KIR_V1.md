@@ -1,14 +1,14 @@
 # KIR v1
 
-KIR v1 is the first backend-facing artifact contract for compiled k objects. It
-is an inspection and export contract, not a replacement for the current `.ko`
-and `.klib` containers.
+KIR v1 is the first backend-facing artifact contract for compiled k
+objects. It is an inspection and export contract, not a replacement
+for the current `.ko` and `.klib` containers.
 
-The first layer is **KIR-P**, the portable polymorphic relation format. KIR-P
-keeps the same pattern-carrying semantics as current object execution, but
-normalizes names and graph IDs so backends can consume object contents without
-depending on parser-shaped fields, current object storage, or
-`TypePatternGraph` internals.
+The first layer is **KIR-P**, the portable polymorphic relation format.
+KIR-P keeps the same pattern-carrying semantics as current object
+execution, but normalizes names and graph IDs so backends can consume
+object contents without depending on parser-shaped fields, current
+object storage, or `TypePatternGraph` internals.
 
 ## Scope
 
@@ -19,7 +19,8 @@ KIR v1 defines:
 - a closed expression opcode vocabulary;
 - dense per-relation pattern graph IDs;
 - relation type-derivation status;
-- object aliases, metadata, compile statistics, and code table pass-through.
+- object aliases, metadata, compile statistics, and code table
+  pass-through.
 
 KIR v1 does not define:
 
@@ -52,10 +53,10 @@ Rules:
 
 - `kind` is `executable` when `main` names an entry relation.
 - `kind` is `library` when `main` is `null`.
-- `codes`, `relAlias`, `compileStats`, and `meta` preserve the current object
-  payload content, sorted for stable inspection.
-- KIR consumers must not infer backend eligibility from the top level alone.
-  Each relation has its own `typeDerivation.status`.
+- `codes`, `relAlias`, `compileStats`, and `meta` preserve the current
+  object payload content, sorted for stable inspection.
+- KIR consumers must not infer backend eligibility from the top level
+  alone. Each relation has its own `typeDerivation.status`.
 
 ## Relations
 
@@ -80,11 +81,12 @@ Rules:
   `patternGraph`.
 - Valid type-derivation statuses are `converged`, `not-converged`, and
   `unknown`.
-- LLVM and optimized Wasm backends should reject relations whose status is not
-  `converged`, unless they intentionally implement an envelope-aware reference
-  mode.
-- `sourceNodeMap` maps original object pattern graph representative IDs to KIR
-  node IDs. It exists for inspection and debugging, not as a semantic contract.
+- LLVM and optimized Wasm backends should reject relations whose status
+  is not `converged`, unless they intentionally implement an
+  envelope-aware reference mode.
+- `sourceNodeMap` maps original object pattern graph representative IDs
+  to KIR node IDs. It exists for inspection and debugging, not as a
+  semantic contract.
 
 ## Pattern Graphs
 
@@ -116,11 +118,11 @@ Type nodes carry a type-code hash:
 Rules:
 
 - Edge labels are sorted lexically.
-- Parallel edges are represented as repeated edge records with the same label
-  and different targets.
+- Parallel edges are represented as repeated edge records with the same
+  label and different targets.
 - Edge targets always name nodes in the same relation pattern graph.
-- The graph is already union-find-normalized; KIR consumers should use KIR node
-  IDs directly.
+- The graph is already union-find-normalized; KIR consumers should use
+  KIR node IDs directly.
 
 ## Expression Opcodes
 
@@ -145,8 +147,8 @@ Rules:
 - `patterns` entries are KIR pattern graph node IDs.
 - `comp.items` preserve composition order.
 - `union.items` preserve source branch priority.
-- `product.fields` preserve the relation body field list. Backends may sort or
-  lay out fields later only after preserving observable semantics.
+- `product.fields` preserve the relation body field list. Backends may
+  sort or lay out fields later only after preserving observable semantics.
 - `filter.filter` currently preserves the stored filter tree. A later KIR
   revision may normalize filter internals.
 
@@ -167,11 +169,11 @@ Inside a checkout:
 ```
 
 This command decodes the current object format, hydrates relation pattern
-graphs through the normal object loader, and emits the current KIR-P textual
-encoding.
+graphs through the normal object loader, and emits the current KIR-P
+textual encoding.
 
-Use the conformance runner to compare source and object execution and validate
-KIR-P export for deterministic fixtures:
+Use the conformance runner to compare source and object execution and
+validate KIR-P export for deterministic fixtures:
 
 ```sh
 npm run conformance
@@ -186,21 +188,23 @@ k source
   -> .ko / .klib object
   -> KIR-P
   -> envelope-specialized KIR-P for an input envelope
-  -> KIR-M / kVM
+  -> KIR-M / kVM (.kvm)
   -> LLVM / Wasm / C / other backend
 ```
 
-KIR-P is the shared semantic object contract. Envelope Specialization produces another KIR-P
-object whose entry relation is specialized by an input envelope. KIR-M remains a
-separate backend contract and should not be encoded by overloading KIR-P fields.
-The current kVM lowerer consumes KIR-P relation bodies directly.
+KIR-P is the shared semantic object contract. Envelope Specialization
+produces another KIR-P object whose entry relation is specialized by an
+input envelope. KIR-M remains a separate backend contract and should not
+be encoded by overloading KIR-P fields. The current kVM lowerer consumes
+KIR-P relation bodies directly.
 
 ## Envelope Specialization
 
 The current API `retypeObjectRelation(object, relationName, inputPattern)`
-exports envelope-specialized KIR-P. The `retype...` spelling is legacy/current
-implementation naming; new public names should use envelope specialization. The
-pass re-runs existing type derivation as if the entry program were:
+exports envelope-specialized KIR-P. The `retype...` spelling is
+legacy/current implementation naming; new public names should use
+envelope specialization. The pass re-runs existing type derivation as
+if the entry program were:
 
 ```k
 ?inputPattern relationName
@@ -211,11 +215,18 @@ The result is a normal KIR-P executable object:
 - `layer: "KIR-P"`;
 - `kind: "executable"`;
 - `main` naming the specialized entry relation;
-- relation `inputPattern` and `outputPattern` roots in the entry relation's
-  `patternGraph`;
+- relation `inputPattern` and `outputPattern` roots in the entry
+  relation's `patternGraph`;
 - ordinary KIR relation bodies in `rels`.
 
-This is the safe baseline: it preserves envelope-aware execution semantics while
-making the specialized entry pattern explicit through ordinary KIR-P relation
-typing. Relation/input-pattern cache keys and call-site worklists are local
-compiler data; they are not part of the serialized KIR artifact.
+This is the safe baseline: it preserves envelope-aware execution
+semantics while making the specialized entry pattern explicit through
+ordinary KIR-P relation typing. Relation/input-pattern cache keys and
+call-site worklists are local compiler data; they are not part of the
+serialized KIR artifact.
+
+- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) —
+  guide to .k, .ko, .klib, and .kvm formats
+- [DOCS/KVM_EXECUTION_MODEL.md](./KVM_EXECUTION_MODEL.md) —
+  kVM execution model and bytecode design
+- [DOCS/DICTIONARY.md](./DICTIONARY.md) — concept names and terminology

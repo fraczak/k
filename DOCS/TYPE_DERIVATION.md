@@ -2,12 +2,17 @@
 
 ## 1. Overview
 
-This algorithm infers type constraints for programs consisting of mutually recursive partial functions over algebraic data types (products and unions).
+This algorithm infers type constraints for programs consisting of
+mutually recursive partial functions over algebraic data types
+(products and unions).
 
-**Input:** AST of a `k` program, consisting of function definitions (expressions), which can be seen as a set of recursive equations.
-**Output:** Annotated AST with type patterns (also called filters)
+**Input:** AST of a `k` program, consisting of function definitions
+(expressions), which can be seen as a set of recursive equations.
+**Output:** Annotated AST with type patterns (also called filters).
 
-It is assumed that we have access (through APIs) to a universal "type registry", which provides us with unique (canonical) names for each type.
+All types and relations are canonically identified by immutable
+content-addressed hashes (`@hash`). Human-readable names are local
+aliases.
 
 ## 2. Patterns
 
@@ -22,27 +27,39 @@ A **pattern** represents a set of types:
 | `<>` | Closed union | Exactly specified |
 | `T` | Named type | From type definition |
 
-**Fields:** Each pattern has associated field labels. For open patterns, additional fields may exist. For closed patterns, the field set is exact.
-Unknown-kind patterns have only the open form `(...)`; a closed filter must choose product `{...}`/`{}` or union `<...>`/`<>`.
+**Fields:** Each pattern has associated field labels. For open patterns,
+additional fields may exist. For closed patterns, the field set is exact.
+Unknown-kind patterns have only the open form `(...)`; a closed filter
+must choose product `{...}`/`{}` or union `<...>`/`<>`.
 
-A type pattern is a singleton pattern, i.e., only one type is captured by such a pattern.
+A type pattern is a singleton pattern, i.e., only one type is captured
+by such a pattern.
 
 ## 3. Pattern Graph - A Data Structure Used During Type Derivation
 
-**Nodes:** Patterns organized in a "reps" (representatives) forest, similar to union-find. However, a union of two (or more) different trees always produces a new "rep" (root) node, joining the trees.
-**Edges:** Labeled by field names, pointing to other patterns
-**Representatives:** Root nodes (called reps) represent equivalence classes
+**Nodes:** Patterns organized in a "reps" (representatives) forest,
+similar to union-find. However, a union of two (or more) different trees
+always produces a new "rep" (root) node, joining the trees.
+**Edges:** Labeled by field names, pointing to other patterns.
+**Representatives:** Root nodes (called reps) represent equivalence
+classes.
 
 **Operations:**
 
 - `find(p)` - get representative of pattern `p`
-- `unify(p₁, ..., pₙ)` - merge patterns into equivalence class, potentially adding a new rep (root); the rep gathers all edges of their children
-- `clone(p₁, ..., pₙ)` - generate a copy of the pattern graph connected to the patterns
-- `compact()` - discovers all singleton patterns and replaces them by "Named types"
+- `unify(p₁, ..., pₙ)` - merge patterns into equivalence class,
+  potentially adding a new rep (root); the rep gathers all edges of
+  their children
+- `clone(p₁, ..., pₙ)` - generate a copy of the pattern graph connected
+  to the patterns
+- `compact()` - discovers all singleton patterns and replaces them by
+  named canonical types
 
 ## 4. Unification
 
-`unify(p₁, ..., pₙ)` computes the least upper bound (most specific common pattern); it may add a new node (rep) into the reps forest, but it does not modify any existing pattern node.
+`unify(p₁, ..., pₙ)` computes the least upper bound (most specific
+common pattern); it may add a new node (rep) into the reps forest, but
+it does not modify any existing pattern node.
 
 **Rules:**
 
@@ -50,7 +67,7 @@ A type pattern is a singleton pattern, i.e., only one type is captured by such a
 - **Open + Closed:** Check field inclusion, then become closed
 - **Closed + Closed:** Check field equality, then stay closed
 - **Product ⊥ Union:** Error (incompatible)
-- **Type T:** Unique (canonical name)
+- **Type T:** Unique (canonical `@hash` name)
 
 **Algorithm:**
 
@@ -122,7 +139,8 @@ in(f) = LOOKUP(in(f))
 out(f) = LOOKUP(out(f))
 ```
 
-Once the type derivation for the defining expression for `f` is done, the input and output patterns are stored and will be used.
+Once the type derivation for the defining expression for `f` is done, the
+input and output patterns are stored and will be used.
 
 ### Type `$ T`
 
@@ -165,19 +183,23 @@ For each SCC (in topological order):
   Repeat until convergence (max 10 iterations):
     For each function `f` in SCC:
       1. Compact `f`'s pattern graph
-      2. For each occurrence `o` of `g` in `f`, clone(in(g), out(g)) and unify input and output patterns of `o` with the corresponding cloned patterns
+      2. For each occurrence `o` of `g` in `f`, clone(in(g), out(g))
+         and unify input and output patterns of `o` with the
+         corresponding cloned patterns
 
     If pattern graphs unchanged: break
 ```
 
 ## 7. Compaction
 
-**Purpose:** Replace all pattern nodes with their reps and replace all singleton patterns with types.
+**Purpose:** Replace all pattern nodes with their reps and replace all
+singleton patterns with types.
 
 **Algorithm:**
 
 ```text
-1. Build a new graph only on reps (keep the mappings from pattern node to its rep)
+1. Build a new graph only on reps (keep the mappings from pattern
+   node to its rep)
 2. Identify singleton patterns (closed patterns with no open ancestors)
 3. Register singletons as named types and use them as type pattern nodes
 ```
@@ -202,7 +224,8 @@ For each function f in SCC:
 Converged = (current_state == previous_state)
 ```
 
-**Guarantee:** Monotonic refinement + iteration bound ensures termination
+**Guarantee:** Monotonic refinement + iteration bound ensures
+termination.
 
 ## 9. Error Handling
 
@@ -210,7 +233,8 @@ Converged = (current_state == previous_state)
 
 - Product vs Union
 - Closed pattern field mismatch
-- Two distinct type patterns (types with different canonical names) are always incompatible
+- Two distinct type patterns (types with different canonical `@hash`
+  names) are always incompatible
 
 **Other errors:**
 
@@ -227,4 +251,26 @@ Converged = (current_state == previous_state)
 ## 10. Implementation Notes
 
 - Use reps forest for performing and tracing unification
-- Compact only at the end of an iteration to keep unification reasons for error messages
+- Compact only at the end of an iteration to keep unification reasons
+  for error messages
+
+## 11. Role in Ahead-Of-Time (AOT) Compilation
+
+This type derivation algorithm forms the core of Ahead-Of-Time (AOT)
+type checking in `k`.
+
+When compiling `.k` source code into an executable object (`.ko`),
+a library (`.klib`), or a polymorphic kVM template (`.kvm`), type
+derivation converges all principal type graphs beforehand. The resulting
+artifacts store fully derived principal pattern graphs, allowing
+downstream execution and linking to bypass cold-start type derivation
+entirely.
+
+## Further Reading
+
+- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) — guide to
+  .k, .ko, .klib, and .kvm formats
+- [DOCS/CONVERGENCE.md](./CONVERGENCE.md) — convergence strategies
+- [DOCS/OBJECT_FILE_AND_PATTERN.md](./OBJECT_FILE_AND_PATTERN.md) —
+  object format and pattern encoding
+- [DOCS/DICTIONARY.md](./DICTIONARY.md) — concept names and terminology

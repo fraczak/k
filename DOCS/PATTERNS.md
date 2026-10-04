@@ -1,7 +1,7 @@
 # Patterns
 
-A pattern describes the shape of values that may flow through a k expression.
-Patterns are used by:
+A pattern describes the shape of values that may flow through a k
+expression. Patterns are used by:
 
 - the type-derivation engine
 - the binary codec
@@ -102,14 +102,18 @@ The active wire format is:
 encode($pattern_value : $pattern) encode(value : decoded_pattern)
 ```
 
-So the property-list array printed by `patterns/from-k.mjs` is a readable
-externalization of the same pattern information carried in the wire stream.
+So the property-list array printed by `patterns/from-k.mjs` is a
+readable externalization of the same pattern information carried in the
+wire stream.
 
-`k-parse --input-pattern ...` and `k-parse --input-type ...` both ultimately
-produce the same kind of root pattern used to interpret textual values.
+`k-parse --input-pattern ...` and `k-parse --input-type ...` both
+ultimately produce the same kind of root pattern used to interpret
+textual values.
 
 ## See Also
 
+- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) — guide to
+  .k, .ko, .klib, and .kvm formats
 - [DOCS/TEXTUAL_VALUES.md](./TEXTUAL_VALUES.md)
 - [codecs/README.md](../codecs/README.md)
 - [DOCS/OBJECT_FILE_AND_PATTERN.md](./OBJECT_FILE_AND_PATTERN.md)

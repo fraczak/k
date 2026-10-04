@@ -69,6 +69,34 @@ pattern and otherwise behaves like identity.
 Source syntax may present this operation as a filter expression. The semantic
 operation is a pattern guard.
 
+### Canonical Content-Addressed Hash (`@hash`)
+
+A `canonical content-addressed hash` is the immutable, unique identifier
+derived from the normalized AST of a relation or the minimal deterministic
+tree automaton of a type.
+
+In `k`, there is no global symbol namespace. Every compiled relation and
+type code is identified globally and uniquely by its `@hash`.
+
+### Local Alias
+
+A `local alias` is a human-readable identifier (such as `plus`, `int`,
+or `5`) mapped to a canonical hash in object metadata (`relAlias`,
+`typeAliases`).
+
+Aliases are local to their compilation scope. When loading libraries
+with `--lib`, canonical definitions are available by their `@hash`, but
+local aliases are not automatically exported into the consumer's scope
+unless explicitly mapped with `--export`.
+
+### Relations as Values (No Built-in Numbers)
+
+In `k`, there are no primitive numerical types or built-in integer
+literals. Numerical identifiers such as `5` or `10` are nullary
+relations (constants) mapping the unit `${}` to bit trees of type
+`${} -> $bits`. Operations on signed integers (`$int`) require
+converting bit trees via the `int` constructor (`5 int`).
+
 ## Values, Types, And Patterns
 
 ### Value Tree
@@ -235,6 +263,16 @@ The key product is still a k-shaped core expression graph, now annotated by
 type-pattern facts. This stage is a semantic artifact; it does not imply a
 particular serialized format.
 
+### Ahead-Of-Time (AOT) Type Checking
+
+`Ahead-of-time (AOT) type checking` refers to the compilation phase
+where parsing, relation expansion, structural type derivation, and
+fixed-point constraint convergence are solved in advance.
+
+The resulting compiled artifacts (`.ko`, `.klib`, `.kvm`) store fully
+derived principal type graphs and interned type codes, allowing downstream
+execution or linking to skip cold-start type derivation entirely.
+
 ### k Object
 
 A `k object` is a compiled semantic object.
@@ -242,8 +280,37 @@ A `k object` is a compiled semantic object.
 It stores canonical type codes, partial functions, aliases, metadata,
 type-pattern graphs, and type-derivation status.
 
-An executable object has a main partial function. A library object contains
-reusable definitions but no selected main partial function.
+An executable object (`.ko`) has an execution entrypoint (`main:
+"__main__"`). A library object (`.klib`) contains reusable definitions
+but no selected main relation (`main: null`).
+
+### File Formats in the K Universe
+
+The `k` toolchain defines four primary file formats (for comprehensive
+details and workflows, see [`DOCS/FILE_FORMATS.md`](FILE_FORMATS.md)):
+
+- **Source File (`.k`):** Plain UTF-8 source text defining algebraic data
+  shapes, partial functions, and expressions.
+- **Executable Object (`.ko`):** AOT type-checked executable artifact
+  with binary header `KOBJ\n` and JSON payload containing `codes`, `rels`,
+  and entrypoint `main: "__main__"`. Executable directly via `k.mjs`,
+  WebAssembly, or LLVM.
+- **Library Object (`.klib`):** AOT type-checked library container stored
+  as plain UTF-8 JSON without an entrypoint (`main: null`). Provides
+  reusable pre-converged relations and type graphs for downstream linking.
+- **Polymorphic kVM Template (`.kvm`):** Register-IR bytecode template
+  (`format: "k-vm"`, `layer: "KVM-P"`) carrying principal pattern graphs.
+  Specialized on-the-fly at runtime (`specializeKVM`) against concrete
+  input envelopes $(v, P_v)$ without re-running type inference.
+
+### Stream Transformer vs. Closed Constant Relation
+
+- A **stream transformer** is a relation with an open domain (e.g. `{() x,
+  5 int y} plus`) that consumes external data arriving from a binary
+  stream or standard input.
+- A **closed constant relation** is a relation with no free inputs (such
+  as `{10 int x, 5 int y} plus`). Its domain is the unit type `${}`,
+  requiring an empty unit `{}` when executed as a standalone script.
 
 ### KIR-P
 
