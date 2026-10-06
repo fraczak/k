@@ -49,6 +49,7 @@ function cStringBytes(text) {
 export function runtimeDeclarations() {
   return [
     "%k_rt_mark = type { ptr, i64 }",
+    "%k_rt_tail_mark = type { %k_rt_mark, %k_rt_mark }",
     "%k_result = type { i32, ptr }",
     "",
     "declare %k_rt_mark @k_rt_mark(ptr)",
@@ -316,7 +317,7 @@ function lowerRtCompact(ctx, val, tailMarkSlot = "%tail_mark_slot") {
   const hasBlock = ctx.tempName("has_block");
   const markBlockPtr = ctx.tempName("mark_block_ptr");
   ctx.lines.push(`  ${hasBlock} = icmp ne ptr ${curBlock}, null`);
-  ctx.lines.push(`  ${markBlockPtr} = getelementptr inbounds %k_rt_mark, ptr ${tailMarkSlot}, i32 0, i32 0`);
+  ctx.lines.push(`  ${markBlockPtr} = getelementptr inbounds %k_rt_tail_mark, ptr ${tailMarkSlot}, i32 0, i32 1, i32 0`);
   const markBlock = ctx.tempName("mark_block");
   ctx.lines.push(`  ${markBlock} = load ptr, ptr ${markBlockPtr}`);
 
@@ -340,7 +341,7 @@ function lowerRtCompact(ctx, val, tailMarkSlot = "%tail_mark_slot") {
   ctx.lines.push(`${loadGrowthBlock}:`);
   const curUsed = loadI64At(ctx, curBlock, K_ARENA_BLOCK_USED_OFFSET, "cur_used");
   const markUsedPtr = ctx.tempName("mark_used_ptr");
-  ctx.lines.push(`  ${markUsedPtr} = getelementptr inbounds %k_rt_mark, ptr ${tailMarkSlot}, i32 0, i32 1`);
+  ctx.lines.push(`  ${markUsedPtr} = getelementptr inbounds %k_rt_tail_mark, ptr ${tailMarkSlot}, i32 0, i32 1, i32 1`);
   const markUsed = ctx.tempName("mark_used");
   ctx.lines.push(`  ${markUsed} = load i64, ptr ${markUsedPtr}`);
   const growth = ctx.tempName("arena_growth");
@@ -605,11 +606,16 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
 
   if (isCatchTail) {
     ctx.allocas.push("  %tail_input_slot = alloca ptr");
-    ctx.allocas.push("  %tail_mark_slot = alloca %k_rt_mark");
+    ctx.allocas.push("  %tail_mark_slot = alloca %k_rt_tail_mark");
     ctx.lines.push("  store ptr %input, ptr %tail_input_slot");
     const initMark = ctx.tempName("init_mark");
     ctx.lines.push(`  ${initMark} = call %k_rt_mark @k_rt_mark(ptr %rt)`);
-    ctx.lines.push(`  store %k_rt_mark ${initMark}, ptr %tail_mark_slot`);
+    const baseMarkPtr = ctx.tempName("base_mark_ptr");
+    const lastMarkPtr = ctx.tempName("last_mark_ptr");
+    ctx.lines.push(`  ${baseMarkPtr} = getelementptr inbounds %k_rt_tail_mark, ptr %tail_mark_slot, i32 0, i32 0`);
+    ctx.lines.push(`  store %k_rt_mark ${initMark}, ptr ${baseMarkPtr}`);
+    ctx.lines.push(`  ${lastMarkPtr} = getelementptr inbounds %k_rt_tail_mark, ptr %tail_mark_slot, i32 0, i32 1`);
+    ctx.lines.push(`  store %k_rt_mark ${initMark}, ptr ${lastMarkPtr}`);
     ctx.lines.push("  br label %tail_loop");
     ctx.lines.push("tail_loop:");
     ctx.lines.push("  %tail_input = load ptr, ptr %tail_input_slot");

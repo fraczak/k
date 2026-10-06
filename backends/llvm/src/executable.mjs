@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import { isProduct, isVariant } from "@fraczak/k/Value.mjs";
 import { exportPatternGraph } from "@fraczak/k/codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "@fraczak/k/codecs/runtime/pattern-json.mjs";
+import { specializeKVM } from "@fraczak/k/kvm.mjs";
 import { compileObjectToLLVM } from "./llvm.mjs";
+import { compileKVMModuleToLLVM } from "./kvm2llvm.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -542,6 +544,40 @@ export function compileObjectToExecutable(object, outputPath, { relation = objec
   const { inputPattern: compiledInputPattern, outputPattern, llvm } = compileObjectToLLVM(object, {
     relation,
     inputPattern: inputPattern || inputPatternForObjectRelation(object, relation),
+    runtimeMode
+  });
+  compileLLVMToExecutable(llvm, outputPath, {
+    driver: stdioDriverSource({
+      inputPattern: compiledInputPattern,
+      outputPattern
+    }),
+    clangOpt
+  });
+}
+
+export function compileKVMToExecutable(kvmInput, outputPath, {
+  entry = null,
+  inputPattern = null,
+  runtimeMode = "fast",
+  clangOpt = "-O3"
+} = {}) {
+  let kvm = kvmInput;
+  if (kvm?.format === "k-vm") {
+    if (kvm.layer === "KVM-P" && inputPattern) {
+      kvm = specializeKVM(kvm, inputPattern);
+    }
+  }
+  const functions = kvm.functions || (typeof kvm === "object" && !Array.isArray(kvm) ? kvm : null);
+  if (!functions) throw new Error("Expected .kvm input to contain a functions object");
+  const entryFunc = entry || kvm.entry || kvm.relation || "__main__";
+  const mainFunc = functions[entryFunc];
+  if (!mainFunc) throw new Error(`No kVM entry function '${entryFunc}' found`);
+  const compiledInputPattern = inputPattern || mainFunc?.inputPattern || kvm.inputPattern;
+  const outputPattern = mainFunc?.outputPattern || kvm.outputPattern;
+  const llvm = compileKVMModuleToLLVM(entryFunc, functions, {
+    relation: entryFunc,
+    inputPattern: compiledInputPattern,
+    outputPattern,
     runtimeMode
   });
   compileLLVMToExecutable(llvm, outputPath, {

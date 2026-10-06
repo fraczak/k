@@ -7,6 +7,24 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const node = process.execPath;
+
+function printHelp() {
+  console.log(`Usage: node scripts/run-tests.mjs [options]
+
+Runs the comprehensive K language test suite, including core unit tests,
+type derivation, codecs, object encoding, conformance, REPL, interpreter,
+and arithmetic suites.
+
+Options:
+  -h, --help
+      Show this help message and exit.`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
 const derivationTests = fs.readdirSync(path.join(root, "tests/code-derivation"))
   .filter((name) => name.endsWith(".mjs"))
   .sort()
@@ -31,6 +49,7 @@ const tests = [
   ["tests/test-kvm.mjs", node, ["tests/test-kvm.mjs"]],
   ["tests/test-kvm-polymorphic.mjs", node, ["tests/test-kvm-polymorphic.mjs"]],
   ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],
+  ["tests/test-karatsuba.mjs", node, ["tests/test-karatsuba.mjs"]],
   ["tests/test-poly.mjs", node, ["tests/test-poly.mjs"]],
   ["tests/test-ieee-arithmetic.mjs", node, ["tests/test-ieee-arithmetic.mjs"]],
   ["tests/integration.sh", path.join(root, "tests/integration.sh"), []]

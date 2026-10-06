@@ -39,11 +39,11 @@ concat_ = ${bits x, bits y}
 -- successor (increment by 1)
 succ = {inv x, _ y} _inc;
 
-_inc = ${bits x, bits y} <
-    {.x /0 x, .y |1 y} concat_,
-    {.x /1 x, .y |0 y} _inc,
-    .y |1
->;
+_inc = ?{X x, X y} 
+<
+    {.x </0,/_|_> x, .y |1 y} concat_,
+    {.x /1 x, .y |0 y} _inc
+> ?X;
 
 -- constants
 2 = 1 succ;

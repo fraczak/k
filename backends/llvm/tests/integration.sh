@@ -95,6 +95,17 @@ printf '{"x":"left","y":"right"}' \
 
 printf '{"x":"left"}' | node ../../codecs/k-parse.mjs | "$TMP_DIR/run-exe" && exit 1 || test "$?" -eq 5
 
+node ../../objects/compile.mjs '?{<{}=X0 left, ...> x, <X0 right, ...> y} .x' "$TMP_DIR/run-proj.kvm"
+node ./bin/k-llvm-compile.mjs "$TMP_DIR/run-proj.kvm" "$TMP_DIR/run-proj-kvm.ll"
+grep -q '@k_llvm_metadata' "$TMP_DIR/run-proj-kvm.ll"
+grep -q 'define %k_result @k_main' "$TMP_DIR/run-proj-kvm.ll"
+node ./bin/k-llvm-build.mjs "$TMP_DIR/run-proj.kvm" -o "$TMP_DIR/run-kvm-exe"
+printf '{"x":"left","y":"right"}' \
+  | node ../../codecs/k-parse.mjs \
+  | "$TMP_DIR/run-kvm-exe" \
+  | node ../../codecs/k-print.mjs \
+  | grep -qx '"left"'
+
 node ./bin/k-llvm-build.mjs '?<{} left, {} right, ...>' -o "$TMP_DIR/id-exe"
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const pattern = [[\"open-union\",[[\"left\",1],[\"right\",1]]],[\"closed-product\",[]]]; stdout.write(encodeToWire(Value.variant(\"left\", Value.product({}), pattern), pattern));" \
   | "$TMP_DIR/id-exe" \

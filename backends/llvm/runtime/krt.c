@@ -553,17 +553,17 @@ static void rt_rewind_and_free(k_rt *rt, k_rt_checkpoint mark) {
   rt->has_reusable_blocks = 0;
 }
 
-k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr) {
-  if (rt == NULL || root == NULL || mark_ptr == NULL) return root;
+k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_tail_mark *tm) {
+  if (rt == NULL || root == NULL || tm == NULL) return root;
 
-  size_t bytes = bytes_since_mark(rt, *mark_ptr);
+  size_t bytes = bytes_since_mark(rt, tm->last_mark);
   if (bytes < 4194304) {
     return root;
   }
 
-  if (!is_after_mark(rt, root, *mark_ptr)) {
-    rt_rewind_and_free(rt, *mark_ptr);
-    *mark_ptr = k_rt_mark(rt);
+  if (!is_after_mark(rt, root, tm->base_mark)) {
+    rt_rewind_and_free(rt, tm->base_mark);
+    tm->last_mark = tm->base_mark;
     return root;
   }
 
@@ -574,14 +574,14 @@ k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr) {
 
   k_fixup_list fixups = {NULL, 0, 0};
 
-  k_value *staged_root = copy_value(rt, root, &staging, &staging_used, &staging_cap, &fixups, *mark_ptr);
+  k_value *staged_root = copy_value(rt, root, &staging, &staging_used, &staging_cap, &fixups, tm->base_mark);
 
-  rt_rewind_and_free(rt, *mark_ptr);
+  rt_rewind_and_free(rt, tm->base_mark);
 
   if (staging_used == 0) {
     free(staging);
     if (fixups.offsets != NULL) free(fixups.offsets);
-    *mark_ptr = k_rt_mark(rt);
+    tm->last_mark = tm->base_mark;
     return staged_root;
   }
 
@@ -605,7 +605,7 @@ k_value *k_rt_compact(k_rt *rt, k_value *root, k_rt_checkpoint *mark_ptr) {
   free(staging);
   if (fixups.offsets != NULL) free(fixups.offsets);
 
-  *mark_ptr = k_rt_mark(rt);
+  tm->last_mark = k_rt_mark(rt);
 
   return new_root;
 }

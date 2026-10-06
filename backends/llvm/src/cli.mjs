@@ -135,7 +135,7 @@ export async function compileProgramInputToObject(
   } else if (input.kind === "ko" || input.kind === "klib") {
     object = decodeObject(fs.readFileSync(input.path));
   } else if (input.kind === "kvm") {
-    throw new Error("Compiling directly from .kvm to LLVM is not yet supported; use .k or .ko input.");
+    throw new Error("Input is already lowered to .kvm bytecode; use compileLLVMArtifactFromKVM or compileKVMToExecutable.");
   } else {
     throw new Error(`Unsupported input kind: ${input.kind}`);
   }

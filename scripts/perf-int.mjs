@@ -56,6 +56,73 @@ import {
 import { compileARM64ArtifactFromObject } from "../backends/arm64/src/arm64.mjs";
 import { compileWasmArtifactFromObject } from "../backends/wasm/src/wasm.mjs";
 
+function printHelp() {
+  console.log(`Usage: node scripts/perf-int.mjs [options]
+
+Big Integer Arithmetic Performance Benchmark Harness.
+Benchmarks plus, minus, times, and squaring scale on arithmetics.k
+across Native JS, kVM interpreter, LLVM, Wasm, and ARM64 backends.
+
+Options:
+  --wasm-in-process
+      Run WebAssembly in-process instead of persistent subprocess runner.
+  -h, --help
+      Show this help message and exit.
+
+Environment Variables:
+  BACKENDS
+      Target backend to run: 'llvm', 'wasm', or 'arm64'.
+  LLVM_ONLY
+      Run only LLVM backend ('1' to enable).
+  WASM_ONLY
+      Run only WebAssembly backend ('1' to enable).
+  ARM64_ONLY
+      Run only ARM64 backend ('1' to enable).
+  BACKENDS_ONLY
+      Skip JS and kVM interpreter baselines ('1' to enable).
+  INPUTS
+      Comma-separated integer strings to benchmark.
+  ITERATIONS
+      Measured iterations per benchmark (default: 3).
+  ARM64_WARMUP_ITERATIONS
+      Warmup iterations for ARM64 backend (default: 1).
+  ARM64_OPT
+      ARM64 backend optimization flags (default: -O2).
+  ARM64_SPAWN_PER_CALL
+      Spawn process per ARM64 call instead of persistent ('1' or '0').
+  ARM64_PIPELINE
+      Use persistent pipelined runner for ARM64 ('1' or '0').
+  LLVM_WARMUP_ITERATIONS
+      Warmup iterations for LLVM backend (default: 1).
+  LLVM_SPAWN_PER_CALL
+      Spawn process per LLVM call instead of persistent ('1' or '0').
+  LLVM_PIPELINE
+      Use persistent pipelined runner for LLVM ('1' or '0').
+  K_LLVM_CACHE_DIR
+      Directory to cache compiled LLVM executable binaries.
+  WASM_WARMUP_ITERATIONS
+      Warmup iterations for WebAssembly backend (default: 3).
+  WASM_RESET
+      Reset WebAssembly memory between iterations (default: 1).
+  WASM_PIPE
+      Use persistent subprocess for Wasm (default: 1, '0': in-process).
+  WASM_IN_PROCESS
+      Run WebAssembly in-process ('1' to enable).
+  SQUARING_INPUT
+      Initial integer for squaring benchmark (default: 987654321).
+  SQUARING_STEPS
+      Number of squaring steps (default: 10).
+  SQUARING_STEP_TIMEOUT_MS
+      Timeout per squaring step in milliseconds (default: 60000).
+  K_ARENA_CAPACITY_MB
+      Memory arena capacity in MB (default: 4096).`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
 // Backend selection
 const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";

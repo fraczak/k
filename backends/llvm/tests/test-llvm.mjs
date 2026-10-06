@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { compileObjectBuffer, decodeObject } from "@fraczak/k/object.mjs";
-import { compileObjectToLLVM, emitLLVMModule, llvmIdentifier } from "../src/llvm.mjs";
+import { compileObjectToLLVM, compileLLVMArtifactFromKVM, emitLLVMModule, llvmIdentifier } from "../src/llvm.mjs";
+import { objectToKVMArtifact } from "@fraczak/k/kvm.mjs";
 
 function kirP(body, { patternGraph = null } = {}) {
   return {
@@ -255,5 +256,18 @@ const { llvm: productRecurseLLVM } = compileObjectToLLVM(productRecurseObject, {
 });
 // Calls inside product fields must not return tail status (i32 2)
 assert.doesNotMatch(productRecurseLLVM, /insertvalue %k_result undef, i32 2, 0/);
+
+const kvmArtifact = objectToKVMArtifact(productObject, "__main__");
+assert.equal(kvmArtifact.format, "k-vm");
+const kvmLLVM = compileLLVMArtifactFromKVM(kvmArtifact, {
+  inputPattern: [
+    ["closed-product", [["x", 1], ["y", 2]]],
+    ["closed-product", [["valA", 1]]],
+    ["closed-product", [["valB", 2]]]
+  ]
+});
+assert.match(kvmLLVM, /source_filename = "k-llvm:__main__"/);
+assert.match(kvmLLVM, /define %k_result @k_main/);
+assert.match(kvmLLVM, /store ptr %product_fields\d+, ptr %ptr_slot\d+/);
 
 console.log("OK");

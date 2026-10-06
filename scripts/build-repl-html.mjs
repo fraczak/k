@@ -10,6 +10,23 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const workspaceRoot = path.resolve(projectRoot, "..");
 
+function printHelp() {
+  console.log(`Usage: node scripts/build-repl-html.mjs [options]
+
+Builds the standalone, self-contained K web REPL (repl.html).
+Bundles browser shims, virtual file system (core.k, Examples, Wasm),
+and UI components into a single zero-dependency HTML file.
+
+Options:
+  -h, --help
+      Show this help message and exit.`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
 console.log("=== Building Self-Contained K REPL HTML ===");
 
 // 1. Node shims plugin for esbuild

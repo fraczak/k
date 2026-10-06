@@ -60,6 +60,73 @@ import { compileARM64ArtifactFromObject } from "../backends/arm64/src/arm64.mjs"
 import { compileWasmArtifactFromObject } from "../backends/wasm/src/wasm.mjs";
 import { inputPatternForObjectRelation } from "../backends/llvm/src/executable.mjs";
 
+function printHelp() {
+  console.log(`Usage: node scripts/perf-poly.mjs [options]
+
+Polymorphic List Operations Benchmark Harness.
+Benchmarks reverse, concat, split_by, get_nth, and length on
+Examples/poly.k across Native JS, kVM interpreter, LLVM, Wasm, and ARM64.
+
+Options:
+  --trace
+      Enable 7-phase nanosecond execution timing.
+  --profile
+      Enable per-function call count profiling.
+  --wasm-in-process
+      Run WebAssembly in-process instead of persistent subprocess runner.
+  -h, --help
+      Show this help message and exit.
+
+Environment Variables:
+  BACKENDS
+      Target backend to run: 'llvm', 'wasm', or 'arm64'.
+  LLVM_ONLY
+      Run only LLVM backend ('1' to enable).
+  WASM_ONLY
+      Run only WebAssembly backend ('1' to enable).
+  ARM64_ONLY
+      Run only ARM64 backend ('1' to enable).
+  BACKENDS_ONLY
+      Skip JS and kVM interpreter baselines ('1' to enable).
+  LIST_LENGTH
+      Workload size for list operations (default: 40).
+  ITERATIONS
+      Measured iterations per benchmark (default: 3).
+  TRACE, K_TRACE
+      Enable nanosecond execution tracing ('1' to enable).
+  PROFILE, K_PROFILE
+      Enable per-function call count profiling ('1' to enable).
+  ARM64_WARMUP_ITERATIONS
+      Warmup iterations for ARM64 backend (default: 1).
+  ARM64_OPT
+      ARM64 backend optimization flags (default: -O2).
+  ARM64_SPAWN_PER_CALL
+      Spawn process per ARM64 call instead of persistent ('1' or '0').
+  ARM64_PIPELINE
+      Use persistent pipelined runner for ARM64 ('1' or '0').
+  LLVM_WARMUP_ITERATIONS
+      Warmup iterations for LLVM backend (default: 1).
+  LLVM_SPAWN_PER_CALL
+      Spawn process per LLVM call instead of persistent ('1' or '0').
+  LLVM_PIPELINE
+      Use persistent pipelined runner for LLVM ('1' or '0').
+  K_LLVM_CACHE_DIR
+      Directory to cache compiled LLVM executable binaries.
+  WASM_WARMUP_ITERATIONS
+      Warmup iterations for WebAssembly backend (default: 3).
+  WASM_RESET
+      Reset WebAssembly memory between iterations (default: 1).
+  WASM_PIPE
+      Use persistent subprocess for Wasm (default: 1, '0': in-process).
+  WASM_IN_PROCESS
+      Run WebAssembly in-process ('1' to enable).`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
 // Backend selection
 const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";

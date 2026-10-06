@@ -14,6 +14,33 @@ const DEFAULT_EXAMPLES = [
   "Examples/ieee.k"
 ];
 
+function printHelp() {
+  console.log(
+`Usage: node scripts/benchmark-idempotency.mjs [options] [files...]
+
+Measures compile and decompile round-trip idempotency performance
+for K source files through the .klib object format.
+
+Arguments:
+  example.k ...
+      One or more .k source files to benchmark.
+      (default: Examples/nat.k Examples/byte.k Examples/bnat.k
+                Examples/arithmetics.k Examples/ieee.k)
+
+Options:
+  -h, --help
+      Show this help message and exit.
+
+Environment Variables:
+  K_BENCH_ITERATIONS
+      Number of round-trip benchmark iterations (default: 5).`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
 const iterations = Number(process.env.K_BENCH_ITERATIONS || 5);
 const examples = process.argv.slice(2);
 const benchmarkExamples = examples.length > 0 ? examples : DEFAULT_EXAMPLES;

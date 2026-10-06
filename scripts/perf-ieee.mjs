@@ -52,6 +52,81 @@ import {
 import { compileWasmArtifactFromObject } from "../backends/wasm/src/wasm.mjs";
 import { compileARM64ArtifactFromObject } from "../backends/arm64/src/arm64.mjs";
 
+function printHelp() {
+  console.log(`Usage: node scripts/perf-ieee.mjs [options]
+
+IEEE 754 Floating-Point Arithmetic Benchmark Harness.
+Benchmarks add, sub, mul, and div on Examples/ieee.k across
+Native JS, kVM interpreter, LLVM, Wasm, and ARM64 backends.
+
+Options:
+  --opt=<levels>, --opts=<levels>
+      Comma-separated Clang optimization levels for LLVM (e.g. -O1,-O2).
+  --O0, --O1, --O2, --O3
+      Direct Clang optimization level flags for LLVM.
+  --full
+      Run full LLVM optimization sweep (-O0, -O1, -O2).
+  --wasm-in-process
+      Run WebAssembly in-process instead of persistent subprocess runner.
+  -h, --help
+      Show this help message and exit.
+
+Environment Variables:
+  BACKENDS
+      Target backend to run: 'llvm', 'wasm', or 'arm64'.
+  LLVM_ONLY
+      Run only LLVM backend ('1' to enable).
+  WASM_ONLY
+      Run only WebAssembly backend ('1' to enable).
+  ARM64_ONLY
+      Run only ARM64 backend ('1' to enable).
+  BACKENDS_ONLY
+      Skip JS and kVM interpreter baselines ('1' to enable).
+  VALUES
+      Comma-separated float values to benchmark
+      (default: 0.5,-4,0,Infinity,-Infinity,NaN).
+  ITERATIONS
+      Measured iterations per benchmark (default: 3).
+  ARM64_WARMUP_ITERATIONS
+      Warmup iterations for ARM64 backend (default: 1).
+  ARM64_OPT
+      ARM64 backend optimization flags (default: -O2).
+  ARM64_SPAWN_PER_CALL
+      Spawn process per ARM64 call instead of persistent ('1' or '0').
+  ARM64_PIPELINE
+      Use persistent pipelined runner for ARM64 ('1' or '0').
+  LLVM_WARMUP_ITERATIONS
+      Warmup iterations for LLVM backend (default: 1).
+  LLVM_SPAWN_PER_CALL
+      Spawn process per LLVM call instead of persistent ('1' or '0').
+  LLVM_PIPELINE
+      Use persistent pipelined runner for LLVM ('1' or '0').
+  LLVM_OPTS
+      Comma-separated Clang optimization levels for LLVM.
+  K_LLVM_IEEE_RUNTIME_MODE
+      LLVM runtime compilation mode for IEEE (default: fast).
+  K_LLVM_IEEE_CLANG_OPT
+      Clang optimization levels for IEEE LLVM (default: -O1).
+  K_LLVM_CACHE_DIR
+      Directory to cache compiled LLVM executable binaries.
+  PERF_FULL
+      Set to '1' to test multiple LLVM optimization levels
+      (-O0, -O1, -O2).
+  WASM_WARMUP_ITERATIONS
+      Warmup iterations for WebAssembly backend (default: 10).
+  WASM_RESET
+      Reset WebAssembly memory between iterations (default: 1).
+  WASM_PIPE
+      Use persistent subprocess for Wasm (default: 1, '0': in-process).
+  WASM_IN_PROCESS
+      Run WebAssembly in-process ('1' to enable).`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
 // Backend selection
 const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";

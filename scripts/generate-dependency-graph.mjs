@@ -8,7 +8,31 @@ import { execSync } from "node:child_process";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
-const outPath = path.join(root, "DOCS", "dependency-graph.md");
+
+function printHelp() {
+  console.log(
+`Usage: node scripts/generate-dependency-graph.mjs [options] [out]
+
+Generates a Mermaid dependency diagram from tracked ESM imports.
+
+Arguments:
+  out-file
+      Destination markdown file path.
+      (default: DOCS/dependency-graph.md)
+
+Options:
+  -h, --help
+      Show this help message and exit.`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
+const outPath = process.argv[2]
+  ? path.resolve(root, process.argv[2])
+  : path.join(root, "DOCS", "dependency-graph.md");
 
 function getTrackedMjsFiles() {
   const raw = execSync("git ls-files '*.mjs'", {

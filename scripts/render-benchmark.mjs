@@ -5,6 +5,31 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function printHelp() {
+  console.log(
+`Usage: node scripts/render-benchmark.mjs [in.json] [out.html]
+
+Renders benchmark results JSON into a standalone interactive HTML report.
+
+Arguments:
+  input-json
+      Path to benchmark results JSON file.
+      (default: benchmark-results.json)
+  output-html
+      Destination path for generated HTML report.
+      (default: benchmark-results.html)
+
+Options:
+  -h, --help
+      Show this help message and exit.`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
 const inputPath = path.resolve(root, process.argv[2] || "benchmark-results.json");
 const outputPath = path.resolve(root, process.argv[3] || "benchmark-results.html");
 

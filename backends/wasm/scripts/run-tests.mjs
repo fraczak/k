@@ -6,6 +6,22 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const node = process.execPath;
+
+function printHelp() {
+  console.log(`Usage: node backends/wasm/scripts/run-tests.mjs [options]
+
+Runs WebAssembly backend test suite and integration tests.
+
+Options:
+  -h, --help
+      Show this help message and exit.`);
+}
+
+if (process.argv.includes("-h") || process.argv.includes("--help")) {
+  printHelp();
+  process.exit(0);
+}
+
 const tests = [
   ["tests/test-wasm.mjs", node, ["tests/test-wasm.mjs"]],
   ["tests/integration.sh", path.join(root, "tests/integration.sh"), []]

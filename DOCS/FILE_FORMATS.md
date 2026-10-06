@@ -14,7 +14,7 @@ type-checked artifacts and JIT/native execution.
 | **`.k`**   | Human-readable source code         | UTF-8 plain text                                | Optional (trailing expression) | Editor, `k-decompile`             | `k.mjs`, `k-repl`, `k-compile`, backends                 |
 | **`.ko`**  | Executable compiled object         | Binary (`KOBJ\n` + JSON payload)                | **Required** (`"__main__"`)    | `k-compile`, REPL (`:ko`)         | `k.mjs`, `k-wasm-compile`, `k-llvm-build`, inspect tools  |
 | **`.klib`**| Reusable compiled library          | UTF-8 JSON payload                              | **None** (`null`)              | `k-compile --lib`, REPL (`:klib`) | REPL (`:load`), CLI linkers (`--lib`)                    |
-| **`.kvm`** | Polymorphic kVM bytecode template  | JSON / CBOR (`format: "k-vm", layer: "KVM-P"`)  | Per-relation functions         | `k-compile --format kvm`, kvm.mjs | kVM runtime, JIT specializer, `k-wasm-compile`           |
+| **`.kvm`** | Polymorphic kVM bytecode template  | JSON / CBOR (`format: "k-vm", layer: "KVM-P"`)  | Per-relation functions         | `k-compile --format kvm`, kvm.mjs | `kvm.mjs`, `k-wasm-compile`, `k-llvm-build`              |
 
 ### Format Transformation Workflow
 
@@ -63,6 +63,7 @@ flowchart TD
 
     %% Lowering from .kvm
     KVM -->|"k-wasm-compile"| WASM
+    KVM -->|"k-llvm-build"| NATIVE
     KVM -->|"kvm.mjs / specializeKVM"| INTERP
 ```
 
@@ -276,21 +277,38 @@ Export all currently loaded relations and types into a reusable library:
 `.kvm` is a polymorphic register-IR template artifact
 (`format: "k-vm"`, `layer: "KVM-P"`, `isPolymorphic: true`).
 
-#### How `.kvm` Differs from `.ko` and `.klib`:
-- **Abstraction Level:** `.ko` and `.klib` store high-level relational
-  expressions (KIR) and structural type graphs. In contrast, `.kvm` is
-  lowered into explicit register-based virtual machine instructions
-  (`alloc`, `make_variant`, `project_variant`, `union`, `call`, and
-  tail loops).
-- **Polymorphic Template vs. Fixed Object:**
-  - `.ko` is a concrete executable bound to an entrypoint (`main`).
-  - `.klib` is a library of high-level relation definitions for linking.
-  - `.kvm` stores compiled bytecode functions paired with principal
-    pattern graphs ($P_{in}, P_{out}$).
-- **Instant Specialization:** Instead of running the compiler's full
-  constraint-derivation engine, the runtime specializer (`specializeKVM`)
-  prunes dead union branches and folds redundant guards on-the-fly
-  against concrete input envelopes $(v, P_v)$.
+#### Why `.kvm` Exists (What You Gain):
+
+1. **Relational AST vs. Linear Register Machine:**
+   `.ko` and `.klib` store high-level relational combinators (compositions
+   `(f g)`, products `{a x, b y}`, unions `<f, g>`) and structural type
+   graphs. They contain no virtual registers, instruction sequences, or
+   control-flow branches. `.kvm` transforms this functional tree into a
+   linear 3-address virtual register machine IR (`alloc`, `project_field`,
+   `make_variant`, `project_variant`, `jump_if_fail`, `call`, and loops).
+
+2. **$1 \times N$ Backend Decoupling:**
+   Rather than having every code generator (LLVM, WebAssembly, ARM64,
+   and the JIT interpreter) independently lower the relational tree and
+   re-implement type-guided control flow, relational-to-imperative
+   lowering occurs once in `kvm.mjs`. All backends consume the exact same
+   ~10 linear kVM instructions (`kvm2llvm.mjs`, `kvm2wasm.mjs`,
+   `kvm2arm64.mjs`, `kvm.mjs`).
+
+3. **Microsecond Polymorphic Specialization (`layer: "KVM-P"`):**
+   In polymorphic programs, specializing `.ko` requires re-running the
+   compiler's full structural type derivation and constraint convergence
+   engine. A `.kvm` template stores pre-compiled register bytecode with
+   principal pattern graphs. The runtime specializer (`specializeKVM`)
+   prunes dead branches and folds redundant guards against concrete
+   runtime input envelopes $(v, P_v)$ in microseconds with zero AST
+   recompilation overhead.
+
+4. **Inspectable & Cacheable Register IR:**
+   `.kvm` produces a human- and machine-readable JSON or CBOR format.
+   You can inspect virtual register assignments, verify dead-branch
+   elimination, diff compiler output across runs, or cache the lowered IR
+   to bypass frontend compilation when building native or WASM targets.
 
 ### How to Generate
 
@@ -309,7 +327,24 @@ k-compile add5.ko add5.kvm
 
 ### How to Consume
 
+- **Direct lowering from `.kvm` to Native Binaries (`k-llvm-build`):**
+  Compile a `.kvm` template directly into a native executable:
+  ```bash
+  k-llvm-build add5.kvm add5-bin
+  echo "10" | ./codecs/int.mjs --parse | \
+    ./add5-bin | \
+    ./codecs/int.mjs --print
+  # Output: 15
+  ```
+
+- **Direct lowering from `.kvm` to LLVM IR (`k-llvm-compile`):**
+  Emit LLVM assembly directly from the register IR:
+  ```bash
+  k-llvm-compile add5.kvm add5.ll
+  ```
+
 - **Direct lowering from `.kvm` to WebAssembly (`k-wasm-compile`):**
+  Compile a `.kvm` template directly into a standalone `.wasm` module:
   ```bash
   k-wasm-compile add5.kvm add5.wasm
   echo "10" | ./codecs/int.mjs --parse | \

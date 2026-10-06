@@ -7,17 +7,20 @@ import {
   parseCompileOptions,
   resolveProgramInput
 } from "../src/cli.mjs";
-import { compileObjectToLLVM } from "../src/llvm.mjs";
+import {
+  compileObjectToLLVM,
+  compileLLVMArtifactFromKVM
+} from "../src/llvm.mjs";
 import { inputPatternForObjectRelation } from "../src/executable.mjs";
 
 function usage(stream = console.error) {
   const prog = argv[1] || "k-llvm-compile.mjs";
   stream(`Usage: node ${prog} [options] [source-snippet | input-file [output.ll]]`);
-  stream("Compile a k .ko/.klib object into prototype LLVM IR.");
+  stream("Compile a k .ko/.klib object, source, or .kvm input into prototype LLVM IR.");
   stream("");
   stream("Arguments:");
   stream("  source-snippet  Inline k source, in the same style as k.mjs.");
-  stream("  input-file      Source .k, .ko, or .klib file. Reads UTF-8 source from stdin when omitted.");
+  stream("  input-file      Source .k, .ko, .klib, or .kvm file. Reads UTF-8 source from stdin when omitted.");
   stream("  output.ll       Output LLVM IR path. Writes to stdout when omitted.");
   stream("");
   stream("Options:");
@@ -55,16 +58,30 @@ try {
 
   const outputPath = explicitOutput || positionalOutput || null;
 
-  const object = await compileProgramInputToObject(input, {
-    libraries,
-    exportSpecs,
-    stdin
-  });
+  let llvm;
+  if (input.kind === "kvm") {
+    const kvm = JSON.parse(fs.readFileSync(input.path, "utf8"));
+    const entry = kvm.entry || kvm.relation || "__main__";
+    const mainFunc = kvm.functions?.[entry];
+    const artifact = compileLLVMArtifactFromKVM(kvm, {
+      relation: entry,
+      inputPattern: mainFunc?.inputPattern || kvm.inputPattern,
+      outputPattern: mainFunc?.outputPattern || kvm.outputPattern
+    });
+    llvm = typeof artifact === "string" ? artifact : artifact.llvm;
+  } else {
+    const object = await compileProgramInputToObject(input, {
+      libraries,
+      exportSpecs,
+      stdin
+    });
 
-  const { llvm } = compileObjectToLLVM(object, {
-    relation: object.main,
-    inputPattern: inputPatternForObjectRelation(object, object.main)
-  });
+    const res = compileObjectToLLVM(object, {
+      relation: object.main,
+      inputPattern: inputPatternForObjectRelation(object, object.main)
+    });
+    llvm = res.llvm;
+  }
 
   if (outputPath == null) {
     stdout.write(llvm);

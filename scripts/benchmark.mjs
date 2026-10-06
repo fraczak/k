@@ -733,7 +733,58 @@ function printSummary(document) {
   console.log("=============================================================\n");
 }
 
+function printHelp() {
+  console.log(`Usage: node scripts/benchmark.mjs [options]
+
+Unified Multi-Backend Benchmark Suite.
+Runs comprehensive arithmetic and IEEE benchmarks across Native JS,
+kVM, KIR-P, Wasm, and LLVM-JIT execution engines.
+
+Options:
+  --worker
+      Internal flag: execute an isolated benchmark worker job.
+  -h, --help
+      Show this help message and exit.
+
+Environment Variables:
+  BENCHMARK_CASES
+      Comma-separated benchmark cases to run (default: all).
+      Cases: ieee.add, ieee.sub, ieee.mul, ieee.div,
+             int.times.220d, int.gcd.90d, int.factorial.101,
+             int.factorial.242, int.factorial.1174
+  BENCHMARK_MODES
+      Comma-separated execution modes to run (default: all).
+      Modes: Native JS (Envelope-Aware), Native JS (Envelope-Free),
+             kVM Interpreter (Env-Free), KIR-P Export,
+             k-wasm, k-llvm-jit
+  BENCHMARK_SAMPLES
+      Number of measurement samples per benchmark (default: 3).
+  BENCHMARK_TIMEOUT_MS
+      Timeout per benchmark job in milliseconds (default: 120000).
+  BENCHMARK_JOBS
+      Maximum parallel worker concurrency (default: 1).
+  BENCHMARK_STRICT
+      Exit with non-zero exit code if any case fails ('1' to enable).
+  K_LLVM_RUNTIME_MODE
+      Default LLVM runtime compilation mode (default: fast).
+  K_LLVM_IEEE_RUNTIME_MODE
+      LLVM runtime mode for IEEE benchmarks (default: compact).
+  K_LLVM_CLANG_OPT
+      Clang optimization flag for LLVM (default: -O3).
+  K_LLVM_IEEE_CLANG_OPT
+      Clang optimization flag for IEEE LLVM (default: -O0).
+  K_LLVM_CACHE_DIR
+      Directory to cache compiled LLVM executable binaries.
+  K_BENCHMARK_RESULT_PATH
+      Custom destination file path for benchmark results JSON.`);
+}
+
 async function main() {
+  if (process.argv.includes("-h") || process.argv.includes("--help")) {
+    printHelp();
+    return;
+  }
+
   if (process.env.K_BENCHMARK_WORKER === "1" || process.argv.includes("--worker")) {
     await workerMain();
     return;
