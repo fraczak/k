@@ -5,6 +5,49 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.10.4] — 2026-10-06 — Karatsuba Multiplication, Multi-Backend Harness, and CLI Help
+
+### Arithmetic & Algorithms
+
+- **Karatsuba Multiplication (`Examples/karatsuba-mult.k`)**:
+  - Implemented standalone, minimal Karatsuba integer multiplication with
+    asymptotic time complexity $O(n^{\log_2 3}) \approx O(n^{1.585})$.
+  - Utilizes unary counter (`$unat`) splitting with a 512-bit threshold
+    switching to grade-school multiplication (`times_bits`) for small
+    inputs.
+  - Implements direct bit-level arithmetic (`plus_bits`, `minus_bits`,
+    `times_bits`) and direct $2m$ bit shifting (`shift2_bits_u`).
+  - Added dedicated test suite in `tests/test-karatsuba.mjs` verifying
+    squaring cases and mixed-sign pair multiplications against BigInt
+    oracle.
+
+### Performance & Benchmarking
+
+- **Multiplication Performance Harness**
+  (`scripts/perf-multiplication.mjs`):
+  - Added multi-backend performance runner comparing `times` and
+    `karatsuba` across LLVM, Wasm, kVM, and JS engines.
+  - Supports `--mode squaring` (doubling bit width per step) and
+    `--mode sizes` (random operands of fixed bit lengths).
+  - Includes per-step timeout protection and process RSS memory guards.
+  - Added `npm run perf:mult` script in `package.json`.
+
+### CLI Usability & Backend Enhancements
+
+- **Unified `-h` and `--help` CLI Documentation**:
+  - Added comprehensive option and environment variable documentation
+    across all benchmark, performance, and test scripts in `scripts/`
+    and `backends/*/scripts/`.
+- **LLVM Direct `.kvm` Bytecode Compilation**:
+  - Added `compileKVMToExecutable` in `backends/llvm/src/executable.mjs`,
+    enabling direct binary compilation from lowered `.kvm` IR.
+- **Runtime Mark Compaction Fixes**:
+  - Updated LLVM runtime compaction tracking (`%k_rt_tail_mark`) to
+    accurately preserve base and last compaction arena marks in
+    tail loops.
+
+---
+
 ## [6.10.3] — 2026-10-04 — Unified File Formats Specification and Documentation Modernization
 
 ### Documentation & Core Architecture
