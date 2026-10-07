@@ -58,20 +58,27 @@ _inc = ?{X x, X y}
 
 -- addition on $bits (unsigned, LSB-first with carry)
 plus = ${bits x, bits y} {.x inv x, .y inv y, b0 c} _plus;
-_plus = ${bits x, bits y, bit c}
+_plus = {.x x, .y y, .c c, _ r} _plus_;
+_plus_ = ${bits x, bits y, bit c, bits r}
   <
-    {.x /_ if, .y /_ and, <.c/0 0, 1> then} .then,
-    {.x /_ if, .c/0 and, .y then} .then,
-    {.x y, .y /_|_ x, .c c} _plus,
-    {<.c/0 0, 1> x, .y y, .x /_ b0 c} _plus,
-    {.x /0 x, .y /0 y, .c/0 b0 c} _plus |0,
-    {.x /0 x, .y /0 y, .c/1 b0 c} _plus |1,
-    {.x /0 x, .y /1 y, .c/0 b0 c} _plus |1,
-    {.x /0 x, .y /1 y, .c/1 b1 c} _plus |0,
-    {.x /1 x, .y /0 y, .c/0 b0 c} _plus |1,
-    {.x /1 x, .y /0 y, .c/1 b1 c} _plus |0,
-    {.x /1 x, .y /1 y, .c/0 b1 c} _plus |0,
-    {.x /1 x, .y /1 y, .c/1 b1 c} _plus |1
+    {.x /_ if, .y /_ and, .c/0 c, .r then} .then,
+    {.x /_ if, .y /_ and, .c/1 c, .r |1 then} .then,
+    {.x /_ if, .c/0 and, {.y x, .r y} concat_ then} .then,
+    {.y /_ if, .c/0 and, {.x x, .r y} concat_ then} .then,
+    <
+      {.x/_ _ x, .y /0 y, b0 c, .r |1 r},
+      {.x/_ _ x, .y /1 y, b1 c, .r |0 r},
+      {.y/_ _ y, .x /0 x, b0 c, .r |1 r},
+      {.y/_ _ y, .x /1 x, b1 c, .r |0 r},
+      {.x /0 x, .y /0 y, .c/0 b0 c, .r |0 r},
+      {.x /0 x, .y /0 y, .c/1 b0 c, .r |1 r},
+      {.x /0 x, .y /1 y, .c/0 b0 c, .r |1 r},
+      {.x /0 x, .y /1 y, .c/1 b1 c, .r |0 r},
+      {.x /1 x, .y /0 y, .c/0 b0 c, .r |1 r},
+      {.x /1 x, .y /0 y, .c/1 b1 c, .r |0 r},
+      {.x /1 x, .y /1 y, .c/0 b1 c, .r |0 r},
+      {.x /1 x, .y /1 y, .c/1 b1 c, .r |1 r}
+    > _plus_
   >;
 
 -- multiplication on $bits (unsigned, shift-and-add)
