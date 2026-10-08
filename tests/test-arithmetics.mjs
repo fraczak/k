@@ -100,10 +100,13 @@ try {
   assertOk(resDec, "2 int dec dec zero_int? should succeed");
 
   const divTestCases = [
+    { x: "0", yAlias: "7", yVal: 7n },
+    { x: "3", yAlias: "7", yVal: 7n },
     { x: "4", yAlias: "1", yVal: 1n },
     { x: "10", yAlias: "2", yVal: 2n },
     { x: "12", yAlias: "3", yVal: 3n },
     { x: "11", yAlias: "3", yVal: 3n },
+    { x: "12", yAlias: "12", yVal: 12n },
     { x: "100", yAlias: "7", yVal: 7n },
     { x: "-100", yAlias: "7", yVal: 7n },
     { x: "1000", yAlias: "10", yVal: 10n }
@@ -142,6 +145,99 @@ try {
     const remOut = printIntWire(resRem.stdout, `div remainder`);
     assert.equal(remOut, expectedRem, `div(${x}, ${yAlias}) remainder should match BigInt oracle`);
   }
+
+  // Regression tests for EQ
+  const dummyWire = parseIntWire("0");
+  const resEqTrue = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "EQ:EQ",
+    "--export", "int:int",
+    "--export", "2:two",
+    "{two x, two y} EQ .x int"
+  ], { input: dummyWire });
+  assertOk(resEqTrue, "{2, 2} EQ should succeed");
+
+  const resEqFalse = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "EQ:EQ",
+    "--export", "int:int",
+    "--export", "2:two",
+    "--export", "3:three",
+    "{two x, three y} EQ .x int"
+  ], { input: dummyWire });
+  assert.notEqual(resEqFalse.status, 0, "{2, 3} EQ should fail");
+
+  // Regression tests for pos?
+  const resPosTrue = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "pos?:pos?",
+    "--export", "int:int",
+    "--export", "2:two",
+    "two int pos?"
+  ], { input: dummyWire });
+  assertOk(resPosTrue, "2 int pos? should succeed");
+
+  const resPosZero = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "pos?:pos?",
+    "--export", "int:int",
+    "--export", "0:zero",
+    "zero int pos?"
+  ], { input: dummyWire });
+  assert.notEqual(resPosZero.status, 0, "0 int pos? should fail");
+
+  // Regression tests for mod, gcd, lcm
+  const resMod = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "mod:mod",
+    "--export", "int:int",
+    "--export", "10:ten",
+    "--export", "3:three",
+    "{ten x, three y} mod int"
+  ], { input: dummyWire });
+  assertOk(resMod, "10 % 3 mod");
+  assert.equal(printIntWire(resMod.stdout, "mod"), "1");
+
+  const resGcd = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "gcd:gcd",
+    "--export", "int:int",
+    "--export", "12:twelve",
+    "--export", "8:eight",
+    "{twelve x, eight y} gcd int"
+  ], { input: dummyWire });
+  assertOk(resGcd, "gcd(12, 8)");
+  assert.equal(printIntWire(resGcd.stdout, "gcd"), "4");
+
+  const resGcdZero = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "gcd:gcd",
+    "--export", "int:int",
+    "--export", "4:four",
+    "--export", "0b:zero_b",
+    "{four x, zero_b y} gcd int"
+  ], { input: dummyWire });
+  assertOk(resGcdZero, "gcd(4, 0b)");
+  assert.equal(printIntWire(resGcdZero.stdout, "gcd 0b"), "4");
+
+  const resLcm = run(node, [
+    "k.mjs",
+    "--lib", libPath,
+    "--export", "lcm:lcm",
+    "--export", "int:int",
+    "--export", "4:four",
+    "--export", "6:six",
+    "{four x, six y} lcm int"
+  ], { input: dummyWire });
+  assertOk(resLcm, "lcm(4, 6)");
+  assert.equal(printIntWire(resLcm.stdout, "lcm"), "12");
 
   console.log("OK");
 } finally {

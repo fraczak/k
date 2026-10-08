@@ -78,8 +78,8 @@ if (fs.existsSync(coreKPath)) {
   vfsFiles["core.k"] = fs.readFileSync(coreKPath, "utf8");
 }
 
-// Add verified k-code files: arithmetics.k, ieee.k, poly.k
-const verifiedExamples = ["arithmetics.k", "ieee.k", "poly.k"];
+// Add verified k-code files: arithmetics.k, ieee.k, poly.k, karatsuba-mult.k
+const verifiedExamples = ["arithmetics.k", "ieee.k", "poly.k", "karatsuba-mult.k"];
 const examplesDir = path.join(projectRoot, "Examples");
 for (const filename of verifiedExamples) {
   const fullPath = path.join(examplesDir, filename);
@@ -130,7 +130,6 @@ for (const filename of verifiedCodecs) {
       }]
     });
     const bundledContent = buildRes.outputFiles[0].text;
-    vfsFiles[filename] = bundledContent;
     vfsFiles[`codecs/${filename}`] = bundledContent;
   }
 }
@@ -1663,6 +1662,7 @@ const htmlContent = `<!DOCTYPE html>
               <option value="arithmetics.k">arithmetics.k</option>
               <option value="ieee.k">ieee.k</option>
               <option value="poly.k">poly.k</option>
+              <option value="karatsuba-mult.k">karatsuba-mult.k</option>
             </optgroup>
             <optgroup label="Quick Expressions">
               <option value="expr:{} | ok">{} | ok</option>
@@ -1671,6 +1671,7 @@ const htmlContent = `<!DOCTYPE html>
               <option value="expr:{10 x, 5 y} plus">{10 x, 5 y} plus (bits)</option>
               <option value="expr:1 succ">1 succ</option>
               <option value="expr:{10 int x, 5 int y} plus">{10 int x, 5 int y} plus (int)</option>
+              <option value="expr:{10 int x, 5 int y} karatsuba">{10 int x, 5 int y} karatsuba</option>
               <option value="expr::types">:types (list types)</option>
               <option value="expr::rels">:rels (list relations)</option>
               <option value="expr::engine">:engine (show engine)</option>
@@ -1680,13 +1681,13 @@ const htmlContent = `<!DOCTYPE html>
             <optgroup label="Codecs &amp; Format Adapters">
               <option value="expr::codecs">:codecs</option>
               <option value="expr::input">:input (interactive dialog)</option>
-              <option value="expr::codec load int.mjs">:codec load int.mjs</option>
-              <option value="expr::codec load utf8.mjs">:codec load utf8.mjs</option>
-              <option value="expr::codec load json.mjs">:codec load json.mjs</option>
-              <option value="expr::codec load ieee.mjs">:codec load ieee.mjs</option>
-              <option value="expr::codec load unit.mjs">:codec load unit.mjs</option>
-              <option value="expr::input json.mjs {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input json.mjs {"a":12,"b":"hello"}</option>
-              <option value="expr::input int.mjs [0,1,2]">:input int.mjs [0,1,2]</option>
+              <option value="expr::codec load codecs/int.mjs">:codec load codecs/int.mjs</option>
+              <option value="expr::codec load codecs/utf8.mjs">:codec load codecs/utf8.mjs</option>
+              <option value="expr::codec load codecs/json.mjs">:codec load codecs/json.mjs</option>
+              <option value="expr::codec load codecs/ieee.mjs">:codec load codecs/ieee.mjs</option>
+              <option value="expr::codec load codecs/unit.mjs">:codec load codecs/unit.mjs</option>
+              <option value="expr::input codecs/json.mjs {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input codecs/json.mjs {"a":12,"b":"hello"}</option>
+              <option value="expr::input codecs/int.mjs [0,1,2]">:input codecs/int.mjs [0,1,2]</option>
             </optgroup>
           </select>
           <button id="btn-load-example" class="btn btn-primary">Load</button>

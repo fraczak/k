@@ -48,7 +48,7 @@ export async function createPolySuite({ listLength = 40, cacheDir = null } = {})
     return lines.join("\n") + "\n";
   }
 
-  const neededExports = ["0", "int", "inc", "dec", "nat", "zero_int?", "nil", "cons", "car", "cdr"];
+  const neededExports = ["0", "int", "inc", "dec", "nat", "zero_int?"];
   const exportPreamble = buildExportPreamble(neededExports, [arithmeticsLib]);
   const polyLib = loadLibrary(compileLibrary(exportPreamble + polySource, {
     source: polyPath,

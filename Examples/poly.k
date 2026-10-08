@@ -1,8 +1,16 @@
 -- Examples/poly.k: Polymorphic list functions in k
--- Uses list constructors/destructors from Examples/list.k
--- and arbitrary-precision integer representations from Examples/arithmetics.k.
+-- Uses arbitrary-precision integers from Examples/arithmetics.k.
 
--- Decrement an integer and normalize its representation (stripping leading zeros)
+-- List constructors and destructors
+list? = ?< {} nil, {X car, Y cdr} cons > = Y;
+nil = {} | nil list?;
+singleton = {() car, nil cdr} | cons list?;
+cons = {.car car, .cdr cdr} | cons list?;
+nil? = list? / nil nil;
+car = list? /cons .car;
+cdr = list? /cons .cdr;
+
+-- Decrement an integer and normalize (stripping leading zeros)
 pred_int = dec /'+' nat | '+';
 
 -- Concatenate two lists: {xs, ys} -> list
@@ -82,7 +90,8 @@ gt? =
   >
 ;
 
--- Split list into two halves by alternating elements: xs -> {first, second}
+-- Split list into two halves by alternating elements:
+-- xs -> {first, second}
 split = {() xs, nil first, nil second} _split;
 _split = <
   {.xs /nil if, {.first first, .second second} then} .then,

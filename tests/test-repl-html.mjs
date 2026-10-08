@@ -139,14 +139,15 @@ if (chromiumBin) {
     const vfsList = await evaluateAsync(`window.kRepl.getAllVfsFiles().sort()`);
     const expectedFiles = [
       "arithmetics.k",
+      "codecs/ieee.mjs",
+      "codecs/int.mjs",
+      "codecs/json.mjs",
+      "codecs/unit.mjs",
+      "codecs/utf8.mjs",
       "core.k",
       "ieee.k",
-      "ieee.mjs",
-      "int.mjs",
-      "json.mjs",
-      "poly.k",
-      "unit.mjs",
-      "utf8.mjs"
+      "karatsuba-mult.k",
+      "poly.k"
     ].sort();
     assert.deepStrictEqual(vfsList, expectedFiles, `getAllVfsFiles() must match curated files list, got: ${JSON.stringify(vfsList)}`);
 
@@ -157,6 +158,22 @@ if (chromiumBin) {
       return lines[lines.length - 1];
     })()`);
     assert(loadOut.includes("loaded arithmetics.k"), `Expected loaded arithmetics.k, got: ${loadOut}`);
+
+    // Test :load karatsuba-mult.k
+    const loadKaratsubaOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":load karatsuba-mult.k");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(loadKaratsubaOut.includes("loaded karatsuba-mult.k"), `Expected loaded karatsuba-mult.k, got: ${loadKaratsubaOut}`);
+
+    // Test evaluating {1 int x, 1 int y} karatsuba
+    const karatsubaVal = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand("{1 int x, 1 int y} karatsuba");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(karatsubaVal.includes("{}|_|1|+"), `Expected {}|_|1|+ in output, got: ${karatsubaVal}`);
 
     // Test evaluating 10
     const valOut = await evaluateAsync(`(async () => {

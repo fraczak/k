@@ -5,6 +5,41 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.10.5] — 2026-10-08 — Adaptive Division and VFS Codecs
+
+### Arithmetic & Algorithms
+
+- **Adaptive Hybrid Division (`Examples/arithmetics.k`)**:
+  - Implemented hybrid integer division that dynamically chooses between
+    down-shift division ($|x| < 2|y|$) and restoring long division
+    ($|x| \ge 2|y|$).
+  - Down-shift division scales divisor $y$ up to match length of $x$,
+    performing trial subtraction and down-shifting in $O(1)$ per step.
+  - Crossover condition is evaluated structurally in $O(\min(|y|, |x|/2))$
+    without prior length computations.
+  - Added native number-theory operations: `mod`, Euclidean `gcd`, and
+    `lcm`.
+  - Refactored `arithmetics.k` to focus purely on arithmetic operations.
+
+### Polymorphic Lists
+
+- **Polymorphic List Library (`Examples/poly.k`)**:
+  - Encapsulated list constructors and destructors (`list?`, `nil`,
+    `cons`, `car`, `cdr`, `singleton`, `nil?`) directly in `poly.k`.
+  - Updated benchmark suites (`harness/suites/poly.mjs`,
+    `scripts/perf-poly.mjs`) to import only arithmetic symbols from
+    `arithmetics.k`.
+
+### Web REPL & Codecs
+
+- **VFS Codec Subfolder Organization**:
+  - Reorganized all codec files in the Virtual File System under the
+    `codecs/` subfolder (`codecs/int.mjs`, `codecs/json.mjs`, etc.).
+  - Added backward-compatible resolution in `repl-codecs.mjs`.
+  - Added `karatsuba-mult.k` to the VFS and example picker in `repl.html`.
+
+---
+
 ## [6.10.4] — 2026-10-06 — Karatsuba Multiplication, Multi-Backend Harness, and CLI Help
 
 ### Arithmetic & Algorithms

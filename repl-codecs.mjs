@@ -107,8 +107,10 @@ function registerCodec(state, rawCodec, filePath) {
 
 function unregisterCodec(state, codecName) {
   const store = codecStore(state);
-  if (!store[codecName]) return 0;
-  delete store[codecName];
+  const baseName = path.basename(codecName);
+  const key = store[codecName] ? codecName : (store[baseName] ? baseName : null);
+  if (!key) return 0;
+  delete store[key];
   return 1;
 }
 
@@ -129,7 +131,8 @@ function resolveCodec(state, codecName, capability = null) {
     throw new Error("Codec name is required");
   }
   const store = codecStore(state);
-  const codec = store[codecName];
+  const baseName = path.basename(codecName);
+  const codec = store[codecName] || store[baseName];
   if (!codec) {
     throw new Error(`Codec '${codecName}' is not loaded`);
   }
