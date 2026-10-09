@@ -25,10 +25,7 @@ function cleanPath(p) {
 }
 
 export function setVfsFile(path, content) {
-  let cleaned = cleanPath(path);
-  if (cleaned.endsWith(".mjs") && !cleaned.startsWith("codecs/")) {
-    cleaned = `codecs/${cleaned}`;
-  }
+  const cleaned = cleanPath(path);
   vfs.set(cleaned, content);
 }
 
@@ -58,11 +55,11 @@ const CURATED_VFS_FILES = [
   "ieee.k",
   "poly.k",
   "karatsuba-mult.k",
-  "codecs/json.mjs",
-  "codecs/utf8.mjs",
-  "codecs/int.mjs",
-  "codecs/unit.mjs",
-  "codecs/ieee.mjs"
+  "json.mjs",
+  "utf8.mjs",
+  "int.mjs",
+  "unit.mjs",
+  "ieee.mjs"
 ];
 
 export function getAllVfsFiles() {
@@ -74,7 +71,7 @@ export function getAllVfsFiles() {
   }
   for (const key of vfs.keys()) {
     if (key.endsWith("runtime.wat") || key.startsWith("backends/")) continue;
-    if (key.startsWith("Examples/")) continue;
+    if (key.startsWith("Examples/") || key.startsWith("codecs/")) continue;
     result.add(key);
   }
   return Array.from(result);

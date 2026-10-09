@@ -4,15 +4,12 @@
 --   1. $bits — the canonical binary number / bit-path type
 --   2. $string — unicode strings (used for labels)
 --   3. $pattern — the type of pattern graphs
---   4. Basic $bits arithmetic: succ, plus, times
 
 ---------------------------------------------------------------
 -- §1. Bits
 ---------------------------------------------------------------
 
 $ bit = < {} 0, {} 1 >;
-b0 = {}|0 $bit;
-b1 = {}|1 $bit;
 
 $ bits = < {} _, bits 0, bits 1 >;
 
@@ -21,85 +18,8 @@ _ = {}|_;
 0 = _ |0;
 1 = _ |1;
 
-inv = {() x, _ r} _inv;
-_inv = ${bits x, bits r} < {.x /0 x, .r |0 r} _inv, {.x /1 x, .r |1 r} _inv, .r >;
-
-concat = ${bits x, bits y} {.x inv x, .y y} concat_;
-concat_ = ${bits x, bits y}
-  <
-    {.x /0 x, .y |0 y} concat_,
-    {.x /1 x, .y |1 y} concat_,
-    .y
-  >;
-
 ---------------------------------------------------------------
--- §2. Bits arithmetic
----------------------------------------------------------------
-
--- successor (increment by 1)
-succ = {inv x, _ y} _inc;
-
-_inc = ?{X x, X y} 
-<
-    {.x </0,/_|_> x, .y |1 y} concat_,
-    {.x /1 x, .y |0 y} _inc
-> ?X;
-
--- constants
-2 = 1 succ;
-3 = 2 succ;
-4 = 3 succ;
-5 = 4 succ;
-6 = 5 succ;
-7 = 6 succ;
-8 = 7 succ;
-9 = 8 succ;
-10 = 9 succ;
-
--- addition on $bits (unsigned, LSB-first with carry)
-plus = ${bits x, bits y} {.x inv x, .y inv y, b0 c} _plus;
-_plus = {.x x, .y y, .c c, _ r} _plus_;
-_plus_ = ${bits x, bits y, bit c, bits r}
-  <
-    {.x /_ if, .y /_ and, .c/0 c, .r then} .then,
-    {.x /_ if, .y /_ and, .c/1 c, .r |1 then} .then,
-    {.x /_ if, .c/0 and, {.y x, .r y} concat_ then} .then,
-    {.y /_ if, .c/0 and, {.x x, .r y} concat_ then} .then,
-    <
-      {.x/_ _ x, .y /0 y, b0 c, .r |1 r},
-      {.x/_ _ x, .y /1 y, b1 c, .r |0 r},
-      {.y/_ _ y, .x /0 x, b0 c, .r |1 r},
-      {.y/_ _ y, .x /1 x, b1 c, .r |0 r},
-      {.x /0 x, .y /0 y, .c/0 b0 c, .r |0 r},
-      {.x /0 x, .y /0 y, .c/1 b0 c, .r |1 r},
-      {.x /0 x, .y /1 y, .c/0 b0 c, .r |1 r},
-      {.x /0 x, .y /1 y, .c/1 b1 c, .r |0 r},
-      {.x /1 x, .y /0 y, .c/0 b0 c, .r |1 r},
-      {.x /1 x, .y /0 y, .c/1 b1 c, .r |0 r},
-      {.x /1 x, .y /1 y, .c/0 b1 c, .r |0 r},
-      {.x /1 x, .y /1 y, .c/1 b1 c, .r |1 r}
-    > _plus_
-  >;
-
--- multiplication on $bits (unsigned, shift-and-add)
-times = ${bits x, bits y} {0 result, .x inv _x, .y y} _times;
-_times = ${bits result, bits _x, bits y}
-  <
-    { .y /_ if, .result then } .then,
-    {
-      .result |0 result,
-      ._x _x,
-      .y /0 y
-    } _times,
-    {
-      {._x x, .result |0 y, b0 c} _plus result,
-      ._x _x,
-      .y /1 y
-    } _times
-  >;
-
----------------------------------------------------------------
--- §3. Unicode and String
+-- §2. Unicode and String
 ---------------------------------------------------------------
 
 -- 8-bit octet used as a building block for UTF-8 payload pieces.
@@ -115,8 +35,9 @@ $ ascii = { bit 6, bit 5, bit 4, bit 3, bit 2, bit 1, bit 0 };
 -- Plane 0 is the Basic Multilingual Plane (BMP): U+0000..U+FFFF.
 $ u0080_07FF = { bit 10, bit 9, bit 8, bit 7, bit 6, bit 5, bit 4, bit 3, bit 2, bit 1, bit 0 };
 
--- High-byte classes for common BMP ranges, excluding surrogate/private-use partitions.
--- BMP (Basic Multilingual Plane) is Plane 0: the first 65,536 code points.
+-- High-byte classes for common BMP ranges, excluding surrogate and
+-- private-use partitions.
+-- BMP (Basic Multilingual Plane) is Plane 0: first 65,536 code points.
 $ bmp_hi_common = <
   { bit 2, bit 1, bit 0 } h08_0F,
   { bit 6, bit 5, bit 4, bit 3, bit 2, bit 1, bit 0 } h10_7F,
@@ -165,12 +86,12 @@ $ unicode = <
 $ string = < {} nil, { unicode car, string cdr } cons >;
 
 ---------------------------------------------------------------
--- §4. Pattern
+-- §3. Pattern
 ---------------------------------------------------------------
 
 -- Edge: a labeled edge in a pattern graph.
 -- 'label' is the field name or tag name.
--- 'target' is the index (as $bits) of the target node in the pattern list.
+-- 'target' is index (as $bits) of the target node in the pattern list.
 
 $ edge = { string label, bits target };
 

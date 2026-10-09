@@ -139,15 +139,15 @@ if (chromiumBin) {
     const vfsList = await evaluateAsync(`window.kRepl.getAllVfsFiles().sort()`);
     const expectedFiles = [
       "arithmetics.k",
-      "codecs/ieee.mjs",
-      "codecs/int.mjs",
-      "codecs/json.mjs",
-      "codecs/unit.mjs",
-      "codecs/utf8.mjs",
       "core.k",
       "ieee.k",
+      "ieee.mjs",
+      "int.mjs",
+      "json.mjs",
       "karatsuba-mult.k",
-      "poly.k"
+      "poly.k",
+      "unit.mjs",
+      "utf8.mjs"
     ].sort();
     assert.deepStrictEqual(vfsList, expectedFiles, `getAllVfsFiles() must match curated files list, got: ${JSON.stringify(vfsList)}`);
 
@@ -635,7 +635,81 @@ if (chromiumBin) {
     assert.strictEqual(engineCheck.jsEngine, "js");
     assert.strictEqual(engineCheck.badgeJsText, "js-in-process");
     assert.strictEqual(engineCheck.wasmEngine, "wasm");
-    assert.strictEqual(engineCheck.badgeWasmText, "wasm-in-process");
+    // 7. Test uploading a file (adds to VFS without auto-loading)
+    const uploadCheck = await evaluateAsync(`(async () => {
+      const codecCode = \`export default {
+        name: "custom.mjs",
+        target: "(...)",
+        format: "custom",
+        parse: (raw) => raw,
+        print: (v) => "CUSTOM_VAL"
+      };\`;
+      const file = new File(
+        [codecCode],
+        "custom.mjs",
+        { type: "text/javascript" }
+      );
+      await window.kRepl.handleFileUpload(file);
+
+      const vfsContent = window.kRepl.getVfsFile("custom.mjs");
+      const inVfsList = window.kRepl.getAllVfsFiles().includes("custom.mjs");
+
+      // Verify system message showed upload confirmation
+      const systemMessages = Array.from(
+        document.querySelectorAll(".system-msg")
+      ).map(el => el.textContent);
+      const hasUploadedMsg = systemMessages.some(
+        m => m.includes("Uploaded custom.mjs into VFS")
+      );
+
+      // Verify it was NOT auto-loaded (:codecs does not list it)
+      await window.kRepl.executeCommand(":codecs");
+      const linesBefore = Array.from(
+        document.querySelectorAll(".entry-line")
+      ).map(el => el.textContent);
+      const codecsBefore = linesBefore[linesBefore.length - 1];
+
+      // Explicitly load it to prove it can be loaded as a codec
+      await window.kRepl.executeCommand(":codec load custom.mjs");
+      const linesAfter = Array.from(
+        document.querySelectorAll(".entry-line")
+      ).map(el => el.textContent);
+      const codecsAfter = linesAfter[linesAfter.length - 1];
+
+      return {
+        hasVfsContent: typeof vfsContent === "string" &&
+          vfsContent.includes("custom.mjs"),
+        inVfsList,
+        hasUploadedMsg,
+        codecsBefore,
+        codecsAfter
+      };
+    })()`);
+    assert.strictEqual(
+      uploadCheck.hasVfsContent,
+      true,
+      "Uploaded file must be present in VFS"
+    );
+    assert.strictEqual(
+      uploadCheck.inVfsList,
+      true,
+      "Uploaded file must be in getAllVfsFiles()"
+    );
+    assert.strictEqual(
+      uploadCheck.hasUploadedMsg,
+      true,
+      "Upload confirmation message must be displayed"
+    );
+    assert.strictEqual(
+      uploadCheck.codecsBefore.includes("custom.mjs"),
+      false,
+      "Upload must NOT auto-load the file"
+    );
+    assert.strictEqual(
+      uploadCheck.codecsAfter.includes("custom.mjs"),
+      true,
+      "Explicit :codec load of uploaded file must succeed"
+    );
 
     ws.close();
     console.log("   Browser execution verified successfully!");

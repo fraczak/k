@@ -5,6 +5,35 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.10.6] — 2026-10-08 — Minimal Core Schema and REPL VFS Uploads
+
+### Core Schema & Language
+
+- **Minimal `core.k` Schema**:
+  - Streamlined `core.k` to focus strictly on structural type schemas
+    and pattern foundations.
+  - Removed legacy bit arithmetic (`succ`, `plus`, `times`, constants
+    `2`..`10`, and helpers `inv`, `concat`), achieving a 39% reduction
+    in file size.
+  - Retained `$bit`, `$bits`, `_`, `0`, `1`, `$string`, `$unicode`, and
+    `$pattern` definitions intact for type derivation and codecs.
+
+### Web REPL & VFS
+
+- **VFS Namespace Flattening**:
+  - Flattened VFS back to root filenames (`int.mjs`, `json.mjs`,
+    `utf8.mjs`, `unit.mjs`, `ieee.mjs`), ensuring consistent resolution
+    across browser and CLI environments.
+- **Upload File Directly to VFS**:
+  - Updated "Upload" action to strictly add uploaded files into the VFS
+    without auto-loading or evaluating them as K code.
+  - Enables uploading JavaScript codecs, JSON payloads, and test vectors.
+  - Expanded file picker `accept` filter to allow `.mjs`, `.js`, and
+    `.json` files.
+  - Supported `:codec load` for `.js` codecs in the VFS explorer modal.
+
+---
+
 ## [6.10.5] — 2026-10-08 — Adaptive Division and VFS Codecs
 
 ### Arithmetic & Algorithms

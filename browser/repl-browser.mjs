@@ -477,7 +477,7 @@ function showVfsFilePreview(filename) {
 function loadPreviewedFile() {
   if (!currentPreviewFile) return;
   closeVfsModal();
-  if (currentPreviewFile.endsWith(".mjs") || currentPreviewFile.startsWith("codecs/")) {
+  if (currentPreviewFile.endsWith(".mjs") || currentPreviewFile.endsWith(".js") || currentPreviewFile.startsWith("codecs/")) {
     executeCommand(`:codec load ${currentPreviewFile}`);
   } else {
     executeCommand(`:load ${currentPreviewFile}`);
@@ -498,32 +498,49 @@ function downloadPreviewedFile() {
   URL.revokeObjectURL(url);
 }
 
-// File Upload Handler
+// File Upload Handler (adds file to VFS without auto-loading)
 function handleFileUpload(file) {
-  const reader = new FileReader();
-  const isBinary = file.name.endsWith(".klib") || file.name.endsWith(".ko") || file.name.endsWith(".wasm");
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const isBinary = file.name.endsWith(".klib") ||
+      file.name.endsWith(".ko") ||
+      file.name.endsWith(".wasm");
 
-  reader.onload = (e) => {
-    let data;
+    reader.onload = (e) => {
+      let data;
+      if (isBinary) {
+        data = new Uint8Array(e.target.result);
+      } else {
+        data = e.target.result;
+      }
+      setVfsFile(file.name, data);
+      appendSystemMessage(
+        `📁 Uploaded <b>${escapeHtml(file.name)}</b> into VFS (` +
+        `${(data.length / 1024).toFixed(1)} KB).`,
+        false,
+        true
+      );
+      if (vfsModal && vfsModal.classList.contains("open")) {
+        renderVfsFileList();
+        showVfsFilePreview(file.name);
+      }
+      resolve();
+    };
+
+    reader.onerror = () => {
+      appendSystemMessage(
+        `❌ Error reading file: ${file.name}`,
+        true
+      );
+      reject(reader.error || new Error("Failed to read file"));
+    };
+
     if (isBinary) {
-      data = new Uint8Array(e.target.result);
+      reader.readAsArrayBuffer(file);
     } else {
-      data = e.target.result;
+      reader.readAsText(file);
     }
-    setVfsFile(file.name, data);
-    appendSystemMessage(`📁 Uploaded <b>${escapeHtml(file.name)}</b> into VFS (${(data.length / 1024).toFixed(1)} KB).`);
-    if (file.name.endsWith("-codec.mjs") || file.name.endsWith("-codec.js") || file.name.includes("codec")) {
-      executeCommand(`:codec load ${file.name}`);
-    } else {
-      executeCommand(`:load ${file.name}`);
-    }
-  };
-
-  if (isBinary) {
-    reader.readAsArrayBuffer(file);
-  } else {
-    reader.readAsText(file);
-  }
+  });
 }
 
 // Export State as .klib
@@ -993,6 +1010,7 @@ if (typeof window !== "undefined") {
     getVfsFile,
     setVfsFile,
     getAllVfsFiles,
+    handleFileUpload,
     openCodecsModal,
     registerCodec,
     unregisterCodec

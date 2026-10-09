@@ -130,7 +130,7 @@ for (const filename of verifiedCodecs) {
       }]
     });
     const bundledContent = buildRes.outputFiles[0].text;
-    vfsFiles[`codecs/${filename}`] = bundledContent;
+    vfsFiles[filename] = bundledContent;
   }
 }
 
@@ -1668,7 +1668,6 @@ const htmlContent = `<!DOCTYPE html>
               <option value="expr:{} | ok">{} | ok</option>
               <option value="expr:()">()</option>
               <option value="expr:$ bool = &lt; {} true, {} false &gt;; not = $ bool &lt; / true | false, {} | true &gt; $ bool; {} | true not">not (boolean relation with fallback)</option>
-              <option value="expr:{10 x, 5 y} plus">{10 x, 5 y} plus (bits)</option>
               <option value="expr:1 succ">1 succ</option>
               <option value="expr:{10 int x, 5 int y} plus">{10 int x, 5 int y} plus (int)</option>
               <option value="expr:{10 int x, 5 int y} karatsuba">{10 int x, 5 int y} karatsuba</option>
@@ -1681,21 +1680,21 @@ const htmlContent = `<!DOCTYPE html>
             <optgroup label="Codecs &amp; Format Adapters">
               <option value="expr::codecs">:codecs</option>
               <option value="expr::input">:input (interactive dialog)</option>
-              <option value="expr::codec load codecs/int.mjs">:codec load codecs/int.mjs</option>
-              <option value="expr::codec load codecs/utf8.mjs">:codec load codecs/utf8.mjs</option>
-              <option value="expr::codec load codecs/json.mjs">:codec load codecs/json.mjs</option>
-              <option value="expr::codec load codecs/ieee.mjs">:codec load codecs/ieee.mjs</option>
-              <option value="expr::codec load codecs/unit.mjs">:codec load codecs/unit.mjs</option>
-              <option value="expr::input codecs/json.mjs {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input codecs/json.mjs {"a":12,"b":"hello"}</option>
-              <option value="expr::input codecs/int.mjs [0,1,2]">:input codecs/int.mjs [0,1,2]</option>
+              <option value="expr::codec load int.mjs">:codec load int.mjs</option>
+              <option value="expr::codec load utf8.mjs">:codec load utf8.mjs</option>
+              <option value="expr::codec load json.mjs">:codec load json.mjs</option>
+              <option value="expr::codec load ieee.mjs">:codec load ieee.mjs</option>
+              <option value="expr::codec load unit.mjs">:codec load unit.mjs</option>
+              <option value="expr::input json.mjs {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input json.mjs {"a":12,"b":"hello"}</option>
+              <option value="expr::input int.mjs [0,1,2]">:input int.mjs [0,1,2]</option>
             </optgroup>
           </select>
           <button id="btn-load-example" class="btn btn-primary">Load</button>
         </div>
 
         <!-- File Upload -->
-        <label class="btn btn-secondary btn-file" title="Upload local .k or .klib file into VFS">
-          <input type="file" id="file-upload" accept=".k,.klib,.wat,.ko" style="display:none;">
+        <label class="btn btn-secondary btn-file" title="Upload local file into VFS">
+          <input type="file" id="file-upload" accept=".k,.klib,.wat,.ko,.mjs,.js,.json" style="display:none;">
           <span>📁 Upload</span>
         </label>
 
