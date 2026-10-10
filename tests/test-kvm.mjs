@@ -84,8 +84,7 @@ console.log("==> Starting kVM Tests");
 // Test 7: Filters & Types
 {
   const script = `
-    $ bool = < {} true, {} false >;
-    $ bool
+    ?< {} true, {} false >
   `;
   const result1 = runKVM(script, { true: {} });
   assert.deepEqual(toJSON(result1), "true");
@@ -98,9 +97,8 @@ console.log("==> Starting kVM Tests");
 // Test 8: Recursive List traversal (Cons/Nil)
 {
   const script = `
-    $ bool = < {} true, {} false >;
-    true = {} | true $bool;
-    false = {} | false $bool;
+    true = {} | true;
+    false = {} | false;
     
     list? = ?< {} nil, {X car, Y cdr} cons > = Y;
     nil = {}|nil list?;
@@ -130,12 +128,11 @@ console.log("==> Starting kVM Tests");
 // Test 9: Comparing KVM execution vs Native JS run (Envelope-aware and Envelope-free)
 {
   const script = `
-    $ nat = < {} 0, nat +1 >;
-    0 = {} | 0 $ nat;
-    inc = | +1 $ nat;
-    dec = $ nat / +1;
-    add = $ { nat x, nat y } <
-      { . x dec x, . y inc y } add,
+    0 = {} | 0;
+    inc = | +1;
+    dec = / +1;
+    add = ?{ < {} 0, N +1 > = N x, ... } = X <
+      { . x dec x, . y inc y } ?X add,
       . y
     >;
   `;

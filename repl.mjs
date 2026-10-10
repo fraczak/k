@@ -115,14 +115,11 @@ function restoreCodes(state) {
 function aliasLine(kind, name, hash) {
   if (!NAME_RE.test(name)) return null;
   const body = hash.startsWith("@") ? hash.slice(1) : hash;
-  return kind === "code" ? `$ ${name} = @${body};` : `${name} = @${body};`;
+  return `${name} = @${body};`;
 }
 
 function aliasPreamble(state, omitName = null) {
   const lines = [];
-  for (const [name, hash] of Object.entries(state.typeAliases).sort()) {
-    if (name !== omitName) lines.push(aliasLine("code", name, hash));
-  }
   for (const [name, hash] of Object.entries(state.relAliases).sort()) {
     if (name !== omitName) lines.push(aliasLine("rel", name, hash));
   }

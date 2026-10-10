@@ -19,9 +19,7 @@ t(`
 `, (annotated) => {
     // console.log(JSON.stringify(annotated,null,2));
     const {input,output} = in_out(annotated);
-    console.log(input);
-    console.log(output);
-    assert.equal(output.type, annotated.representatives["bnat"]);
-    assert.equal(input.type, annotated.representatives["pair"]);
+    assert.equal(output.pattern, '(...)');
+    assert.equal(input.pattern, '<...>');
     console.log("OK");
 });

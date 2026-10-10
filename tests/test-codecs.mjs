@@ -171,7 +171,7 @@ console.log("6. Verifying pattern derivation via k type system (patternFromFilte
   assert.deepEqual(UnitCodec.UNIT_PATTERN, unitPat);
 
   const listPat = SDK.patternFromFilter(
-    '$ bits = < bits 0, bits 1, {} _ >; $ int = < bits "+", bits "-" >; ?< {} nil, { $int car, list cdr } cons > = list'
+    '?< {} nil, { < <bits 0, bits 1, {} _>=bits "+", bits "-" > car, list cdr } cons > = list'
   );
   assert.deepEqual(IntCodec.INT_LIST_PATTERN, listPat);
 

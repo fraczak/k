@@ -22,9 +22,8 @@ import k from "../index.mjs";
 
 
 let k_expression = `
-  $ bool = < {} true, {} false >;
-  true = {} | true $bool;
-  false = {} | false $bool;
+  true = {} | true;
+  false = {} | false;
   
   list? = ?< {} nil, {X car, Y cdr} cons > = Y;
   nil = {}|nil list?;

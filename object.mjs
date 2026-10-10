@@ -737,9 +737,6 @@ function decompileObject(object) {
     ...Object.values(relAliases)
   ]);
 
-  const codeDefs = Object.keys(hydrated.codes)
-    .sort()
-    .map((name) => `$ ${aliases[name]} = ${codeToSource(hydrated.codes[name], aliases)};`);
   const emittedRelAliases = new Set();
   const relDefForName = (name) => {
     const rel = rels[name];
@@ -766,8 +763,6 @@ function decompileObject(object) {
   if (hydrated.main == null) {
     // Library: no main section
     return [
-      "----- codes -----",
-      ...codeDefs,
       "----- rels -----",
       ...relDefs,
       ""
@@ -788,8 +783,6 @@ function decompileObject(object) {
   ].join(" ");
 
   return [
-    "----- codes -----",
-    ...codeDefs,
     "----- rels -----",
     ...relDefs,
     "----- main -----",

@@ -9,17 +9,21 @@ Parses decimal floats, Infinity, -Infinity, NaN to 64-bit IEEE products.
 `;
 
 const FLOAT64_PATTERN = patternFromFilter(`
-$bit  = < {} 0, {} 1 >;
-$sign = < {} "+", {} "-" >;
-$exp11  = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9, bit 10};
-$frac52 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
-           bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
-           bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29,
-           bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39,
-           bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49,
-           bit 50, bit 51};
-$float64 = {sign sign, exp11 exponent, frac52 fraction};
-?$float64
+? {
+  < {} "+", {} "-" > sign,
+  {
+    < {} 0, {} 1 >=Bit 0,
+    Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
+  } exponent,
+  {
+    Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7, Bit 8, Bit 9,
+    Bit 10, Bit 11, Bit 12, Bit 13, Bit 14, Bit 15, Bit 16, Bit 17, Bit 18, Bit 19,
+    Bit 20, Bit 21, Bit 22, Bit 23, Bit 24, Bit 25, Bit 26, Bit 27, Bit 28, Bit 29,
+    Bit 30, Bit 31, Bit 32, Bit 33, Bit 34, Bit 35, Bit 36, Bit 37, Bit 38, Bit 39,
+    Bit 40, Bit 41, Bit 42, Bit 43, Bit 44, Bit 45, Bit 46, Bit 47, Bit 48, Bit 49,
+    Bit 50, Bit 51
+  } fraction
+}
 `);
 
 const UNIT = Value.product({});

@@ -131,14 +131,14 @@ function patterns2filters(typePatternGraph, ...patternIds) {
   const buildFilter = (path, patternId, i) => {
     let named_filter = {};
     const pattern = newTypePatternGraph.get_pattern(patternId);
-    if (variables[patternId] && pattern.pattern != 'type') {
+    if (variables[patternId]) {
       if (filterVars[patternId]) 
         return { type: 'name', name: filterVars[patternId] };
       filterVars[patternId] = `X${Object.keys(filterVars).length}`;
       named_filter = { name: filterVars[patternId] };
     }
     
-    const edges = newTypePatternGraph.edges[patternId];
+    const edges = newTypePatternGraph.edges[patternId] || {};
     const fields = () => 
       Object.keys(edges).sort().reduce( (fields, key) =>{
         fields[key] = buildFilter([...path, key], Object.values(edges[key])[0], i);
@@ -146,8 +146,15 @@ function patterns2filters(typePatternGraph, ...patternIds) {
       }, {});
 
     switch (pattern.pattern) {
-      case 'type':
-        return {type: "code", code: pattern.type, ...named_filter};
+      case 'type': {
+        const code = newTypePatternGraph.findCode(pattern.type);
+        if (code?.code === "product") {
+          return { type: 'product', fields: fields(), ...named_filter };
+        } else if (code?.code === "union") {
+          return { type: 'union', fields: fields(), ...named_filter };
+        }
+        return { type: "code", code: pattern.type, ...named_filter };
+      }
       case '(...)':
           return { type: null, open: true, fields: fields(), ...named_filter };
       case '{...}': 

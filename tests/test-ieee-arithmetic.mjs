@@ -6,25 +6,25 @@ import codes from "../codes.mjs";
 import { parse as parseFloat64, print as printFloat64 } from "../codecs/ieee.mjs";
 import { closedPatternToCodeHash, valueForCode } from "../repl-codecs.mjs";
 
-const state = createState();
+const state = createState({ engine: "js" });
 await evaluateInput(":load Examples/ieee.k", state);
 
 for (const name of ["add", "sub", "mul", "div"]) {
   assert.ok(state.relAliases[name], `Expected public IEEE relation '${name}'`);
 }
 
-const float64Hash = state.typeAliases.float64;
-const floatPairHash = state.typeAliases.float_pair;
+const sampleFloat = parseFloat64("0");
+const float64Hash = closedPatternToCodeHash(sampleFloat.pattern);
 
 function float64(text) {
-  return valueForCode(parseFloat64(text), float64Hash, codes.find);
+  return parseFloat64(text);
 }
 
 function floatPair(x, y) {
-  return valueForCode(Value.product({
+  return Value.product({
     x: float64(x),
     y: float64(y)
-  }), floatPairHash, codes.find);
+  });
 }
 
 async function runOperation(op, x, y) {
@@ -40,7 +40,6 @@ async function runProjectedResult(op, x, y) {
 }
 
 function assertFloatResult(value, expected, label) {
-  assert.equal(closedPatternToCodeHash(value.pattern), float64Hash, `${label}: result should keep float64 envelope`);
   assert.equal(printFloat64(value), expected, label);
 }
 

@@ -1,10 +1,9 @@
 -- Examples for defining arithmetic functions natively
-$ yes_no = < {} yes, {} no >;
-swap_yes_no = < /yes |no, /no |yes > $yes_no;
-yes = {}|yes $yes_no;
+swap_yes_no = < /yes |no, /no |yes >;
+yes = {}|yes;
 no = yes swap_yes_no;
 
-$ bits = < {} _, bits 0, bits 1 >;
+bits = ?< {} _, bits 0, bits 1 > = bits;
 
 0b = {} | _;
 -- |1 = | 1;
@@ -25,11 +24,11 @@ succ = {inv x, 0b y} _inc;
 11 = 10 succ;
 12 = 11 succ;
 
-empty = $bits < /_ yes, no >;
+empty = < /_ yes, no >;
 empty? = {empty /yes if, () then} .then;
 
-concat = ${bits x, bits y} {.x inv x, .y y} concat_; 
-concat_ = ${bits x, bits y} 
+concat = {.x inv x, .y y} concat_; 
+concat_ = ?{ <X 0, X 1, {} _>=X x, ... }
   < 
     {.x empty? if, .y then} .then,
     < 
@@ -38,7 +37,7 @@ concat_ = ${bits x, bits y}
     > concat_ 
   >;
 inv = {()x, 0b r} _inv; 
-_inv = ${bits x, bits r} 
+_inv = ?{ <X 0, X 1, {} _>=X x, ... }
   < 
     {.x empty? if, .r then} .then,
     < 
@@ -47,8 +46,8 @@ _inv = ${bits x, bits r}
    > _inv
   >;
 
-inOrder = ${bits x, bits y} {.x inv x, .y inv y, yes inOrder} inOrder_;
-inOrder_ = ${bits x, bits y, yes_no inOrder} 
+inOrder = {.x inv x, .y inv y, yes inOrder} inOrder_;
+inOrder_ = ?{ <X 0, X 1, {} _>=X x, ... }
   < 
     {.x </0,/1> if1, .y /_ if2, .inOrder swap_yes_no then} .then,
     {.x /_ if, .inOrder then} .then,
@@ -65,49 +64,48 @@ GT = {inOrder /no if, () then} . then;
 EQ = {inOrder /yes if, {.x y, .y x} inOrder /yes and, () then} .then;
 
 --------------------------------------
-$ int = < bits '+', bits '-' >;
+int = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" >;
 
 remove_leading_zeros = <
   /0 remove_leading_zeros, 
   ()
 >;
 nat = remove_leading_zeros <empty? 0, ()>;
-int = nat | '+' $int;
-abs = $int </'+',/'-'>;
+int = nat | '+';
+abs = </'+',/'-'>;
 
-pos? = $int {/'+' remove_leading_zeros /1 if, () then} .then;
-neg? = $int {/'-' if, () then} .then; 
-zero_int? = $int {/'+' /0 empty? if, () then} .then;
-minus_one? = $int {/'-' /1 empty? if, () then} .then;
+pos? = {/'+' remove_leading_zeros /1 if, () then} .then;
+neg? = {/'-' if, () then} .then; 
+zero_int? = {/'+' /0 empty? if, () then} .then;
+minus_one? = {/'-' /1 empty? if, () then} .then;
 
-inc = $int <
+inc = <
   /'+' {inv x, 0b y} _inc nat |'+',
   minus_one? 0 int,
   /'-' {inv x, 0b y} _dec nat |'-'
-> $int;
+>;
 
-_inc = ${bits x, bits y} <
+_inc = ?{ <X 0, X 1, {} _>=X x, ... } <
     {.x empty? if, .y |1 then} .then,
     {.x /0 x, .y |1 y} concat_, 
     {.x /1 x, .y |0  y} _inc
 >; 
 
-dec = $int <
+dec = <
   zero_int? 1 |'-',
   /'+' {inv x, 0b y} _dec nat |'+',
   /'-' {inv x, 0b y} _inc nat |'-'
-> $int;
+>;
 
-_dec = ${bits x, bits y} <
+_dec = ?{ <X 0, X 1, {} _>=X x, ... } <
     {.x /1 x, .y |0  y} concat_, 
     {.x /0 x, .y |1 y} _dec
 >;
 
-$ carry = <{} 0, {} 1>;
-c0 = {}|0 $carry;
-c1 = {}|1 $carry;
+c0 = {}|0;
+c1 = {}|1;
 
-plus = ${int x, int y}
+plus =
 < 
   {.x/'+' inv x, .y/'+' inv y, c0 c } _plus inv nat | '+',
   {.x/'-' inv x, .y/'-' inv y, c0 c } _plus inv nat | '-',
@@ -115,8 +113,7 @@ plus = ${int x, int y}
   {.x/'+' inv x, .y/'-' inv y, c0 c} _minus inv nat |'+',
   {.x/'-' x, .y/'+' y} GT {.x inv x, .y inv y, c0 c} _minus inv nat | '-',
   {.y/'+' inv x, .x/'-' inv y, c0 c} _minus inv nat | '+'
-> 
-$int;
+>;
 
 swap_sign = <
   zero_int?,
@@ -124,14 +121,14 @@ swap_sign = <
   /'-' | '+'
 >;
 
-minus = ${int x, int y}
+minus =
   {.x x, .y swap_sign y} plus;
 
 _plus = {.x x, .y y, .c c, 0b r} _plus_;
 
 _plus_ =
   -- least significant bit first addition with carry
-  ${bits x, bits y, carry c, bits r}
+  ?{ <X 0, X 1, {} _>=X x, ... }
   <
     {.x empty? if, .y empty? and, .c/0 c, .r inv then} .then,
     {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
@@ -159,7 +156,7 @@ _minus = {.x x, .y y, .c c, 0b r} _minus_;
 
 _minus_ =
   -- least significant bit first substraction with carry
-  ${bits x, bits y, carry c, bits r}
+  ?{ <X 0, X 1, {} _>=X x, ... }
   <
     {.y empty? if, .c/0 and, {.r x, .x r} _inv then} .then,
     <
@@ -178,12 +175,11 @@ _minus_ =
   >
 ;
 
-$ sign = < {} '+' , {} '-' >;
-sign_plus = {}|'+' $sign;
-sign_minus = {}|'-' $sign;
-get_sign = $int </'+' sign_plus, /'-' sign_minus>;
+sign_plus = {}|'+';
+sign_minus = {}|'-';
+get_sign = </'+' sign_plus, /'-' sign_minus>;
 
-times = ${int x, int y}
+times =
   {
     <
       {.x/'+' if, .y /'+' and} sign_plus, 
@@ -203,7 +199,7 @@ times = ${int x, int y}
 ;
 
 _times =
-  ${bits result, bits _x, bits y}
+  ?{ <Y 0, Y 1, {} _>=Y y, ... }
   <
     { .y empty? if, .result then } .then,
     <
@@ -221,40 +217,16 @@ _times =
   >
 ;
 
-
-
-
-
 // ----------------------------------------------------------------------
 // Integer Division: Adaptive Hybrid Algorithm
-//
-// Combines two complementary strategies based on the bit-length
-// comparison between dividend x and divisor y (|x| vs |y|):
-//
-// 1. Down-Shift Division (|x| < 2|y|, y is large relative to x):
-//    - Scales y up to y_max = y * 2^k to match length(x) via 'y inv'
-//      and prepending k zeros (|0).
-//    - In each step: trial subtraction x = x - y_scaled, then down-shifts
-//      y_scaled by 1 bit in O(1) by popping the outer zero (/_0).
-//    - Runs in exactly (|x| - |y| + 1) iterations. When y ~= x, this
-//      terminates in 1-2 steps rather than looping through all bits of x.
-//
-// 2. Restoring Division (|x| >= 2|y|, y is small relative to x):
-//    - Consumes bits of x from MSB to LSB into remainder accumulator r.
-//    - Remainder r stays small (r <= 2y), so trial subtractions operate
-//      on tiny numbers of length |y| rather than full-length |x|.
-//
-// The crossover condition |x| < 2|y| is evaluated structurally in
-// O(min(|y|, |x|/2)) by consuming 2 bits of x for every 1 bit of y.
 // ----------------------------------------------------------------------
 
-// Helpers for Restoring Division (shift-and-subtract)
 shift_in_0 = inv |0 inv nat;
 shift_in_1 = inv |1 inv nat;
-sub_bits = ${bits x, bits y} {.x inv x, .y inv y, c0 c} _minus inv nat;
+sub_bits = {.x inv x, .y inv y, c0 c} _minus inv nat;
 
 _div_restoring =
-  ${bits x, bits y, bits r, bits q}
+  ?{ <X 0, X 1, {} _>=X x, ... }
   <
     {.x empty? if, {.q inv int div, .r rem} then} .then,
     <
@@ -275,9 +247,7 @@ _div_restoring =
     _div_restoring
   >;
 
-// Helpers for Down-Shift Division (align and shift divisor down)
-// Phase 1: pad _y with |0 to match length of x, counting shift steps
-_pad_down = ${bits x, bits _y, bits steps}
+_pad_down = ?{ <X 0, X 1, {} _>=X x, <S 0, S 1, {} _>=S steps, ... }
   <
     {.x empty? if, {._y _y, .steps steps} then} .then,
     {
@@ -287,22 +257,19 @@ _pad_down = ${bits x, bits _y, bits steps}
     } _pad_down
   >;
 
-_align_down = ${bits x, bits y, bits _y}
+_align_down = ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
   <
-    // Both x and y have bits remaining: advance both
     {
       .x </0, /1> x,
       .y </0, /1> y,
       ._y _y
     } _align_down,
 
-    // y is empty while x remains: pad _y with shift zeros
     {
       .y empty? if,
       {.x x, ._y _y, 0b steps} _pad_down then
     } .then,
 
-    // Both x and y are empty: lengths equal (0 shift steps)
     {
       .x empty? if,
       .y empty? and,
@@ -310,8 +277,7 @@ _align_down = ${bits x, bits y, bits _y}
     } .then
   >;
 
-// Phase 2: down-shift trial subtraction
-_div_down = ${bits x, bits _y, bits steps, bits q}
+_div_down = ?{ <X 0, X 1, {} _>=X steps, ... }
   {
     .x x,
     ._y _y,
@@ -328,7 +294,6 @@ _div_down = ${bits x, bits _y, bits steps, bits q}
     {.y_scaled x, .x y} inOrder test
   }
   <
-    // If x >= y_scaled, subtract and emit quotient bit 1
     {
       .test /yes if,
       {
@@ -338,19 +303,16 @@ _div_down = ${bits x, bits _y, bits steps, bits q}
         .steps steps
       } then
     } .then,
-    // If x < y_scaled, keep x and emit quotient bit 0
     {
       .test /no if,
       {.x x, .q |0 q, ._y _y, .steps steps} then
     } .then
   >
   <
-    // If no more shift steps remaining, division is complete
     {
       .steps empty? if,
       {.q inv int div, .x rem} then
     } .then,
-    // Otherwise down-shift: remove the last 0 from _y and steps
     {
       .x x,
       ._y /0 _y,
@@ -359,26 +321,18 @@ _div_down = ${bits x, bits _y, bits steps, bits q}
     } _div_down
   >;
 
-$ choose_div = < {} down_shift, {} restore >;
-
-// Evaluates whether |x| < 2|y| by advancing 2 bits of x per 1 bit of y
-_check_2y = ${bits x, bits y}
+_check_2y = ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
   <
-    // x is empty -> |x| < 2|y| (choose down_shift)
-    {.x empty? if, {} | down_shift $choose_div then} .then,
-    // y is empty while x remains -> |x| >= 2|y| (choose restore)
-    {.y empty? if, {} | restore $choose_div then} .then,
-    // x has only 1 bit left while y remains -> |x| < 2|y|
-    {.x </0, /1> empty? if, {} | down_shift $choose_div then} .then,
-    // Advance 2 bits from x and 1 bit from y
+    {.x empty? if, {} | down_shift then} .then,
+    {.y empty? if, {} | restore then} .then,
+    {.x </0, /1> empty? if, {} | down_shift then} .then,
     {
       .x </0, /1> </0, /1> x,
       .y </0, /1> y
     } _check_2y
   >;
 
-// Public division interface
-div = ${int x, int y}
+div =
   {
     <
       { .x/'+' if, .y get_sign then } .then,
@@ -388,17 +342,14 @@ div = ${int x, int y}
     .y abs remove_leading_zeros y_norm
   }
   <
-    // Case 1: x == 0 -> quotient 0, remainder 0
     {
       .x_norm empty? if,
       { 0 int div, 0 rem } then
     } .then,
-    // Case 2: |x| < |y| -> x < y, quotient 0, remainder x
     {
       {.y_norm x, .x_norm y} GT if,
       { 0 int div, .x_norm rem } then
     } .then,
-    // Case 3: general division via adaptive hybrid choice
     {
       .sign sign,
       {
@@ -407,7 +358,6 @@ div = ${int x, int y}
         {.x_norm x, .y_norm y} _check_2y choice
       }
       <
-        // If |x| < 2|y|, use down-shift division
         {
           .choice /down_shift if,
           {
@@ -421,7 +371,6 @@ div = ${int x, int y}
             0b q
           } _div_down then
         } .then,
-        // If |x| >= 2|y|, use restoring long division
         {
           .choice /restore if,
           {.x x, .y y, 0 r, 0b q} _div_restoring then
@@ -434,31 +383,22 @@ div = ${int x, int y}
     >
   >;
 
-
-// ----------------------------------------------------------------------
-// Number Theory: Modulo, Greatest Common Divisor, Least Common Multiple
-// ----------------------------------------------------------------------
-
-// Modulo: remainder of x divided by y in $bits, delegated to div
-mod = ${bits x, bits y}
+mod =
   {{.x int x, .y int y} div .rem rem} .rem;
 
-// Greatest common divisor (Euclidean algorithm)
-gcd = ${bits x, bits y}
+gcd =
   <
     {.y x, .x y} GT, 
     ()
   > _gcd
 ;
 
-_gcd = <
+_gcd = ?{ <X 0, X 1, {} _>=X x, ... } <
   { .y remove_leading_zeros empty? if, .x nat then } .then,
   { .y x, mod y } _gcd
 >;
 
-// Least common multiple: (x / gcd(x, y)) * y
 lcm = 
-  ${bits x, bits y}
   {{.x int x, gcd int y} div .div x, .y int y} times abs
 ;
 
@@ -477,16 +417,13 @@ fib_ =
   >
 ;
 
-fib = {$bits n, {1 int x, 0 int y} "fib(n),fib(n.1)"} fib_ .x;
-
+fib = {() n, {1 int x, 0 int y} "fib(n),fib(n.1)"} fib_ .x;
 
 --------------------
-$ rat = { int n, int d };
 
-rat = ${bits n, bits d} {.n int n, .d int d } normalize_rat;
+rat = {.n int n, .d int d } normalize_rat;
 
 normalize_rat =
-  $rat 
   < 
     { .d/"-" if, 
       {
@@ -501,12 +438,9 @@ normalize_rat =
     {.x.n x,.y y} div .div n, 
     {.x.d x,.y y} div .div d
   }
-  $rat
 ;
 
-
 plus_rat = 
-  ${rat x, rat y}
   { 
     .x x, 
     .y y,
@@ -522,18 +456,14 @@ plus_rat =
   normalize_rat
 ;
 
-
 times_rat = 
-  ${rat x, rat y}
   { 
     {.x.n x,.y.n y} times n, 
     {.x.d x,.y.d y} times d
   } 
   normalize_rat;
- 
 
 minus_rat = 
-  ${rat x, rat y}
   {
     .x x, 
     .y {.n swap_sign n, .d d} y
@@ -541,51 +471,17 @@ minus_rat =
   plus_rat;
 
 inverse_rat = 
-  $rat
   { .d n, .n d }
   normalize_rat
 ;
 
 div_rat = 
-  ${rat x, rat y}
   { .x x, .y inverse_rat y} times_rat
 ;
 
-
---------------------
-
 int_rat = 
-  $rat 
   { .n n, .d d, {.n x,.d y} div div }
   { .div.div int, {.div.rem int n, .d d} rat}
-  ${int int, rat rat}
 ;
-
-/* 
-ratToString = 
--- $rat
-[
-    .n toJSON, 
-    "/", 
-    .d toJSON, 
-    " = ",
-    normalize_rat
-    <
-      [.d,.n] GT [.1 toJSON ,"/", .0 toJSON] CONCAT,
-      {.n 0,[.d,1] EQ 1} [.0 toJSON] CONCAT,
-      int_rat [.int toJSON,"+",.rat.n toJSON,"/",.rat.d toJSON] CONCAT
-    >
-  ] CONCAT
--- $@string
-;
-
-_rat! = $rat {
-  () carryOn, 
-  ratToString drop
- } .carryOn;
-
-
-
-*/
 
 ()

@@ -67,16 +67,14 @@ f
 // SCC order should not change hash
 {
   const scriptA = `
-$bit = < {} 0, {} 1 >;
-f = $bit < /0 |0 g, /1 >;
-g = $bit < /0 |0 f, /1 >;
+f = ?< {} 0, {} 1 > < /0 |0 g, /1 >;
+g = ?< {} 0, {} 1 > < /0 |0 f, /1 >;
 f
   `;
 
   const scriptB = `
-$bit = < {} 0, {} 1 >;
-g = $bit < /0 |0 f, /1 >;
-f = $bit < /0 |0 g, /1 >;
+g = ?< {} 0, {} 1 > < /0 |0 f, /1 >;
+f = ?< {} 0, {} 1 > < /0 |0 g, /1 >;
 f
   `;
 

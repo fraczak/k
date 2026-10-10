@@ -21,11 +21,15 @@ Syntax:
 // with $ bits = < {} _, bits 0, bits 1 >
 const INT_PATTERN = patternFromFilter('?< <bits 0, bits 1, {} _>=bits "+", bits "-">');
 
-// Closed pattern for list of int:
-// list = < {} nil, {int car, list cdr} cons >
-const INT_LIST_PATTERN = patternFromFilter(
-  '$ bits = < bits 0, bits 1, {} _ >; $ int = < bits "+", bits "-" >; ?< {} nil, { $int car, list cdr } cons > = list'
-);
+const INT_LIST_PATTERN = patternFromFilter(`
+  ?<
+    {} nil,
+    {
+      < <bits 0, bits 1, {} _>=bits "+", bits "-" > car,
+      list cdr
+    } cons
+  > = list
+`);
 
 // Build bits Value (MSB outermost) from a non-negative BigInt.
 function buildBits(n) {

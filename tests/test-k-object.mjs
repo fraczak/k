@@ -51,9 +51,7 @@ const INT_PATTERN = [
 ];
 
 const objectBuffer = compileObjectBuffer(`
-  $ bits = < {} _, bits 0, bits 1 >;
-  $ int = < bits +, bits - >;
-  {}|_|0|1|+ $int
+  {}|_|0|1|+ ?< <bits 0, bits 1, {} _>=bits "+", bits "-">
 `);
 assert.equal(objectBuffer.subarray(0, 5).toString("utf8"), "KOBJ\n");
 const object = decodeObject(objectBuffer);
@@ -84,19 +82,17 @@ const decompiledSource = decompileObjectBuffer(objectBuffer);
 const decompiledResult = k.compile(decompiledSource)(Value.product({}));
 assert.deepEqual(decompiledResult.pattern, INT_PATTERN);
 assert.deepEqual(decompiledResult.toJSON(), objectResult.toJSON());
-assert.match(decompiledSource, /^----- codes -----$/m);
 assert.match(decompiledSource, /^----- rels -----$/m);
 assert.match(decompiledSource, /^----- main -----$/m);
-assert.match(decompiledSource, /\$ Nws3 =/);
-assert.match(decompiledSource, /^7jfi = /m);
-assert.match(decompiledSource, /^----- main -----\n\?\(\.\.\.\) 7jfi \$Nws3$/m);
+assert.match(decompiledSource, /^[A-Za-z0-9_]+ = /m);
+assert.match(decompiledSource, /^----- main -----\n\?\(\.\.\.\) [A-Za-z0-9_]+ \?<<X0 0, X0 1, {} _>=X0 \+, X0 ->$/m);
 
 const natLibraryBuffer = compileLibraryBuffer(fs.readFileSync("Examples/nat.k", "utf8"), { source: "Examples/nat.k" });
 const natDecompiledSource = decompileObjectBuffer(natLibraryBuffer);
 const natRoundTripSource = decompileObjectBuffer(
   compileLibraryBuffer(natDecompiledSource, { source: "Examples/nat.decompiled.k" })
 );
-const recursiveNatPattern = /\$dTww <\{\.x PgmQ x, \.y h4Wg y\} re64, \.y> \$e9WP;/;
+const recursiveNatPattern = /\?\{<\{\} 0, X0 \+1>=X0 x, <X1 \+1, \.\.\.>=X1 y\} <\{\.x [A-Za-z0-9_]+ x, \.y [A-Za-z0-9_]+ y\} [A-Za-z0-9_]+, \.y> \?X1;/;
 assert.equal(natRoundTripSource, natDecompiledSource);
 assert.match(natDecompiledSource, recursiveNatPattern);
 
@@ -111,14 +107,14 @@ const arithmeticsRoundTripSource = decompileObjectBuffer(
 assert.equal(arithmeticsRoundTripSource, arithmeticsDecompiledSource);
 
 assert.throws(() => k.compile("@A = (); @A"), /Parse error/);
-assert.throws(() => k.compile("$ @A = {}; $@A"), /Parse error/);
+assert.throws(() => k.compile("$ @A = {}; $@A"), /Lexical error/);
 assert.deepEqual(k.compile("7jfi = ?X0; 7jfi")(Value.product({})).toJSON(), {});
 
 const sccSource = decompileObjectBuffer(compileObjectBuffer("c = {}; b = c |x; a = b |y; a"));
-assert.match(sccSource, /----- rels -----\nPQgV = .+\n\naQAD = .+\n\nN9UH = /s);
+assert.match(sccSource, /----- rels -----\n[A-Za-z0-9_]+ = .+\n\n[A-Za-z0-9_]+ = .+\n\n[A-Za-z0-9_]+ = /s);
 assert.deepEqual(k.compile(sccSource)(Value.product({})).toJSON(), { y: "x" });
 
-const libraryBuffer = compileLibraryBuffer("$ nat = <{} zero, nat succ>;\nsucc = |succ;\n", { source: "defs-only.k" });
+const libraryBuffer = compileLibraryBuffer("zero = {}|zero;\nsucc = |succ;\n", { source: "defs-only.k" });
 assert.equal(libraryBuffer.subarray(0, 1).toString("utf8"), "{");
 const library = decodeObject(libraryBuffer);
 assert.equal("version" in library, false);
@@ -133,10 +129,10 @@ assert(Object.values(library.rels).every((rel) =>
 ));
 assert(Object.values(library.rels).every((rel) => rel.def.op !== "comp" || rel.def.comp[0]?.op !== "filter"));
 assert(Object.values(library.meta).some(({ type, origins }) =>
-  type === "code" &&
+  type === "rel" &&
   origins.some((origin) =>
     origin.source === "defs-only.k" &&
-    origin.name === "nat" &&
+    origin.name === "zero" &&
     typeof origin.compiledAt === "string" &&
     origin.start &&
     origin.end
@@ -158,11 +154,11 @@ const derivedLibrary = decodeObject(compileLibraryBuffer("other = |other;\n", {
   libraries: [library]
 }));
 const derivedAliases = extractAliasesFromObject(derivedLibrary);
-assert.match(derivedAliases, /^\$ nat = @/m);
+assert.match(derivedAliases, /^zero = @/m);
 assert.match(derivedAliases, /^succ = @/m);
 assert.match(derivedAliases, /^other = @/m);
-assert(derivedAliases.indexOf("$ nat = @") < derivedAliases.indexOf("other = @"));
 assert(derivedAliases.indexOf("other = @") < derivedAliases.indexOf("succ = @"));
+assert(derivedAliases.indexOf("succ = @") < derivedAliases.indexOf("zero = @"));
 
 {
   const warn = console.warn;

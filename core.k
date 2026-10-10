@@ -1,17 +1,17 @@
 -- core.k — the k standard core library
 --
 -- Defines:
---   1. $bits — the canonical binary number / bit-path type
---   2. $string — unicode strings (used for labels)
---   3. $pattern — the type of pattern graphs
+--   1. bits — canonical binary number / bit-path relation
+--   2. string — unicode strings relation (used for labels)
+--   3. pattern — pattern graph relation
 
 ---------------------------------------------------------------
 -- §1. Bits
 ---------------------------------------------------------------
 
-$ bit = < {} 0, {} 1 >;
+bit = ?< {} 0, {} 1 >;
 
-$ bits = < {} _, bits 0, bits 1 >;
+bits = ?< {} _, bits 0, bits 1 > = bits;
 
 _ = {}|_;
 
@@ -22,104 +22,132 @@ _ = {}|_;
 -- §2. Unicode and String
 ---------------------------------------------------------------
 
--- 8-bit octet used as a building block for UTF-8 payload pieces.
-$ byte = {
-  bit 0, bit 1, bit 2, bit 3,
-  bit 4, bit 5, bit 6, bit 7
-};
-
--- 7-bit ASCII code point payload (U+0000..U+007F).
-$ ascii = { bit 6, bit 5, bit 4, bit 3, bit 2, bit 1, bit 0 };
-
--- 11-bit payload used for Plane 0 code points U+0080..U+07FF.
--- Plane 0 is the Basic Multilingual Plane (BMP): U+0000..U+FFFF.
-$ u0080_07FF = { bit 10, bit 9, bit 8, bit 7, bit 6, bit 5, bit 4, bit 3, bit 2, bit 1, bit 0 };
-
--- High-byte classes for common BMP ranges, excluding surrogate and
--- private-use partitions.
--- BMP (Basic Multilingual Plane) is Plane 0: first 65,536 code points.
-$ bmp_hi_common = <
-  { bit 2, bit 1, bit 0 } h08_0F,
-  { bit 6, bit 5, bit 4, bit 3, bit 2, bit 1, bit 0 } h10_7F,
-  { bit 6, bit 5, bit 4, bit 3, bit 2, bit 1, bit 0 } h80_CF,
-  { bit 2, bit 1, bit 0 } hD0_D7,
-  {} hF9,
-  { bit 0 } hFA_FB,
-  { bit 0 } hFC_FD,
-  { bit 0 } hFE_FF
->;
-
--- High-byte classes for BMP private-use/high-reserved slices.
--- These partitions keep Plane 0 subsets explicit in the type encoding.
-$ bmp_hi_private_use = <
-  { bit 3, bit 2, bit 1, bit 0 } hE0_EF,
-  { bit 2, bit 1, bit 0 } hF0_F7,
-  {} hF8
->;
-
--- Plane selector for supplementary code points in Planes 2..16.
--- Supplementary planes are all planes above BMP (Plane 0).
-$ plane_02_10 = <
-  { bit 0 } p02_03,
-  { bit 1, bit 0 } p04_07,
-  { bit 2, bit 1, bit 0 } p08_0F,
-  {} p10
->;
-
--- Canonical Unicode scalar-value partition used by string encoding.
--- Branch meaning:
--- - ascii: U+0000..U+007F (subset of BMP / Plane 0)
--- - plane0: U+0080..U+07FF (still Plane 0)
--- - bmp_common, bmp_private_use: U+0800..U+FFFF partitions (Plane 0)
--- - supplementary_plane1: U+10000..U+1FFFF (Plane 1)
--- - supplementary_planes2_16: U+20000..U+10FFFF (Planes 2..16)
-$ unicode = <
-  ascii ascii,
-  u0080_07FF plane0,
-  { bmp_hi_common hi, byte lo } bmp_common,
-  { bmp_hi_private_use hi, byte lo } bmp_private_use,
-  { byte mid, byte lo } supplementary_plane1,
-  { plane_02_10 plane, byte mid, byte lo } supplementary_planes2_16
->;
-
--- Linked-list string: nil or (unicode car, string cdr).
-$ string = < {} nil, { unicode car, string cdr } cons >;
+string = ? <
+  {} nil,
+  {
+    <
+      {
+        < {} 0, {} 1 >=Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6
+      }=Bits7 ascii,
+      {
+        <
+          { Bit 0, Bit 1, Bit 2 }=Bits3 h08_0F,
+          Bits7 h10_7F,
+          Bits7 h80_CF,
+          Bits3 hD0_D7,
+          {} hF9,
+          { Bit 0 }=Bits1 hFA_FB,
+          Bits1 hFC_FD,
+          Bits1 hFE_FF
+        > hi,
+        { Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7 }=Bits8 lo
+      } bmp_common,
+      {
+        <
+          { Bit 0, Bit 1, Bit 2, Bit 3 } hE0_EF,
+          Bits3 hF0_F7,
+          {} hF8
+        > hi,
+        Bits8 lo
+      } bmp_private_use,
+      {
+        Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
+      } plane0,
+      { Bits8 mid, Bits8 lo } supplementary_plane1,
+      {
+        <
+          Bits1 p02_03,
+          { Bit 0, Bit 1 } p04_07,
+          Bits3 p08_0F,
+          {} p10
+        > plane,
+        Bits8 mid,
+        Bits8 lo
+      } supplementary_planes2_16
+    > car,
+    String cdr
+  } cons
+> = String;
 
 ---------------------------------------------------------------
 -- §3. Pattern
 ---------------------------------------------------------------
 
--- Edge: a labeled edge in a pattern graph.
--- 'label' is the field name or tag name.
--- 'target' is index (as $bits) of the target node in the pattern list.
-
-$ edge = { string label, bits target };
-
--- Edge list: the edges of a pattern node, sorted by label.
-
-$ edges = < {} nil, { edge car, edges cdr } cons >;
-
--- Pattern node: one of five kinds.
--- "any" is the unconstrained position (...), carrying no edges.
--- The four others carry their edge list directly.
-
-$ pattern-node = <
-  {} any,
-  edges open-product,
-  edges open-union,
-  edges closed-product,
-  edges closed-union
->;
-
 -- Pattern: a cons-list of pattern nodes.
 -- Node 0 (first element) is the root.
--- Edges reference nodes by their index in this list, encoded as $bits.
+-- Edges reference nodes by their index in this list, encoded as bits.
 --
--- The singleton pattern of $pattern itself is a fixed constant.
+-- The singleton pattern of pattern itself is a fixed constant.
 -- That constant is the implicit framing for all k wire formats:
--- to decode any value, first decode a $pattern under that constant,
+-- to decode any value, first decode a pattern under that constant,
 -- then decode the value under the pattern just obtained.
 
-$ pattern = < {} nil, { pattern-node car, pattern cdr } cons >;
+pattern = ? <
+  {} nil,
+  {
+    <
+      {} any,
+      <
+        {} nil,
+        {
+          {
+            <
+              {} nil,
+              {
+                <
+                  {
+                    < {} 0, {} 1 >=Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6
+                  }=Bits7 ascii,
+                  {
+                    <
+                      { Bit 0, Bit 1, Bit 2 }=Bits3 h08_0F,
+                      Bits7 h10_7F,
+                      Bits7 h80_CF,
+                      Bits3 hD0_D7,
+                      {} hF9,
+                      { Bit 0 }=Bits1 hFA_FB,
+                      Bits1 hFC_FD,
+                      Bits1 hFE_FF
+                    > hi,
+                    { Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7 }=Bits8 lo
+                  } bmp_common,
+                  {
+                    <
+                      { Bit 0, Bit 1, Bit 2, Bit 3 } hE0_EF,
+                      Bits3 hF0_F7,
+                      {} hF8
+                    > hi,
+                    Bits8 lo
+                  } bmp_private_use,
+                  {
+                    Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
+                  } plane0,
+                  { Bits8 mid, Bits8 lo } supplementary_plane1,
+                  {
+                    <
+                      Bits1 p02_03,
+                      { Bit 0, Bit 1 } p04_07,
+                      Bits3 p08_0F,
+                      {} p10
+                    > plane,
+                    Bits8 mid,
+                    Bits8 lo
+                  } supplementary_planes2_16
+                > car,
+                String cdr
+              } cons
+            > = String label,
+            < Bits 0, Bits 1, {} _ > = Bits target
+          } car,
+          Edges cdr
+        } cons
+      > = Edges open-product,
+      Edges open-union,
+      Edges closed-product,
+      Edges closed-union
+    > car,
+    Pattern cdr
+  } cons
+> = Pattern;
 
-$pattern
+pattern

@@ -12,14 +12,11 @@ t('{}', (annotated) => {
 });
 
 t(`
-  $b = < {} true, {} false > ; 
-  $pair = { b one, b two } ;
-
-  {() one, () two} $pair
+  ?< {} true, {} false > {() one, () two} ?{ < {} true, {} false > one, < {} true, {} false > two }
 `, (annotated) => {
   const {input,output} = in_out(annotated);
 
-  assert.equal(input.type, annotated.representatives["b"]);
-  assert.equal(output.type, annotated.representatives["pair"]);
+  assert.equal(input.type, "@GWnxJCupZr96BZfdpDsfQQKxKjCbjyDh7Qaur7y9enCY");
+  assert.equal(output.type, "@ZR2yff4pdXTVqZdMu9x3t9GG5rwmhEfQuenbAwFnD2Nk");
   console.log("OK");
 });

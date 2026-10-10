@@ -3,24 +3,18 @@ import { hash } from '../../hash.mjs';
 import assert from 'assert';
 
 t(`
-$b = < {} true, {} false > ; 
-$pair = { b one, b two } ;
-$bit = <{} 0, {} 1> ;
-1 = {} |1 $bit;
-$b {1 one, () two, () c} .one
+1 = {} |1 ?< {} 0, {} 1 >;
+?< {} true, {} false > {1 one, () two, () c} .one
 
 `, (annotated) => {
     const {input,output} = in_out(annotated);
-    // console.log({input,output});
-    assert.equal(input.type, annotated.representatives["b"]);
-    assert.equal(output.type, annotated.representatives["bit"]);
+    assert.equal(input.type, "@GWnxJCupZr96BZfdpDsfQQKxKjCbjyDh7Qaur7y9enCY");
+    assert.equal(output.type, "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg");
     console.log("OK");
 });
 
 t(`
-    $bit = <{} 0, {} 1> ;
-    $a = < bit true, bit false > ;
-    $a /true
+    ?< <{} 0, {} 1> true, <{} 0, {} 1> false > /true
   `, (annotated) => {
   const {input,output} = in_out(annotated);
   console.log({input,output});

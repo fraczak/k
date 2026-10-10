@@ -12,9 +12,8 @@ const INT_PATTERN = [
 ];
 
 const script = `
-  $ bits = < {} _, bits 0, bits 1 >;
-  $ int = < bits +, bits - >;
-  {}|_|0|1|+ $int
+  int = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" >;
+  {}|_|0|1|+ int
 `;
 
 const result = k.compile(script)(Value.product({}));
@@ -76,9 +75,8 @@ assert.throws(
 );
 
 const projectionScript = `
-  $ bits = < {} _, bits 0, bits 1 >;
-  $ int = < bits +, bits - >;
-  $int /+
+  int = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" >;
+  int /+
 `;
 const annotated = k.annotate(projectionScript);
 run.defs = annotated;

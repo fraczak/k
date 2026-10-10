@@ -1,14 +1,14 @@
 import { t, in_out } from './index.mjs';
 import assert from 'assert';
 
-t(`$b = < {} true, {} false > ;
-   true = {} |true $b;
-   false = {} |false $b; 
-   not = $b < /true false, /false true >;
+t(`
+   true = {} |true;
+   false = {} |false; 
+   not = ?< {} true, {} false > < /true false, /false true > ?< {} true, {} false >;
    not not
 `, (annotated) => {
    const {input,output} = in_out(annotated);
-   assert.equal(input.type, annotated.representatives["b"]);
-   assert.equal(output.type, annotated.representatives["b"]);
+   assert.equal(input.type, output.type);
+   assert.equal(input.type, "@GWnxJCupZr96BZfdpDsfQQKxKjCbjyDh7Qaur7y9enCY");
    console.log("OK");
    });

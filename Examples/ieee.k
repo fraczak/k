@@ -1,71 +1,56 @@
 // Primitive bit domains used throughout floating-point encodings.
 // IEEE-754 double-precision building blocks: bit-level domains, flag enums,
 // and ripple-carry arithmetic helpers reused across add/sub/mul/div.
-$bit  = < {} 0, {} 1 >;
-$sign = < {} +, {} - >;
+
+
 
 // Small utility products for pairing bits or signs.
-$bit_pair  = {bit x, bit y};
-$sign_pair = {sign x, sign y};
+
+
 
 // Comparator states and result lattice (accounts for NaN unordered case).
-$cmp_state = <{} eq, {} gt, {} lt>;
-$cmp = <{} eq_exact, {} eq_zero, {} gt, {} lt, {} unordered_nan>;
+
+
 
 // IEEE-754 double fields: 11-bit exponent and 52-bit fraction.
-$exp11  = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9, bit 10};
-$frac52 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
-           bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
-           bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29,
-           bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39,
-           bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49,
-           bit 50, bit 51};
+
+
 
 // Logical view of a double plus rounding/exception flag enums per op.
-$float64 = {sign sign, exp11 exponent, frac52 fraction};
-$flags_add = <{} none, {} invalid, {} overflow, {} underflow, {} inexact>;
-$flags_sub = <{} none, {} invalid, {} overflow, {} underflow, {} inexact>;
-$flags_mul = <{} none, {} invalid, {} overflow, {} underflow, {} inexact>;
-$flags_div = <{} none, {} invalid, {} div_by_zero, {} overflow, {} underflow, {} inexact>;
+
+
+
+
+
 
 // Bundles pairing an arithmetic result with its raised flags.
-$add_result = {float64 result, flags_add flags};
-$sub_result = {float64 result, flags_sub flags};
-$mul_result = {float64 result, flags_mul flags};
-$div_result = {float64 result, flags_div flags};
+
+
+
+
 
 // Common products for operand pairs and extended significands.
-$float_pair = {float64 x, float64 y};
-$sig53 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
-          bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
-          bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29,
-          bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39,
-          bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49,
-          bit 50, bit 51, bit 52};
-$sig56 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9,
-          bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19,
-          bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29,
-          bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39,
-          bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49,
-          bit 50, bit 51, bit 52, bit 53, bit 54, bit 55};
+
+
+
 // Helper shapes for ripple-carry adders and small shifts.
-$exp_sum = {exp11 sum, bit carry};
-$sig56_sum = {sig56 sum, bit carry};
-$adder_out = {bit sum, bit carry};
-$shift6 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5};
+
+
+
+
 
 // Pairings used during exponent/fraction comparisons.
-$exp_pair  = {exp11 x, exp11 y};
-$frac_pair = {frac52 x, frac52 y};
+
+
 
 // Comparator pipelines carry current state alongside bit pairs.
-$cmp_step_in  = {bit_pair bits, cmp_state state};
-$cmp_exp_ctx  = {exp_pair pair, cmp_state state};
-$cmp_frac_ctx = {frac_pair pair, cmp_state state};
+
+
+
 
 // Canonical bit literals for convenience.
-0 = {} |0 $bit;
-1 = {} |1 $bit;
+0 = {} |0 ;
+1 = {} |1 ;
 
 // Flag constructors for exception enums.
 none = {} |none;
@@ -76,25 +61,25 @@ inexact = {} |inexact;
 div_by_zero = {} |div_by_zero;
 
 // Primitive boolean operators and a 3-input XOR helper.
-not_bit = $bit </0 1, 0>;
-or_bit = $bit_pair <.x/1 1, .y/1 1, 0> $bit;
-and_bit = $bit_pair <.x/0 0, .y/0 0, 1> $bit;
-xor_bit = $bit_pair <{.x/0 if, .y then} .then, .y not_bit> $bit;
-xor_abc = ${bit a, bit b, bit c}
+not_bit =  </0 1, 0>;
+or_bit =  <.x/1 1, .y/1 1, 0> ;
+and_bit =  <.x/0 0, .y/0 0, 1> ;
+xor_bit =  <{.x/0 if, .y then} .then, .y not_bit> ;
+xor_abc = 
   {{.a x, .b y} xor_bit x, .c y} xor_bit;
 
 // Single-bit full adder: sum plus carry-out.
-full_adder = ${bit a, bit b, bit c_in}
+full_adder = 
   {
     {.a a, .b b, .c_in c} xor_abc sum,
     {
       {.a x, .b y} and_bit x,
       {{.a x, .b y} xor_bit x, .c_in y} and_bit y
     } or_bit carry
-  } $adder_out;
+  } ;
 
 // Bitwise inversion across the 11-bit exponent field.
-exp11_not = $exp11 {
+exp11_not =  {
   .0 not_bit 0,
   .1 not_bit 1,
   .2 not_bit 2,
@@ -106,10 +91,10 @@ exp11_not = $exp11 {
   .8 not_bit 8,
   .9 not_bit 9,
   .10 not_bit 10
-} $exp11;
+} ;
 
 // Ripple-carry add for two exp11 fields with an incoming carry.
-exp11_add_cin = ${exp11 x, exp11 y, bit c_in}
+exp11_add_cin = 
   {
     .x x,
     .y y,
@@ -224,24 +209,24 @@ exp11_add_cin = ${exp11 x, exp11 y, bit c_in}
   {
     {.fa0.sum 0, .fa1.sum 1, .fa2.sum 2, .fa3.sum 3, .fa4.sum 4, .fa5.sum 5, .fa6.sum 6, .fa7.sum 7, .fa8.sum 8, .fa9.sum 9, .fa10.sum 10} sum,
     .fa10.carry carry
-  } $exp_sum;
+  } ;
 
 // Unsigned add of two exp11 values; exposes carry-out.
-exp11_add = ${exp11 x, exp11 y} {.x x, .y y, 0 c_in} exp11_add_cin $exp_sum;
+exp11_add =  {.x x, .y y, 0 c_in} exp11_add_cin ;
 
 // Two's-complement subtract for exp11 (x - y).
-exp11_sub = ${exp11 x, exp11 y}
+exp11_sub = 
   {.x x, (.y exp11_not) y, 1 c_in}
   exp11_add_cin
-  $exp_sum;
+  ;
 
 // Convenience projection: subtract and return only the exponent sum.
-exp11_sub_sum = ${exp11 x, exp11 y}
+exp11_sub_sum = 
   {.x x, .y y} exp11_sub .sum
-  $exp11;
+  ;
 
 // Bitwise inversion over a 56-bit significand slice.
-sig56_not = $sig56 {
+sig56_not =  {
   .0 not_bit 0,
   .1 not_bit 1,
   .2 not_bit 2,
@@ -298,13 +283,13 @@ sig56_not = $sig56 {
   .53 not_bit 53,
   .54 not_bit 54,
   .55 not_bit 55
-} $sig56;
+} ;
 
 // 56-bit ripple-carry add with optional incoming carry.
 // 14-bit ripple-carry adder
-$sig14 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9, bit 10, bit 11, bit 12, bit 13};
-$sig14_sum = {sig14 sum, bit carry};
-sig14_add_cin = ${sig14 x, sig14 y, bit c_in}
+
+
+sig14_add_cin = 
   {
     .x x,
     .y y,
@@ -470,10 +455,10 @@ sig14_add_cin = ${sig14 x, sig14 y, bit c_in}
   {
     {.fa0.sum 0, .fa1.sum 1, .fa2.sum 2, .fa3.sum 3, .fa4.sum 4, .fa5.sum 5, .fa6.sum 6, .fa7.sum 7, .fa8.sum 8, .fa9.sum 9, .fa10.sum 10, .fa11.sum 11, .fa12.sum 12, .fa13.sum 13} sum,
     .fa13.carry carry
-  } $sig14_sum;
+  } ;
 
 // 56-bit adder composed of 4x 14-bit adders
-sig56_add_cin = ${sig56 x, sig56 y, bit c_in}
+sig56_add_cin = 
   {
     .x x,
     .y y,
@@ -522,39 +507,39 @@ sig56_add_cin = ${sig56 x, sig56 y, bit c_in}
       .b3.sum.0 42, .b3.sum.1 43, .b3.sum.2 44, .b3.sum.3 45, .b3.sum.4 46, .b3.sum.5 47, .b3.sum.6 48, .b3.sum.7 49, .b3.sum.8 50, .b3.sum.9 51, .b3.sum.10 52, .b3.sum.11 53, .b3.sum.12 54, .b3.sum.13 55
     } sum,
     .b3.carry carry
-  } $sig56_sum;
-sig56_add = ${sig56 x, sig56 y} {.x x, .y y, 0 c_in} sig56_add_cin $sig56_sum;
+  } ;
+sig56_add =  {.x x, .y y, 0 c_in} sig56_add_cin ;
 
 // Two's-complement subtract for sig56 (x - y).
-sig56_sub = ${sig56 x, sig56 y}
+sig56_sub = 
   {.x x, (.y sig56_not) y, 1 c_in}
   sig56_add_cin
-  $sig56_sum;
+  ;
 
 // Convenience projection: subtract and return only the significand sum.
-sig56_sub_sum = ${sig56 x, sig56 y}
+sig56_sub_sum = 
   {.x x, .y y} sig56_sub .sum
-  $sig56;
+  ;
 
 // Compare sig56 >= by inspecting subtract carry.
-sig56_ge_bit = ${sig56 x, sig56 y}
+sig56_ge_bit = 
   {.x x, .y y} sig56_sub .carry
-  $bit;
+  ;
 
 // 1-bit mux controlled by sel.
-mux_bit = ${bit sel, bit a, bit b}
+mux_bit = 
   <
     {.sel 0? if, .a then} .then,
     {.sel 1? if, .b then} .then
-  > $bit;
+  > ;
 
 # --- sig112 helpers (mul/div) ------------------------------------------------
 // Wide 112-bit slice used for intermediate mul/div significands.
-$sig112 = {bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7, bit 8, bit 9, bit 10, bit 11, bit 12, bit 13, bit 14, bit 15, bit 16, bit 17, bit 18, bit 19, bit 20, bit 21, bit 22, bit 23, bit 24, bit 25, bit 26, bit 27, bit 28, bit 29, bit 30, bit 31, bit 32, bit 33, bit 34, bit 35, bit 36, bit 37, bit 38, bit 39, bit 40, bit 41, bit 42, bit 43, bit 44, bit 45, bit 46, bit 47, bit 48, bit 49, bit 50, bit 51, bit 52, bit 53, bit 54, bit 55, bit 56, bit 57, bit 58, bit 59, bit 60, bit 61, bit 62, bit 63, bit 64, bit 65, bit 66, bit 67, bit 68, bit 69, bit 70, bit 71, bit 72, bit 73, bit 74, bit 75, bit 76, bit 77, bit 78, bit 79, bit 80, bit 81, bit 82, bit 83, bit 84, bit 85, bit 86, bit 87, bit 88, bit 89, bit 90, bit 91, bit 92, bit 93, bit 94, bit 95, bit 96, bit 97, bit 98, bit 99, bit 100, bit 101, bit 102, bit 103, bit 104, bit 105, bit 106, bit 107, bit 108, bit 109, bit 110, bit 111};
+
 // Helper shape: sum and carry for wide 112-bit arithmetic.
-$sig112_sum = {sig112 sum, bit carry};
+
 // Bitwise inversion across the 112-bit extended significand.
-sig112_not = $sig112 {
+sig112_not =  {
   .0 not_bit 0,
   .1 not_bit 1,
   .2 not_bit 2,
@@ -667,10 +652,10 @@ sig112_not = $sig112 {
   .109 not_bit 109,
   .110 not_bit 110,
   .111 not_bit 111
-} $sig112;
+} ;
 // 112-bit ripple-carry add with optional incoming carry.
 // 112-bit adder composed of 2x 56-bit adders
-sig112_add_cin = ${sig112 x, sig112 y, bit c_in}
+sig112_add_cin = 
   {
     .x x,
     .y y,
@@ -694,15 +679,15 @@ sig112_add_cin = ${sig112 x, sig112 y, bit c_in}
       .b1.sum.0 56, .b1.sum.1 57, .b1.sum.2 58, .b1.sum.3 59, .b1.sum.4 60, .b1.sum.5 61, .b1.sum.6 62, .b1.sum.7 63, .b1.sum.8 64, .b1.sum.9 65, .b1.sum.10 66, .b1.sum.11 67, .b1.sum.12 68, .b1.sum.13 69, .b1.sum.14 70, .b1.sum.15 71, .b1.sum.16 72, .b1.sum.17 73, .b1.sum.18 74, .b1.sum.19 75, .b1.sum.20 76, .b1.sum.21 77, .b1.sum.22 78, .b1.sum.23 79, .b1.sum.24 80, .b1.sum.25 81, .b1.sum.26 82, .b1.sum.27 83, .b1.sum.28 84, .b1.sum.29 85, .b1.sum.30 86, .b1.sum.31 87, .b1.sum.32 88, .b1.sum.33 89, .b1.sum.34 90, .b1.sum.35 91, .b1.sum.36 92, .b1.sum.37 93, .b1.sum.38 94, .b1.sum.39 95, .b1.sum.40 96, .b1.sum.41 97, .b1.sum.42 98, .b1.sum.43 99, .b1.sum.44 100, .b1.sum.45 101, .b1.sum.46 102, .b1.sum.47 103, .b1.sum.48 104, .b1.sum.49 105, .b1.sum.50 106, .b1.sum.51 107, .b1.sum.52 108, .b1.sum.53 109, .b1.sum.54 110, .b1.sum.55 111
     } sum,
     .b1.carry carry
-  } $sig112_sum;
-sig112_add = ${sig112 x, sig112 y} {.x x, .y y, 0 c_in} sig112_add_cin $sig112_sum;
+  } ;
+sig112_add =  {.x x, .y y, 0 c_in} sig112_add_cin ;
 
-sig112_sub = ${sig112 x, sig112 y}
+sig112_sub = 
   {.x x, (.y sig112_not) y, 1 c_in}
   sig112_add_cin
-  $sig112_sum;
-sig112_zero = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55, 0 56, 0 57, 0 58, 0 59, 0 60, 0 61, 0 62, 0 63, 0 64, 0 65, 0 66, 0 67, 0 68, 0 69, 0 70, 0 71, 0 72, 0 73, 0 74, 0 75, 0 76, 0 77, 0 78, 0 79, 0 80, 0 81, 0 82, 0 83, 0 84, 0 85, 0 86, 0 87, 0 88, 0 89, 0 90, 0 91, 0 92, 0 93, 0 94, 0 95, 0 96, 0 97, 0 98, 0 99, 0 100, 0 101, 0 102, 0 103, 0 104, 0 105, 0 106, 0 107, 0 108, 0 109, 0 110, 0 111} $sig112;
-sig112_shift_left1 = $sig112
+  ;
+sig112_zero = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55, 0 56, 0 57, 0 58, 0 59, 0 60, 0 61, 0 62, 0 63, 0 64, 0 65, 0 66, 0 67, 0 68, 0 69, 0 70, 0 71, 0 72, 0 73, 0 74, 0 75, 0 76, 0 77, 0 78, 0 79, 0 80, 0 81, 0 82, 0 83, 0 84, 0 85, 0 86, 0 87, 0 88, 0 89, 0 90, 0 91, 0 92, 0 93, 0 94, 0 95, 0 96, 0 97, 0 98, 0 99, 0 100, 0 101, 0 102, 0 103, 0 104, 0 105, 0 106, 0 107, 0 108, 0 109, 0 110, 0 111} ;
+sig112_shift_left1 = 
   {
     0 0,
     .0 1,
@@ -816,8 +801,8 @@ sig112_shift_left1 = $sig112
     .108 109,
     .109 110,
     .110 111
-  } $sig112;
-sig112_shift_right1 = $sig112
+  } ;
+sig112_shift_right1 = 
   {
     .1 0,
     .2 1,
@@ -931,8 +916,8 @@ sig112_shift_right1 = $sig112
     .110 109,
     .111 110,
     0 111
-  } $sig112;
-sig112_from_sig56 = $sig56
+  } ;
+sig112_from_sig56 = 
   {
     .0 0,
     .1 1,
@@ -1046,8 +1031,8 @@ sig112_from_sig56 = $sig56
     0 109,
     0 110,
     0 111
-  } $sig112;
-sig112_from_sig56_shift55 = $sig56
+  } ;
+sig112_from_sig56_shift55 = 
   {
     0 0,
     0 1,
@@ -1161,8 +1146,8 @@ sig112_from_sig56_shift55 = $sig56
     .54 109,
     .55 110,
     0 111
-  } $sig112;
-sig112_low56 = $sig112
+  } ;
+sig112_low56 = 
   {
     .0 0,
     .1 1,
@@ -1220,14 +1205,14 @@ sig112_low56 = $sig112
     .53 53,
     .54 54,
     .55 55
-  } $sig56;
-sig112_low56_any1 = $sig112
+  } ;
+sig112_low56_any1 = 
   sig112_low56 sig56_any1
-  $bit;
-sig112_any1 = $sig112
+  ;
+sig112_any1 = 
   {{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit x, .11 y} or_bit x, .12 y} or_bit x, .13 y} or_bit x, .14 y} or_bit x, .15 y} or_bit x, .16 y} or_bit x, .17 y} or_bit x, .18 y} or_bit x, .19 y} or_bit x, .20 y} or_bit x, .21 y} or_bit x, .22 y} or_bit x, .23 y} or_bit x, .24 y} or_bit x, .25 y} or_bit x, .26 y} or_bit x, .27 y} or_bit x, .28 y} or_bit x, .29 y} or_bit x, .30 y} or_bit x, .31 y} or_bit x, .32 y} or_bit x, .33 y} or_bit x, .34 y} or_bit x, .35 y} or_bit x, .36 y} or_bit x, .37 y} or_bit x, .38 y} or_bit x, .39 y} or_bit x, .40 y} or_bit x, .41 y} or_bit x, .42 y} or_bit x, .43 y} or_bit x, .44 y} or_bit x, .45 y} or_bit x, .46 y} or_bit x, .47 y} or_bit x, .48 y} or_bit x, .49 y} or_bit x, .50 y} or_bit x, .51 y} or_bit x, .52 y} or_bit x, .53 y} or_bit x, .54 y} or_bit x, .55 y} or_bit x, .56 y} or_bit x, .57 y} or_bit x, .58 y} or_bit x, .59 y} or_bit x, .60 y} or_bit x, .61 y} or_bit x, .62 y} or_bit x, .63 y} or_bit x, .64 y} or_bit x, .65 y} or_bit x, .66 y} or_bit x, .67 y} or_bit x, .68 y} or_bit x, .69 y} or_bit x, .70 y} or_bit x, .71 y} or_bit x, .72 y} or_bit x, .73 y} or_bit x, .74 y} or_bit x, .75 y} or_bit x, .76 y} or_bit x, .77 y} or_bit x, .78 y} or_bit x, .79 y} or_bit x, .80 y} or_bit x, .81 y} or_bit x, .82 y} or_bit x, .83 y} or_bit x, .84 y} or_bit x, .85 y} or_bit x, .86 y} or_bit x, .87 y} or_bit x, .88 y} or_bit x, .89 y} or_bit x, .90 y} or_bit x, .91 y} or_bit x, .92 y} or_bit x, .93 y} or_bit x, .94 y} or_bit x, .95 y} or_bit x, .96 y} or_bit x, .97 y} or_bit x, .98 y} or_bit x, .99 y} or_bit x, .100 y} or_bit x, .101 y} or_bit x, .102 y} or_bit x, .103 y} or_bit x, .104 y} or_bit x, .105 y} or_bit x, .106 y} or_bit x, .107 y} or_bit x, .108 y} or_bit x, .109 y} or_bit x, .110 y} or_bit x, .111 y} or_bit
-  $bit;
-mux_sig112 = ${bit sel, sig112 a, sig112 b}
+  ;
+mux_sig112 = 
   {
     {.sel sel, .a .0 a, .b .0 b} mux_bit 0,
     {.sel sel, .a .1 a, .b .1 b} mux_bit 1,
@@ -1341,8 +1326,8 @@ mux_sig112 = ${bit sel, sig112 a, sig112 b}
     {.sel sel, .a .109 a, .b .109 b} mux_bit 109,
     {.sel sel, .a .110 a, .b .110 b} mux_bit 110,
     {.sel sel, .a .111 a, .b .111 b} mux_bit 111
-  } $sig112;
-sig112_add_if = ${sig112 acc, sig112 add, bit sel}
+  } ;
+sig112_add_if = 
   {
     .acc acc,
     .add add,
@@ -1355,8 +1340,8 @@ sig112_add_if = ${sig112 acc, sig112 add, bit sel}
     .sel sel,
     {.sel sel, .acc a, .sum.sum b} mux_sig112 out
   }
-  .out $sig112;
-sig56_mul_unsigned = ${sig56 x, sig56 y}
+  .out ;
+sig56_mul_unsigned = 
   {
     (.x sig112_from_sig56) add,
     () sig112_zero acc,
@@ -1643,8 +1628,8 @@ sig56_mul_unsigned = ${sig56 x, sig56 y}
     (.add sig112_shift_left1) add
   }
   .acc
-  $sig112;
-sig56_div_unsigned = ${sig56 x, sig56 y}
+  ;
+sig56_div_unsigned = 
   {
     (.x sig112_from_sig56_shift55) rem0,
     (.y sig112_from_sig56_shift55) div0
@@ -5232,8 +5217,8 @@ sig56_div_unsigned = ${sig56 x, sig56 y}
     .sticky sticky,
     {.b55 55, .b54 54, .b53 53, .b52 52, .b51 51, .b50 50, .b49 49, .b48 48, .b47 47, .b46 46, .b45 45, .b44 44, .b43 43, .b42 42, .b41 41, .b40 40, .b39 39, .b38 38, .b37 37, .b36 36, .b35 35, .b34 34, .b33 33, .b32 32, .b31 31, .b30 30, .b29 29, .b28 28, .b27 27, .b26 26, .b25 25, .b24 24, .b23 23, .b22 22, .b21 21, .b20 20, .b19 19, .b18 18, .b17 17, .b16 16, .b15 15, .b14 14, .b13 13, .b12 12, .b11 11, .b10 10, .b9 9, .b8 8, .b7 7, .b6 6, .b5 5, .b4 4, .b3 3, .b2 2, .b1 1, .sticky 0} sig
   }
-  .sig $sig56;
-sig56_from_sig112_shift55 = $sig112
+  .sig ;
+sig56_from_sig112_shift55 = 
   {
     .110 55,
     .109 54,
@@ -5291,8 +5276,8 @@ sig56_from_sig112_shift55 = $sig112
     .57 2,
     .56 1,
     sig112_low56_any1 0
-  } $sig56;
-sig56_from_sig112_shift56 = $sig112
+  } ;
+sig56_from_sig112_shift56 = 
   {
     .111 55,
     .110 54,
@@ -5350,9 +5335,9 @@ sig56_from_sig112_shift56 = $sig112
     .58 2,
     .57 1,
     { .56 x, sig112_low56_any1 y } or_bit 0
-  } $sig56;
+  } ;
 
-shift_right_sig56_1 = $sig56
+shift_right_sig56_1 = 
   {
     {.0 x, .1 y} or_bit 0,
     .2 1,
@@ -5410,9 +5395,9 @@ shift_right_sig56_1 = $sig56
     .54 53,
     .55 54,
     0 55
-  } $sig56;
+  } ;
 
-shift_right_sig56_2 = $sig56
+shift_right_sig56_2 = 
   {
     {{.0 x, .1 y} or_bit x, .2 y} or_bit 0,
     .3 1,
@@ -5470,9 +5455,9 @@ shift_right_sig56_2 = $sig56
     .55 53,
     0 54,
     0 55
-  } $sig56;
+  } ;
 
-shift_right_sig56_4 = $sig56
+shift_right_sig56_4 = 
   {
     {{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit 0,
     .5 1,
@@ -5530,9 +5515,9 @@ shift_right_sig56_4 = $sig56
     0 53,
     0 54,
     0 55
-  } $sig56;
+  } ;
 
-shift_right_sig56_8 = $sig56
+shift_right_sig56_8 = 
   {
     {{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit 0,
     .9 1,
@@ -5590,9 +5575,9 @@ shift_right_sig56_8 = $sig56
     0 53,
     0 54,
     0 55
-  } $sig56;
+  } ;
 
-shift_right_sig56_16 = $sig56
+shift_right_sig56_16 = 
   {
     {{{{{{{{{{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit x, .11 y} or_bit x, .12 y} or_bit x, .13 y} or_bit x, .14 y} or_bit x, .15 y} or_bit x, .16 y} or_bit 0,
     .17 1,
@@ -5650,9 +5635,9 @@ shift_right_sig56_16 = $sig56
     0 53,
     0 54,
     0 55
-  } $sig56;
+  } ;
 
-shift_right_sig56_32 = $sig56
+shift_right_sig56_32 = 
   {
     {{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit x, .11 y} or_bit x, .12 y} or_bit x, .13 y} or_bit x, .14 y} or_bit x, .15 y} or_bit x, .16 y} or_bit x, .17 y} or_bit x, .18 y} or_bit x, .19 y} or_bit x, .20 y} or_bit x, .21 y} or_bit x, .22 y} or_bit x, .23 y} or_bit x, .24 y} or_bit x, .25 y} or_bit x, .26 y} or_bit x, .27 y} or_bit x, .28 y} or_bit x, .29 y} or_bit x, .30 y} or_bit x, .31 y} or_bit x, .32 y} or_bit 0,
     .33 1,
@@ -5710,9 +5695,9 @@ shift_right_sig56_32 = $sig56
     0 53,
     0 54,
     0 55
-  } $sig56;
+  } ;
 
-mux_sig56 = ${bit sel, sig56 a, sig56 b}
+mux_sig56 = 
   {
     {.sel sel, .a .0 a, .b .0 b} mux_bit 0,
     {.sel sel, .a .1 a, .b .1 b} mux_bit 1,
@@ -5770,9 +5755,9 @@ mux_sig56 = ${bit sel, sig56 a, sig56 b}
     {.sel sel, .a .53 a, .b .53 b} mux_bit 53,
     {.sel sel, .a .54 a, .b .54 b} mux_bit 54,
     {.sel sel, .a .55 a, .b .55 b} mux_bit 55
-  } $sig56;
+  } ;
 
-shift_right_sig56 = ${sig56 x, shift6 s}
+shift_right_sig56 = 
   {.x x, .s s, (.x shift_right_sig56_1) sh1}
   {.s s, {.s .0 sel, .x a, .sh1 b} mux_sig56 st1}
   {.s s, .st1 st1, (.st1 shift_right_sig56_2) sh2}
@@ -5785,11 +5770,11 @@ shift_right_sig56 = ${sig56 x, shift6 s}
   {.s s, {.s .4 sel, .st4 a, .sh16 b} mux_sig56 st5}
   {.s s, .st5 st5, (.st5 shift_right_sig56_32) sh32}
   {.s s, {.s .5 sel, .st5 a, .sh32 b} mux_sig56 st6}
-  .st6 $sig56;
+  .st6 ;
 
-$norm_left = {sig56 sig, exp11 exp};
 
-mux_exp11 = ${bit sel, exp11 a, exp11 b}
+
+mux_exp11 = 
   {
     {.sel sel, .a .0 a, .b .0 b} mux_bit 0,
     {.sel sel, .a .1 a, .b .1 b} mux_bit 1,
@@ -5802,35 +5787,35 @@ mux_exp11 = ${bit sel, exp11 a, exp11 b}
     {.sel sel, .a .8 a, .b .8 b} mux_bit 8,
     {.sel sel, .a .9 a, .b .9 b} mux_bit 9,
     {.sel sel, .a .10 a, .b .10 b} mux_bit 10
-  } $exp11;
+  } ;
 
-exp1 = {} {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} $exp11;
+exp1 = {} {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} ;
 
 # exponent = 1023 (bias): 0b01111111111
 exp_1023 = {}
   { 0 10,
     1 9, 1 8, 1 7, 1 6, 1 5, 1 4, 1 3, 1 2, 1 1, 1 0
-  } $exp11;
+  } ;
 
-exp11_add_sum = ${exp11 x, exp11 y}
+exp11_add_sum = 
   {.x x, .y y} exp11_add .sum
-  $exp11;
+  ;
 
-exp11_inc = $exp11
+exp11_inc = 
   {() x, () exp1 y} exp11_add_sum
-  $exp11;
+  ;
 
-exp11_dec = $exp11
+exp11_dec = 
   {() x, () exp1 y} exp11_sub_sum
-  $exp11;
+  ;
 
-exp_nonzero_bit = $exp11
+exp_nonzero_bit = 
   <
     {zero_exponent? if, 0 then} .then,
     1
-  > $bit;
+  > ;
 
-shift_left_sig56_1 = $sig56
+shift_left_sig56_1 = 
   {
     0 0,
     .0 1,
@@ -5888,28 +5873,28 @@ shift_left_sig56_1 = $sig56
     .52 53,
     .53 54,
     .54 55
-  } $sig56;
+  } ;
 
-sig56_any1 = $sig56
+sig56_any1 = 
   {{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit x, .11 y} or_bit x, .12 y} or_bit x, .13 y} or_bit x, .14 y} or_bit x, .15 y} or_bit x, .16 y} or_bit x, .17 y} or_bit x, .18 y} or_bit x, .19 y} or_bit x, .20 y} or_bit x, .21 y} or_bit x, .22 y} or_bit x, .23 y} or_bit x, .24 y} or_bit x, .25 y} or_bit x, .26 y} or_bit x, .27 y} or_bit x, .28 y} or_bit x, .29 y} or_bit x, .30 y} or_bit x, .31 y} or_bit x, .32 y} or_bit x, .33 y} or_bit x, .34 y} or_bit x, .35 y} or_bit x, .36 y} or_bit x, .37 y} or_bit x, .38 y} or_bit x, .39 y} or_bit x, .40 y} or_bit x, .41 y} or_bit x, .42 y} or_bit x, .43 y} or_bit x, .44 y} or_bit x, .45 y} or_bit x, .46 y} or_bit x, .47 y} or_bit x, .48 y} or_bit x, .49 y} or_bit x, .50 y} or_bit x, .51 y} or_bit x, .52 y} or_bit x, .53 y} or_bit x, .54 y} or_bit x, .55 y} or_bit
-  $bit;
+  ;
 
-sig56_zero_bit = $sig56
+sig56_zero_bit = 
   <
     {sig56_any1 /0 if, 1 then} .then,
     0
-  > $bit;
+  > ;
 
-frac52_from_sig56 = $sig56
+frac52_from_sig56 = 
   { .3 0, .4 1, .5 2, .6 3, .7 4, .8 5, .9 6, .10 7, .11 8, .12 9,
     .13 10, .14 11, .15 12, .16 13, .17 14, .18 15, .19 16, .20 17, .21 18, .22 19,
     .23 20, .24 21, .25 22, .26 23, .27 24, .28 25, .29 26, .30 27, .31 28, .32 29,
     .33 30, .34 31, .35 32, .36 33, .37 34, .38 35, .39 36, .40 37, .41 38, .42 39,
     .43 40, .44 41, .45 42, .46 43, .47 44, .48 45, .49 46, .50 47, .51 48, .52 49,
     .53 50, .54 51 }
-  $frac52;
+  ;
 
-normalize_left_step = $norm_left
+normalize_left_step = 
   {
     .sig sig,
     .exp exp,
@@ -5949,9 +5934,9 @@ normalize_left_step = $norm_left
     {.shift_en sel, .exp a, .exp_dec b} mux_exp11 exp_out
   }
   { .sig_out sig, .exp_out exp }
-  $norm_left;
+  ;
 
-normalize_left = $norm_left
+normalize_left = 
   normalize_left_step
   normalize_left_step
   normalize_left_step
@@ -6008,10 +5993,10 @@ normalize_left = $norm_left
   normalize_left_step
   normalize_left_step
   normalize_left_step
-  $norm_left;
+  ;
 
 
-shift6_from_exp11 = $exp11
+shift6_from_exp11 = 
   {
     {{{{.6 x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit high,
     .0 b0, .1 b1, .2 b2, .3 b3, .4 b4, .5 b5
@@ -6020,9 +6005,9 @@ shift6_from_exp11 = $exp11
     {.high 1? if, {1 0, 1 1, 1 2, 1 3, 1 4, 1 5} then} .then,
     {.high 0? if, {.b0 0, .b1 1, .b2 2, .b3 3, .b4 4, .b5 5} then} .then
   >
-  $shift6;
+  ;
 
-sig56_from_float64 = $float64
+sig56_from_float64 = 
   <
     {.exponent zero_exponent? if,
      {
@@ -6137,54 +6122,54 @@ sig56_from_float64 = $float64
        .fraction .0 3,
        0 2, 0 1, 0 0
      } then} .then
-  > $sig56;
+  > ;
 
-exp11_max = $exp_pair
+exp11_max = 
   <
     {gt_exponent? if, .x then} .then,
     {lt_exponent? if, .y then} .then,
     {eq_exponent? if, .x then} .then
-  > $exp11;
+  > ;
 
-exp11_abs_diff = $exp_pair
+exp11_abs_diff = 
   <
     {gt_exponent? if, {.x x, .y y} exp11_sub_sum then} .then,
     {lt_exponent? if, {.y x, .x y} exp11_sub_sum then} .then,
     {eq_exponent? if, exp0 then} .then
-  > $exp11;
+  > ;
 
-exp11_adjust = $exp11
+exp11_adjust = 
   {exp_nonzero_bit sel, exp1 a, () b}
   mux_exp11
-  $exp11;
+  ;
 
-exp_gt_bit = $exp_pair
+exp_gt_bit = 
   <
     {cmp_exponent /gt if, 1 then} .then,
     0
-  > $bit;
+  > ;
 
-exp_lt_bit = $exp_pair
+exp_lt_bit = 
   <
     {cmp_exponent /lt if, 1 then} .then,
     0
-  > $bit;
+  > ;
 
-mag_gt_bit = $float_pair
+mag_gt_bit = 
   <
     {gt_magnitude_float64? if, 1 then} .then,
     0
-  > $bit;
+  > ;
 
-mag_eq_bit = $float_pair
+mag_eq_bit = 
   <
     {{.x .exponent x, .y .exponent y} eq_exponent? ife,
      {.x .fraction x, .y .fraction y} eq_fraction? iff,
      1 then} .then,
     0
-  > $bit;
+  > ;
 
-sig56_shift_right_carry = ${sig56 sum, bit carry}
+sig56_shift_right_carry = 
   {
     .sum sum,
     .carry carry,
@@ -6247,9 +6232,9 @@ sig56_shift_right_carry = ${sig56 sum, bit carry}
     .sum .3 2,
     .sum .2 1,
     .bit0 0
-  } $sig56;
+  } ;
 
-sig56_drop_grs = $sig56
+sig56_drop_grs = 
   {
     0 0,
     0 1,
@@ -6307,87 +6292,87 @@ sig56_drop_grs = $sig56
     .53 53,
     .54 54,
     .55 55
-  } $sig56;
+  } ;
 
-sig56_ulp = {} { 0 0, 0 1, 0 2, 1 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55 } $sig56;
+sig56_ulp = {} { 0 0, 0 1, 0 2, 1 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55 } ;
 
-flags_add_from_bits = ${bit overflow, bit underflow, bit inexact}
+flags_add_from_bits = 
   <
     {.overflow 1? if, overflow then} .then,
     {.underflow 1? if, underflow then} .then,
     {.inexact 1? if, inexact then} .then,
     none
-  > $flags_add;
+  > ;
 
-flags_sub_from_bits = ${bit overflow, bit underflow, bit inexact}
+flags_sub_from_bits = 
   <
     {.overflow 1? if, overflow then} .then,
     {.underflow 1? if, underflow then} .then,
     {.inexact 1? if, inexact then} .then,
     none
-  > $flags_sub;
+  > ;
 
-flags_mul_from_bits = ${bit overflow, bit underflow, bit inexact}
+flags_mul_from_bits = 
   <
     {.overflow 1? if, overflow then} .then,
     {.underflow 1? if, underflow then} .then,
     {.inexact 1? if, inexact then} .then,
     none
-  > $flags_mul;
+  > ;
 
-flags_div_from_bits = ${bit overflow, bit underflow, bit inexact, bit div_by_zero}
+flags_div_from_bits = 
   <
     {.div_by_zero 1? if, div_by_zero then} .then,
     {.overflow 1? if, overflow then} .then,
     {.underflow 1? if, underflow then} .then,
     {.inexact 1? if, inexact then} .then,
     none
-  > $flags_div;
+  > ;
 
-flags_sub_from_add = $flags_add
+flags_sub_from_add = 
   <
     {/none if, none then} .then,
     {/invalid if, invalid then} .then,
     {/overflow if, overflow then} .then,
     {/underflow if, underflow then} .then,
     {/inexact if, inexact then} .then
-  > $flags_sub;
+  > ;
 
-exp_all_ones_bit = $exp11
+exp_all_ones_bit = 
   <
     {all_ones_exponent? if, 1 then} .then,
     0
-  > $bit;
+  > ;
 
-exp_zero_bit = $exp11
+exp_zero_bit = 
   <
     {zero_exponent? if, 1 then} .then,
     0
-  > $bit;
+  > ;
 
-underflow_bit_of = ${exp11 exp, bit inexact}
+underflow_bit_of = 
   <
     {.exp zero_exponent? ife, .inexact 1? ifi, 1 then} .then,
     0
-  > $bit;
+  > ;
 
 
-$round_in = {sig56 sig, exp11 exp};
-$round_out = {sig56 sig, exp11 exp, bit inexact};
 
-sign_eq_bit = $sign_pair
+
+
+sign_eq_bit = 
   <
     {eq_sign? if, 1 then} .then,
     0
-  > $bit;
+  > ;
 
-mux_sign = ${bit sel, sign a, sign b}
+mux_sign = 
   <
     {.sel 0? if, .a then} .then,
     {.sel 1? if, .b then} .then
-  > $sign;
+  > ;
 
-round_sig56 = $round_in
+round_sig56 = 
   {
     .sig sig,
     .exp exp,
@@ -6440,99 +6425,99 @@ round_sig56 = $round_in
     {.carry_inc sel, .exp a, .exp_inc b} mux_exp11 exp_out
   }
   { .sig_out sig, .exp_out exp, .inexact inexact }
-  $round_out;
+  ;
 
 
 
-+ = {} |+ $sign;
-- = {} |- $sign;
++ = {} |+ ;
+- = {} |- ;
 
-eq = {} |eq $cmp_state;
-gt = {} |gt $cmp_state;
-lt = {} |lt $cmp_state;
+eq = {} |eq ;
+gt = {} |gt ;
+lt = {} |lt ;
 
-eq_exact_cmp      = {} |eq_exact $cmp;
-eq_zero_cmp       = {} |eq_zero $cmp;
-gt_cmp            = {} |gt $cmp;
-lt_cmp            = {} |lt $cmp;
-unordered_nan_cmp = {} |unordered_nan $cmp;
+eq_exact_cmp      = {} |eq_exact ;
+eq_zero_cmp       = {} |eq_zero ;
+gt_cmp            = {} |gt ;
+lt_cmp            = {} |lt ;
+unordered_nan_cmp = {} |unordered_nan ;
 
-0? = $bit {/0 if, () then} .then $bit;
-1? = $bit {/1 if, () then} .then $bit;
+0? =  {/0 if, () then} .then ;
+1? =  {/1 if, () then} .then ;
 
-+? = $sign {/+ if, () then} .then $sign;
--? = $sign {/- if, () then} .then $sign;
++? =  {/+ if, () then} .then ;
+-? =  {/- if, () then} .then ;
 
-eq_bit? = $bit_pair
+eq_bit? = 
   <
     {.x 0? ifx, .y 0? ify, () then} .then,
     {.x 1? ifx, .y 1? ify, () then} .then
-  > $bit_pair;
+  > ;
 
-gt_bit? = $bit_pair
+gt_bit? = 
   {.x 1? ifx, .y 0? ify, () then} .then
-  $bit_pair;
+  ;
 
-lt_bit? = $bit_pair
+lt_bit? = 
   {.x 0? ifx, .y 1? ify, () then} .then
-  $bit_pair;
+  ;
 
-eq_sign? = $sign_pair
+eq_sign? = 
   <
     {.x +? ifx, .y +? ify, () then} .then,
     {.x -? ifx, .y -? ify, () then} .then
-  > $sign_pair;
+  > ;
 
-zero_exponent? = $exp11
+zero_exponent? = 
   {.0 0? if0, .1 0? if1, .2 0? if2, .3 0? if3, .4 0? if4, .5 0? if5, .6 0? if6, .7 0? if7, .8 0? if8, .9 0? if9, .10 0? if10, () then} .then
-  $exp11;
+  ;
 
-all_ones_exponent? = $exp11
+all_ones_exponent? = 
   {.0 1? if0, .1 1? if1, .2 1? if2, .3 1? if3, .4 1? if4, .5 1? if5, .6 1? if6, .7 1? if7, .8 1? if8, .9 1? if9, .10 1? if10, () then} .then
-  $exp11;
+  ;
 
-not_all_ones_exponent? = $exp11
+not_all_ones_exponent? = 
   {<.10 0?, .9 0?, .8 0?, .7 0?, .6 0?, .5 0?, .4 0?, .3 0?, .2 0?, .1 0?, .0 0?> if, () then} .then
-  $exp11;
+  ;
 
-zero_fraction? = $frac52
+zero_fraction? = 
   {.51 0? if51, .50 0? if50, .49 0? if49, .48 0? if48, .47 0? if47, .46 0? if46, .45 0? if45, .44 0? if44, .43 0? if43, .42 0? if42,
    .41 0? if41, .40 0? if40, .39 0? if39, .38 0? if38, .37 0? if37, .36 0? if36, .35 0? if35, .34 0? if34, .33 0? if33, .32 0? if32,
    .31 0? if31, .30 0? if30, .29 0? if29, .28 0? if28, .27 0? if27, .26 0? if26, .25 0? if25, .24 0? if24, .23 0? if23, .22 0? if22,
    .21 0? if21, .20 0? if20, .19 0? if19, .18 0? if18, .17 0? if17, .16 0? if16, .15 0? if15, .14 0? if14, .13 0? if13, .12 0? if12,
    .11 0? if11, .10 0? if10, .9 0? if9, .8 0? if8, .7 0? if7, .6 0? if6, .5 0? if5, .4 0? if4, .3 0? if3, .2 0? if2, .1 0? if1, .0 0? if0,
    () then} .then
-  $frac52;
+  ;
 
-nonzero_fraction? = $frac52
+nonzero_fraction? = 
   {<.51 1?, .50 1?, .49 1?, .48 1?, .47 1?, .46 1?, .45 1?, .44 1?, .43 1?, .42 1?,
     .41 1?, .40 1?, .39 1?, .38 1?, .37 1?, .36 1?, .35 1?, .34 1?, .33 1?, .32 1?,
     .31 1?, .30 1?, .29 1?, .28 1?, .27 1?, .26 1?, .25 1?, .24 1?, .23 1?, .22 1?,
     .21 1?, .20 1?, .19 1?, .18 1?, .17 1?, .16 1?, .15 1?, .14 1?, .13 1?, .12 1?,
     .11 1?, .10 1?, .9 1?, .8 1?, .7 1?, .6 1?, .5 1?, .4 1?, .3 1?, .2 1?, .1 1?, .0 1?> if, () then} .then
-  $frac52;
+  ;
 
-nan_float64? = $float64
+nan_float64? = 
   {.exponent all_ones_exponent? ife, .fraction nonzero_fraction? iff, () then} .then
-  $float64;
+  ;
 
-inf_float64? = $float64
+inf_float64? = 
   {.exponent all_ones_exponent? ife, .fraction zero_fraction? iff, () then} .then
-  $float64;
+  ;
 
-finite_float64? = $float64
+finite_float64? = 
   {.exponent not_all_ones_exponent? ife, () then} .then
-  $float64;
+  ;
 
-ordered_float64? = $float64
+ordered_float64? = 
   <finite_float64?, inf_float64?>
-  $float64;
+  ;
 
-zero_float64? = $float64
+zero_float64? = 
   {.exponent zero_exponent? ife, .fraction zero_fraction? iff, () then} .then
-  $float64;
+  ;
 
-cmp_step = $cmp_step_in
+cmp_step = 
   <
     {.state /gt if, gt then} .then,
     {.state /lt if, lt then} .then,
@@ -6543,100 +6528,100 @@ cmp_step = $cmp_step_in
         {.bits eq_bit? if, eq then} .then
       > then
     } .then
-  > $cmp_state;
+  > ;
 
-stepE10 = $cmp_exp_ctx {{.state state, {.pair .x .10 x, .pair .y .10 y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE9  = $cmp_exp_ctx {{.state state, {.pair .x .9  x, .pair .y .9  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE8  = $cmp_exp_ctx {{.state state, {.pair .x .8  x, .pair .y .8  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE7  = $cmp_exp_ctx {{.state state, {.pair .x .7  x, .pair .y .7  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE6  = $cmp_exp_ctx {{.state state, {.pair .x .6  x, .pair .y .6  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE5  = $cmp_exp_ctx {{.state state, {.pair .x .5  x, .pair .y .5  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE4  = $cmp_exp_ctx {{.state state, {.pair .x .4  x, .pair .y .4  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE3  = $cmp_exp_ctx {{.state state, {.pair .x .3  x, .pair .y .3  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE2  = $cmp_exp_ctx {{.state state, {.pair .x .2  x, .pair .y .2  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE1  = $cmp_exp_ctx {{.state state, {.pair .x .1  x, .pair .y .1  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
-stepE0  = $cmp_exp_ctx {{.state state, {.pair .x .0  x, .pair .y .0  y} bits} cmp_step state, .pair pair} $cmp_exp_ctx;
+stepE10 =  {{.state state, {.pair .x .10 x, .pair .y .10 y} bits} cmp_step state, .pair pair} ;
+stepE9  =  {{.state state, {.pair .x .9  x, .pair .y .9  y} bits} cmp_step state, .pair pair} ;
+stepE8  =  {{.state state, {.pair .x .8  x, .pair .y .8  y} bits} cmp_step state, .pair pair} ;
+stepE7  =  {{.state state, {.pair .x .7  x, .pair .y .7  y} bits} cmp_step state, .pair pair} ;
+stepE6  =  {{.state state, {.pair .x .6  x, .pair .y .6  y} bits} cmp_step state, .pair pair} ;
+stepE5  =  {{.state state, {.pair .x .5  x, .pair .y .5  y} bits} cmp_step state, .pair pair} ;
+stepE4  =  {{.state state, {.pair .x .4  x, .pair .y .4  y} bits} cmp_step state, .pair pair} ;
+stepE3  =  {{.state state, {.pair .x .3  x, .pair .y .3  y} bits} cmp_step state, .pair pair} ;
+stepE2  =  {{.state state, {.pair .x .2  x, .pair .y .2  y} bits} cmp_step state, .pair pair} ;
+stepE1  =  {{.state state, {.pair .x .1  x, .pair .y .1  y} bits} cmp_step state, .pair pair} ;
+stepE0  =  {{.state state, {.pair .x .0  x, .pair .y .0  y} bits} cmp_step state, .pair pair} ;
 
-cmp_exponent = $exp_pair
-  {eq state, () pair} $cmp_exp_ctx
+cmp_exponent = 
+  {eq state, () pair} 
   stepE10 stepE9 stepE8 stepE7 stepE6 stepE5 stepE4 stepE3 stepE2 stepE1 stepE0
   .state
-  $cmp_state;
+  ;
 
-gt_exponent? = $exp_pair {cmp_exponent /gt if, () then} .then $exp_pair;
-eq_exponent? = $exp_pair {cmp_exponent /eq if, () then} .then $exp_pair;
-lt_exponent? = $exp_pair {cmp_exponent /lt if, () then} .then $exp_pair;
+gt_exponent? =  {cmp_exponent /gt if, () then} .then ;
+eq_exponent? =  {cmp_exponent /eq if, () then} .then ;
+lt_exponent? =  {cmp_exponent /lt if, () then} .then ;
 
-stepF51 = $cmp_frac_ctx {{.state state, {.pair .x .51 x, .pair .y .51 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF50 = $cmp_frac_ctx {{.state state, {.pair .x .50 x, .pair .y .50 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF49 = $cmp_frac_ctx {{.state state, {.pair .x .49 x, .pair .y .49 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF48 = $cmp_frac_ctx {{.state state, {.pair .x .48 x, .pair .y .48 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF47 = $cmp_frac_ctx {{.state state, {.pair .x .47 x, .pair .y .47 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF46 = $cmp_frac_ctx {{.state state, {.pair .x .46 x, .pair .y .46 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF45 = $cmp_frac_ctx {{.state state, {.pair .x .45 x, .pair .y .45 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF44 = $cmp_frac_ctx {{.state state, {.pair .x .44 x, .pair .y .44 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF43 = $cmp_frac_ctx {{.state state, {.pair .x .43 x, .pair .y .43 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF42 = $cmp_frac_ctx {{.state state, {.pair .x .42 x, .pair .y .42 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF41 = $cmp_frac_ctx {{.state state, {.pair .x .41 x, .pair .y .41 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF40 = $cmp_frac_ctx {{.state state, {.pair .x .40 x, .pair .y .40 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF39 = $cmp_frac_ctx {{.state state, {.pair .x .39 x, .pair .y .39 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF38 = $cmp_frac_ctx {{.state state, {.pair .x .38 x, .pair .y .38 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF37 = $cmp_frac_ctx {{.state state, {.pair .x .37 x, .pair .y .37 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF36 = $cmp_frac_ctx {{.state state, {.pair .x .36 x, .pair .y .36 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF35 = $cmp_frac_ctx {{.state state, {.pair .x .35 x, .pair .y .35 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF34 = $cmp_frac_ctx {{.state state, {.pair .x .34 x, .pair .y .34 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF33 = $cmp_frac_ctx {{.state state, {.pair .x .33 x, .pair .y .33 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF32 = $cmp_frac_ctx {{.state state, {.pair .x .32 x, .pair .y .32 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF31 = $cmp_frac_ctx {{.state state, {.pair .x .31 x, .pair .y .31 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF30 = $cmp_frac_ctx {{.state state, {.pair .x .30 x, .pair .y .30 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF29 = $cmp_frac_ctx {{.state state, {.pair .x .29 x, .pair .y .29 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF28 = $cmp_frac_ctx {{.state state, {.pair .x .28 x, .pair .y .28 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF27 = $cmp_frac_ctx {{.state state, {.pair .x .27 x, .pair .y .27 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF26 = $cmp_frac_ctx {{.state state, {.pair .x .26 x, .pair .y .26 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF25 = $cmp_frac_ctx {{.state state, {.pair .x .25 x, .pair .y .25 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF24 = $cmp_frac_ctx {{.state state, {.pair .x .24 x, .pair .y .24 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF23 = $cmp_frac_ctx {{.state state, {.pair .x .23 x, .pair .y .23 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF22 = $cmp_frac_ctx {{.state state, {.pair .x .22 x, .pair .y .22 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF21 = $cmp_frac_ctx {{.state state, {.pair .x .21 x, .pair .y .21 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF20 = $cmp_frac_ctx {{.state state, {.pair .x .20 x, .pair .y .20 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF19 = $cmp_frac_ctx {{.state state, {.pair .x .19 x, .pair .y .19 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF18 = $cmp_frac_ctx {{.state state, {.pair .x .18 x, .pair .y .18 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF17 = $cmp_frac_ctx {{.state state, {.pair .x .17 x, .pair .y .17 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF16 = $cmp_frac_ctx {{.state state, {.pair .x .16 x, .pair .y .16 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF15 = $cmp_frac_ctx {{.state state, {.pair .x .15 x, .pair .y .15 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF14 = $cmp_frac_ctx {{.state state, {.pair .x .14 x, .pair .y .14 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF13 = $cmp_frac_ctx {{.state state, {.pair .x .13 x, .pair .y .13 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF12 = $cmp_frac_ctx {{.state state, {.pair .x .12 x, .pair .y .12 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF11 = $cmp_frac_ctx {{.state state, {.pair .x .11 x, .pair .y .11 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF10 = $cmp_frac_ctx {{.state state, {.pair .x .10 x, .pair .y .10 y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF9  = $cmp_frac_ctx {{.state state, {.pair .x .9  x, .pair .y .9  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF8  = $cmp_frac_ctx {{.state state, {.pair .x .8  x, .pair .y .8  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF7  = $cmp_frac_ctx {{.state state, {.pair .x .7  x, .pair .y .7  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF6  = $cmp_frac_ctx {{.state state, {.pair .x .6  x, .pair .y .6  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF5  = $cmp_frac_ctx {{.state state, {.pair .x .5  x, .pair .y .5  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF4  = $cmp_frac_ctx {{.state state, {.pair .x .4  x, .pair .y .4  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF3  = $cmp_frac_ctx {{.state state, {.pair .x .3  x, .pair .y .3  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF2  = $cmp_frac_ctx {{.state state, {.pair .x .2  x, .pair .y .2  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF1  = $cmp_frac_ctx {{.state state, {.pair .x .1  x, .pair .y .1  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
-stepF0  = $cmp_frac_ctx {{.state state, {.pair .x .0  x, .pair .y .0  y} bits} cmp_step state, .pair pair} $cmp_frac_ctx;
+stepF51 =  {{.state state, {.pair .x .51 x, .pair .y .51 y} bits} cmp_step state, .pair pair} ;
+stepF50 =  {{.state state, {.pair .x .50 x, .pair .y .50 y} bits} cmp_step state, .pair pair} ;
+stepF49 =  {{.state state, {.pair .x .49 x, .pair .y .49 y} bits} cmp_step state, .pair pair} ;
+stepF48 =  {{.state state, {.pair .x .48 x, .pair .y .48 y} bits} cmp_step state, .pair pair} ;
+stepF47 =  {{.state state, {.pair .x .47 x, .pair .y .47 y} bits} cmp_step state, .pair pair} ;
+stepF46 =  {{.state state, {.pair .x .46 x, .pair .y .46 y} bits} cmp_step state, .pair pair} ;
+stepF45 =  {{.state state, {.pair .x .45 x, .pair .y .45 y} bits} cmp_step state, .pair pair} ;
+stepF44 =  {{.state state, {.pair .x .44 x, .pair .y .44 y} bits} cmp_step state, .pair pair} ;
+stepF43 =  {{.state state, {.pair .x .43 x, .pair .y .43 y} bits} cmp_step state, .pair pair} ;
+stepF42 =  {{.state state, {.pair .x .42 x, .pair .y .42 y} bits} cmp_step state, .pair pair} ;
+stepF41 =  {{.state state, {.pair .x .41 x, .pair .y .41 y} bits} cmp_step state, .pair pair} ;
+stepF40 =  {{.state state, {.pair .x .40 x, .pair .y .40 y} bits} cmp_step state, .pair pair} ;
+stepF39 =  {{.state state, {.pair .x .39 x, .pair .y .39 y} bits} cmp_step state, .pair pair} ;
+stepF38 =  {{.state state, {.pair .x .38 x, .pair .y .38 y} bits} cmp_step state, .pair pair} ;
+stepF37 =  {{.state state, {.pair .x .37 x, .pair .y .37 y} bits} cmp_step state, .pair pair} ;
+stepF36 =  {{.state state, {.pair .x .36 x, .pair .y .36 y} bits} cmp_step state, .pair pair} ;
+stepF35 =  {{.state state, {.pair .x .35 x, .pair .y .35 y} bits} cmp_step state, .pair pair} ;
+stepF34 =  {{.state state, {.pair .x .34 x, .pair .y .34 y} bits} cmp_step state, .pair pair} ;
+stepF33 =  {{.state state, {.pair .x .33 x, .pair .y .33 y} bits} cmp_step state, .pair pair} ;
+stepF32 =  {{.state state, {.pair .x .32 x, .pair .y .32 y} bits} cmp_step state, .pair pair} ;
+stepF31 =  {{.state state, {.pair .x .31 x, .pair .y .31 y} bits} cmp_step state, .pair pair} ;
+stepF30 =  {{.state state, {.pair .x .30 x, .pair .y .30 y} bits} cmp_step state, .pair pair} ;
+stepF29 =  {{.state state, {.pair .x .29 x, .pair .y .29 y} bits} cmp_step state, .pair pair} ;
+stepF28 =  {{.state state, {.pair .x .28 x, .pair .y .28 y} bits} cmp_step state, .pair pair} ;
+stepF27 =  {{.state state, {.pair .x .27 x, .pair .y .27 y} bits} cmp_step state, .pair pair} ;
+stepF26 =  {{.state state, {.pair .x .26 x, .pair .y .26 y} bits} cmp_step state, .pair pair} ;
+stepF25 =  {{.state state, {.pair .x .25 x, .pair .y .25 y} bits} cmp_step state, .pair pair} ;
+stepF24 =  {{.state state, {.pair .x .24 x, .pair .y .24 y} bits} cmp_step state, .pair pair} ;
+stepF23 =  {{.state state, {.pair .x .23 x, .pair .y .23 y} bits} cmp_step state, .pair pair} ;
+stepF22 =  {{.state state, {.pair .x .22 x, .pair .y .22 y} bits} cmp_step state, .pair pair} ;
+stepF21 =  {{.state state, {.pair .x .21 x, .pair .y .21 y} bits} cmp_step state, .pair pair} ;
+stepF20 =  {{.state state, {.pair .x .20 x, .pair .y .20 y} bits} cmp_step state, .pair pair} ;
+stepF19 =  {{.state state, {.pair .x .19 x, .pair .y .19 y} bits} cmp_step state, .pair pair} ;
+stepF18 =  {{.state state, {.pair .x .18 x, .pair .y .18 y} bits} cmp_step state, .pair pair} ;
+stepF17 =  {{.state state, {.pair .x .17 x, .pair .y .17 y} bits} cmp_step state, .pair pair} ;
+stepF16 =  {{.state state, {.pair .x .16 x, .pair .y .16 y} bits} cmp_step state, .pair pair} ;
+stepF15 =  {{.state state, {.pair .x .15 x, .pair .y .15 y} bits} cmp_step state, .pair pair} ;
+stepF14 =  {{.state state, {.pair .x .14 x, .pair .y .14 y} bits} cmp_step state, .pair pair} ;
+stepF13 =  {{.state state, {.pair .x .13 x, .pair .y .13 y} bits} cmp_step state, .pair pair} ;
+stepF12 =  {{.state state, {.pair .x .12 x, .pair .y .12 y} bits} cmp_step state, .pair pair} ;
+stepF11 =  {{.state state, {.pair .x .11 x, .pair .y .11 y} bits} cmp_step state, .pair pair} ;
+stepF10 =  {{.state state, {.pair .x .10 x, .pair .y .10 y} bits} cmp_step state, .pair pair} ;
+stepF9  =  {{.state state, {.pair .x .9  x, .pair .y .9  y} bits} cmp_step state, .pair pair} ;
+stepF8  =  {{.state state, {.pair .x .8  x, .pair .y .8  y} bits} cmp_step state, .pair pair} ;
+stepF7  =  {{.state state, {.pair .x .7  x, .pair .y .7  y} bits} cmp_step state, .pair pair} ;
+stepF6  =  {{.state state, {.pair .x .6  x, .pair .y .6  y} bits} cmp_step state, .pair pair} ;
+stepF5  =  {{.state state, {.pair .x .5  x, .pair .y .5  y} bits} cmp_step state, .pair pair} ;
+stepF4  =  {{.state state, {.pair .x .4  x, .pair .y .4  y} bits} cmp_step state, .pair pair} ;
+stepF3  =  {{.state state, {.pair .x .3  x, .pair .y .3  y} bits} cmp_step state, .pair pair} ;
+stepF2  =  {{.state state, {.pair .x .2  x, .pair .y .2  y} bits} cmp_step state, .pair pair} ;
+stepF1  =  {{.state state, {.pair .x .1  x, .pair .y .1  y} bits} cmp_step state, .pair pair} ;
+stepF0  =  {{.state state, {.pair .x .0  x, .pair .y .0  y} bits} cmp_step state, .pair pair} ;
 
-cmp_fraction = $frac_pair
-  {eq state, () pair} $cmp_frac_ctx
+cmp_fraction = 
+  {eq state, () pair} 
   stepF51 stepF50 stepF49 stepF48 stepF47 stepF46 stepF45 stepF44 stepF43 stepF42 stepF41 stepF40 stepF39 stepF38 stepF37 stepF36 stepF35 stepF34 stepF33 stepF32 stepF31 stepF30
   stepF29 stepF28 stepF27 stepF26 stepF25 stepF24 stepF23 stepF22 stepF21 stepF20 stepF19 stepF18 stepF17 stepF16 stepF15 stepF14 stepF13 stepF12 stepF11 stepF10 stepF9 stepF8 stepF7 stepF6 stepF5 stepF4 stepF3 stepF2 stepF1 stepF0
   .state
-  $cmp_state;
+  ;
 
-gt_fraction? = $frac_pair {cmp_fraction /gt if, () then} .then $frac_pair;
-eq_fraction? = $frac_pair {cmp_fraction /eq if, () then} .then $frac_pair;
+gt_fraction? =  {cmp_fraction /gt if, () then} .then ;
+eq_fraction? =  {cmp_fraction /eq if, () then} .then ;
 
-gt_magnitude_float64? = $float_pair
+gt_magnitude_float64? = 
   <
     {{.x .exponent x, .y .exponent y} gt_exponent? if, () then} .then,
     {{.x .exponent x, .y .exponent y} eq_exponent? ife, {.x .fraction x, .y .fraction y} gt_fraction? iff, () then} .then
-  > $float_pair;
+  > ;
 
-cmp_float64 = $float_pair
+cmp_float64 = 
   <
     {<.x nan_float64?, .y nan_float64?> if, unordered_nan_cmp then} .then,
     {.x zero_float64? ifx, .y zero_float64? ify, eq_zero_cmp then} .then,
@@ -6651,106 +6636,106 @@ cmp_float64 = $float_pair
     {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign +? ifsx, .y .sign +? ifsy, {.y x, .x y} gt_magnitude_float64? ifm, lt_cmp then} .then,
     {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign -? ifsx, .y .sign -? ifsy, {.y x, .x y} gt_magnitude_float64? ifm, gt_cmp then} .then,
     {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign -? ifsx, .y .sign -? ifsy, gt_magnitude_float64? ifm, lt_cmp then} .then
-  > $cmp;
+  > ;
 
-eq_float64? = $float_pair {<cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then $float_pair;
-gt_float64? = $float_pair {cmp_float64 /gt if, () then} .then $float_pair;
-lt_float64? = $float_pair {cmp_float64 /lt if, () then} .then $float_pair;
-le_float64? = $float_pair {<cmp_float64 /lt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then $float_pair;
-ge_float64? = $float_pair {<cmp_float64 /gt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then $float_pair;
+eq_float64? =  {<cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then ;
+gt_float64? =  {cmp_float64 /gt if, () then} .then ;
+lt_float64? =  {cmp_float64 /lt if, () then} .then ;
+le_float64? =  {<cmp_float64 /lt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then ;
+ge_float64? =  {<cmp_float64 /gt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then ;
 
-exp0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} $exp11;
-exp_all1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} $exp11;
+exp0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} ;
+exp_all1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} ;
 
 frac0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
             0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
             0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
-            0 48, 0 49, 0 50, 0 51} $frac52;
+            0 48, 0 49, 0 50, 0 51} ;
 
 frac_lsb1 = {} {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
                 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
                 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
-                0 48, 0 49, 0 50, 0 51} $frac52;
+                0 48, 0 49, 0 50, 0 51} ;
 
-pos_zero = {} {+ sign, exp0 exponent, frac0 fraction} $float64;
-neg_zero = {} {- sign, exp0 exponent, frac0 fraction} $float64;
+pos_zero = {} {+ sign, exp0 exponent, frac0 fraction} ;
+neg_zero = {} {- sign, exp0 exponent, frac0 fraction} ;
 
-pos_inf  = {} {+ sign, exp_all1 exponent, frac0 fraction} $float64;
-neg_inf  = {} {- sign, exp_all1 exponent, frac0 fraction} $float64;
+pos_inf  = {} {+ sign, exp_all1 exponent, frac0 fraction} ;
+neg_inf  = {} {- sign, exp_all1 exponent, frac0 fraction} ;
 
-qnan = {} {+ sign, exp_all1 exponent, frac_lsb1 fraction} $float64;
+qnan = {} {+ sign, exp_all1 exponent, frac_lsb1 fraction} ;
 
-flip_sign = $sign
+flip_sign = 
   <
-    {+? if, {} |- $sign then} .then,
-    {-? if, {} |+ $sign then} .then
-  > $sign;
+    {+? if, {} |-  then} .then,
+    {-? if, {} |+  then} .then
+  > ;
 
-xor_sign = $sign_pair
+xor_sign = 
   <
-    {.x +? ifx, .y +? ify, {} |+ $sign then} .then,
-    {.x +? ifx, .y -? ify, {} |- $sign then} .then,
-    {.x -? ifx, .y +? ify, {} |- $sign then} .then,
-    {.x -? ifx, .y -? ify, {} |+ $sign then} .then
-  > $sign;
+    {.x +? ifx, .y +? ify, {} |+  then} .then,
+    {.x +? ifx, .y -? ify, {} |-  then} .then,
+    {.x -? ifx, .y +? ify, {} |-  then} .then,
+    {.x -? ifx, .y -? ify, {} |+  then} .then
+  > ;
 
-opp_sign? = $sign_pair
+opp_sign? = 
   <
     {.x +? ifx, .y -? ify, () then} .then,
     {.x -? ifx, .y +? ify, () then} .then
-  > $sign_pair;
+  > ;
 
-inf_of_sign = $sign
+inf_of_sign = 
   <
     {+? if, pos_inf then} .then,
     {-? if, neg_inf then} .then
-  > $float64;
+  > ;
 
-zero_of_sign = $sign
+zero_of_sign = 
   <
     {+? if, pos_zero then} .then,
     {-? if, neg_zero then} .then
-  > $float64;
+  > ;
 
-negate_float64 = $float64
+negate_float64 = 
   {.sign flip_sign sign, .exponent exponent, .fraction fraction}
-  $float64;
+  ;
 
-pair_signs = $float_pair
+pair_signs = 
   {.x .sign x, .y .sign y}
-  $sign_pair;
+  ;
 
-xor_sign_of_pair = $float_pair
+xor_sign_of_pair = 
   pair_signs xor_sign
-  $sign;
+  ;
 
-opp_signs_of_pair? = $float_pair
+opp_signs_of_pair? = 
   pair_signs opp_sign?
-  $sign_pair;
+  ;
 
-inf_from_pair_sign = $float_pair
+inf_from_pair_sign = 
   xor_sign_of_pair inf_of_sign
-  $float64;
+  ;
 
-zero_from_pair_sign = $float_pair
+zero_from_pair_sign = 
   xor_sign_of_pair zero_of_sign
-  $float64;
+  ;
 
-add_float64 = $float_pair
+add_float64 = 
   float64_add
   .result
-  $float64;
+  ;
 
-$add_same_in = {sig56 x, sig56 y, exp11 exp, sign sign};
-$add_same_out = {sig56 sig, exp11 exp, bit inexact, bit overflow, bit underflow, sign sign};
-$sub_same_in = {sig56 big, sig56 small, exp11 exp, sign sign};
-$sub_same_out = {sig56 sig, exp11 exp, bit inexact, bit overflow, bit underflow, sign sign};
 
-float64_from_parts = ${sign sign, exp11 exponent, sig56 sig}
+
+
+
+
+float64_from_parts = 
   {.sign sign, .exponent exponent, (.sig frac52_from_sig56) fraction}
-  $float64;
+  ;
 
-add_same_sign = $add_same_in
+add_same_sign = 
   {
     .exp exp,
     .sign sign,
@@ -6797,9 +6782,9 @@ add_same_sign = $add_same_in
     {.overflow x, .inexact y} or_bit inexact_final
   }
   { .sig_round sig, .exp_round exp, .inexact_final inexact, .overflow overflow, .underflow underflow, .sign sign }
-  $add_same_out;
+  ;
 
-sub_same_sign = $sub_same_in
+sub_same_sign = 
   {
     .exp exp,
     .sign sign,
@@ -6847,9 +6832,9 @@ sub_same_sign = $sub_same_in
     {.overflow x, .inexact y} or_bit inexact_final
   }
   { .sig_round sig, .exp_round exp, .inexact_final inexact, .overflow overflow, .underflow underflow, .sign sign }
-  $sub_same_out;
+  ;
 
-float64_add_finite = $float_pair
+float64_add_finite = 
   {
     .x x,
     .y y,
@@ -6987,9 +6972,9 @@ float64_add_finite = $float_pair
           {.overflow 0? if, {.float_res result, .flags flags} then} .then
         > then} .then
      > then} .then
-  > $add_result;
+  > ;
 
-float64_add = $float_pair
+float64_add = 
   <
     {.x nan_float64? ifx, {qnan result, none flags} then} .then,
     {.y nan_float64? ify, {qnan result, none flags} then} .then,
@@ -7000,24 +6985,24 @@ float64_add = $float_pair
     {.x zero_float64? ifx, {.y result, none flags} then} .then,
     {.y zero_float64? ify, {.x result, none flags} then} .then,
     {.x finite_float64? ifx, .y finite_float64? ify, float64_add_finite then} .then
-  > $add_result;
+  > ;
 
-negate_y_pair = $float_pair
+negate_y_pair = 
   {.x x, (.y negate_float64) y}
-  $float_pair;
+  ;
 
-sub_float64 = $float_pair
+sub_float64 = 
   negate_y_pair
   add_float64
-  $float64;
+  ;
 
-float64_sub = $float_pair
+float64_sub = 
   negate_y_pair
   float64_add
   { .result result, (.flags flags_sub_from_add) flags }
-  $sub_result;
+  ;
 
-float64_mul_finite = $float_pair
+float64_mul_finite = 
   { {.x x, .y y} args }
   { .args args, {.args .x .sign x, .args .y .sign y} xor_sign sign_out }
   { .args args, .sign_out sign_out, .args .x .exponent exp_x }
@@ -7047,9 +7032,9 @@ float64_mul_finite = $float_pair
   <
     {.overflow 1? if, {.inf_res result, .flags flags} then} .then,
     {.overflow 0? if, {.float_res result, .flags flags} then} .then
-  > $mul_result;
+  > ;
 
-float64_mul = $float_pair
+float64_mul = 
   <
     {.x nan_float64? ifx, {qnan result, none flags} then} .then,
     {.y nan_float64? ify, {qnan result, none flags} then} .then,
@@ -7060,14 +7045,14 @@ float64_mul = $float_pair
     {.x zero_float64? ifx, .y ordered_float64? ify, {zero_from_pair_sign result, none flags} then} .then,
     {.y zero_float64? ify, .x ordered_float64? ifx, {zero_from_pair_sign result, none flags} then} .then,
     {.x finite_float64? ifx, .y finite_float64? ify, float64_mul_finite then} .then
-  > $mul_result;
+  > ;
 
-mul_float64 = $float_pair
+mul_float64 = 
   float64_mul
   .result
-  $float64;
+  ;
 
-float64_div_finite = $float_pair
+float64_div_finite = 
   {
     (.x sig56_from_float64) sigx,
     (.y sig56_from_float64) sigy,
@@ -7154,9 +7139,9 @@ float64_div_finite = $float_pair
   <
     {.overflow 1? if, {.inf_res result, .flags flags} then} .then,
     {.overflow 0? if, {.float_res result, .flags flags} then} .then
-  > $div_result;
+  > ;
 
-float64_div = $float_pair
+float64_div = 
   <
     {.x nan_float64? ifx, {qnan result, none flags} then} .then,
     {.y nan_float64? ify, {qnan result, none flags} then} .then,
@@ -7167,12 +7152,12 @@ float64_div = $float_pair
     {.x ordered_float64? ifx, .y zero_float64? ify, {inf_from_pair_sign result, div_by_zero flags} then} .then,
     {.x zero_float64? ifx, .y ordered_float64? ify, {zero_from_pair_sign result, none flags} then} .then,
     {.x finite_float64? ifx, .y finite_float64? ify, float64_div_finite then} .then
-  > $div_result;
+  > ;
 
-div_float64 = $float_pair
+div_float64 = 
   float64_div
   .result
-  $float64;
+  ;
 
 # -----------------------------------------------------------------------------
 # Public API
@@ -7200,25 +7185,25 @@ neg = negate_float64;
 # --- useful float64 constants (IEEE-754 binary64) ---
 
 # 1.0  exponent = 1023 = 0b01111111111
-exp_1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 0 10} $exp11;
+exp_1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 0 10} ;
 
 # 10.0 exponent = 1026 = 1023 + 3 = 0b10000000010
-exp_10 = {} {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 1 10} $exp11;
+exp_10 = {} {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 1 10} ;
 
 # 10.0 significand = 1.01b => fraction bit 50 = 1 (2^-2), everything else 0
 frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
               0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
               0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
-              0 48, 0 49, 1 50, 0 51} $frac52;
+              0 48, 0 49, 1 50, 0 51} ;
 
 # signed zeros (aliases)
 0f = pos_zero;
 -0f = neg_zero;
 
 # 1.0, -1.0, 10.0
-1f  = {} {+ sign,  exp_1  exponent, frac0   fraction} $float64;
--1f = {} {- sign,  exp_1  exponent, frac0   fraction} $float64;
-10f = {} {+ sign,  exp_10 exponent, frac_10 fraction} $float64;
+1f  = {} {+ sign,  exp_1  exponent, frac0   fraction} ;
+-1f = {} {- sign,  exp_1  exponent, frac0   fraction} ;
+10f = {} {+ sign,  exp_10 exponent, frac_10 fraction} ;
 
 ()
 
@@ -7232,33 +7217,33 @@ frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12
 exp_1024 = {}
   { 1 10,
     0 9, 0 8, 0 7, 0 6, 0 5, 0 4, 0 3, 0 2, 0 1, 0 0
-  } $exp11;
+  } ;
 
 # exponent = 1056: 0b10000100000 (10^10 range)
 exp_1e10 = {}
-  { 0 0, 0 1, 0 2, 0 3, 0 4, 1 5, 0 6, 0 7, 0 8, 0 9, 1 10 } $exp11;
+  { 0 0, 0 1, 0 2, 0 3, 0 4, 1 5, 0 6, 0 7, 0 8, 0 9, 1 10 } ;
 
 frac_1e10 = {}
   { 0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
     0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 1 29, 0 30, 0 31,
     1 32, 1 33, 1 34, 1 35, 1 36, 0 37, 1 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 1 45, 0 46, 1 47,
-    0 48, 1 49, 0 50, 0 51 } $frac52;
+    0 48, 1 49, 0 50, 0 51 } ;
 
 frac_1e10_p1 = {}
   { 0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
     0 16, 0 17, 0 18, 1 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 1 29, 0 30, 0 31,
     1 32, 1 33, 1 34, 1 35, 1 36, 0 37, 1 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 1 45, 0 46, 1 47,
-    0 48, 1 49, 0 50, 0 51 } $frac52;
+    0 48, 1 49, 0 50, 0 51 } ;
 
-one     = {+ sign, exp_1023 exponent, frac0 fraction} $float64;
-two     = {+ sign, exp_1024 exponent, frac0 fraction} $float64;
-neg_one = {- sign, exp_1023 exponent, frac0 fraction} $float64;
-ten_billion = {+ sign, exp_1e10 exponent, frac_1e10 fraction} $float64;
-ten_billion_p1 = {+ sign, exp_1e10 exponent, frac_1e10_p1 fraction} $float64;
+one     = {+ sign, exp_1023 exponent, frac0 fraction} ;
+two     = {+ sign, exp_1024 exponent, frac0 fraction} ;
+neg_one = {- sign, exp_1023 exponent, frac0 fraction} ;
+ten_billion = {+ sign, exp_1e10 exponent, frac_1e10 fraction} ;
+ten_billion_p1 = {+ sign, exp_1e10 exponent, frac_1e10_p1 fraction} ;
 
 # smallest positive subnormal: exponent=0, fraction LSB=1
-pos_denorm_min = {+ sign, exp0 exponent, frac_lsb1 fraction} $float64;
-neg_denorm_min = {- sign, exp0 exponent, frac_lsb1 fraction} $float64;
+pos_denorm_min = {+ sign, exp0 exponent, frac_lsb1 fraction} ;
+neg_denorm_min = {- sign, exp0 exponent, frac_lsb1 fraction} ;
 
 # -----------------------------------------------------------------------------
 # Expanded test product (make sure THIS is the last expression in the file)

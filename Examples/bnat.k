@@ -1,6 +1,6 @@
 -- Standard binary encoding of natural numbers
 
-$ bnat = < {} _, bnat 0, bnat 1 >;
+bnat = ?< {} _, bnat 0, bnat 1 > = bnat;
 
 _ = {}|_;
 _1 = |1;
@@ -23,7 +23,7 @@ remove_leading_zeros = < /0 remove_leading_zeros, () >;
 reverse = {() x, _ result} _reverse;
 
 _reverse =
-  ${bnat x, bnat result}
+  ?{ <X 0, X 1, {} _>=X x, ... }
   <
     {.x/_ if, .result then} .then,
     {.x/0 x, .result _0 result} _reverse,
@@ -33,11 +33,11 @@ _reverse =
 
 append_0 = reverse _0 reverse; -- i.e., shift_left, double, or times2 
 
-$carry = <{} 0, {} 1>;
+
 c0 = {} |0 ;
 c1 = {} |1 ;
 
-$ pair = {bnat x, bnat y};
+
 
 plus = 
   -- ${bnat x, bnat y} -- $ pair 
@@ -52,7 +52,7 @@ plus =
 
 _plus =
   -- least significant bit first addition with carry
-  ${bnat x, bnat y, carry c}
+  ?{ <X 0, X 1, {} _>=X x, ... }
   <
     {.x/_ if1, .y/_ if2, <.c/0 bnat_0, bnat_1> then} .then,
     {.x/_ if1, .c/0 if2, .y                    then} .then,
@@ -88,7 +88,7 @@ minus =
 
 _minus =
   -- least significat bit first substraction with carry
-  ${bnat x, bnat y, carry c}
+  ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
   <
     {.x   x, .y/_   y, .c/0   if} .x,
     {.x/1 x, .y/_   y, .c/1   if} .x _0,
@@ -116,7 +116,7 @@ times =
 ;
 
 _times =
-  ${bnat result, bnat _x, bnat y}
+  ?{ <Y 0, Y 1, {} _>=Y y, ... }
   <
     { .y/_ if, .result then } .then,
     { .result _0                           result, ._x _x, .y/0 y } _times,
@@ -149,7 +149,7 @@ align =
 ;
 
 _align = 
-  ${bnat _x, bnat _y, bnat x, bnat y}
+  ?{ <X 0, X 1, {} _>=X _x, <Y 0, Y 1, {} _>=Y _y, ... }
   <
     {._x/_ if1, ._y/_ if2, {.x x, .y y} then} .then,
     {._x </0, /_ _> _x, ._y </0, /_ _> _y, .x _0 x, .y _0 y} _align,
@@ -159,14 +159,14 @@ _align =
   >
 ;
 
--- $compare = <{} lt, {} eq, {} gt >;
+
 lt = {} |lt;
 eq = {} |eq;
 gt = {} |gt;
 
 compare = align _compare;
 _compare = 
-  $pair -- ${bnat x, bnat y}
+  ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
   <
     {.x/_ if1, .y/_ if2 } eq,
     {.x/0 x, .y/0 y} _compare,
@@ -174,7 +174,7 @@ _compare =
     .x/0 lt,
     gt
   >
-  -- $compare
+  
 ;
 
 zero? = remove_leading_zeros /_ bnat_0;
@@ -214,7 +214,7 @@ append_n_times_0 =
 ;
 
 div = 
-  -- $pair -- ${bnat x, bnat y}
+  
   {.x x, .y step, bnat_0 res} _div
 ;
 
@@ -241,7 +241,7 @@ _div =
 ;
 
 lcm =
-  -- $pair -- ${bnat x, bnat y}
+  
   {times x, gcd y}
   div .div
 ;

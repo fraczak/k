@@ -60,7 +60,6 @@ function fromEscString(escString) {
 ","                                            return 'COMMA';
 ";"                                            return 'SC';
 ":"                                            return 'COL';
-"$"                                            return 'DOLLAR'; 
 "?"                                            return 'QMARK';
 "@"                                            return 'AT';
 \"([^"\\]|\\(.|\n))*\"|\'([^'\\]|\\(.|\n))*\'  return 'STRING';
@@ -72,7 +71,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING
-%token LA LC LP RA RP RC EQ DOT COMMA SC COL DOLLAR AT QMARK DOTS DIV VID
+%token LA LC LP RA RP RC EQ DOT COMMA SC COL AT QMARK DOTS DIV VID
 %token INCREMENTAL
 %token EOF
 
@@ -97,7 +96,6 @@ vid: VID                                { $$ = getToken(yytext,yy,_$); };
 comma: COMMA                            { $$ = getToken(yytext,yy,_$); };
 sc: SC                                  { $$ = getToken(yytext,yy,_$); };
 col: COL                                { $$ = getToken(yytext,yy,_$); };
-dollar: DOLLAR                          { $$ = getToken(yytext,yy,_$); };
 qmark: QMARK                            { $$ = getToken(yytext,yy,_$); };
 incremental: INCREMENTAL                { $$ = getToken(yytext,yy,_$); };
 
@@ -115,46 +113,10 @@ initialize_symbol_table
 
 defs:                                   {  }
     | defs name eq comp sc              { s.add_rel($2.value,$4); }
-    | defs dollar name eq codeDef SC    { s.add_code($3.value,$5); }
-    ;
-
-code
-    : name                              { $$ = { code: "ref", ref: $1.value, start: $1.start, end: $1.end}; }
-    | codeDef                           { $$ = $1; }
-    ;
-
-codeDef
-    : lc labelled_codes rc              { $$ = { code: "product", product: $2, start: $1.start, end: $3.end }; }
-    | la labelled_codes ra              { $$ = { code: "union", union: $2, start: $1.start, end: $3.end }; }
-    | at name                           { $$ = { code: "ref", ref: "@" + $2.value, start: $1.start, end: $2.end}; }
-    ;
-
-labelled_codes 
-    :                                   { $$ = {}; }
-    | non_empty_labelled_codes          { $$ = $1.reduce((r, lc) => { 
-                                            if (r[lc.label])
-                                                anError(@0,`Duplicate label '${lc.label}'.`);
-                                            r[lc.label] = s.as_ref(lc.code);
-                                            return r }
-                                        , {}); }
-    ;
-
-non_empty_labelled_codes
-    : code_label                        { $$ = [$1]; }
-    | non_empty_labelled_codes comma code_label
-                                        { $$ = [].concat($1,$3); }
-    ;
-
-code_label 
-    : code name                         { $$ = {label: $2.value, code: $1}; }
-    | code str                          { $$ = {label: $2.value, code: $1}; }
-    | name col code                     { $$ = {label: $1.value, code: $3}; }
-    | str col code                      { $$ = {label: $1.value, code: $3}; }
     ;
 
 filter_
-    : dollar code                 { $$ = { type: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
-    | lp dots                 rp  { $$ = { type: null, open: true, fields: {}, start: $1.start, end: $3.end}; }
+    : lp dots                 rp  { $$ = { type: null, open: true, fields: {}, start: $1.start, end: $3.end}; }
     | la labelled_filters      ra { $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | lc labelled_filters      rc { $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     ;
@@ -210,7 +172,6 @@ exp
     | div str                           { $$ = {op: "div", div: $2.value, start: $1.start, end: $2.end }; }
     | vid name                          { $$ = {op: "vid", vid: $2.value, start: $1.start, end: $2.end }; }
     | vid str                           { $$ = {op: "vid", vid: $2.value, start: $1.start, end: $2.end }; }
-    | dollar code                       { $$ = {op: "code", code: s.as_ref($2), start: $1.start, end: $2.end}; }
     | qmark filter                      { $$ = {op: "filter", filter: $2, start: $1.start, end:$2.end}; }
     ;
 

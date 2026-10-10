@@ -2,13 +2,12 @@ import { t, in_out } from './index.mjs';
 import assert from 'assert';
 
 t(`
- $nat = < {} _, nat 0, nat 1>;
- zero = {}|_|0 $nat;
- rlz =  </0/_ zero, /0 rlz, ()>;
+ zero = {}|_|0;
+ rlz = ?<X 0, X 1, {} _>=X </0/_ zero, /0 rlz, ()> ?X;
  rlz
  `, (annotated) => {
     const {input,output} = in_out(annotated);
-    assert.equal(output.type, annotated.representatives["nat"]);
-    assert.equal(input.type, annotated.representatives["nat"]);
+    assert.equal(output.type, input.type);
+    assert.equal(output.type, "@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb");
     console.log("OK");
  });

@@ -9,7 +9,6 @@ import {
 import { validateKIRP } from "../objects/validate.mjs";
 
 const object = decodeObject(compileObjectBuffer(`
-  $ bit = < {} 0, {} 1 >;
   id = ();
   .x id
 `, { source: "kir-test.k" }));

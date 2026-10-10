@@ -4,7 +4,7 @@ import assert from 'assert';
 
 t(fs.readFileSync("./Examples/nat.k", "utf8"), (annotated) => {
     const {input,output} = in_out(annotated);
-    assert.equal(output.type, annotated.representatives["nat"]);
-    assert.equal(input.type, annotated.representatives["nat"]);
+    assert.equal(output.type, input.type);
+    assert.equal(output.type, "@e9WP6QX6URfgnd9hHYrrYUBhiL7UcvbWErVmyQJfFcr8");
     console.log("OK");
 });
