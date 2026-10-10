@@ -1,15 +1,15 @@
 # k
 
-**k is a small language for typed data transformations.**
+**k is a small language for content-addressable schemas and data transformations.**
 
-It describes data as algebraic shapes, programs as first-order partial
-functions, and runtime values as a binary `pattern + value` stream
-that can be parsed, transformed, printed, compiled, and inspected.
+It describes data as algebraic schemas, programs as first-order partial
+relations, and runtime values as a self-describing binary `schema + payload`
+stream that can be parsed, transformed, printed, compiled, and inspected.
 
-Data descriptions and transformations share one syntax, so a k file can
-define both the shapes of values and the relations that move between them.
+Schema definitions and transformations share one syntax, so a k file can
+define both data schemas and the relations that transform between them.
 
-k is experimental, but it already has a working parser, type-derivation
+k is experimental, but it already has a working parser, contract-derivation
 engine, REPL, binary codec pipeline, object/library format, Node.js API,
 and test suite.
 
@@ -17,23 +17,23 @@ and test suite.
 
 Many systems need to answer the same questions:
 
-- What shape does this data have?
-- Which transformations are valid for that shape?
-- What does a program accept, produce, or reject?
-- Can this transformation be serialized, tested, reused, or inspected?
+- What schema does this data have?
+- Which transformations are valid for that schema?
+- What does a program accept, produce, or preserve?
+- Can this transformation be serialized, tested, reused, or verified?
 
-k explores a compact answer: define algebraic data shapes, compose
-partial transformations over them, derive input/output patterns
-automatically, and move values across process boundaries with a canonical
-binary representation.
+k explores a compact answer: define algebraic schemas, compose
+partial relations over them, derive input/output contracts
+automatically, and move values across process boundaries with a canonical,
+content-addressable binary representation.
 
 That makes k interesting as a foundation for:
 
-- schema definitions and schema-to-schema transformations
+- content-addressable schema registries and schema-to-schema pipelines
 - binary codecs and canonical serialization
 - protocol, hardware, or test-vector transformation pipelines
-- teaching algebraic data types and compositional programming
-- research into partial functions, finite tree automata, and typed IRs
+- teaching algebraic data types and compositional relational programming
+- research into partial relations, finite tree automata, and typed IRs
 
 ## A Small Example
 
@@ -142,31 +142,34 @@ Core expressions are deliberately small:
 | `(f g)` | compose transformations |
 | `<f, g>` | try `f`, then `g` if `f` is undefined |
 | `{f a, g b}` | build a product from parallel transformations |
-| `?filter` | pattern filter / inductive type constraint |
+| `?filter` | schema filter / inductive termination witness |
 | `()` | identity |
 | `<>` | always undefined |
 | `{}` | constant empty product |
 
-**Derived input/output patterns**
+**Derived relational contracts**
 
-k derives structural constraints for expressions. Those patterns become
-useful for diagnostics, REPL output, binary encoding, and object
-metadata.
+k derives structural contracts for relations. A contract is a connected
+$(input, output)$ schema graph that specifies accepted input schemas,
+guaranteed output schemas, and preserved data structures ($=X$). Those
+contracts guide diagnostics, REPL output, binary serialization, and
+optimizations.
 
-**Binary-friendly runtime values**
+**Self-describing binary streams**
 
 The command-line pipeline uses a self-describing binary stream:
 
 ```text
-encoded pattern, followed by value encoded under that pattern
+encoded schema, followed by payload encoded under that schema
 ```
 
 The boundary tools are:
 
 ```bash
-k-parse   # textual k value -> binary pattern+value stream
+k-parse   # textual k value -> binary schema+payload stream
 k         # apply a k expression or .k/.ko program to the stream
-k-print   # binary pattern+value stream -> textual value
+k-print   # binary schema+payload stream -> textual value
+k-show    # inspect decoded schema and payload value
 ```
 
 **Inspectable objects and libraries**
@@ -174,17 +177,17 @@ k-print   # binary pattern+value stream -> textual value
 `k` programs can be authored, compiled, and linked across four main
 file formats:
 
-- `.k`: human-readable source code defining algebraic types and relations.
-- `.klib`: ahead-of-time (AOT) type-checked library objects (`main: null`)
-  storing canonical relation definitions, type codes, and local aliases.
-- `.ko`: ahead-of-time (AOT) type-checked executable containers (`KOBJ\n`
-  magic header) with entrypoint `main: "__main__"`, skipping parsing and
-  type derivation at runtime.
+- `.k`: human-readable source code defining algebraic schemas and relations.
+- `.klib`: ahead-of-time (AOT) library objects (`main: null`) storing
+  canonical relation definitions, schemas, and local aliases.
+- `.ko`: ahead-of-time (AOT) executable containers (`KOBJ\n` magic header)
+  with entrypoint `main: "__main__"`, skipping parsing and contract
+  derivation at runtime.
 - `.kvm`: polymorphic register-IR template artifacts (`layer: "KVM-P"`)
-  carrying principal pattern graphs for instant runtime specialization
+  carrying principal schema contracts for instant runtime specialization
   (`specializeKVM`).
 
-In `k`, all relations and derived types are identified canonically by immutable
+In `k`, all relations and derived schemas are identified canonically by immutable
 content-addressed hashes (`@hash`). There is no global symbol namespace;
 friendly names (such as `plus`, `int`, or `5`) are local aliases stored
 in metadata. Similarly, there are no primitive numbers: numerical
@@ -206,9 +209,9 @@ For a detailed guide to all four formats, commands, and workflows, see
 
 | Command | Purpose |
 | --- | --- |
-| `k-parse` | Convert textual k values to binary pattern+value streams |
-| `k-print` | Convert binary pattern+value streams back to textual values |
-| `k-show` | Pass a stream through while showing the decoded value/filter |
+| `k-parse` | Convert textual k values to binary schema+payload streams |
+| `k-print` | Convert binary schema+payload streams back to textual values |
+| `k-show` | Pass a stream through while showing the decoded payload and schema |
 
 **Built-in codecs**
 

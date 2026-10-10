@@ -17,19 +17,19 @@ Every syntactic form in an expression describes a **function** -- possibly a con
 
 ---
 
-## **2.2 Types**
+## **2.2 Schemas**
 
-A type describes the possible **tree shapes** of values.
-Types are formed from two constructors:
+A schema describes the possible **tree shapes** of payload values.
+Schemas are formed from two constructors:
 
-1. **Product**  – written `{ T₁ l₁, T₂ l₂, … }`
+1. **Product**  – written `{ S₁ l₁, S₂ l₂, … }`
    represents records with fixed labeled fields.
 
-2. **Union**  – written `< T₁ l₁, T₂ l₂, … >`
+2. **Union**  – written `< S₁ l₁, S₂ l₂, … >`
    represents a choice between labeled alternatives.
 
 Both are finite and fully explicit.
-Every type denotes a finite tree automaton whose accepted trees are the possible values of that type.
+Every schema denotes a finite tree automaton whose accepted trees are the possible payload values of that schema.
 
 ---
 
@@ -37,12 +37,12 @@ Every type denotes a finite tree automaton whose accepted trees are the possible
 
 1. **Empty product**
    `{}` has no fields.
-   It represents the type that admits exactly one value, called *unit*.
-   There is nothing exceptional about the type and its value; it is simply the degenerate case of a product with zero fields.
+   It represents the unit schema that admits exactly one value, called *unit*.
+   There is nothing exceptional about the unit schema and its value; it is simply the degenerate case of a product with zero fields.
 
 2. **Empty union**
    `<>` has no variants.
-   It represents a type with no possible values.
+   It represents a schema with no possible values.
 
 ---
 
@@ -97,14 +97,14 @@ false = {} |false;
 neg = < /true false, /false true >;
 ```
 
-This defines three relations: two constants and one transformation exchanging the variants `/true` and `/false`. The types of their inputs and outputs are derived automatically by the compiler.
+This defines three relations: two constants and one transformation exchanging the variants `/true` and `/false`. The contracts of their inputs and outputs are derived automatically by the compiler.
 
 ---
 
 ## **2.7 Summary**
 
-* All types describe tree shapes.
-* As a type expression, `{}` is the empty product type (with one value, called *unit*).
-* Functions, not values, are the only expressions in `k`.
+* All schemas describe payload tree shapes.
+* As an expression, `{}` is the empty product (with one value, called *unit*).
+* Relations, not values, are the only expressions in `k`.
 
 ---

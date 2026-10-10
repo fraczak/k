@@ -1,12 +1,13 @@
-# Patterns
+# Schemas and Pattern Graphs
 
-A pattern describes the shape of values that may flow through a k
-expression. Patterns are used by:
+In `k`, an algebraic **schema** describes the shape of payload trees that may flow
+through a relation. In compiler artifacts and serialization, schemas are represented
+as property-list arrays of automata nodes. Schemas are used by:
 
-- the type-derivation engine
+- the contract-derivation engine
 - the binary codec
-- runtime values carried by the codec pipeline
-- filter expressions
+- runtime framed values `(schema, payload)`
+- filter expressions (`?schema`)
 
 ## Pattern Kinds
 
@@ -94,19 +95,19 @@ Typical output:
 [["closed-union",[["nil",1],["cons",2]]],["closed-product",[]],["closed-product",[["car",3],["cdr",0]]],["closed-union",[["_",1],["0",3],["1",3]]]]
 ```
 
-## Patterns in the Codec
+## Schemas in the Codec
 
 The active wire format is:
 
 ```text
-encode(pattern_value : pattern) encode(value : decoded_pattern)
+encode(schema_value : schema) encode(payload : decoded_schema)
 ```
 
 So the property-list array printed by `patterns/from-k.mjs` is a
-readable externalization of the same pattern information carried in the
+readable externalization of the same schema information carried in the
 wire stream.
 
-`k-parse --input-pattern ...` produces the root pattern used to interpret
+`k-parse --input-pattern ...` produces the root schema used to interpret
 textual values.
 
 ## See Also

@@ -17,17 +17,17 @@ author: "W. Fraczak"
 
 # The k Book
 
-This book describes the k programming language: a minimal functional language
-for transforming tree-structured data using partial functions and algebraic
-data types.
+This book describes the k programming language: a minimal language
+for content-addressable schemas and data transformations over labeled trees
+using partial relations and algebraic finite automata.
 
 ## Available Chapters
 
 - [Introduction](book/01-introduction.md)
 - [Syntax and Values](book/02-syntax-and-values.md)
-- [Types as Finite Automata](book/03-types-as-finite-automata.md)
+- [Schemas as Finite Automata](book/03-types-as-finite-automata.md)
 - [Partial Functions and Composition](book/04-partial-functions-and-composition.md)
-- [Typing, Filters, and Normalization](book/05-typing-filters-and-normalization.md)
+- [Schemas, Filters, and Contracts](book/05-typing-filters-and-normalization.md)
 - [Values in Memory](book/06-values-in-memory.md)
 - [The Partial Function ABI](book/07-the-partial-function-abi.md)
 - [Operational Semantics and Execution](book/08-operational-semantics-and-execution.md)

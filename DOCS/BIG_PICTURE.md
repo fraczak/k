@@ -1,91 +1,82 @@
 # Big Picture
 
-`Kernel-code` is an experiment aiming to define a "perfect programming
-language".
+`k` is a minimal, unified calculus of **content-addressable schemas** and
+**relational data transformations**.
 
 ## Basics
 
-The language describes "partial first-order functions" on "printable"
-values. The printable values can be seen as rooted, edge-labeled trees,
-intuitively similar to an XML or a JSON document. The values are always
-typed; in the current codec-aware runtime, a value may carry a pattern
-describing the family of types compatible with that tree.
+The language describes first-order partial relations on labeled tree values.
+Values are rooted, edge-labeled trees, intuitively similar to an XML or a JSON
+document. Every value is self-describing at boundaries as a pair:
+`(schema, payload)`.
 
-### Types (codes)
+### Schemas
 
-Formally, a _type_ is a finite tree automaton. The type defines a set of
-values, which corresponds to the set of trees accepted by the
-automaton. Therefore, every type admits a unique normal form in terms of
-its minimal deterministic tree automaton.
+Formally, a _schema_ is a finite tree automaton. The schema defines a set of
+values, which corresponds to the language of trees accepted by the
+automaton. Therefore, every schema admits a unique canonical normal form in
+terms of its minimal deterministic tree automaton.
 
-Types are defined by two constructs:
+Schemas are built from two structural constructors:
 
-1. Product
-2. Union (also called tagged or disjoint union)
+1. **Product** (`{ ... }`)
+2. **Union** (`< ... >`) (tagged or disjoint union of variants)
 
-> Notation: We use native k-like notation as canonical — products
-> `{ T l, ... }` and unions `< T t, ... >`. For convenience, JSON-like
-> forms `{ l: T, ... }` and `< t: T, ... >` are also supported and
-> equivalent in meaning.
+> Notation: Native k notation uses products `{ S l, ... }` and unions
+> `< S t, ... >`. The empty product `{}` has a single value (the _unit_).
+> The empty union `<>` has no values.
 
 ```bnf
-type ::= name | '{' type_label_list '}' | '<' type_label_list '>'
-type_label_list ::= /* empty */ | ( type label ',' )* type label 
+schema ::= name | '{' schema_label_list '}' | '<' schema_label_list '>'
+schema_label_list ::= /* empty */ | ( schema label ',' )* schema label
 name ::= IDENTIFIER
 label ::= STRING
 ```
 
-Given a finite (possibly empty) set of types `t1, t2, ..., tn` and a
-set of pairwise different tags (labels) `l1, l2, ..., ln`,
+Given a finite (possibly empty) set of schemas `s1, s2, ..., sn` and a
+set of pairwise distinct labels `l1, l2, ..., ln`:
 
-- by `{ t1 l1, t2 l2, ..., tn ln }`, we define a _product type_ with
-  exactly `n` _projection_ functions: `.l1`, `.l2`, `...`, `.ln`.
-  Each projection function maps a value of type
-  `{t1 l1, t2 l2, ..., tn ln}` into a value of type `t1`, `t2`,
-  `...`, `tn`, respectively.
-- by `< t1 l1, t2 l2, ..., tn ln >`, we define a _union type_ with
-  exactly `n` projection functions `/l1`, `/l2`, `...`, `/ln`,
-  mapping a value of type `<t1 l1, t2 l2, ..., tn ln>` into a value
-  of type `t1`, `t2`, `...`, `tn`, respectively.
+- `{ s1 l1, s2 l2, ..., sn ln }` defines a _product schema_ with
+  `n` projection relations: `.l1`, `.l2`, `...`, `.ln`.
+  Each projection maps a value matching the product schema into a value
+  matching `s1`, `s2`, `...`, `sn`, respectively.
+- `< s1 l1, s2 l2, ..., sn ln >` defines a _union schema_ with
+  `n` projection relations `/l1`, `/l2`, `...`, `/ln`,
+  mapping a variant into its payload matching `s1`, `s2`, `...`, `sn`.
 
-Intuitively, the projection functions on a product type are all total
-(meaning, they are defined for every value of the input product type),
-whereas in the case of a union type, exactly one projection function
-is defined for a given value of the union type.
+#### Variant (Union) Values
 
-Some properties of these types:
-
-1. The empty product type, `{}`, has a single value, called the _unit_.
-2. The empty union type, `<>`, has no values.
-
-#### Variant (union) value literal convention
-
-- Variant values are written using "|" (pipe) followed by the variant
-  tag.
-  - Unit variant `` `{}` `` | tag (e.g., `{} | nil`, `{} | zero`)
-   - Variant with payload `v` at label `tag`: ` v | tag `
+- Variant values are constructed using "|" (pipe) followed by the tag:
+  - Unit variant: `{} | nil`, `{} | zero`
+  - Variant with payload `v` at tag: `v | tag`
 - Example (list): with `list = ?< {} nil, { X car, L cdr } cons > = L;`:
-  - Empty list []: `{}|nil`
-  - Singleton `[v]`: `{ v car, {}|nil cdr } | cons`
-- Angle brackets are for union expressions; use
-  "`| tag`" for a variant construction.
+  - Empty list `[]`: `{} | nil`
+  - Singleton `[v]`: `{ v car, {} | nil cdr } | cons`
+- Angle brackets `< ... >` denote ordered choice (union expressions); use
+  `| tag` for variant construction.
 
-#### Equivalence of types (bisimilarity)
+#### Equivalence of Schemas (Bisimilarity)
 
-Two (possibly recursive) codes are equivalent iff they are bisimilar
+Two (possibly recursive) schemas are equivalent iff they are bisimilar
 over their definition graphs. Concretely, there exists a relation B
-such that `(t1, t2) ∈ B` if and only if:
-- t1 and t2 have exactly the same set of labels/tags;
-- t1 and t2 are simultaneously products or simultaneously unions;
-- for each label/tag `ℓ` in the set, the subcodes under `ℓ` are again
-  related by B.
+such that `(s1, s2) ∈ B` if and only if:
+- `s1` and `s2` have exactly the same set of labels/tags;
+- `s1` and `s2` are simultaneously products or simultaneously unions;
+- for each label/tag `ℓ`, the subschemas under `ℓ` are again related by B.
 
-### Filters (patterns)
+Canonicalization erases local variable names and deterministically orders
+states, so any two structurally equivalent schemas yield identical canonical text.
 
-A _filter_ is a way of representing a _pattern_, i.e., a set of types
-sharing some structure. For example, if I wanted to refer to all product
-types that have a field `f` of type `T`, I would write:
-`?{ T f, ... }`. In general, a filter is defined by:
+### Filters
+
+A _filter_ is a syntactic expression `?schema` that acts as a partial identity
+relation on values conforming to `schema`. If the input value matches the
+schema, it passes through unchanged; otherwise, the relation is undefined.
+
+In recursive relations, filters also serve as **inductive termination witnesses**,
+ensuring type and contract derivation converges.
+
+In general, a filter schema is defined by:
 
 ```bnf
 filter ::= name | '{' filter_label_list '}'
@@ -98,11 +89,11 @@ filter_label_list ::= /* empty */ | '...'
 Examples:
 
 ```text
-  X                 -- any type
-  ( ... )           -- any type
-  { ... }           -- any product type
-  ( X x, X y )      -- any type with two fields of the same type
-  < X x, ... > = X  -- a (recursive) variant type, 'X', with variant 'x' of the same type 'X' 
+  X                 -- unconstrained schema variable
+  ( ... )           -- unconstrained schema
+  { ... }           -- any product schema
+  ( X x, X y )      -- any product schema with two fields of the same schema X
+  < X x, ... > = X  -- a recursive variant schema X with variant x of schema X
 ```
 
 ### Partial functions
@@ -160,57 +151,51 @@ and labels) are identifiers (strings) such that:
 1. All defined relation names are distinct.
 2. All label names within a `product` expression are locally distinct.
 
-Filters act as partial identity functions defined only for the values
-matching the corresponding pattern, while also serving as inductive witnesses
+Filters act as partial identity relations defined only for the values
+matching the corresponding schema, while also serving as inductive witnesses
 for recursive relation termination.
 
 That's it.
 
 No `builtin` types, no `if` statement, no `loop`, no `throw`, no
-_closure_, no _annotations_, and no macros. Just _types_, _filters_,
-and _functions_.
+_closure_, no _annotations_, and no macros. Just _schemas_, _filters_,
+and _relations_.
 
 ### Normalization and Content-Addressing
 
-All type names are replaced by the canonical hash (`@hash`) of their
-minimal deterministic tree automaton representation.
+All schemas are normalized to the canonical text representation of their
+minimal deterministic tree automaton. That canonical representation is their
+true identity; `@hash` is an immutable, fixed-width index digest.
 
 Every relation is identified canonically by the content-addressed hash
 of its normalized definition AST.
 
 There is no global symbol namespace. Human-readable names (such as
 `plus`, `int`, or `5`) are local aliases recorded in object metadata
-(`relAlias`, `typeAliases`). When libraries are loaded with `--lib`,
-definitions are identified by their canonical `@hash`, but local aliases
-are not implicitly exported into the importing scope unless explicitly
-mapped via `--export`.
+(`relAlias`). When libraries are loaded with `--lib`, definitions are
+identified by their canonical `@hash`, but local aliases are not
+implicitly exported into the importing scope unless explicitly mapped
+via `--export`.
 
 This approach completely solves the problem of modules, name collisions,
-and unversioned imports, opening the door to a universal registry of
-types (schemas) and relations.
+and unversioned imports, establishing a universal registry of
+schemas and relations.
 
-## Typing and Polymorphism (codes and patterns)
+## Schemas, Contracts, and Derivation
 
 The abstract syntax tree of a program consists of a dictionary of
-_type definitions_, a dictionary of _function definitions_, and the
-final _main expression_.
+relation definitions and an optional entry expression.
 
-In principle, the initial form of the Abstract Syntax Tree, _raw_ AST,
-is enough to evaluate the program on an input.
+The compiler computes canonical representations for schemas and derives
+a **contract** for every relation: a connected $(input, output)$ schema
+graph where shared vertices ($=X$) prove that input substructures are
+preserved through to the output.
 
-Our objective, however, is to compute canonical representations for
-types and normalized representations for functions so they can be
-reused and compiled ahead-of-time.
+The contract derivation steps are:
 
-The normalization steps are:
-
-1. Build the _type graph_ from all types used by the program, i.e.,
-   used in _type definitions_ as well as type expressions used in
-   _function definitions_ and the _main expression_.
-2. Annotate the expressions with filters; every node of the AST is
-   annotated with a pair of filters.
-3. Turn the _singleton_ filters into types and add them to the _type
-   graph_. Go to (2) unless no change.
+1. Initialize the schema graph from primitive operations (projections, constructors, products) and explicit filter annotations.
+2. Propagate schemas forward and backward through compositions, products, and choices until reaching a fixed point.
+3. Validate inductive convergence for recursive relations using filter witnesses.
 
 ### Examples
 
@@ -251,22 +236,22 @@ inc3
 In the above program, we define relation `bit` as a union of two unit variants,
 and relation `byte` as a product of four `bit`s.
 
-Functions `bit0`, `bit1`, and `zero` are "constant polymorphic
-functions", meaning:
+Relations `bit0`, `bit1`, and `zero` are "constant polymorphic
+relations", meaning:
 
 - constant: if defined, they always return exactly the same value;
 - polymorphic: they are defined for more than one pair of input and
-  output patterns: functions `bit0` and `bit1` are of shape `?X -> bit`,
-  and `zero` is of shape `?X -> byte`, where `?X` denotes an
-  unconstrained pattern, also denoted as `?(...)`.
+  output schemas: relations `bit0` and `bit1` have contract `?X -> bit`,
+  and `zero` has contract `?X -> byte`, where `?X` denotes an
+  unconstrained open schema, also denoted as `?(...)`.
 
-Functions `inc` and `inc3` are relations of shapes
+Relations `inc` and `inc3` are relations with contracts
 `byte -> { bit overflown, byte byte }` and
 `{ bit overflown, byte byte } -> { bit overflown, byte byte }`,
 respectively.
 
-Function `inc_o` is a polymorphic function of patterns:
-`?X -> { byte byte, bit overflown }` with the following constraints:
+Relation `inc_o` is a polymorphic relation with contract:
+`?X -> { byte byte, bit overflown }` with the following input schema constraints:
 
 - `?X` is a product with at least two fields: `byte` and
   `overflown`, denoted by:
@@ -277,13 +262,13 @@ Function `inc_o` is a polymorphic function of patterns:
 
 We can write it as: `?{ byte byte, <(...) i, ...> overflown, ...}`.
 
-The target pattern `{ byte byte, bit overflown }` corresponds to filter
-`?{ byte byte, bit overflown }`. Such a pattern is called _singleton
-pattern_, as only one shape fits the pattern.
+The target schema `{ byte byte, bit overflown }` corresponds to filter
+`?{ byte byte, bit overflown }`. Such a schema is called a _closed
+schema_, as all constructors are fully determined.
 
 #### Example 2
 
-Polymorphic list functions:
+Polymorphic list relations:
 
 ```text
 list? = ?< {} nil, {X car, Y cdr} cons > = Y;
@@ -304,46 +289,47 @@ car = list? /cons .car;  -- @...
 
 ## Universal Schema Registry
 
-Since the normalization process for types is fast and deterministic,
-we can build a universal schema registry that will store all invented
-types. The registry will be a key-value store, where the key is the hash
-of the normalized type, and the value is the normalized type itself.
+Since the normalization process for schemas is fast and deterministic,
+we can build a universal schema registry that will store all discovered
+schemas. The registry is a key-value store, where the primary identity is
+the canonical textual definition (or fixed-width hash) of the normalized
+schema, and the value is the normalized schema automaton itself.
 
-All functions (non-polymorphic and polymorphic) are named by the hash
+All relations (monomorphic and polymorphic) are named by the hash
 of their normalized definition and stored in a similar key-value store.
 
-Non-polymorphic functions can be easily indexed by the hashes of their
-input and output types so that we can quickly find the function we need.
-Indexing polymorphic functions seems complicated (TODO).
+Relations can be indexed by their derived contracts—the connected $(input, output)$
+schema graph—enabling instant lookup of transformations that map between specific schemas
+or preserve specific subtrees ($=X$).
 
 ## Serialization and Compilation
 
-The language is designed to transform _codes_, i.e., serialized typed
-values, i.e., trees accepted by a tree automaton, into other _codes_.
-The transformation is done by partial functions as defined in the
-language. The non-recursive and tail-recursive (and even some
-non-tail-recursive) functions can be compiled into deterministic finite
+The language is designed to transform self-describing binary streams of
+`(schema, payload)`, where the payload is a labeled tree conforming to the
+accompanying schema. The transformation is executed by partial relations
+defined in the language. Non-recursive and tail-recursive (and even some
+non-tail-recursive) relations can be compiled into deterministic finite
 (pushdown) transducers.
 
 Ahead-Of-Time (AOT) compilation produces four primary file formats (see
 [`DOCS/FILE_FORMATS.md`](./FILE_FORMATS.md)):
-- `.k`: Plain source text.
-- `.ko`: AOT type-checked executable object container (`KOBJ\n` + JSON).
-- `.klib`: AOT type-checked library container (JSON).
+- `.k`: Plain source text defining schemas and relations.
+- `.ko`: AOT contract-checked executable object container (`KOBJ\n` + JSON).
+- `.klib`: AOT contract-checked library container (JSON).
 - `.kvm`: Polymorphic register-IR template (`layer: "KVM-P"`).
 
 Downstream backends compile or specialize these into WebAssembly
 (`.wasm`) and native binaries.
 
-### AND-OR graphs for encoding and decoding codes
+### AND-OR graphs for encoding and decoding payloads
 
-This could be a generic and compact way to encode and decode typed
-values. The idea is to use _prefix codes_ (a class of languages such
-that no word is a prefix of another word) to encode the values.
+This provides a generic and compact way to encode and decode payload
+values under an algebraic schema. The idea is to use _prefix codes_ (a class of languages such
+that no word is a prefix of another word) to encode variant payloads deterministically.
 
 ### Rust data structures
 
-A type can be translated into a Rust data structure, and a function
+A schema can be translated into a Rust data structure, and a relation
 can be translated into a Rust function.
 
 ## Linking with Other Languages
@@ -354,7 +340,7 @@ can be translated into a Rust function.
 
 In `k`, there are no primitive numbers or built-in integer literals.
 Numerical identifiers such as `5` or `10` are nullary relations
-(constants) mapping the unit `{}` to bit trees of shape `{} -> bits`.
+(constants) mapping the unit `{}` to bit trees of contract `{} -> bits`.
 Arithmetic relations operate on signed integers (`int`), requiring
 conversion via `5 int`.
 
@@ -403,4 +389,4 @@ kind = bits
 - [DOCS/TYPE_DERIVATION.md](./TYPE_DERIVATION.md) — type derivation
   algorithm
 - [DOCS/OBJECT_FILE_AND_PATTERN.md](./OBJECT_FILE_AND_PATTERN.md) —
-  object format and pattern encoding
+  object format and schema encoding

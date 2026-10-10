@@ -33,19 +33,16 @@ We call such mappings **partial functions**.
 
 ## **1.4 Simplicity over features**
 
-`k` avoids most language constructs: no *variables* and no *control statements*.
-It has only:
+`k` avoids most traditional language constructs: no *variables*, no *loops*, and no *control flow keywords*.
+In `k`, programs are built from:
 
-1. **types** (which describe tree shapes), and
-2. **partial functions** (which transform one tree into another).
+1. **schemas** (finite tree automata describing acceptable tree payloads), and
+2. **relations** (partial mappings that transform one tree into another).
 
-These two ingredients are sufficient and powerful enough to express structured
-computation in a concise and understandable way.
+Schemas and transformations share the exact same syntax: a schema definition is simply a relation acting as a partial identity.
 
-There is another concept in the language, called **filters**.
-Filters play a role in the process of reasoning about types of partial functions.
-Filters have been added to the syntax of the language because they allow explicit annotations
-of "polymorphic" expressions, i.e., expressions that make sense in different contexts.
-Filters are similar to *type classes* in other languages.
+The language also provides **filters** (`?schema`). Syntactically, a filter acts as a partial identity relation on payloads conforming to the schema. Semantically, filters act as **inductive termination witnesses** during contract derivation for recursive relations, while also enabling polymorphic generic programming.
+
+When analyzing a relation, the compiler derives its **contract**: a connected $(input, output)$ schema graph where shared vertices ($=X$) prove structure preservation from input through to output.
 
 ---
