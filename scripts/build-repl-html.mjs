@@ -1801,10 +1801,10 @@ const htmlContent = `<!DOCTYPE html>
           <div class="help-section">
             <h4>Language Overview</h4>
             <p style="margin-bottom: 8px; color: var(--text-muted); line-height: 1.45;">
-              <b>k</b> is a concise language of <b>types</b> and <b>relations</b> (functions) over tree-like (JSON-like) documents. Every expression denotes a relation that transforms an input document into an output document.
+              <b>k</b> is a concise language of <b>relations</b> (functions) over tree-like (JSON-like) documents. Every expression denotes a relation that transforms an input document into an output document.
             </p>
             <p style="margin-bottom: 10px; color: var(--text-muted); line-height: 1.45;">
-              <b>Content-Addressed:</b> Functions and types are identified by their canonical content hash (<code>@...</code>) derived directly from their structure. Local names are just temporary aliases used for recursion and readability.
+              <b>Content-Addressed:</b> Relations are identified by their canonical content hash (<code>@...</code>) derived directly from their structure. Local names are just temporary aliases used for recursion and readability.
             </p>
 
             <div class="help-category-title">1. Definitions (Local Aliases)</div>
@@ -1818,36 +1818,10 @@ const htmlContent = `<!DOCTYPE html>
                   <td><code>name = relExpr;</code></td>
                   <td><b>Relation Alias:</b> Defines a local alias for a relation expression.<br><i>e.g.</i> <code>swap = { . y x, . x y };</code></td>
                 </tr>
-                <tr>
-                  <td><code>$ name = typeExpr;</code></td>
-                  <td><b>Type Alias:</b> Defines a local alias for a type schema.<br><i>e.g.</i> <code>$ bool = &lt; {} true, {} false &gt;;</code></td>
-                </tr>
               </tbody>
             </table>
 
-            <div class="help-category-title">2. Type Expressions (<code>typeExpr</code>)</div>
-            <p style="margin-bottom: 6px; color: var(--text-muted); font-size: 12px;">Schemas describing tree-like documents:</p>
-            <table class="help-table">
-              <thead>
-                <tr><th style="width: 45%;">Syntax</th><th>Description</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><code>{ Type_1 label_1, ..., Type_k label_k }</code></td>
-                  <td><b>Product Type:</b> Labeled record of arity <i>k</i> (e.g. <code>{float64 x, string n}</code>; special case: <code>{}</code> is the 0-ary product)</td>
-                </tr>
-                <tr>
-                  <td><code>&lt; Type_1 tag_1, ..., Type_k tag_k &gt;</code></td>
-                  <td><b>Union Type:</b> Tagged sum of <i>k</i> variants (e.g. <code>&lt;int ok, string err&gt;</code>)</td>
-                </tr>
-                <tr>
-                  <td><code>name</code> / <code>@hash</code></td>
-                  <td><b>Type Reference:</b> References a type by local alias or canonical content hash</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="help-category-title">3. Relation Expressions (<code>relExpr</code>)</div>
+            <div class="help-category-title">2. Relation Expressions (<code>relExpr</code>)</div>
             <p style="margin-bottom: 6px; color: var(--text-muted); font-size: 12px;">Functions transforming an input document to an output document:</p>
             <table class="help-table">
               <thead>
@@ -1879,8 +1853,8 @@ const htmlContent = `<!DOCTYPE html>
                   <td><b>Variant Constructor:</b> Wraps document into variant <code>tag</code></td>
                 </tr>
                 <tr>
-                  <td><code>$ typeExpr</code></td>
-                  <td><b>Type Constraint:</b> Asserts input matches <code>typeExpr</code> (compile-time Type Error on mismatch)</td>
+                  <td><code>? filterExpr</code></td>
+                  <td><b>Pattern Filter:</b> Asserts input matches pattern; acts as partial identity and inductive termination witness (<i>e.g.</i> <code>?&lt; {} true, {} false &gt;</code>)</td>
                 </tr>
                 <tr>
                   <td><code>name</code> / <code>@hash</code></td>
@@ -1914,8 +1888,8 @@ const htmlContent = `<!DOCTYPE html>
               <li><code>{} | ok</code> &mdash; Constant relation producing variant <code>ok</code> with empty document payload <code>{}</code></li>
               <li><code>not = &lt; / true | false, / false | true &gt;;</code> &mdash; Polymorphic negation via branch projections and ordered choice</li>
               <li><code>{} | true not</code> &mdash; Compose constant relation <code>{} | true</code> with <code>not</code> (evaluates to <code>{} | false</code>)</li>
-              <li><code>$ bool = &lt; {} true, {} false &gt;;</code> &mdash; Define a boolean union type schema</li>
-              <li><code>not = $ bool &lt; / true | false, {} | true &gt; $ bool;</code> &mdash; Typed boolean negation: guarded by <code>$ bool</code>, defaulting to <code>{} | true</code></li>
+              <li><code>bool = ?&lt; {} true, {} false &gt;;</code> &mdash; Define a boolean pattern filter relation</li>
+              <li><code>not = bool &lt; / true | false, {} | true &gt; bool;</code> &mdash; Filtered boolean negation: guarded by <code>bool</code>, defaulting to <code>{} | true</code></li>
               <li><code>swap = { . y x, . x y };</code> &mdash; Define a product field-swapping relation</li>
               <li><code>{ {} | ok x, {} | nil y } swap</code> &mdash; Construct a product and pass it through <code>swap</code></li>
             </ul>
