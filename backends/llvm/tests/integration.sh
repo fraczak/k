@@ -112,7 +112,7 @@ node --input-type=module -e "import { stdout } from 'node:process'; import { enc
   | node --input-type=module -e "import { stdin } from 'node:process'; import { decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; const chunks = []; stdin.on('data', (chunk) => chunks.push(chunk)); stdin.on('end', () => console.log(JSON.stringify(decodeWire(Buffer.concat(chunks)).pattern)));" \
   | grep -Fqx '[["open-union",[["left",1],["right",1]]],["closed-product",[]]]'
 
-node ./bin/k-llvm-build.mjs '$bits = < {} _, bits 0, bits 1 >; $int = < bits "+", bits "-" >; $int' -o "$TMP_DIR/id-int-exe"
+node ./bin/k-llvm-build.mjs '?< <bits 0, bits 1, {} _>=bits "+", bits "-">' -o "$TMP_DIR/id-int-exe"
 printf '2' \
   | node ../../codecs/int.mjs --parse \
   | "$TMP_DIR/id-int-exe" \
@@ -121,7 +121,7 @@ printf '2' \
 
 node --input-type=module -e "import assert from 'node:assert/strict'; import { spawn } from 'node:child_process'; import { encodeToWire, decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; import { parse, INT_PATTERN } from '../../codecs/int.mjs'; const input = encodeToWire(parse('2'), INT_PATTERN); const header = Buffer.alloc(4); header.writeUInt32BE(input.length); const child = spawn(process.argv[1], ['--server']); const chunks = []; const stderr = []; child.stdout.on('data', (chunk) => chunks.push(chunk)); child.stderr.on('data', (chunk) => stderr.push(chunk)); child.stdin.end(Buffer.concat([header, input])); const status = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); }); assert.equal(status, 0, Buffer.concat(stderr).toString('utf8')); const output = Buffer.concat(chunks); const length = output.readUInt32BE(0); assert.equal(output.length, 4 + length); assert.deepEqual(decodeWire(output.subarray(4)).value.toJSON(), parse('2').toJSON());" "$TMP_DIR/id-int-exe"
 
-node ./bin/k-llvm-build.mjs --lib ../../Examples/arithmetics.k --export times 's = {()x, ()y} times; s' -o "$TMP_DIR/square-exe"
+node ./bin/k-llvm-build.mjs --lib ../../Examples/arithmetics.k --export times 's = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" > {()x, ()y} times; s' -o "$TMP_DIR/square-exe"
 printf '987654321' \
   | node ../../codecs/int.mjs --parse \
   | "$TMP_DIR/square-exe" \

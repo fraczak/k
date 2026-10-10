@@ -8,6 +8,7 @@ import { compileObject, decodeObject, hydrateObject } from "./object.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { propertyListToFilter } from "./codecs/runtime/show-value.mjs";
+import { TypePatternGraph } from "./TypePatternGraph.mjs";
 
 const KIR_FORMAT = "k-ir";
 const KIR_VERSION = 1;
@@ -240,6 +241,11 @@ function resolveRelation(object, relationName = null) {
   const alias = object.relAlias?.[name];
   if (alias && object.rels?.[alias]) return { name: alias, rel: object.rels[alias] };
   if (alias && object.rels?.[name]) return { name, rel: object.rels[name] };
+  if (alias) {
+    for (const [k, rel] of Object.entries(object.rels || {})) {
+      if (object.relAlias?.[k] === alias) return { name: k, rel };
+    }
+  }
 
   throw new Error(`Relation '${name}' not found`);
 }
@@ -264,7 +270,188 @@ function relationLibraryWithTarget(object, targetRel) {
   };
 }
 
-function relationPatternPropertyList(rel, index) {
+function addPropertyListToPatternGraph(graph, propertyList) {
+  const kindToPattern = {
+    any: "(...)",
+    "open-product": "{...}",
+    "open-union": "<...>",
+    "closed-product": "{}",
+    "closed-union": "<>"
+  };
+  const nodes = propertyList.map(([kind]) =>
+    graph.addNewNode({ pattern: kindToPattern[kind] })
+  );
+
+  propertyList.forEach(([, edges], nodeIndex) => {
+    for (const [label, target] of edges) {
+      graph.edges[nodes[nodeIndex]][label] = [nodes[target]];
+    }
+  });
+
+  return nodes[0];
+}
+
+function cloneRelation(rel) {
+  const clonedGraph = new TypePatternGraph(
+    rel.typePatternGraph.registerCodeDef,
+    rel.typePatternGraph.findCode
+  );
+  clonedGraph.patterns.nodes = JSON.parse(JSON.stringify(rel.typePatternGraph.patterns.nodes));
+  clonedGraph.patterns.parent = [...rel.typePatternGraph.patterns.parent];
+  clonedGraph.edges = JSON.parse(JSON.stringify(rel.typePatternGraph.edges));
+  clonedGraph.codeId = { ...rel.typePatternGraph.codeId };
+
+  return {
+    ...rel,
+    def: JSON.parse(JSON.stringify(rel.def)),
+    typePatternGraph: clonedGraph,
+    typeDerivation: { ...(rel.typeDerivation || {}) }
+  };
+}
+
+function findCallSites(exp) {
+  const calls = [];
+  function visit(node) {
+    if (!node) return;
+    if (node.op === "ref") calls.push(node);
+    if (node.comp) node.comp.forEach(visit);
+    if (node.items) node.items.forEach(visit);
+    if (node.union) node.union.forEach(visit);
+    if (node.product) node.product.forEach((item) => visit(item.exp));
+    if (node.fields) node.fields.forEach((item) => visit(item.expr));
+  }
+  visit(exp);
+  return calls;
+}
+
+function findRelation(rels, relAlias, name) {
+  if (!name) return null;
+  if (rels[name]) return { name, rel: rels[name] };
+  const alias = relAlias?.[name];
+  if (alias && rels[alias]) return { name: alias, rel: rels[alias] };
+  if (alias) {
+    for (const [k, rel] of Object.entries(rels)) {
+      if (relAlias?.[k] === alias) return { name: k, rel };
+    }
+  }
+  return null;
+}
+
+export function specializeObjectRelations(object, entryRelationName = null, inputPattern = null) {
+  if (object?.format !== "k-object") {
+    throw new Error("specializeObjectRelations requires a k object");
+  }
+
+  const baseRels = Object.fromEntries(
+    Object.entries(object.rels || {}).map(([name, rel]) => [name, cloneRelation(rel)])
+  );
+  for (const [aliasName, hash] of Object.entries(object.relAlias || {})) {
+    if (!baseRels[aliasName]) {
+      const match = Object.entries(baseRels).find(([k]) => object.relAlias?.[k] === hash);
+      if (match) baseRels[aliasName] = match[1];
+    }
+  }
+
+  const entry = findRelation(
+    baseRels,
+    object.relAlias,
+    entryRelationName || object.main || "__main__"
+  );
+  if (!entry) return object;
+
+  const specializedRels = new Map();
+  const specializedCounts = new Map();
+  const newRels = {};
+
+  const entryRel = cloneRelation(entry.rel);
+  newRels[entry.name] = entryRel;
+
+  if (Array.isArray(inputPattern) && inputPattern.length > 0) {
+    const inRoot = addPropertyListToPatternGraph(entryRel.typePatternGraph, inputPattern);
+    try {
+      entryRel.typePatternGraph.unify("specialize", entryRel.def.patterns[0], inRoot);
+    } catch {
+      // Best-effort entry unification
+    }
+    specializedRels.set(entry.name + "::" + JSON.stringify(inputPattern), entry.name);
+  }
+
+  const worklist = [entry.name];
+  while (worklist.length > 0) {
+    const currentName = worklist.shift();
+    const currentRel = newRels[currentName];
+    if (!currentRel) continue;
+
+    const calls = findCallSites(currentRel.def);
+    for (const call of calls) {
+      const target = findRelation(baseRels, object.relAlias, call.ref);
+      if (!target) continue;
+
+      const argPatternId = call.patterns?.[0];
+      if (argPatternId != null) {
+        const argRoot = currentRel.typePatternGraph.find(argPatternId);
+        const argPropList = patternToPropertyList(
+          exportPatternGraph(currentRel.typePatternGraph, argRoot)
+        );
+        const argSig = JSON.stringify(argPropList);
+        const specKey = target.name + "::" + argSig;
+
+        let specName = specializedRels.get(specKey);
+        if (!specName) {
+          const count = (specializedCounts.get(target.name) || 0) + 1;
+          specializedCounts.set(target.name, count);
+          specName = count === 1 ? target.name : `${target.name}$${count}`;
+          specializedRels.set(specKey, specName);
+
+          const targetRel = cloneRelation(target.rel);
+          const tInRoot = addPropertyListToPatternGraph(targetRel.typePatternGraph, argPropList);
+          try {
+            targetRel.typePatternGraph.unify("specialize", targetRel.def.patterns[0], tInRoot);
+          } catch {
+            // Unification failure: keep target unspecialized
+          }
+          newRels[specName] = targetRel;
+          worklist.push(specName);
+        }
+
+        call.ref = specName;
+
+        const targetRel = newRels[specName];
+        const outPatternId = targetRel.def.patterns?.[1];
+        const retPatternId = call.patterns?.[1];
+        if (outPatternId != null && retPatternId != null) {
+          const outRoot = targetRel.typePatternGraph.find(outPatternId);
+          const retPropList = patternToPropertyList(
+            exportPatternGraph(targetRel.typePatternGraph, outRoot)
+          );
+          const rRetRoot = addPropertyListToPatternGraph(currentRel.typePatternGraph, retPropList);
+          try {
+            currentRel.typePatternGraph.unify("specialize", retPatternId, rRetRoot);
+          } catch {
+            // Keep existing call return pattern on unification error
+          }
+        }
+      }
+    }
+  }
+
+  const resultRels = {
+    ...baseRels,
+    ...newRels
+  };
+  const resultRelAlias = { ...(object.relAlias || {}) };
+  for (const name of Object.keys(newRels)) {
+    if (!resultRelAlias[name]) resultRelAlias[name] = name;
+  }
+
+  return {
+    ...object,
+    rels: resultRels,
+    relAlias: resultRelAlias
+  };
+}
+
+export function relationPatternPropertyList(rel, index) {
   return expPatternPropertyList(rel, rel.def, index);
 }
 
@@ -284,28 +471,35 @@ export function retypeObjectRelationForBackend(object, relationName, inputPatter
   }
 
   const target = resolveRelation(object, relationName);
+  const specializedObject = specializeObjectRelations(object, target.name, inputPattern);
+  const specializedRel = resolveRelation(specializedObject, target.name);
+  const kir = objectToKIRP(specializedObject);
+
+  return {
+    relation: target.name,
+    retypedObject: specializedObject,
+    kir,
+    entryName: target.name,
+    inputPattern: relationPatternPropertyList(specializedRel.rel, 0),
+    outputPattern: relationPatternPropertyList(specializedRel.rel, 1)
+  };
+}
+
+export function retypeObjectRelation(object, relationName, inputPattern, options = {}) {
+  if (object?.format !== "k-object") {
+    throw new Error("KIR retyping requires a k object");
+  }
+  if (!Array.isArray(inputPattern)) {
+    throw new Error("KIR retyping requires an input pattern property list");
+  }
+
+  const target = resolveRelation(object, relationName);
   const source = `?${propertyListToFilter(inputPattern)} __kir_target__`;
   const retypedObject = hydrateObject(compileObject(source, {
     source: options.source || "<kir-retype>",
     libraries: [relationLibraryWithTarget(object, target.rel)]
   }));
-  const kir = objectToKIRP(retypedObject);
-  const entryName = retypedObject.main || "__main__";
-  const retypedRel = retypedObject.rels[entryName];
-  const entryInputPattern = relationPatternPropertyList(retypedRel, 0);
-
-  return {
-    relation: relationName || object.main,
-    retypedObject,
-    kir,
-    entryName,
-    inputPattern: entryInputPattern,
-    outputPattern: relationPatternPropertyList(retypedRel, 1)
-  };
-}
-
-export function retypeObjectRelation(object, relationName, inputPattern, options = {}) {
-  return retypeObjectRelationForBackend(object, relationName, inputPattern, options).kir;
+  return objectToKIRP(retypedObject);
 }
 
 export { KIR_FORMAT, KIR_VERSION };
@@ -314,8 +508,10 @@ export default {
   KIR_FORMAT,
   KIR_VERSION,
   objectToKIRP,
+  relationPatternPropertyList,
   retypeObjectRelation,
-  retypeObjectRelationForBackend
+  retypeObjectRelationForBackend,
+  specializeObjectRelations
 };
 
 function helpText() {

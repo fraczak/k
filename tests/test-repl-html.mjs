@@ -714,6 +714,21 @@ if (chromiumBin) {
       "Explicit :codec load of uploaded file must succeed"
     );
 
+    // Test Wasm engine with polymorphic/open list len
+    const wasmLenCheck = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":engine wasm");
+      await window.kRepl.executeCommand(":codec load int.mjs");
+      await window.kRepl.executeCommand("len = {()list,0 int len} len_; len_ = ?X <{.list/nil if, .len then} .then, {.list/cons.cdr list, .len inc len} ?X len_ >;");
+      await window.kRepl.executeCommand(":input int.mjs [1,2,3]");
+      await window.kRepl.executeCommand("len");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(
+      wasmLenCheck.includes("int.mjs: 3"),
+      `Expected 'int.mjs: 3' from wasm execution, got: ${wasmLenCheck}`
+    );
+
     ws.close();
     console.log("   Browser execution verified successfully!");
   } finally {

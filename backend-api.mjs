@@ -4,7 +4,15 @@ export { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 export { exportPatternGraph, NODE_KIND } from "./codecs/runtime/codec.mjs";
 export { patternToPropertyList, propertyListToPattern } from "./codecs/runtime/pattern-json.mjs";
 export { Value, fromObject, isProduct, isVariant, isValue } from "./Value.mjs";
-export { KIR_FORMAT, KIR_VERSION, objectToKIRP, retypeObjectRelation, retypeObjectRelationForBackend } from "./kir.mjs";
+export {
+  KIR_FORMAT,
+  KIR_VERSION,
+  objectToKIRP,
+  relationPatternPropertyList,
+  retypeObjectRelation,
+  retypeObjectRelationForBackend,
+  specializeObjectRelations
+} from "./kir.mjs";
 export { compileLibrary, decodeObject, loadLibrary } from "./object.mjs";
 export { createState, evaluateInput } from "./repl.mjs";
 export { parse as parseFloat64, print as printFloat64 } from "./codecs/ieee.mjs";

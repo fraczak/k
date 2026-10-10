@@ -398,6 +398,14 @@
             i32.ge_u
             br_if $break_prod
 
+            ;; Copy field tagId at offset 8 + 4*i
+            local.get $dest
+            i32.const 8
+            local.get $i
+            i32.const 4
+            i32.mul
+            i32.add
+            i32.add
             local.get $curr
             i32.const 8
             local.get $i
@@ -406,17 +414,19 @@
             i32.add
             i32.add
             i32.load
-            local.set $offsetVal
+            i32.store
 
-            local.get $dest
+            ;; Value slot offset is 8 + 4*N + 4*i
             i32.const 8
+            local.get $N
+            i32.const 4
+            i32.mul
+            i32.add
             local.get $i
             i32.const 4
             i32.mul
             i32.add
-            i32.add
-            local.get $offsetVal
-            i32.store
+            local.set $offsetVal
 
             local.get $curr
             local.get $offsetVal
@@ -471,5 +481,147 @@
     local.get $total_size
     i32.add
     global.set $arena_free
+  )
+
+  ;; Lookup product field by tagId with predictedIndex hint
+  (func $product_get (export "product_get") (param $prod i32) (param $targetTagId i32) (param $predictedIndex i32) (result i32)
+    (local $size i32)
+    (local $N i32)
+    (local $i i32)
+
+    ;; 1. Null check
+    local.get $prod
+    i32.eqz
+    if
+      i32.const 0
+      return
+    end
+
+    ;; 2. Read totalSize at prod + 0
+    local.get $prod
+    i32.load offset=0
+    local.set $size
+
+    ;; 3. Validate product header (not a variant and size >= 8)
+    local.get $size
+    i32.const 12
+    i32.eq
+    if
+      i32.const 0
+      return
+    end
+    local.get $size
+    i32.const 8
+    i32.lt_u
+    if
+      i32.const 0
+      return
+    end
+
+    ;; 4. Read field count N at prod + 4
+    local.get $prod
+    i32.load offset=4
+    local.set $N
+
+    ;; 5. Validate size == 8 + 8 * N
+    local.get $size
+    i32.const 8
+    local.get $N
+    i32.const 8
+    i32.mul
+    i32.add
+    i32.ne
+    if
+      i32.const 0
+      return
+    end
+
+    ;; 6. Fast path: check predictedIndex if in range [0, N)
+    local.get $predictedIndex
+    i32.const 0
+    i32.ge_s
+    if
+      local.get $predictedIndex
+      local.get $N
+      i32.lt_u
+      if
+        ;; Load tagId at prod + 8 + 4 * predictedIndex
+        local.get $prod
+        i32.const 8
+        local.get $predictedIndex
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.add
+        i32.load
+        local.get $targetTagId
+        i32.eq
+        if
+          ;; Match! Return value at prod + 8 + 4*N + 4*predictedIndex
+          local.get $prod
+          i32.const 8
+          local.get $N
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $predictedIndex
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.add
+          i32.load
+          return
+        end
+      end
+    end
+
+    ;; 7. Scan path: check i = 0 .. N-1
+    i32.const 0
+    local.set $i
+    (block $break_scan
+      (loop $loop_scan
+        local.get $i
+        local.get $N
+        i32.ge_u
+        br_if $break_scan
+
+        ;; Load tagId at prod + 8 + 4 * i
+        local.get $prod
+        i32.const 8
+        local.get $i
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.add
+        i32.load
+        local.get $targetTagId
+        i32.eq
+        if
+          ;; Match! Return value at prod + 8 + 4*N + 4*i
+          local.get $prod
+          i32.const 8
+          local.get $N
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $i
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.add
+          i32.load
+          return
+        end
+
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+        br $loop_scan
+      )
+    )
+
+    ;; 8. Not found: return 0
+    i32.const 0
   )
 )

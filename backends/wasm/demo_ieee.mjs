@@ -184,8 +184,7 @@ function readArenaValue(exports, ptr, pattern, patternNodeId) {
 
     for (let i = 0; i < N; i++) {
       const edge = patternNode.edges[i];
-      const offsetVal = view.getUint32(ptr + 8 + 4 * i, true);
-      const childPtr = view.getUint32(ptr + offsetVal, true);
+      const childPtr = view.getUint32(ptr + 8 + 4 * N + 4 * i, true);
       productObj[edge.label] = readArenaValue(exports, childPtr, pattern, edge.target);
     }
     return Value.product(productObj, pattern);
@@ -231,7 +230,7 @@ function writeValueToArena(value, pattern, patternNodeId) {
 
     for (let i = 0; i < N; i++) {
       const offsetVal = 8 + 4 * N + 4 * i;
-      view.setUint32(ptr + 8 + 4 * i, offsetVal, true);
+      view.setUint32(ptr + 8 + 4 * i, getTagId(keys[i]), true);
       view.setUint32(ptr + offsetVal, childPtrs[i], true);
     }
     return ptr;

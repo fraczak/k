@@ -200,8 +200,7 @@ export function readArenaValue(exports, rootPtr, pattern, rootPatternNodeId, pat
 
       for (let i = N - 1; i >= 0; i--) {
         const edge = patternNode.edges[i];
-        const offsetVal = view.getUint32(ptr + 8 + 4 * i, true);
-        const childPtr = view.getUint32(ptr + offsetVal, true);
+        const childPtr = view.getUint32(ptr + 8 + 4 * N + 4 * i, true);
         const label = edge.label;
         stack.push({
           ptr: childPtr,
@@ -253,14 +252,14 @@ export function writeValueToArena(exports, rootValue, pattern, rootPatternNodeId
     const frame = stack.pop();
 
     if (frame.finishProduct) {
-      const { ptr, totalSize, N, childPtrs, assign } = frame;
+      const { ptr, totalSize, N, keys, childPtrs, assign } = frame;
       const view = new DataView(exports.memory.buffer);
       view.setUint32(ptr, totalSize, true);
       view.setUint32(ptr + 4, N, true);
 
       for (let i = 0; i < N; i++) {
         const offsetVal = 8 + 4 * N + 4 * i;
-        view.setUint32(ptr + 8 + 4 * i, offsetVal, true);
+        view.setUint32(ptr + 8 + 4 * i, getTagId(keys[i]), true);
         view.setUint32(ptr + offsetVal, childPtrs[i], true);
       }
       assign(ptr);
@@ -294,6 +293,7 @@ export function writeValueToArena(exports, rootValue, pattern, rootPatternNodeId
         ptr,
         totalSize,
         N,
+        keys,
         childPtrs,
         assign
       });

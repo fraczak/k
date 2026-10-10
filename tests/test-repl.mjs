@@ -509,6 +509,16 @@ output = await evaluateInput("{ 10 int x, 5 int y } plus", jsState);
 assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
 assert.match(output[1], /\(js\)/);
 
+// Verify open product projection in wasm engine
+const wasmListState = createState({ engine: "wasm" });
+await evaluateInput(":load Examples/arithmetics.k", wasmListState);
+await evaluateInput(":codec load codecs/int.mjs", wasmListState);
+await evaluateInput("len = {()list,0 int len} len_; len_ = ?X <{.list/nil if, .len then} .then, {.list/cons.cdr list, .len inc len} ?X len_ >;", wasmListState);
+await evaluateInput(":input int.mjs [3,3,3]", wasmListState);
+output = await evaluateInput("len", wasmListState);
+assert.match(output[0], /int\.mjs:\s*3/);
+assert.match(output[1], /\(wasm\)/);
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");

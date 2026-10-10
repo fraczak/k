@@ -239,11 +239,11 @@ assert.doesNotMatch(nestedUnionLLVM, /call void @k_product_set_at\(ptr %product\
 assert.doesNotMatch(nestedUnionLLVM, /ptr false/);
 
 const productRecurseObject = decodeObject(compileObjectBuffer(`
-  $ list = < {} nil, { {} car, list cdr } cons >;
-  foo = $list <
+  list = ?< {} nil, { {} car, list cdr } cons >;
+  foo = list <
     /nil |nil,
     /cons { .car car, .cdr foo cdr } |cons
-  > $list;
+  > list;
   foo
 `, { source: "llvm-product-recurse.k" }));
 const { llvm: productRecurseLLVM } = compileObjectToLLVM(productRecurseObject, {

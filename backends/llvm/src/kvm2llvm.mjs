@@ -678,7 +678,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
           const label = ctx.labelRef(inst.label);
           let val;
           if (edgeIndex >= 0 && ctx.runtimeMode !== "compact") {
-            val = lowerProductGetAt(ctx, input, edgeIndex, label);
+            val = lowerProductGetAt(ctx, input, edgeIndex, null);
           } else {
             val = ctx.tempName("field");
             ctx.lines.push(`  ${val} = call ptr @k_product_get_n(ptr ${input}, ptr ${label.pointer}, i64 ${label.length})`);
@@ -831,6 +831,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
           }
 
           regValues.set(cleanReg(inst.dest), product);
+          if (inst.pattern) regPatterns.set(cleanReg(inst.dest), inst.pattern);
           break;
         }
         case "union": {

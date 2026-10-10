@@ -24,6 +24,11 @@ if (process.argv.includes("-h") || process.argv.includes("--help")) {
 
 const tests = [
   ["tests/test-llvm.mjs", node, ["tests/test-llvm.mjs"]],
+  [
+    "tests/test-open-product-misalignment.mjs",
+    node,
+    ["tests/test-open-product-misalignment.mjs", "--assert"]
+  ],
   ["tests/integration.sh", path.join(root, "tests/integration.sh"), []],
   ["scripts/conformance.mjs", node, ["scripts/conformance.mjs"]]
 ];

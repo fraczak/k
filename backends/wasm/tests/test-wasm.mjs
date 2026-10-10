@@ -194,7 +194,7 @@ console.log("==> Running Product Operations Integration Tests");
     for (let i = 0; i < N; i++) {
       const offsetVal = 8 + 4 * N + 4 * i;
       const val = fieldsMap[keys[i]];
-      view.setUint32(ptr + 8 + 4 * i, offsetVal, true);
+      view.setUint32(ptr + 8 + 4 * i, getTagId(keys[i]), true);
       view.setUint32(ptr + offsetVal, val, true);
     }
     return ptr;
@@ -215,8 +215,8 @@ console.log("==> Running Product Operations Integration Tests");
   const view = new DataView(exports.memory.buffer);
   assert.equal(view.getUint32(ptrOut, true), 24, "Product total size should be 24");
   assert.equal(view.getUint32(ptrOut + 4, true), 2, "Product field count should be 2");
-  assert.equal(view.getUint32(ptrOut + 8, true), 16, "Offset of first field (x) should be 16");
-  assert.equal(view.getUint32(ptrOut + 12, true), 20, "Offset of second field (y) should be 20");
+  assert.equal(view.getUint32(ptrOut + 8, true), getTagId("x"), "TagId of first field (x)");
+  assert.equal(view.getUint32(ptrOut + 12, true), getTagId("y"), "TagId of second field (y)");
 
   // The first field value should be the projection of x from ptrIn (101)
   const valXPtr = view.getUint32(ptrOut + 16, true);
@@ -443,12 +443,12 @@ console.log("==> Running End-to-End Peano Addition & Serialization Tests");
   const runtimeWat = fs.readFileSync("runtime.wat", "utf8");
 
   const script = `
-    $ nat = < {} 0, nat +1 >;
-    0 = {} | 0 $ nat;
-    inc = | +1 $ nat;
-    dec = $ nat / +1;
-    add = $ { nat x, nat y } <
-      { . x dec x, . y inc y } add,
+    nat = ?< {} 0, nat +1 >;
+    0 = {} | 0 nat;
+    inc = | +1 nat;
+    dec = nat / +1;
+    add = ?{ nat x, nat y } = X <
+      { . x dec x, . y inc y } ?X add,
       . y
     >;
     ()
@@ -483,8 +483,7 @@ console.log("==> Running End-to-End Peano Addition & Serialization Tests");
 
       for (let i = 0; i < N; i++) {
         const edge = patternNode.edges[i];
-        const offsetVal = view.getUint32(ptr + 8 + 4 * i, true);
-        const childPtr = view.getUint32(ptr + offsetVal, true);
+        const childPtr = view.getUint32(ptr + 8 + 4 * N + 4 * i, true);
         productObj[edge.label] = readArenaValue(childPtr, pattern, edge.target);
       }
       return Value.product(productObj, pattern);
@@ -530,7 +529,7 @@ console.log("==> Running End-to-End Peano Addition & Serialization Tests");
 
       for (let i = 0; i < N; i++) {
         const offsetVal = 8 + 4 * N + 4 * i;
-        view.setUint32(ptr + 8 + 4 * i, offsetVal, true);
+        view.setUint32(ptr + 8 + 4 * i, getTagId(keys[i]), true);
         view.setUint32(ptr + offsetVal, childPtrs[i], true);
       }
       return ptr;
@@ -580,8 +579,8 @@ console.log("==> Running End-to-End Peano Addition & Serialization Tests");
     const view = new DataView(exports.memory.buffer);
     view.setUint32(ptr, 24, true);
     view.setUint32(ptr + 4, 2, true);
-    view.setUint32(ptr + 8, 16, true);
-    view.setUint32(ptr + 12, 20, true);
+    view.setUint32(ptr + 8, getTagId("x"), true);
+    view.setUint32(ptr + 12, getTagId("y"), true);
     view.setUint32(ptr + 16, xPtr, true);
     view.setUint32(ptr + 20, yPtr, true);
     return ptr;

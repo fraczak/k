@@ -1011,8 +1011,7 @@ export function emitLLVMModule(input, options = {}) {
 export function compileObjectToLLVM(object, options = {}) {
   const inputPattern = options.inputPattern ? readPattern(options.inputPattern) : null;
   const relation = options.relation || object.main;
-
-  let retypedKir = null;
+  let targetObject = object;
   let entryInputPattern = inputPattern;
   let outputPattern = null;
 
@@ -1020,43 +1019,37 @@ export function compileObjectToLLVM(object, options = {}) {
     const retyped = retypeObjectRelationForBackend(object, relation, inputPattern, {
       source: options.source || "<k-llvm>"
     });
-    retypedKir = retyped.kir;
+    targetObject = retyped.retypedObject;
     entryInputPattern = retyped.inputPattern;
     outputPattern = retyped.outputPattern;
-  } else {
-    retypedKir = objectToKIRP(object);
   }
 
-  let kvmArtifact = objectToKVMArtifact(object, relation, null, options);
-  let specializedKvm = kvmArtifact;
-  if (inputPattern) {
-    try {
-      specializedKvm = specializeKVM(kvmArtifact, inputPattern);
-    } catch {
-      specializedKvm = {
-        ...kvmArtifact,
-        functions: lowerKIRToKVM(retypedKir),
-        entry: relation
-      };
-    }
-  }
+  const retypedKir = objectToKIRP(targetObject);
+  const functions = lowerKIRToKVM(retypedKir);
+  const entry = relation || targetObject.main || "__main__";
 
-  const entry = specializedKvm.entry || relation;
-  const functions = specializedKvm.functions;
+  const specializedKvm = {
+    format: "k-vm",
+    version: 1,
+    entry,
+    functions,
+    inputPattern: entryInputPattern,
+    outputPattern
+  };
 
   const llvm = compileKVMModuleToLLVM(entry, functions, {
     ...options,
     relation,
-    inputPattern: entryInputPattern || specializedKvm.inputPattern,
-    outputPattern: outputPattern || specializedKvm.outputPattern
+    inputPattern: entryInputPattern,
+    outputPattern
   });
 
   return {
     kir: retypedKir,
     kvm: specializedKvm,
     relation,
-    inputPattern: entryInputPattern || specializedKvm.inputPattern,
-    outputPattern: outputPattern || specializedKvm.outputPattern,
+    inputPattern: entryInputPattern,
+    outputPattern,
     llvm
   };
 }

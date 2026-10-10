@@ -108,22 +108,28 @@ export function lowerToWasm(relDef, name, options = {}) {
   const getPattern = (rName, inputMap = {}) => registerPatterns.get(mappedReg(rName, inputMap));
 
   const getProductEdges = (inst, inputMap) => {
-    if (typePatternGraph) {
-      const inputPatternId = inst.exp.patterns[0];
-      const inputPatternNodeId = typePatternGraph.find(inputPatternId);
-      const inputPropertyList = patternToPropertyList(exportPatternGraph(typePatternGraph, inputPatternNodeId));
-      return inputPropertyList[0][1];
+    const inputPropertyList = getPattern(inst.src, inputMap);
+    if (Array.isArray(inputPropertyList) && inputPropertyList.length > 0) {
+      const inputRoot = inputPropertyList[0];
+      if ((inputRoot[0] === "open-product" || inputRoot[0] === "closed-product") && Array.isArray(inputRoot[1])) {
+        return inputRoot[1];
+      }
     }
 
-    const inputPropertyList = getPattern(inst.src, inputMap);
-    const inputRoot = inputPropertyList?.[0];
-    if (!Array.isArray(inputRoot) || !Array.isArray(inputRoot[1])) {
-      throw new Error(`Wasm compiler: cannot infer input pattern for field '${inst.label}'`);
+    if (typePatternGraph && inst.exp?.patterns?.[0] != null) {
+      try {
+        const inputPatternId = inst.exp.patterns[0];
+        const inputPatternNodeId = typePatternGraph.find(inputPatternId);
+        const inputPropertyList = patternToPropertyList(exportPatternGraph(typePatternGraph, inputPatternNodeId));
+        if (Array.isArray(inputPropertyList?.[0]?.[1])) {
+          return inputPropertyList[0][1];
+        }
+      } catch {
+        // Ignore fallback errors
+      }
     }
-    if (inputRoot[0] !== "open-product" && inputRoot[0] !== "closed-product") {
-      throw new Error(`Wasm compiler: field '${inst.label}' requires a product input pattern`);
-    }
-    return inputRoot[1];
+
+    return null;
   };
 
   const registers = new Set();
@@ -205,14 +211,12 @@ export function lowerToWasm(relDef, name, options = {}) {
     const lines = [];
     for (const field of inputProductFields) {
       const fieldIndex = inputProductEdges.findIndex(([label]) => label === field.label);
+      const tagId = getTagId(field.label);
       lines.push(`    ;; cache input field ${field.label} in $${field.local}`);
       lines.push(`    local.get $in`);
-      lines.push(`    local.get $in`);
-      lines.push(`    i32.const ${8 + 4 * fieldIndex}`);
-      lines.push(`    i32.add`);
-      lines.push(`    i32.load`);
-      lines.push(`    i32.add`);
-      lines.push(`    i32.load`);
+      lines.push(`    i32.const ${tagId}`);
+      lines.push(`    i32.const ${fieldIndex}`);
+      lines.push(`    call $product_get`);
       lines.push(`    local.set $${field.local}`);
     }
     return lines.join("\n");
@@ -231,9 +235,10 @@ export function lowerToWasm(relDef, name, options = {}) {
     lines.push(`    i32.const ${inputProductFields.length}`);
     lines.push(`    i32.store offset=4`);
     for (const field of inputProductFields) {
+      const tagId = getTagId(field.label);
       const offsetVal = 8 + 4 * inputProductFields.length + 4 * field.index;
       lines.push(`    local.get $${dest}`);
-      lines.push(`    i32.const ${offsetVal}`);
+      lines.push(`    i32.const ${tagId}`);
       lines.push(`    i32.store offset=${8 + 4 * field.index}`);
       lines.push(`    local.get $${dest}`);
       lines.push(`    local.get $${field.local}`);
@@ -314,14 +319,24 @@ export function lowerToWasm(relDef, name, options = {}) {
             break;
           }
 
-          const edges = getProductEdges(inst, inputMap);
-          const fieldIndex = edges.findIndex(([label]) => label === inst.label);
-          if (fieldIndex === -1) {
-            throw new Error(`Wasm compiler: field '${inst.label}' not found in input pattern`);
+          let predictedIndex = -1;
+          try {
+            const edges = getProductEdges(inst, inputMap);
+            if (Array.isArray(edges)) {
+              predictedIndex = edges.findIndex(([label]) => label === inst.label);
+            }
+          } catch {
+            predictedIndex = -1;
           }
+          const tagId = getTagId(inst.label);
 
-          lines.push(`    ;; project_field ${inst.label} (index ${fieldIndex}) from $${src} to $${dest}`);
+          lines.push(`    ;; project_field ${inst.label} (tagId ${tagId}, hint ${predictedIndex}) from $${src} to $${dest}`);
           lines.push(`    local.get $${src}`);
+          lines.push(`    i32.const ${tagId}`);
+          lines.push(`    i32.const ${predictedIndex}`);
+          lines.push(`    call $product_get`);
+          lines.push(`    local.set $${dest}`);
+          lines.push(`    local.get $${dest}`);
           lines.push(`    i32.eqz`);
           lines.push(`    if`);
           if (failTarget) {
@@ -332,14 +347,6 @@ export function lowerToWasm(relDef, name, options = {}) {
             lines.push(`      return`);
           }
           lines.push(`    end`);
-          lines.push(`    local.get $${src}`);
-          lines.push(`    local.get $${src}`);
-          lines.push(`    i32.const ${8 + 4 * fieldIndex}`);
-          lines.push(`    i32.add`);
-          lines.push(`    i32.load`);
-          lines.push(`    i32.add`);
-          lines.push(`    i32.load`);
-          lines.push(`    local.set $${dest}`);
           setPattern(dest, inst.pattern);
           break;
         }
@@ -443,11 +450,13 @@ export function lowerToWasm(relDef, name, options = {}) {
           lines.push(`    i32.store offset=4`);
 
           for (let i = 0; i < N; i++) {
+            const branch = sortedBranches[i];
+            const tagId = getTagId(branch.label);
             const offsetVal = 8 + 4 * N + 4 * i;
             const fieldTmp = `${dest}_f${i}`;
 
             lines.push(`    local.get $${dest}`);
-            lines.push(`    i32.const ${offsetVal}`);
+            lines.push(`    i32.const ${tagId}`);
             lines.push(`    i32.store offset=${8 + 4 * i}`);
 
             lines.push(`    local.get $${dest}`);
@@ -491,6 +500,20 @@ export function lowerToWasm(relDef, name, options = {}) {
           lines.push(`    ;; project_variant ${inst.tag} (tagId ${tagId}) from $${src} to $${dest}`);
           lines.push(`    local.get $${src}`);
           lines.push(`    i32.eqz`);
+          lines.push(`    if`);
+          if (failTarget) {
+            lines.push(`      br ${failTarget}`);
+          } else {
+            lines.push(`      i32.const 0`);
+            lines.push(`      i32.const 0`);
+            lines.push(`      return`);
+          }
+          lines.push(`    end`);
+
+          lines.push(`    local.get $${src}`);
+          lines.push(`    i32.load offset=0`);
+          lines.push(`    i32.const 12`);
+          lines.push(`    i32.ne`);
           lines.push(`    if`);
           if (failTarget) {
             lines.push(`      br ${failTarget}`);

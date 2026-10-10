@@ -13,7 +13,8 @@ import {
   patternToPropertyList,
   propertyListToPattern,
   Value,
-  specializeKVM
+  specializeKVM,
+  specializeObjectRelations
 } from "@fraczak/k/backend-api.mjs";
 import { intersectPropertyListPatterns } from "@fraczak/k/codecs/runtime/codec.mjs";
 import { propertyListToFilter } from "@fraczak/k/codecs/runtime/show-value.mjs";
@@ -304,7 +305,8 @@ function compileModule(mainRelName, defs) {
 
     kvmFunc.name = nameMap.get(name) || cleanName(name);
     cleanCallNames(kvmFunc.body, nameMap);
-    wats.push(lowerToWasm(kvmFunc, kvmFunc.name));
+    const wasmText = lowerToWasm(kvmFunc, kvmFunc.name);
+    wats.push(wasmText);
   }
 
   return {
@@ -611,8 +613,10 @@ async function compileWasmArtifactFromObject(object, { entry = null, inputEnvelo
     if (!mainRel) throw new Error(`No main relation (${mainRelName}) defined in object`);
     const inputPattern = getPatternPropertyList(mainRel.typePatternGraph, mainRel.def.patterns[0]);
     const outputPattern = getPatternPropertyList(mainRel.typePatternGraph, mainRel.def.patterns[1]);
-    if (classifyTyping(inputPattern, outputPattern).program === "polymorphic") {
-      defs = annotateObjectWithInputFilter(object, mainRelName, inputPattern, inputEnvelopePattern);
+    const typing = classifyTyping(inputPattern, outputPattern);
+    if (typing.program === "polymorphic") {
+      const specialized = specializeObjectRelations(object, mainRelName, inputEnvelopePattern);
+      defs = { rels: specialized.rels, relAlias: specialized.relAlias, compileStats: specialized.compileStats };
       typingMode = "specialized";
     }
   }
@@ -635,7 +639,9 @@ async function compileWasmArtifact(
     const inputPattern = getPatternPropertyList(mainRel.typePatternGraph, mainRel.def.patterns[0]);
     const outputPattern = getPatternPropertyList(mainRel.typePatternGraph, mainRel.def.patterns[1]);
     if (classifyTyping(inputPattern, outputPattern).program === "polymorphic") {
-      defs = annotateSourceWithInputFilter(fullSource, inputPattern, inputEnvelopePattern, options);
+      const obj = { format: "k-object", rels: defs.rels, relAlias: defs.relAlias, compileStats: defs.compileStats, main: "__main__" };
+      const specialized = specializeObjectRelations(obj, "__main__", inputEnvelopePattern);
+      defs = { rels: specialized.rels, relAlias: specialized.relAlias, compileStats: specialized.compileStats };
       typingMode = "specialized";
     }
   }
@@ -723,20 +729,18 @@ function readArenaValue(exports, ptr, pattern, patternNodeId, patternPropertyLis
 
     if (patternNode.kind === NODE_KIND.OPEN_PRODUCT || patternNode.kind === NODE_KIND.CLOSED_PRODUCT) {
       const N = view.getUint32(frame.ptr + 4, true);
-      if (N !== patternNode.edges.length) {
-        throw new Error(`Cannot decode product pointer ${frame.ptr}: arena field count ${N} does not match output pattern`);
-      }
       const product = {};
       frame.assign(Value.product(product, patternForNode(patternPropertyList, frame.patternNodeId)));
       for (let i = N - 1; i >= 0; i--) {
-        const edge = patternNode.edges[i];
-        const offset = view.getUint32(frame.ptr + 8 + 4 * i, true);
-        const childPtr = view.getUint32(frame.ptr + offset, true);
+        const tagId = view.getUint32(frame.ptr + 8 + 4 * i, true);
+        const label = tags.getTag(tagId) || patternNode.edges[i]?.label;
+        const edge = patternNode.edges.find((candidate) => candidate.label === label);
+        const childPtr = view.getUint32(frame.ptr + 8 + 4 * N + 4 * i, true);
         stack.push({
           ptr: wasmPtr(childPtr),
-          patternNodeId: edge.target,
+          patternNodeId: edge?.target ?? null,
           assign(value) {
-            product[edge.label] = value;
+            product[label] = value;
           }
         });
       }
@@ -787,8 +791,9 @@ function writeValueToArena(exports, value, pattern, patternNodeId, arenaValues, 
       view.setUint32(frame.ptr, 8 + 8 * N, true);
       view.setUint32(frame.ptr + 4, N, true);
       for (let i = 0; i < N; i++) {
+        const tagId = tags.getId(frame.fields[i].label);
         const offset = 8 + 4 * N + 4 * i;
-        view.setUint32(frame.ptr + 8 + 4 * i, offset, true);
+        view.setUint32(frame.ptr + 8 + 4 * i, tagId, true);
         view.setUint32(frame.ptr + offset, frame.childPtrs[i], true);
       }
       arenaValues.set(frame.ptr, valueWithPatternNode(frame.value, patternPropertyList, frame.patternNodeId));
@@ -820,6 +825,13 @@ function writeValueToArena(exports, value, pattern, patternNodeId, arenaValues, 
         ? Object.keys(frame.value.product)
             .sort()
             .map((label) => ({ label, patternNodeId: frame.patternNodeId }))
+        : isOpenProduct
+        ? Object.keys(frame.value.product)
+            .sort()
+            .map((label) => {
+              const edge = patternNode.edges.find((e) => e.label === label);
+              return { label, patternNodeId: edge ? edge.target : null };
+            })
         : patternNode.edges.map((edge) => ({ label: edge.label, patternNodeId: edge.target }));
       const fieldLabels = new Set(fields.map(({ label }) => label));
       if (isClosedProduct) {
@@ -829,9 +841,17 @@ function writeValueToArena(exports, value, pattern, patternNodeId, arenaValues, 
           }
         }
       }
-      for (const { label } of fields) {
-        if (!Object.hasOwn(frame.value.product, label)) {
-          throw new Error(`Product field '${label}' is required by input pattern node ${frame.patternNodeId}`);
+      if (isOpenProduct) {
+        for (const edge of patternNode.edges) {
+          if (!Object.hasOwn(frame.value.product, edge.label)) {
+            throw new Error(`Product field '${edge.label}' is required by input pattern node ${frame.patternNodeId}`);
+          }
+        }
+      } else {
+        for (const { label } of fields) {
+          if (!Object.hasOwn(frame.value.product, label)) {
+            throw new Error(`Product field '${label}' is required by input pattern node ${frame.patternNodeId}`);
+          }
         }
       }
 
@@ -841,6 +861,7 @@ function writeValueToArena(exports, value, pattern, patternNodeId, arenaValues, 
         finishProduct: true,
         value: frame.value,
         patternNodeId: frame.patternNodeId,
+        fields,
         ptr,
         childPtrs,
         assign: frame.assign
