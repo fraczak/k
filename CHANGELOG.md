@@ -5,6 +5,47 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0] — 2026-10-10 — Unified Schemas, Relational Contracts, and Pure Syntax
+
+### Breaking Language & Syntax Changes
+
+- **Pure Relation Syntax (Removal of `$`)**:
+  - Removed type declaration syntax (`$name = ...;`) and type expressions
+    from the grammar (`parser.jison`).
+  - All definitions in `.k` source files are now uniformly defined as
+    relations: `name = relExpr;`.
+  - Data shapes and types are defined as algebraic schemas via filter
+    expressions (`?schema`) acting as partial identity relations.
+  - Removed `:type` and `:types` REPL commands in favor of `:rel`,
+    `:show`, and `:env`.
+
+### Conceptual Architecture & Narrative
+
+- **Schemas, Contracts, and Framed Payloads**:
+  - **Schema**: Algebraic finite tree automata defining acceptable labeled
+    tree payloads (replacing "codes" and "type patterns").
+  - **Contract**: Connected $(input, output)$ schema graphs with shared
+    vertices ($=X$) proving structure preservation across relations.
+  - **Filter**: Syntactic operator `?schema` acting as a partial identity
+    relation and inductive termination witness.
+  - **Framed Payload `(schema, payload)`**: Universal self-describing
+    wire framing representation.
+  - **Canonical Schema**: Deterministic normal form of schema automata;
+    hashes (`@hash`) serve as fixed-width content-addressable digests in
+    the Schema Registry.
+
+### Standard Library & Documentation
+
+- **Library & Codec Migration**:
+  - Updated `core.k`, `Examples/`, and test suites to pure relational
+    syntax.
+  - Updated string codecs and Web REPL VFS data.
+- **Documentation Overhaul**:
+  - Overhauled `README.md`, `DOCS/BIG_PICTURE.md`, `DOCS/DICTIONARY.md`,
+    `DOCS/PATTERNS.md`, `DOCS/book.md`, and *The k Book* chapters 1–5.
+
+---
+
 ## [6.10.6] — 2026-10-08 — Minimal Core Schema and REPL VFS Uploads
 
 ### Core Schema & Language
