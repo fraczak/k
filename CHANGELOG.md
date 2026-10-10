@@ -5,6 +5,20 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.1] — 2026-10-10 — Call-Graph Pattern Graph Specialization
+
+### Bug Fixes & Backend Alignments
+
+- **Pattern Graph Specialization Across Call Graphs**:
+  - Implemented `specializeObjectRelations` in `kir.mjs` to propagate input
+    schemas across relation call graphs via monomorphization.
+  - Statically resolves field projection offsets for open product and
+    polymorphic helper relations without dynamic fallback (`@k_product_get_n`).
+  - Fixed WASM predicted field index calculation and aligned product header
+    memory layout (`tagId` at header slots).
+  - Resolved polymorphic list and open product projection alignment across
+    LLVM, WASM, and Web REPL.
+
 ## [7.0.0] — 2026-10-10 — Unified Schemas, Relational Contracts, and Pure Syntax
 
 ### Breaking Language & Syntax Changes

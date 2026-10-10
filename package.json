@@ -1,6 +1,6 @@
 {
     "name": "@fraczak/k",
-    "version": "7.0.0",
+    "version": "7.0.1",
     "description": "k — a language for content-addressable schemas and data transformations over algebraic data types (products and tagged unions); includes runtime, contract derivation, REPL, and codec toolchain",
     "publishConfig": {
         "access": "public"
