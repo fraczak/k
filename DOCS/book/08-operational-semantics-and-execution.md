@@ -54,16 +54,16 @@ If `v` carries a pattern, the result carries the subpattern reached by `label`.
 For a union projection `/label`, the same rule applies to the selected tag's
 payload.
 
-### **Type expression**
+### **Filter expression**
 
-For a type `T`,
+For a pattern filter `?F`,
 
 ```text
-⟨ $T , v ⟩ ⇓ v     if v ∈ T
+⟨ ?F , v ⟩ ⇓ v     if v ∈ L(F)
 ```
 
 and undefined otherwise.
-Type expressions thus act as identity functions restricted to their type.
+Filter expressions thus act as partial identity functions restricted to their pattern language.
 
 ---
 
@@ -121,22 +121,19 @@ If no subfunction is defined, the union composition is undefined.
 
 ## **8.7  Rules for filters**
 
-If a filter `F` matches a single type `T`
+A filter `?F` validates that the input value conforms to the pattern:
 
 ```text
-⟨ ?F , v ⟩ ⇓ ⟨ $T , v ⟩ 
+⟨ ?F , v ⟩ ⇓ v     if v matches pattern F
 ```
 
-otherwise it is an identity
+otherwise undefined.
 
-```text
-⟨ ?F , v ⟩ ⇓ v
-```
-
-Filters therefore act as compile-time annotations for type checking only.
-As operations they are identities at run time, unless they lead to fully typed
-expressions (i.e., can be replaced by a type). Their pattern information may
-still be present on the runtime value because values can carry codec patterns.
+Filters act as partial identity relations. At compile time, they guide type
+derivation and provide inductive termination witnesses for recursive relations.
+At runtime, filters succeed and preserve the input value when it conforms to
+the pattern, or fail if the value does not match. Their pattern information is
+carried by the runtime value's pattern envelope.
 
 ---
 
@@ -156,19 +153,17 @@ for any given input, at most one result tree can be produced.
 Given:
 
 ```k-lang
-$bool = < {} true, {} false >;
-neg = $bool < .true {{ } false}, .false {{ } true} > $bool;
+bool = ?< {} true, {} false >;
+neg = ?< {} true, {} false > < /true | false, /false | true >;
 ```
 
-and input value `{ {} true }` of type `bool`,
-evaluation steps are:
+and input value `{} |true`, evaluation steps are:
 
-1. `⟨ $bool , { {} true } ⟩ ⇓ { {} true }`
-2. `⟨ < .true {{ } false}, .false {{ } true} > , { {} true } ⟩ ⇓ {{ } false}`
-3. `⟨ $bool , {{ } false} ⟩ ⇓ {{ } false}`
+1. `⟨ ?< {} true, {} false > , {} |true ⟩ ⇓ {} |true`
+2. `⟨ < /true | false, /false | true > , {} |true ⟩ ⇓ {} |false`
 
-Final result: `{{ } false}`.
-If the input were of another type, step 1 would be undefined.
+Final result: `{} |false`.
+If the input were of another shape, step 1 would be undefined.
 
 ---
 
@@ -181,7 +176,7 @@ The evaluation rules map directly onto the runtime ABI:
 | Projection          | `k_project`                           |
 | Product composition | multiple subcalls + `k_make_product`  |
 | Union composition   | sequential subcalls with early return |
-| Type                | runtime check of `state`              |
+| Filter              | runtime check or identity             |
 | Composition         | function call chain                   |
 
 In compiled form, the `ok` flag of `KOpt` represents whether a rule applies;
@@ -194,7 +189,7 @@ the node pointer represents the result value.
 * Execution follows deterministic, left-to-right rules.
 * All expressions denote partial functions on runtime values.
 * Runtime values may carry patterns, and structural operations propagate them.
-* Type expressions act as restricted identities.
+* Filter expressions act as restricted identities.
 * Composition is associative; undefined propagates automatically.
 * Runtime semantics match the formal evaluation relation exactly.
 

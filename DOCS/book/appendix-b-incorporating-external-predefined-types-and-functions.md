@@ -16,7 +16,7 @@ Each external type has:
 
 | Field                 | Description                                                                  |
 | --------------------- | ---------------------------------------------------------------------------- |
-| **Name**              | symbolic name (e.g., `$int`, `$string`)                                      |
+| **Name**              | symbolic name (e.g., `int`, `string`)                                        |
 | **Hash**              | unique stable identifier, just like canonical types                          |
 | **Runtime kind**      | how the value is stored in memory (pointer, immediate integer, etc.)         |
 | **Adapter functions** | conversion between the external representation and the standard `KNode` tree |
@@ -28,7 +28,7 @@ Example registry entry:
   "hash": "E001",
   "kind": "type",
   "external": true,
-  "name": "$int",
+  "name": "int",
   "runtime_kind": "primitive_i64"
 }
 ```
@@ -40,11 +40,11 @@ The compiler treats such a type as an atomic node, represented internally as a s
 ## **B.3  External constructors**
 
 External types may provide special constructors or constants.
-For example, `$int` might include predefined constant functions:
+For example, `int` might include predefined constant functions:
 
 ```
-zero  = {} $int;
-one   = {} $int;
+zero  = {} int;
+one   = {} int;
 ```
 
 At compile time these appear as constant functions returning fixed external nodes provided by the runtime.
@@ -59,8 +59,8 @@ They have known input and output types, possibly external.
 Declaration syntax:
 
 ```
-extern add : $int $int → $int;
-extern less : $int $int → $bool;
+extern add : int int → int;
+extern less : int int → bool;
 ```
 
 At compile time the compiler records the signature and associates it with a runtime symbol name such as `k_ext_add`.
@@ -82,15 +82,15 @@ They can appear as components in products or unions just like built-in ones.
 
 Example:
 
-```
-$point = { $int x, $int y };
+```k-lang
+point = ?{ int x, int y };
 ```
 
 Canonical form:
 
 ```
 $C0 = { C1 "x", C1 "y" };
-$C1 = external $int;
+$C1 = external int;
 ```
 
 This allows normal serialization and type comparison; the external leaf is treated as opaque but identified by its hash.
@@ -111,10 +111,10 @@ All external codecs must be deterministic and version-stable to preserve canonic
 
 ## **B.7  Example**
 
-Suppose we introduce `$int` and external function `add`:
+Suppose we introduce `int` and external function `add`:
 
-```
-$pair_int = { $int a, $int b };
+```k-lang
+pair_int = ?{ int a, int b };
 sum = { .a x, .b y } (add x y);
 ```
 
@@ -122,7 +122,7 @@ The compiler generates code that:
 
 * projects fields `.a` and `.b`,
 * passes them as `KVal` pointers to `@k_ext_add`,
-* and returns the result as a new `$int` node.
+* and returns the result as a new `int` node.
 
 All logic outside arithmetic remains standard k code.
 
@@ -134,12 +134,12 @@ In a Python prototype:
 
 ```python
 EXTERNAL_TYPES = {
-    "$int": {"hash": "E001", "kind": "external", "runtime_kind": "primitive_i64"}
+    "int": {"hash": "E001", "kind": "external", "runtime_kind": "primitive_i64"}
 }
 
 EXTERNAL_FUNCS = {
-    "add":  {"inputs": ["$int", "$int"], "output": "$int", "symbol": "k_ext_add"},
-    "less": {"inputs": ["$int", "$int"], "output": "$bool", "symbol": "k_ext_less"}
+    "add":  {"inputs": ["int", "int"], "output": "int", "symbol": "k_ext_add"},
+    "less": {"inputs": ["int", "int"], "output": "bool", "symbol": "k_ext_less"}
 }
 ```
 

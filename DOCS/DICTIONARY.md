@@ -93,8 +93,8 @@ unless explicitly mapped with `--export`.
 
 In `k`, there are no primitive numerical types or built-in integer
 literals. Numerical identifiers such as `5` or `10` are nullary
-relations (constants) mapping the unit `${}` to bit trees of type
-`${} -> $bits`. Operations on signed integers (`$int`) require
+relations (constants) mapping the unit `{}` to bit trees of type
+`{} -> bits`. Operations on signed integers (`int`) require
 converting bit trees via the `int` constructor (`5 int`).
 
 ## Values, Types, And Patterns
@@ -309,7 +309,7 @@ details and workflows, see [`DOCS/FILE_FORMATS.md`](FILE_FORMATS.md)):
   5 int y} plus`) that consumes external data arriving from a binary
   stream or standard input.
 - A **closed constant relation** is a relation with no free inputs (such
-  as `{10 int x, 5 int y} plus`). Its domain is the unit type `${}`,
+  as `{10 int x, 5 int y} plus`). Its domain is the unit type `{}`,
   requiring an empty unit `{}` when executed as a standalone script.
 
 ### KIR-P

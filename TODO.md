@@ -17,37 +17,32 @@ This document details the issues, conceptual improvements, and completed enhance
 ## 2. Help Modal (`? Help` / `:help`) Overhaul
 
 ### Language Overview & Grammar Categorization
-- [x] **Language Overview**: Short, positive, accessible description: `k` is a concise language of types and relations (functions) over tree-like (JSON-like) documents.
-- [x] **Content-Addressed Identity**: Functions and types are identified by their canonical content hash (`@...`) derived directly from their structure; local names are just temporary aliases used for recursion and readability.
-- [x] **Three Clean Grammar Categories**:
+- [x] **Language Overview**: Short, positive, accessible description: `k` is a concise language of relations (functions) over tree-like (JSON-like) documents.
+- [x] **Content-Addressed Identity**: Relations are identified by their canonical content hash (`@...`) derived directly from their structure; local names are just temporary aliases used for recursion and readability.
+- [x] **Grammar Categories**:
    1. **Definitions (Local Aliases)**:
      - `name = relExpr;` &mdash; Relation alias (e.g. `swap = { . y x, . x y };`).
-     - `$ name = typeExpr;` &mdash; Type alias (e.g. `$ bool = < {} true, {} false >;`).
-  2. **Type Expressions (`typeExpr`)**: Schemas describing tree-like documents:
-     - `{ Type_1 label_1, ..., Type_k label_k }` &mdash; Product type of arity $k$ (labeled records, e.g. `{float64 x, string n}`; special case: `{}` is the 0-ary product).
-     - `< Type_1 tag_1, ..., Type_k tag_k >` &mdash; Union type of arity $k$ (tagged sum of variants, e.g. `<int ok, string err>`).
-     - `name` / `@hash` &mdash; Type reference.
-  3. **Relation Expressions (`relExpr`)**: Functions transforming an input document to an output document:
+   2. **Relation Expressions (`relExpr`)**: Functions transforming an input document to an output document:
      - `{ rel_1 label_1, ..., rel_k label_k }` &mdash; Product of arity $k$ (evaluates relations into record fields; special case: `{}` evaluates 0 relations, producing empty record `{}`).
      - `< rel_1, ..., rel_k >` &mdash; Union / ordered choice of arity $k$ (evaluates relations in order until one succeeds).
      - `( rel_1 ... rel_k )` &mdash; Composition of arity $k$ (sequentially composes relations; special case: `()` is the 0-ary composition denoting identity; parentheses can be omitted when non-empty: `f g`).
      - `. label` &mdash; Field projection (extracts field `label`).
      - `/ tag` &mdash; Variant branch projection (extracts payload of variant `tag`).
      - `| tag` &mdash; Variant constructor (wraps document into variant `tag`).
-     - `$ typeExpr` &mdash; Type constraint (asserts input matches schema; compile-time Type Error on mismatch).
+     - `? filterExpr` &mdash; Pattern filter (asserts input matches pattern; serves as inductive termination witness).
      - `name` / `@hash` &mdash; Relation reference.
 - [x] **Simplified Intro**:
   - Made arbitrary arity explicit across products `{...}`, unions `<...>`, and compositions `(...)`; explained `{}` and `()` as the natural 0-ary special cases; omitted the pattern/filter expressions table from the introductory reference.
 - [x] **Replaced Misleading Expressions & Snippets**:
   - Removed phantom concepts (`10` as literal, "bit-path", `{10 int x, 5 int y} plus` in default state).
-  - Added self-contained snippets (`{} | ok`, `not = < / true | false, / false | true >;`, `$ bool = < {} true, {} false >;`, `not = $ bool < / true | false, {} | true > $ bool;`, `swap = { . y x, . x y };`).
+  - Added self-contained snippets (`{} | ok`, `not = < / true | false, / false | true >;`, `bool = ?< {} true, {} false >;`, `not = bool < / true | false, {} | true > bool;`, `swap = { . y x, . x y };`).
 - [x] **Command Reference Table**:
   - Added `:time <expr>`.
   - Removed obsolete commands: `:rel <name> = expr`, `:val`, `:timing [on|off]`, `:codec define n t b`.
-  - Updated `:type <name>` to purely inspect and display type definitions (type definition is native via `$ name = typeExpr;`).
+  - Removed obsolete commands: `:type`, `:types`, `:code`, `:codes`.
   - Timing is now always enabled by default across all evaluations.
   - Updated `:input` documentation to note the interactive browser dialog.
-  - Clarified `:codes` (type aliases/hashes) and `:rels` (relation aliases).
+  - Clarified `:rels` (relation aliases).
 
 ---
 
@@ -56,15 +51,15 @@ This document details the issues, conceptual improvements, and completed enhance
 ### Concept Correction: External Format Adapters
 - [x] Reframed codecs as format adapters translating external text to/from $k$ values defined as pairs `(filter, tree)`.
 - [x] **Type-Specific Codecs**:
-  - `int`: Converts decimal integers to/from `$ int = < bits '+', bits '-' >`.
-  - `ieee`: Converts decimal floats to/from `$ float64` records (`sign`, `exponent`, `fraction`).
-  - `utf8`: Converts text to/from `$ string` (aliased to `$ utf8`), a list of Unicode scalar values (`$ unicode`) partitioned by Unicode planes.
+  - `int`: Converts decimal integers to/from `int = ?< bits '+', bits '-' >`.
+  - `ieee`: Converts decimal floats to/from `float64` records (`sign`, `exponent`, `fraction`).
+  - `utf8`: Converts text to/from `string` (aliased to `utf8`), a list of Unicode scalar values (`unicode`) partitioned by Unicode planes.
   - `unit`: Converts to/from `{}`.
 - [x] **Parameterized Codecs**:
   - `json`: JSON text is untyped; deserializing JSON requires a target $k$ type schema parameter (e.g. `:input {float64 x, string n} json`).
 - [x] **Custom Codec Studio**:
   - Updated explanation to emphasize pairs `(filter, tree)`.
-  - Fixed `yn` preset to provide self-contained type definition `$ bool = < {} true, {} false >;`.
+  - Fixed `yn` preset to provide self-contained relation definition `bool = ?< {} true, {} false >;`.
   - Fixed `blank` preset with proper Value payload formatting.
 
 ---
@@ -105,7 +100,7 @@ This document details the issues, conceptual improvements, and completed enhance
   - Verified via headless Chromium CDP automated tests that `#btn-help` is completely visible and interactable at narrow viewport widths (e.g. 600px).
 - [x] **Removed Obsolete Commands**:
   - Removed `:rel <name> = expr` and `:def` (relations are defined using native syntax `name = expr;`).
-  - Removed `:type <name> = <...>` definition syntax from `:type` (types are defined using native syntax `$ name = typeExpr;`; `:type <name>` remains for inspecting type definitions).
+  - Removed `:type`, `:types`, `:code`, `:codes` commands completely on `no-codes`.
   - Removed `:val` completely.
   - Removed `:timing [on|off]` (timing reporting is now permanently enabled by default for all evaluations; `:time <expr>` remains for explicit timing).
   - Removed `:codec define n t b` (custom codecs are created using the browser Custom Codec Studio UI or loaded from modules via `:codec load`).

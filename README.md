@@ -41,11 +41,10 @@ k can define recursive data and transformations in the same file. Peano
 natural numbers are either `0` or one more than another natural number:
 
 ```k
-$ nat = < {} 0, nat +1 >;
-0 = {} | 0 $ nat ;
-inc = | +1 $ nat ;
-dec = $ nat / +1 ;       # undefined for '0'
-add = $ { nat x, nat y } <
+0 = {} | 0;
+inc = | +1;
+dec = / +1;       # undefined for '0'
+add = ?{ < {} 0, N +1 > = N x, ... } <
   { . x dec x, . y inc y } add,    # defined if 'x > 0'
   . y                              # else, return 'y'
 >;
@@ -53,7 +52,8 @@ add = $ { nat x, nat y } <
 
 `add` takes a product `{ x, y }`. If `x` has a `+1`, it moves that
 successor from `x` to `y` and recurses. When that no longer applies, it
-returns `y`.
+returns `y`. The inductive filter `?{ < {} 0, N +1 > = N x, ... }`
+explicitly witnesses that recursive calls shrink `x`.
 
 In the REPL:
 
@@ -118,12 +118,13 @@ Every installed command supports `-h` and `--help`.
 
 **Algebraic data shapes**
 
-Types, called *codes*, are built from products and tagged unions:
+All data structures in k are built from products and tagged unions (variants).
+Relations and pattern filters describe their domains:
 
 ```k
-$ bit  = < {} 0, {} 1 >;
-$ byte = { bit 0, bit 1, bit 2, bit 3, bit 4, bit 5, bit 6, bit 7 };
-$ bits = < {} _, bits 0, bits 1 >;
+bit  = ?< {} 0, {} 1 >;
+byte = ?{ Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7 };
+bits = ?< {} _, bits 0, bits 1 > = bits;
 ```
 
 There are no built-in primitive values. The empty product `{}` is the
@@ -137,10 +138,11 @@ Core expressions are deliberately small:
 | --- | --- |
 | `.field` | project a product field |
 | `/tag` | project a tagged-union branch |
-| `\|tag` | introduce a tagged-union branch |
+| `\|tag` | introduce a variant (tagged union) |
 | `(f g)` | compose transformations |
 | `<f, g>` | try `f`, then `g` if `f` is undefined |
 | `{f a, g b}` | build a product from parallel transformations |
+| `?filter` | pattern filter / inductive type constraint |
 | `()` | identity |
 | `<>` | always undefined |
 | `{}` | constant empty product |
@@ -182,11 +184,11 @@ file formats:
   carrying principal pattern graphs for instant runtime specialization
   (`specializeKVM`).
 
-In `k`, all relations and types are identified canonically by immutable
+In `k`, all relations and derived types are identified canonically by immutable
 content-addressed hashes (`@hash`). There is no global symbol namespace;
 friendly names (such as `plus`, `int`, or `5`) are local aliases stored
 in metadata. Similarly, there are no primitive numbers: numerical
-identifiers like `5` or `10` are nullary relations mapping `${} -> $bits`.
+identifiers like `5` or `10` are nullary relations mapping `{}` to `bits`.
 
 For a detailed guide to all four formats, commands, and workflows, see
 [DOCS/FILE_FORMATS.md](DOCS/FILE_FORMATS.md).

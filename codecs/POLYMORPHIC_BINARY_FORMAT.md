@@ -61,7 +61,7 @@ Unions emit a choice code, then the payload of the selected branch.
 
 ### 4. One canonical stream
 
-The pattern graph is embedded as an ordinary k `$pattern` value. The canonical
+The pattern graph is embedded as an ordinary k `pattern` value. The canonical
 stream is that encoded pattern followed by the value payload interpreted under
 the decoded pattern.
 
@@ -277,11 +277,11 @@ This keeps the codec uniform: recursion is handled by the pattern graph itself.
 The transport format is:
 
 ```text
-encode($pattern_value : $pattern) encode(value : decoded_pattern)
+encode(pattern_value : pattern) encode(value : decoded_pattern)
 ```
 
-The first segment is a normal k value of type `$pattern`, encoded under the
-fixed singleton pattern for `$pattern` defined by `core.k`. The decoded pattern
+The first segment is a normal k value of type `pattern`, encoded under the
+fixed singleton pattern for `pattern` defined by `core.k`. The decoded pattern
 is then used as the structural authority for the second segment.
 
 Decoding the stream yields `Value(pattern, tree)`. Encoding a runtime `Value`

@@ -7,7 +7,7 @@ The interpreter keeps a live `.klib`-style state in memory:
 
 - registered codes
 - compiled relations
-- human aliases for both
+- human aliases for relations
 - metadata origins used to recover aliases
 - the current value flowing through the session
 
@@ -33,7 +33,7 @@ is complete.
 | Command | Meaning |
 | --- | --- |
 | `:help` | Show command summary |
-| `:engine [wasm\|js]` | Display or switch evaluation engine (`wasm` or `js`) |
+| `:engine [wasm|js]` | Display or switch evaluation engine (`wasm` or `js`) |
 | `:wasm` / `:js` | Shortcut to switch engine |
 | `:rel name` | Show relation definition |
 | `:rels` | List relation aliases |
@@ -58,13 +58,12 @@ Examples:
 ```
 
 ```k
-> $ bool = <{} true, {} false>;
+> bool = ?<{} true, {} false>;
 ```
 
 ```k
-> $ bool = <{} true, {} false>
-  ; not = $bool </true | false, {} | true >
-  ; {} |true not
+> not = ?<{} true, {} false> < /true | false, /false | true >;
+  {} |true not
 ```
 
 The interpreter uses these rules, in order:
@@ -91,9 +90,7 @@ growing the live library context.
 
 The interpreter keeps:
 
-- `codes`: canonical code definitions
 - `rels`: canonical compiled relations
-- `typeAliases`: human type names to canonical hashes
 - `relAliases`: human relation names to canonical hashes
 - `value`: current value, initially `{}`
 
@@ -109,12 +106,12 @@ Before compiling user input, the interpreter injects an alias preamble
 so human names can be reused naturally:
 
 ```k
-$ nat = @...;
+nat = @...;
 succ = @...;
 <user snippet>
 ```
 
-Type aliases use `$ name = @hash;`. Relation aliases use `name = @hash;`.
+Relation aliases use `name = @hash;`.
 
 Diagnostic locations are remapped back to the visible user snippet, so
 error line numbers do not count the hidden preamble.
@@ -125,11 +122,8 @@ Tab completion covers:
 
 - command names after `:`
 - file paths for `:load`, `:klib`, and `:ko`
-- type aliases
 - relation aliases
 - canonical names beginning with `@`
-
-Type aliases also complete in `$name` position inside raw k input.
 
 For codec commands, completion covers `:codec load`, `:codec unload`,
 `:codec list`, file paths after `:codec load`, and codec names after
@@ -153,7 +147,7 @@ aliases, and metadata into the session. Aliases are recovered from
 
 In `k`, there are no primitive numbers or built-in numerical literals.
 Values such as integers are represented as algebraic bit trees (e.g.
-`$bits = < {} _, bits 0, bits 1 >`).
+`bits = ?< {} _, B 0, B 1 > = B;`).
 
 A codec translates between external text and enveloped *k* values:
 - `parse(text)`: parses an external string into an enveloped *k* value.
@@ -315,7 +309,7 @@ Evaluated values print in k syntax together with the inferred envelope:
 ## Example Session
 
 ```text
-> $ nat = < {} 0, nat +1 >;
+> nat = ?< {} 0, N +1 > = N;
 > inc = | +1;
 > {} | 0
 {}|0 ?<{} 0, ...>

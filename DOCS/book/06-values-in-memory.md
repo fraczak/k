@@ -11,7 +11,7 @@ Every `k` value exists in one of three forms during execution:
 This unified approach enables programs to operate on serialized inputs without unnecessary deserialization, optimizing performance for identity operations and partial data access patterns.
 
 In the current pattern-framed model, every form also has a pattern context. For
-serialized values this is the decoded leading `$pattern` value; for materialized
+serialized values this is the decoded leading `pattern` value; for materialized
 values it is carried on the runtime `Value`. The product/union tree is the
 payload, while the pattern records the polymorphic type information needed to
 interpret and re-encode that payload.
@@ -111,11 +111,11 @@ Each node in the value tree is encoded based on its automaton state:
 
 #### **Example: Natural numbers**
 
-For type `bnat`, intuitively binary natural numbers defined by `$bnat = < bnat 0, bnat 1, {} _ >`, we get
+For type `bnat`, intuitively binary natural numbers defined by `bnat = ?< Bnat 0, Bnat 1, {} _ > = Bnat;`, we get
 
 ```text
-> :C bnat
-$ bnat = < @... 0, @... 1, {} _ >;  -- @...
+> :rel bnat
+bnat = ?< Bnat 0, Bnat 1, {} _ > = Bnat;  -- @...
 ```
 
 The corresponding Context-Free grammar is:
@@ -191,7 +191,7 @@ Subtrees that happen to produce the same local payload bits under different type
 Consider a binary tree with repeated leaf patterns:
 
 ```k-lang
-$tree = < { tree left, tree right } branch, int leaf >;
+tree = ?< { T left, T right } branch, int leaf > = T;
 ```
 
 Value: A tree corresponding to the structure:
@@ -293,8 +293,8 @@ These are encoder-side construction choices for reaching the same canonical resu
 Consider a list of similar records:
 
 ```k-lang
-$record = { string name, int age, string department };
-$company = < { record head, company tail } cons, {} nil >;
+record = ?{ string name, int age, string department };
+company = ?< { record head, C tail } cons, {} nil > = C;
 ```
 
 Value representing 1000 employees where 80% work in "Engineering":
@@ -712,9 +712,9 @@ const Arena = struct {
 Consider processing a large JSON-like structure where we only need one field:
 
 ```k-lang
-$record = { string name, list data, metadata meta };
-$list = < {nat value, list next} cons, {} nil >;
-$metadata = { timestamp created, string author };
+metadata = ?{ timestamp created, string author };
+list = ?< { nat value, L next } cons, {} nil > = L;
+record = ?{ string name, list data, metadata meta };
 ```
 
 For the input program `\x.x.name` (extract name field):

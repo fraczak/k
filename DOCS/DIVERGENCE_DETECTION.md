@@ -16,7 +16,6 @@ Define `HEAD` as the set of direct first ref calls:
 ```
 HEAD(ref(X)) = {X}
 HEAD(?F E) = HEAD(E)
-HEAD($T E) = HEAD(E)
 HEAD((E1 E2 ...)) = HEAD(E1)
 HEAD({ E1 f1, E2 f2, ... }) = HEAD(E1) union HEAD(E2) union ...
 HEAD(<E1, E2, ...>) = {}   -- the head of a union is the empty set

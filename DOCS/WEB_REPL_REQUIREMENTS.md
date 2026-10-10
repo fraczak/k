@@ -16,7 +16,7 @@ The scope encompasses four primary objectives:
 3. **Curate VFS Files**: Restrict the bundled Virtual File System (VFS) to verified, useful `.k` files (`core.k`, `Examples/arithmetics.k`, `Examples/ieee.k`, `Examples/poly.k`), auditing and verifying types used by REPL codecs.
 4. **Automatic Dependency Loading & Type Aliasing for Codecs**:
    - Automatically load the required `.k` source file whenever a codec is loaded, ensuring that necessary type aliases, canonical codes, and operational relations are present before the user attempts `:input` or evaluations.
-   - Establish bidirectional type alias naming so codec names are direct aliases to the underlying type hashes (e.g. `$ieee` and `$float64` both point to `@AR4s...`, `$utf8` and `$string` both point to `@Pt3Mw...`, and `$int` points to `@Nws3v...`).
+   - Establish bidirectional type alias naming so codec names are direct aliases to the underlying type hashes (e.g. `ieee` and `float64` both point to `@AR4s...`, `utf8` and `string` both point to `@Pt3Mw...`, and `int` points to `@Nws3v...`).
 
 ---
 
@@ -57,7 +57,7 @@ The scope encompasses four primary objectives:
 #### Requirements
 1. **Dropdown Ordering**: In `#example-select`, `core.k` must be the top-most option under standard examples.
 2. **Onboarding Banner**: The welcome message and quick-start hints in `browser/repl-browser.mjs` must showcase `:load core.k` as the primary recommended action.
-3. **Quick Expressions**: Ensure the quick expressions section provides expressions compatible with `core.k` out-of-the-box (e.g. `1 succ`, `10`, `$bits`, `$string`).
+3. **Quick Expressions**: Ensure the quick expressions section provides expressions compatible with `core.k` out-of-the-box (e.g. `1 succ`, `10`, `bits`, `string`).
 
 ---
 
@@ -65,9 +65,9 @@ The scope encompasses four primary objectives:
 
 #### Curated File Set
 The bundled VFS and UI examples must include only verified useful files:
-- `core.k` — The foundational standard library (bits, arithmetic on bits, Unicode `$unicode`, `$string`, `$pattern`).
-- `Examples/arithmetics.k` — Arbitrary-precision signed integers (`$int`), rationals (`$rat`), GCD/LCM, factorial, Fibonacci.
-- `Examples/ieee.k` — IEEE-754 double-precision floating point type (`$float64`) and arithmetic operations.
+- `core.k` — The foundational standard library (bits, arithmetic on bits, Unicode `unicode`, `string`, `pattern`).
+- `Examples/arithmetics.k` — Arbitrary-precision signed integers (`int`), rationals (`rat`), GCD/LCM, factorial, Fibonacci.
+- `Examples/ieee.k` — IEEE-754 double-precision floating point type (`float64`) and arithmetic operations.
 - `Examples/poly.k` — Polymorphic list functions (`concat`, `reverse`, `length`, `get_nth`, `split_by`, `take`, `drop`, `zip`).
 
 #### Dependency Management for `poly.k`
@@ -93,13 +93,13 @@ The bundled VFS and UI examples must include only verified useful files:
    Establish code aliasing so that codec names and their standard type names are both valid aliases pointing to the same canonical type hash:
    - **IEEE / Float64**:
      - Canonical Hash: `@AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t`
-     - Aliases: `$float64` and `$ieee`
+     - Aliases: `float64` and `ieee`
    - **UTF-8 / String**:
      - Canonical Hash: `@Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK`
-     - Aliases: `$string` and `$utf8`
+     - Aliases: `string` and `utf8`
    - **Int**:
      - Canonical Hash: `@Nws3vysWqC9PznraTP4kWPp44Rd77NAqrx9dgbtHAjGA`
-     - Alias: `$int`
+     - Alias: `int`
    This guarantees that both `:input utf8` and `:input string`, as well as `:input ieee` and `:input float64`, work seamlessly.
 
 3. **Idempotence**:

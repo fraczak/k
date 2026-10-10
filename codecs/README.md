@@ -6,13 +6,13 @@ This directory is centered on the codec design:
 abstract pattern graph + prefix-free tree encoding
 ```
 
-The default concrete format is now the binary encoding of a `$pattern`
-value, using the `$pattern` type from [`../core.k`](../core.k),
+The default concrete format is now the binary encoding of a `pattern`
+value, using the `pattern` relation from [`../core.k`](../core.k),
 immediately followed by the binary encoding of the value under that
 decoded pattern.
 
 `core.k` is not loaded automatically as a library when user programs
-run. The codec only depends on the canonical `$pattern` definition from
+run. The codec only depends on the canonical `pattern` definition from
 that file as the schema for the leading pattern value.
 
 There is no separate JSON container format.
@@ -63,10 +63,10 @@ primitive value format.
 The default transport format is:
 
 ```text
-encode($pattern_value : $pattern) encode(value : decoded_pattern)
+encode(pattern_value : pattern) encode(value : decoded_pattern)
 ```
 
-`$pattern_value` is a normal k value whose shape is defined in `core.k`.
+`pattern_value` is a normal k value whose shape is defined in `core.k`.
 After that value is decoded, it becomes the pattern used to decode the
 remaining value payload.
 
@@ -151,7 +151,7 @@ Canonical rules:
 - `"any"` must have no outgoing edges.
 
 This JSON-like graph is only a readable notation. The wire
-representation is the ordinary k `$pattern` value from `core.k`.
+representation is the ordinary k `pattern` value from `core.k`.
 
 For pattern export, see [`../DOCS/PATTERNS.md`](../DOCS/PATTERNS.md) and
 the repository helper `patterns/from-k.mjs`.

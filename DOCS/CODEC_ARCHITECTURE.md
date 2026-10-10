@@ -9,8 +9,8 @@ graph).
 
 In **k**, there are no primitive numbers or built-in numerical types.
 Numbers are nullary relations mapping the unit to bit trees
-(`${} -> $bits`), and arithmetic relations operate on signed
-integer variants (`$int`). Codecs like `int.mjs` bridge human
+(`{} -> bits`), and arithmetic relations operate on signed
+integer variants (`int`). Codecs like `int.mjs` bridge human
 decimal representations and these algebraic structures.
 
 Every codec in the **k** ecosystem is designed to serve three unified

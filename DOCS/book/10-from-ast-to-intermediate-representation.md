@@ -42,24 +42,23 @@ Each function in the program becomes a small list or tree of such IR instruction
 Source program:
 
 ```k-lang
-$bool = < {} true, {} false >;
-neg = $bool < .true {{ } false}, .false {{ } true} > $bool;
+bool = ?< {} true, {} false >;
+neg = ?< {} true, {} false > < /true | false, /false | true >;
 ```
 
 The IR for `neg` can be written informally as:
 
 ```text
 neg:
-  TYPECHECK bool
+  CHECK_FILTER bool
   UNION [
     SEQ [ PROJECT true, CONST false ],
     SEQ [ PROJECT false, CONST true ]
   ]
-  TYPECHECK bool
 ```
 
 This IR expresses the same logic as the source:
-check the type, then try the first projection `.true`, otherwise the second, and finally ensure the result is again of type `$bool`.
+check that the value matches the pattern, then try the first projection `/true`, otherwise the second.
 
 ---
 
@@ -89,8 +88,8 @@ The process of converting the AST to IR follows a recursive pattern:
 2. **Compositions** `(f g h)` become a `SEQ` list of their components.
 3. **Unions** `<f,g>` become a `UNION` list.
 4. **Products** `{f l₁, g l₂}` become a `PRODUCT` list with labeled entries.
-5. **Type expressions** `$T` become `TYPECHECK` instructions.
-6. **Filters** disappear; their meaning is already captured by typechecks.
+5. **Filter expressions** `?F` become `CHECK_FILTER` or `TYPECHECK` instructions.
+6. Inductive filters that match derived shapes can be elided or turned into no-op identity during execution.
 
 Each transformation step produces IR nodes with fixed behavior and explicit order.
 

@@ -8,28 +8,20 @@ unions).
 
 - **Syntax highlighting** for all current k constructs:
   - Line comments (`--`, `//`, `%`, `#`) and block comments (`/* … */`)
-  - Named code (type) definitions: `$ name = …`
-  - Function/relation definitions: `name = …`
+  - Relation definitions: `name = …;`
   - All three operators: `.field` (product projection), `/tag` (union projection), `|tag` (variant introduction)
   - Filter expressions: `?< … > = X`, `?{ … } = X` with pattern variables
-  - Type annotations: `$name`, `${…}`
   - Canonical content-addressed references: `@base58hash`
   - Quoted label strings: `"label"`, `'label'` (with escape sequences)
   - The `...` any/open pattern marker
-- **Code-definition backgrounds** applied uniformly from the opening `$` through
-  the terminating `;`
-- **Nested expression backgrounds** for filters and `$` code expressions inside
-  relations, with code-expression backgrounds layered over filter backgrounds
+- **Nested expression backgrounds** for filters inside relations
 - **k Contrast color theme** with:
-  - Separate foreground colors for type names, relation identifiers, labels, tags,
-    filter variables, canonical type names, and canonical relation names
+  - Separate foreground colors for relation identifiers, labels, tags,
+    filter variables, and canonical relation names
 - **Snippets** for every common pattern (trigger via `Tab` after prefix):
 
 | Prefix | Inserts |
 |--------|---------|
-| `codeunion` | Named code as tagged union |
-| `codeprod` | Named code as product |
-| `coderecunion` | Recursive named code |
 | `fn` | Function definition |
 | `comp` | Composition `(f g)` |
 | `merge` | Merge `< f, g >` |
@@ -39,8 +31,6 @@ unions).
 | `dot` | `.field` |
 | `slash` | `/tag` |
 | `vid` | `\|tag` |
-| `typeref` | `$name` annotation |
-| `typedprod` | `${ type label, … }` typed input |
 | `id` | `()` identity |
 | `unit` | `{}` empty product (leaf) |
 | `undef` | `<>` always-undefined |

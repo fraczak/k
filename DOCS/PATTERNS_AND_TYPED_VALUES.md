@@ -243,7 +243,7 @@ PolyVal(P) = { (P, (T, t)) : T ⊨ P and t ∈ Tree(T) }.
 In the current JavaScript implementation, this semantic pair is represented
 directly in memory: `Product` and `Variant` carry the witness tree, and every
 `Value` may also carry the root pattern as `value.pattern`. The codec stream is
-the serialized form of the same object: an encoded `$pattern` value followed by
+the serialized form of the same object: an encoded `pattern` value followed by
 the value payload interpreted under that pattern.
 
 So a pattern does not denote a set of raw trees.

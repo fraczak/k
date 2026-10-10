@@ -49,19 +49,19 @@ This is not the wire format. It is the canonical readable export form.
 
 A k script can describe a pattern through:
 
-- a type name in terminal position
+- a relation in terminal position
 - a filter expression in terminal position
 
 Examples:
 
 ```k
-$ bits = < {} _, bits 0, bits 1 >;
-$ list = < {} nil, { bits car, list cdr } cons >;
+bits = ?< {} _, bits 0, bits 1 > = bits;
+list = ?< {} nil, { < {} _, B 0, B 1 >=B car, L cdr } cons > = L;
 list
 ```
 
 ```k
-?< {} nil, { $bits car, X cdr } cons > = X
+?< {} nil, { < {} _, B 0, B 1 >=B car, X cdr } cons > = X
 ```
 
 In both cases, the compiler derives a root pattern from `__main__`.
@@ -78,14 +78,14 @@ It:
 3. resolves `__main__`
 4. requires `__main__` to be either:
    - a filter expression
-   - a type name
+   - a relation name
 5. exports the corresponding root pattern
 6. prints it as the canonical property-list array
 
 Example:
 
 ```bash
-echo '?< {} nil, { $bits car, X cdr } cons > = X' | node ./patterns/from-k.mjs
+echo '?< {} nil, { < {} _, B 0, B 1 >=B car, X cdr } cons > = X' | node ./patterns/from-k.mjs
 ```
 
 Typical output:
@@ -99,15 +99,14 @@ Typical output:
 The active wire format is:
 
 ```text
-encode($pattern_value : $pattern) encode(value : decoded_pattern)
+encode(pattern_value : pattern) encode(value : decoded_pattern)
 ```
 
 So the property-list array printed by `patterns/from-k.mjs` is a
 readable externalization of the same pattern information carried in the
 wire stream.
 
-`k-parse --input-pattern ...` and `k-parse --input-type ...` both
-ultimately produce the same kind of root pattern used to interpret
+`k-parse --input-pattern ...` produces the root pattern used to interpret
 textual values.
 
 ## See Also

@@ -8,13 +8,13 @@ to self-hosted binary pattern framing.
 The only wire format is:
 
 ```text
-encode($pattern_value : $pattern) encode(value : decoded_pattern)
+encode(pattern_value : pattern) encode(value : decoded_pattern)
 ```
 
 where:
 
-- the first segment is a normal k value of type `$pattern`, encoded under the
-  fixed singleton pattern for `$pattern` from [`core.k`](../core.k),
+- the first segment is a normal k value of pattern `pattern`, encoded under the
+  fixed singleton pattern for `pattern` from [`core.k`](../core.k),
 - that decoded pattern becomes the structural authority for the second segment,
 - the second segment is the prefix-free value payload interpreted by that
   pattern.

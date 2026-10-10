@@ -3,14 +3,14 @@
 ## **2.1 Language fragments**
 
 The `k` language has only one kind of program element: a **definition**.
-A program is a sequence of definitions of two kinds:
+A program is a sequence of definitions:
 
 ```k-lang
-$ type_name = ...type_expression... ;
-function_name = ...expression... ;
+relation_name = ...expression... ;
 ```
 
 The definitions are followed in the file by the *main expression*, which represents the partial function defined by the program as a whole.
+There is no separate syntax for type declarations. Data shapes are defined by the relations and pattern filters (`? ...`) that manipulate them.
 
 There is no syntax for values.
 Every syntactic form in an expression describes a **function** -- possibly a constant function that always returns the same value.
@@ -92,13 +92,12 @@ It is important to notice that after the three markers `dot (.)`, `div (/)`, or 
 ## **2.6 Example**
 
 ```k-lang
-$ bool = < {} true, {} false >;
-true  = {} |true $ bool;
-false = {} |false $ bool;
-neg = $ bool < /true false, /false true >;
+true  = {} |true;
+false = {} |false;
+neg = < /true false, /false true >;
 ```
 
-This defines a "two-variant" union type and three functions: two constants and one transformation exchanging the variants.
+This defines three relations: two constants and one transformation exchanging the variants `/true` and `/false`. The types of their inputs and outputs are derived automatically by the compiler.
 
 ---
 

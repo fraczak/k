@@ -396,7 +396,7 @@ Runtime:
 
 Typing and patterns:
 
-- `$type` filter;
+- `?filter` expression;
 - open product filter;
 - open union filter;
 - recursive list/tree filter;

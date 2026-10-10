@@ -5,7 +5,7 @@ The codec boundary is no longer a JSON object. A serialized value is one binary
 stream:
 
 ```text
-encode($pattern_value : $pattern) encode(value : decoded_pattern)
+encode(pattern_value : pattern) encode(value : decoded_pattern)
 ```
 
 The pattern is the framing protocol. There is no separate envelope type.
@@ -15,10 +15,10 @@ The pattern is the framing protocol. There is no separate envelope type.
 [`core.k`](../core.k) defines the canonical self-hosted pattern type:
 
 ```k
-$ edge = { string label, bits target };
-$ edges = < {} nil, { edge car, edges cdr } cons >;
+edge = ?{ string label, bits target };
+edges = ?< {} nil, { edge car, E cdr } cons > = E;
 
-$ pattern-node = <
+pattern-node = ?<
   {} any,
   edges open-product,
   edges open-union,
@@ -26,24 +26,24 @@ $ pattern-node = <
   edges closed-union
 >;
 
-$ pattern = < {} nil, { pattern-node car, pattern cdr } cons >;
+pattern = ?< {} nil, { pattern-node car, P cdr } cons > = P;
 ```
 
 This does not mean `core.k` is pre-loaded into ordinary program execution. The
 special role of `core.k` here is that the wire codec relies on the canonical
-`$pattern` definition from that file.
+`pattern` definition from that file.
 
 In this schema:
 
 - the first pattern-list element is node `0`, the root,
-- an edge target is a node index encoded as `$bits`,
-- labels are `$string` values and therefore Unicode scalar-value strings,
+- an edge target is a node index encoded as `bits`,
+- labels are `string` values and therefore Unicode scalar-value strings,
 - edge lists are sorted by label,
 - `any` carries no edges,
 - the four product/union node kinds carry their edge list directly.
 
-The fixed singleton pattern of `$pattern` is the first decoder context for all
-k wire values. Decoding any value first decodes a `$pattern` value under that
+The fixed singleton pattern of `pattern` is the first decoder context for all
+k wire values. Decoding any value first decodes a `pattern` value under that
 constant, then decodes the remaining bits under the pattern just obtained.
 
 ## Debug Notation
@@ -69,7 +69,7 @@ The parser plus type-derivation phase should eventually emit an object value
 rather than executable JavaScript structures. A minimal first object shape is:
 
 ```k
-$ object-file = {
+object-file = ?{
   pattern input-pattern,
   pattern output-pattern,
   pattern value-pattern
@@ -274,7 +274,7 @@ For a definitions-only source file:
 
 ```k
 -- defs.k
-$ nat = <{} zero, nat succ>;
+nat = ?< {} zero, N succ > = N;
 succ = |succ;
 ```
 

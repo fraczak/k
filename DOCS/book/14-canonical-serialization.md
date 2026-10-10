@@ -67,8 +67,8 @@ This rule allows the decoder to know, from the type alone, how many bits to read
 
 For the type
 
-```
-$bnat = < bnat 0, bnat 1, {} _ >;
+```k-lang
+bnat = ?< Bnat 0, Bnat 1, {} _ > = Bnat;
 ```
 
 the canonical form has three transitions from state C0.

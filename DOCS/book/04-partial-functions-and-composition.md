@@ -82,9 +82,8 @@ Since `k` lacks a direct syntax for literal values, constants are created using 
 For example, we can define functions that return `true` and `false`:
 
 ```k-lang
-$ bool = < {} true, {} false >;
-true_bool  =  {} |true $bool ;
-false_bool =  {} |false $bool ;
+true_bool  =  {} |true;
+false_bool =  {} |false;
 ```
 
 Here, `true_bool` and `false_bool` are constant functions. They are also **total functions**, meaning they are defined for all inputs. Each function ignores its input and produces a fixed boolean value.

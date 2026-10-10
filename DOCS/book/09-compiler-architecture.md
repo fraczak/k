@@ -73,15 +73,15 @@ These tables ensure that generated code can find fields and variants by number r
 Consider a simple k program:
 
 ```k-lang
-$bool = < {} true, {} false >;
-neg = $bool < /true | false, /false | true > $bool;
+bool = ?< {} true, {} false >;
+neg = bool < /true | false, /false | true > bool;
 ```
 
 1. **Parsing:**
-   The compiler recognizes a type definition `$bool` and a function `neg`.
+   The compiler recognizes the relation definitions `bool` and `neg`.
 
 2. **Type analysis:**
-   Both the input and output of `neg` are of type `bool`.
+   The compiler derives that both the input and output of `neg` conform to boolean variants.
 
 3. **Internal representation:**
    The compiler constructs an internal tree describing that
@@ -105,13 +105,13 @@ Before producing final code, many compilers use an *intermediate representation*
 It is a language designed to be easy to generate and easy to translate further into real machine code.
 For `k`, the IR mirrors the structure of partial functions:
 
-| Concept in k          | IR operation                     |
-| --------------------- | -------------------------------- |
-| Projection `.x` `/x`  | `PROJECT label_id`               |
-| Composition `(f g)`   | `CALL f; CALL g`                 |
-| Union `<f,g>`         | `TRY f; IF undefined THEN TRY g` |
-| Product `{.x f, .y g}` | `PRODUCT_CALL (f, g); COMBINE`   |
-| Type restriction `$T` | `CHECK_TYPE state_id`            |
+| Concept in k            | IR operation                     |
+| ----------------------- | -------------------------------- |
+| Projection `.x` `/x`    | `PROJECT label_id`               |
+| Composition `(f g)`     | `CALL f; CALL g`                 |
+| Union `<f,g>`           | `TRY f; IF undefined THEN TRY g` |
+| Product `{.x f, .y g}`  | `PRODUCT_CALL (f, g); COMBINE`   |
+| Filter restriction `?F` | `CHECK_FILTER pattern_id`        |
 
 The compiler converts each AST node into one or more IR instructions.
 The `PRODUCT_CALL(f, g)` instruction is a higher-level concept that implies applying both `f` and `g` to the same input value.

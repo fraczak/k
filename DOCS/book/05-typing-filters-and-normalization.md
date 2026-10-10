@@ -1,36 +1,33 @@
 # Chapter 5 — Typing, Filters, and Normalization
 
-## **5.1 Types as functions**
+## **5.1 Filters as partial identity functions**
 
-A type expression in `k` can appear wherever a function is expected.
-When used this way, it is prefixed by `$`.
-It then behaves as a partial **identity** function that is defined only for values of that type.
-For example, `$ bool` is a partial identity: it returns its argument unchanged when the argument is of type `bool`, and it is undefined otherwise.
+Filters in `k` are introduced by `?` and appear wherever an expression is expected.
+A filter behaves as a partial **identity** function: it returns its argument unchanged when the argument matches the pattern graph described by the filter, and it is undefined otherwise.
+For example, `? < {} true, {} false >` is a partial identity: it returns its argument unchanged when the argument is a boolean variant, and it is undefined otherwise.
 
-This convention eliminates any special syntax for annotating sub-expressions with types.
-An expression may be *restricted* to a type simply by composing it with the corresponding type expression.
+Beyond serving as runtime type guards, filters serve as inductive termination witnesses that allow type derivation for recursive relations to converge into finite-state automata.
 
 ---
 
 ## **5.2 Filters**
 
-A **filter** is a syntactic form that denotes a *class of types* — a set of types that share a common structure.
+A **filter** is a syntactic form that denotes a *pattern graph* — a structural specification of types that share a common shape.
 
 Filter expressions are introduced by `?` and can be:
 
-- **Type expressions** — `? $bool`, `? $< {} x, bool y >`
 - **Product filters** — `? { Filter1 field1, Filter2 field2 }`  
 - **Union filters** — `? < Filter1 tag1, Filter2 tag2 >`
-- **Any-type filter** — `? ( ... )`
-- **Filter variables** — `? X` (metavariables representing unknown types)
+- **Any-pattern filter** — `? ( ... )`
+- **Filter variables** — `? X` (local metavariables representing pattern graph nodes)
 - **Filter bindings** — `? < X f, (...) = Y g, ... > = X`
 
 Filters may contain `...` to indicate that additional fields or tags are allowed:
 `? { Filter1 field1, ... }` matches any product with at least `field1`.
 
-The filter `? (...)` matches any type.
-The filter `? {...}` matches any product type.
-The filter `? <...>` matches any union type.
+The filter `? (...)` matches any pattern.
+The filter `? {...}` matches any product pattern.
+The filter `? <...>` matches any union pattern.
 There is no closed unknown filter: use `?{}` for the empty product or `?<>` for the empty union.
 
 ---

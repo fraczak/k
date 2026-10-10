@@ -397,13 +397,13 @@ hash without `--export`.
 In `k`, there are no primitive numerical types or built-in integer
 literals. Identifiers such as `5` or `10` are not language keywords;
 they are defined relations (aliases) in `Examples/arithmetics.k`:
-- `5` and `10` are nullary relations (constants) of type `${} -> $bits`,
-  defined as binary digit trees over `$bits = < {} _, bits 0, bits 1 >`.
+- `5` and `10` are nullary relations (constants) of type `{} -> bits`,
+  defined as binary digit trees over `bits = ?< {} _, bits 0, bits 1 > = bits;`.
 - Arithmetic operations (`plus`, `minus`, `times`, `inc`) operate on
-  signed integers (`$int = < bits "+", bits "-" >`).
+  signed integers (`int = < <bits 0, bits 1, {} _>=bits "+", bits "-" >`).
 - Passing a bit-representation like `5` to an integer relation requires
   applying the `int` constructor (`5 int`), producing a constant
-  relation of type `${} -> $int`.
+  relation of type `{} -> int`.
 
 ### 3. Constant Expressions vs. Stream Transformers
 - **Stream Transformers:** An expression using the identity relation `()`
@@ -412,7 +412,7 @@ they are defined relations (aliases) in `Examples/arithmetics.k`:
   `./codecs/int.mjs --parse`).
 - **Closed Constant Relations:** A relation with no free inputs (such
   as `{10 int x, 5 int y} plus`) is a constant relation with input
-  type of unit `${}`. When executed through `./k.mjs`, it expects
+  type of unit `{}`. When executed through `./k.mjs`, it expects
   an empty unit `{}` on `stdin`:
   ```bash
   echo "{}" | node codecs/k-parse.mjs | \

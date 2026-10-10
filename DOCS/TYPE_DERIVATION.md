@@ -142,19 +142,13 @@ out(f) = LOOKUP(out(f))
 Once the type derivation for the defining expression for `f` is done, the
 input and output patterns are stored and will be used.
 
-### Type `$ T`
-
-```text
-in(T) = out(T) = pattern(T)
-```
-
 ### Filter `? F`
 
 ```text
-see patterns.filterToPattern(F)
+in(? F) = out(? F) = pattern(F)
 ```
 
-A filter expression is syntax for describing pattern graphs.
+A filter expression `? F` describes pattern graphs, acting as an identity filter that constrains inputs and outputs to pattern `F`.
 
 ## 6. Global Algorithm
 

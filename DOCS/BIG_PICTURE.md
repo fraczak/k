@@ -63,11 +63,11 @@ Some properties of these types:
 - Variant values are written using "|" (pipe) followed by the variant
   tag.
   - Unit variant `` `{}` `` | tag (e.g., `{} | nil`, `{} | zero`)
-  - Variant with payload `v` at label `tag`: ` v | tag `
-- Example (list): with `$list = < {} nil, {X car, list cdr} cons >`:
+   - Variant with payload `v` at label `tag`: ` v | tag `
+- Example (list): with `list = ?< {} nil, { X car, L cdr } cons > = L;`:
   - Empty list []: `{}|nil`
   - Singleton `[v]`: `{ v car, {}|nil cdr } | cons`
-- Angle brackets are for type definitions and merge expressions; use
+- Angle brackets are for union expressions; use
   "`| tag`" for a variant construction.
 
 #### Equivalence of types (bisimilarity)
@@ -88,7 +88,7 @@ types that have a field `f` of type `T`, I would write:
 `?{ T f, ... }`. In general, a filter is defined by:
 
 ```bnf
-filter ::= name | '$' type_expr | '{' filter_label_list '}'
+filter ::= name | '{' filter_label_list '}'
    | '<' filter_label_list '>' | '(' filter_label_list ')'
    | filter '=' name
 filter_label_list ::= /* empty */ | '...'
@@ -134,37 +134,35 @@ partial functions, not only two. For example, empty composition,
 
 ### Program
 
-A `kernel-core` program is a set of definitions of types and partial
-functions, followed by an _expression_, which is the partial function
-the program defines.
+A `kernel-core` program is a set of definitions of relations (partial
+functions), followed by an _expression_, which is the relation the
+program evaluates.
 
 The language syntax is defined by:
 
 ```bnf
-program ::= (type_definition | function_definition)* expression
-type_definition ::= '$' type_name '=' type ';'
+program ::= function_definition* expression
 function_definition ::= name '=' expression ';'
-expression ::= name | '$' type | '?' filter 
-   | projection | composition | union | product 
+expression ::= name | '?' filter 
+   | projection | constructor | composition | union | product 
 projection ::= '.' label | '/' label
+constructor ::= '|' label
 composition ::= '(' expression * ')'  
-union ::= '<' (expression ',') + expression '>' 
+union ::= '<' (expression ',') * expression '>' 
 product ::= '{' expr_label_list '}'
 expr_label_list ::= /* empty */ 
    | (expression label_name ',')* expression label
 ```
 
-We assume that in a `kernel-core` program the names (for types,
-functions, and labels) are identifiers (strings) such that:
+We assume that in a `kernel-core` program the names (for relations
+and labels) are identifiers (strings) such that:
 
-1. All defined type names are distinct.
-2. All defined function names are distinct.
-3. All label names within a type definition or a `product` expression
-   are locally distinct.
+1. All defined relation names are distinct.
+2. All label names within a `product` expression are locally distinct.
 
-Filters and type expressions act as a type annotation, i.e., an
-identity function defined only for the values of the corresponding
-types.
+Filters act as partial identity functions defined only for the values
+matching the corresponding pattern, while also serving as inductive witnesses
+for recursive relation termination.
 
 That's it.
 
@@ -219,19 +217,19 @@ The normalization steps are:
 #### Example 1
 
 ```text
-$ bit = < {} o, {} i >;
-bit0 = | o $bit;
-bit1 = | i $bit;
+bit = ?< {} o, {} i >;
+bit0 = | o;
+bit1 = | i;
 
-$ byte = { bit b0, bit b1, bit b2, bit b3 };
-zero = bit0 { () b0, () b1, () b2, () b3 } $byte;
+byte = ?{ bit b0, bit b1, bit b2, bit b3 };
+zero = bit0 { () b0, () b1, () b2, () b3 };
 
-inc = $ byte
+inc = byte
    <
-      { bit0 overflown,  { .b0/o bit1 b0, .b1  b1,  .b2 b2,  .b3 b3 } byte }, 
-      { bit0 overflown,  { bit0 b0, .b1/o bit1 b1,  .b2 b2,  .b3 b3 } byte },
-      { bit0 overflown,  { bit0 b0, bit0 b1, .b2/o bit1 b2,  .b3 b3 } byte },
-      { bit0 overflown,  { bit0 b0, bit0 b1, bit0 b2, ,b3/o bit1 b3 } byte },
+      { bit0 overflown,  { .b0 /o bit1 b0, .b1  b1,  .b2 b2,  .b3 b3 } byte }, 
+      { bit0 overflown,  { bit0 b0, .b1 /o bit1 b1,  .b2 b2,  .b3 b3 } byte },
+      { bit0 overflown,  { bit0 b0, bit0 b1, .b2 /o bit1 b2,  .b3 b3 } byte },
+      { bit0 overflown,  { bit0 b0, bit0 b1, bit0 b2, .b3 /o bit1 b3 } byte },
       { bit1 overflown,  zero                                         byte }
    >  
 ;
@@ -250,38 +248,38 @@ inc3 = inc inc_o inc_o;
 inc3
 ```
 
-In the above program, we define type `bit` as union of two unit types,
-and type `byte` as product, for simplicity, of four `bit`s.
+In the above program, we define relation `bit` as a union of two unit variants,
+and relation `byte` as a product of four `bit`s.
 
 Functions `bit0`, `bit1`, and `zero` are "constant polymorphic
 functions", meaning:
 
 - constant: if defined, they always return exactly the same value;
 - polymorphic: they are defined for more than one pair of input and
-  output types: functions `bit0` and `bit1` are of type `?X -> $bit`,
-  and `zero` is of type `?X -> $byte`, where `?X` denotes an
-  unconstrained type pattern, also denoted as `?(...)`.
+  output patterns: functions `bit0` and `bit1` are of shape `?X -> bit`,
+  and `zero` is of shape `?X -> byte`, where `?X` denotes an
+  unconstrained pattern, also denoted as `?(...)`.
 
-Functions `inc` and `inc3` are (non-polymorphic) functions of types
-`$byte -> ${ bit overflown, byte byte }` and
-`${ bit overflown, byte byte } -> ${ bit overflown, byte byte }`,
+Functions `inc` and `inc3` are relations of shapes
+`byte -> { bit overflown, byte byte }` and
+`{ bit overflown, byte byte } -> { bit overflown, byte byte }`,
 respectively.
 
-Function `inc_o` is a polymorphic function of type patterns:
-`?X -> ${ byte byte, bit overflown }` with the following constraints:
+Function `inc_o` is a polymorphic function of patterns:
+`?X -> { byte byte, bit overflown }` with the following constraints:
 
-- `?X` is a product type with at least two fields: `byte` and
+- `?X` is a product with at least two fields: `byte` and
   `overflown`, denoted by:
-   > `?{ $byte byte, Z overflown, ...}`;
-- `?Z` is a union type with field `i` denoted by:
+   > `?{ byte byte, Z overflown, ...}`;
+- `?Z` is a union with field `i` denoted by:
    > `?< V i, ...>`;
 - `V` is unconstrained, denoted by `(...)`;
 
-We can write it as: `?{$byte byte, <(...) i, ...> overflown, ...}`.
+We can write it as: `?{ byte byte, <(...) i, ...> overflown, ...}`.
 
-The target type `${ byte byte, bit overflown }` corresponds to pattern
-`?{ $byte byte, $bit overflown }`. Such a pattern is called _singleton
-pattern_, as only one type fits the pattern.
+The target pattern `{ byte byte, bit overflown }` corresponds to filter
+`?{ byte byte, bit overflown }`. Such a pattern is called _singleton
+pattern_, as only one shape fits the pattern.
 
 #### Example 2
 
@@ -356,14 +354,14 @@ can be translated into a Rust function.
 
 In `k`, there are no primitive numbers or built-in integer literals.
 Numerical identifiers such as `5` or `10` are nullary relations
-(constants) mapping the unit `${}` to bit trees of type `${} -> $bits`.
-Arithmetic relations operate on signed integers (`$int`), requiring
+(constants) mapping the unit `{}` to bit trees of shape `{} -> bits`.
+Arithmetic relations operate on signed integers (`int`), requiring
 conversion via `5 int`.
 
 Bit trees are defined algebraically:
 
 ```text
-$ bits = < {} _, bits 0, bits 1 >;
+bits = ?< {} _, B 0, B 1 > = B;
 ```
 
 ### Literals for `@bits` are:
@@ -377,24 +375,24 @@ $ bits = < {} _, bits 0, bits 1 >;
 - "" for 0 bits
 - "ala" for 24 bits
 
-### Two operations on `@bits`:
+### Two operations on `bits`:
 
 #### Eat `/`
 
-- `$@bits / @bits` --- division, e.g., `0b1011 / 0b10` = `0b11`,
+- `bits / bits` --- division, e.g., `0b1011 / 0b10` = `0b11`,
   `"abc" / "a"` = `"bc"`
 
 #### Prepend `\`
 
-- `$@bits \ @bits` --- multiplication, e.g., `0b11 \ 0b10` = `0b1011`,
+- `bits \ bits` --- multiplication, e.g., `0b11 \ 0b10` = `0b1011`,
   `"bc" \ "a"` = `"abc"`
 
 Empty `bits` can be checked by:
 
 ```k
-kind = $@bits 
+kind = bits 
   < {/ 0b0 \ 0b0 starts_with_0}, {/ 0b1 \ 0b1 starts_with_1}, {() empty} > 
-  $< @bits starts_with_0, @bits starts_with_1, @bits empty >;
+  < bits starts_with_0, bits starts_with_1, bits empty >;
 ```
 
 ## Further Reading
