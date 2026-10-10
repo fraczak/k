@@ -35,7 +35,7 @@ This document details the issues, conceptual improvements, and completed enhance
   - Made arbitrary arity explicit across products `{...}`, unions `<...>`, and compositions `(...)`; explained `{}` and `()` as the natural 0-ary special cases; omitted the pattern/filter expressions table from the introductory reference.
 - [x] **Replaced Misleading Expressions & Snippets**:
   - Removed phantom concepts (`10` as literal, "bit-path", `{10 int x, 5 int y} plus` in default state).
-  - Added self-contained snippets (`{} | ok`, `not = < / true | false, / false | true >;`, `bool = ?< {} true, {} false >;`, `not = bool < / true | false, {} | true > bool;`, `swap = { . y x, . x y };`).
+  - Added self-contained snippets (`{} | ok`, `not = < / true | false, / false | true >;`, `bool = ?< {} true, {} false >;`, `not = bool ?X < / true | false, {} | true > ?X;`, `swap = { . y x, . x y };`).
 - [x] **Command Reference Table**:
   - Added `:time <expr>`.
   - Removed obsolete commands: `:rel <name> = expr`, `:val`, `:timing [on|off]`, `:codec define n t b`.
