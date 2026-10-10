@@ -1666,12 +1666,10 @@ const htmlContent = `<!DOCTYPE html>
             </optgroup>
             <optgroup label="Quick Expressions">
               <option value="expr:{} | ok">{} | ok</option>
-              <option value="expr:()">()</option>
-              <option value="expr:$ bool = &lt; {} true, {} false &gt;; not = $ bool &lt; / true | false, {} | true &gt; $ bool; {} | true not">not (boolean relation with fallback)</option>
+              <option value="expr:not = &lt; / true | false, / false | true &gt;; {} | true not">not (boolean relation)</option>
               <option value="expr:1 succ">1 succ</option>
               <option value="expr:{10 int x, 5 int y} plus">{10 int x, 5 int y} plus (int)</option>
               <option value="expr:{10 int x, 5 int y} karatsuba">{10 int x, 5 int y} karatsuba</option>
-              <option value="expr::types">:types (list types)</option>
               <option value="expr::rels">:rels (list relations)</option>
               <option value="expr::engine">:engine (show engine)</option>
               <option value="expr::engine wasm">:engine wasm</option>
@@ -1898,8 +1896,6 @@ const htmlContent = `<!DOCTYPE html>
               <tr><td><code>:engine [wasm|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code> or <code>js</code>)</td></tr>
               <tr><td><code>:load &lt;file&gt;</code></td><td>Load a <code>.k</code> source or <code>.klib</code> library into current state</td></tr>
               <tr><td><code>:rel &lt;name&gt;</code></td><td>Display definition of relation <code>&lt;name&gt;</code></td></tr>
-              <tr><td><code>:type &lt;name&gt;</code></td><td>Display definition of type <code>&lt;name&gt;</code></td></tr>
-              <tr><td><code>:types</code></td><td>List all type aliases and canonical hashes</td></tr>
               <tr><td><code>:rels</code></td><td>List all relation aliases</td></tr>
               <tr><td><code>:codecs</code></td><td>List all loaded format codecs</td></tr>
               <tr><td><code>:codec load &lt;file.mjs&gt;</code></td><td>Load a codec from file (or load through Files)</td></tr>

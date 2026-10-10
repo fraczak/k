@@ -1,24 +1,4 @@
 {
-  "Code definition (union)": {
-    "prefix": "codeunion",
-    "body": ["\\$ ${1:name} = < ${2:type1} ${3:tag1}, ${4:type2} ${5:tag2} >;"],
-    "description": "Named code (type) using a tagged union"
-  },
-  "Code definition (product)": {
-    "prefix": "codeprod",
-    "body": ["\\$ ${1:name} = { ${2:type1} ${3:label1}, ${4:type2} ${5:label2} };"],
-    "description": "Named code (type) using a product (record)"
-  },
-  "Code definition (recursive union)": {
-    "prefix": "coderecunion",
-    "body": [
-      "\\$ ${1:name} = <",
-      "  {} ${2:base_tag},",
-      "  { ${1:name} ${3:field} } ${4:rec_tag}",
-      ">;"
-    ],
-    "description": "Recursive named code as a tagged union (e.g. nat, list)"
-  },
   "Function definition": {
     "prefix": "fn",
     "body": ["${1:name} = ${2:expr};"],
@@ -41,12 +21,12 @@
   },
   "Filter (union)": {
     "prefix": "filtunion",
-    "body": ["?< ${1:type1} ${2:tag1}, ${3:type2} ${4:tag2} > = ${5:X}"],
+    "body": ["?< {} ${1:tag1}, ${2:X} ${3:tag2} > = ${2:X}"],
     "description": "Filter expression constraining a union type, binding the subtype variable"
   },
   "Filter (product)": {
     "prefix": "filtprod",
-    "body": ["?{ ${1:Type} ${2:field}, ${3:...} } = ${4:X}"],
+    "body": ["?{ {} ${1:field}, ${2:...} } = ${3:X}"],
     "description": "Filter expression constraining a product type, binding the subtype variable"
   },
   "Product projection": {
@@ -63,16 +43,6 @@
     "prefix": "vid",
     "body": ["|${1:tag}"],
     "description": "Variant (tagged union) introduction: |tag"
-  },
-  "Type annotation": {
-    "prefix": "typeref",
-    "body": ["\\$${1:typename}"],
-    "description": "Type annotation: pin expression output to a named code"
-  },
-  "Typed input constraint": {
-    "prefix": "typedprod",
-    "body": ["\\${ ${1:type1} ${2:field1}, ${3:type2} ${4:field2} }"],
-    "description": "Typed product input constraint: ${ type label, ... }"
   },
   "Identity": {
     "prefix": "id",

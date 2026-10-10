@@ -581,6 +581,7 @@ if (chromiumBin) {
       const hasTime = modalText.includes(":time");
       const hasT = modalText.includes(":t <name>");
       const hasCodecDefine = modalText.includes(":codec define");
+      const hasRels = modalText.includes(":rels");
       const hasType = modalText.includes(":type <name>");
       const hasTypes = modalText.includes(":types");
       const hasCodes = modalText.includes(":codes");
@@ -592,6 +593,7 @@ if (chromiumBin) {
         rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
         helpModalOpen,
         hasRel,
+        hasRels,
         hasVal,
         hasTiming,
         hasTime,
@@ -608,8 +610,9 @@ if (chromiumBin) {
     assert.strictEqual(narrowNavbarCheck.isVisible, true, "#btn-help should be visible within narrow viewport");
     assert.strictEqual(narrowNavbarCheck.helpModalOpen, true, "Clicking #btn-help in narrow viewport should open help modal");
     assert.strictEqual(narrowNavbarCheck.hasRel, true, "Help modal should contain :rel <name>");
-    assert.strictEqual(narrowNavbarCheck.hasType, true, "Help modal should contain :type <name>");
-    assert.strictEqual(narrowNavbarCheck.hasTypes, true, "Help modal should contain :types");
+    assert.strictEqual(narrowNavbarCheck.hasRels, true, "Help modal should contain :rels");
+    assert.strictEqual(narrowNavbarCheck.hasType, false, "Help modal should not contain :type <name>");
+    assert.strictEqual(narrowNavbarCheck.hasTypes, false, "Help modal should not contain :types");
     assert.strictEqual(narrowNavbarCheck.hasEngine, true, "Help modal should contain :engine");
     assert.strictEqual(narrowNavbarCheck.hasCodes, false, "Help modal should not contain :codes");
     assert.strictEqual(narrowNavbarCheck.hasTime, false, "Help modal should not contain :time");

@@ -48,8 +48,8 @@ import {
 
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 const COMMAND_NAMES = [
-  "help", "type", "code", "rel", "C",
-  "types", "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
+  "help", "rel",
+  "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
   "engine", "wasm", "js",
   "quit", "exit"
 ];
@@ -454,13 +454,6 @@ function canonicalNames(state) {
   ])].filter((name) => name.startsWith("@")).sort();
 }
 
-function canonicalCodeNames(state) {
-  return [...new Set([
-    ...Object.keys(state.codes),
-    ...Object.values(state.typeAliases)
-  ])].filter((name) => name.startsWith("@")).sort();
-}
-
 function aliasNames(state) {
   return [...new Set([
     ...Object.keys(state.typeAliases),
@@ -510,39 +503,13 @@ function completeCanonical(line, state) {
   return [matches, line];
 }
 
-function completeCanonicalCode(line, state) {
-  const match = line.match(/^(.*?)(@[A-Za-z0-9_?!+-]*)$/);
+function completeIdentifier(line, state) {
+  const match = line.match(/^(.*?)([A-Za-z0-9_+-][A-Za-z0-9_?!+-]*)$/);
   if (!match) return [[], line];
   const [, prefix, partial] = match;
-  const matches = canonicalCodeNames(state)
+  const matches = aliasNames(state)
     .filter((name) => name.startsWith(partial))
     .map((name) => `${prefix}${name}`);
-  return [matches, line];
-}
-
-function completeIdentifier(line, state) {
-  const match = line.match(/^(.*?)(\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*)$/);
-  if (!match) return [[], line];
-  const [, prefix, partial] = match;
-  const isTypeToken = partial.startsWith("$");
-  const barePartial = isTypeToken ? partial.slice(1) : partial;
-  const names = isTypeToken ? Object.keys(state.typeAliases).sort() : aliasNames(state);
-  const matches = names
-    .filter((name) => name.startsWith(barePartial))
-    .map((name) => `${prefix}${isTypeToken ? "$" : ""}${name}`);
-  return [matches, line];
-}
-
-function completeTypeIdentifier(line, state) {
-  const match = line.match(/^(.*?)(\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*)$/);
-  if (!match) return [[], line];
-  const [, prefix, partial] = match;
-  const isTypeToken = partial.startsWith("$");
-  const barePartial = isTypeToken ? partial.slice(1) : partial;
-  const matches = Object.keys(state.typeAliases)
-    .sort()
-    .filter((name) => name.startsWith(barePartial))
-    .map((name) => `${prefix}${isTypeToken ? "$" : ""}${name}`);
   return [matches, line];
 }
 
@@ -822,7 +789,7 @@ function completeCommandArgument(line, state) {
     return completeCanonical(line, state);
   }
 
-  if (/\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*$/.test(line)) {
+  if (/[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*$/.test(line)) {
     return completeIdentifier(line, state);
   }
 
@@ -836,7 +803,7 @@ function completeInput(line, state) {
   if (/@[A-Za-z0-9_?!+-]*$/.test(line)) {
     return completeCanonical(line, state);
   }
-  if (/\$?[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*$/.test(line)) {
+  if (/[A-Za-z0-9_+-][A-Za-z0-9_?!+-]*$/.test(line)) {
     return completeIdentifier(line, state);
   }
   return [[], line];
@@ -1252,15 +1219,6 @@ async function evaluateCommand(line, state) {
       return [helpText()];
     case "timing":
       throw new Error(":timing has been removed; timing is now always enabled");
-    case "type": {
-      if (!arg) throw new Error(":type requires a type name");
-      if (arg.includes("=")) {
-        throw new Error("Type definitions use syntax: $ name = typeExpr; Use :type <name> to show a type definition");
-      }
-      return evaluateCommand(`:C ${arg}`, state);
-    }
-    case "code":
-      return evaluateCommand(`:C ${arg}`, state);
     case "def":
       throw new Error("Relation definitions use syntax: name = relExpr;");
     case "rel": {
@@ -1272,8 +1230,6 @@ async function evaluateCommand(line, state) {
       if (!rel) throw new Error(`Unknown relation '${arg}'`);
       return [`${arg} = ${prettyRelation(rel, displayAliases(state), state.relAliases)};  -- ${hash}`];
     }
-    case "types":
-      return [listAliases(state.typeAliases)];
     case "rels":
       return [listAliases(state.relAliases)];
     case "codec":
@@ -1327,12 +1283,6 @@ async function evaluateCommand(line, state) {
       loadSourceOrKlib(state, loadPath, { loadAliases });
       return [`loaded ${loadPath}`];
     }
-    case "C": {
-      if (!arg) throw new Error(`${usagePrefix}C requires a type name`);
-      const hash = state.typeAliases[arg] || (arg.startsWith("@") ? arg : null);
-      if (!hash || !(hash in state.codes)) throw new Error(`Unknown type '${arg}'`);
-      return [`$ ${arg} = ${prettyCode(displayAliases(state), codes.find, codes.find(hash))};  -- ${hash}`];
-    }
     default:
       throw new Error(`Unknown command ':${command}'. Try :help`);
   }
@@ -1342,8 +1292,6 @@ function helpText() {
   return [
     ":engine [wasm|js]    display or switch evaluation engine (wasm or js)",
     ":rel name            show relation definition",
-    ":type name           show type definition",
-    ":types               list type aliases",
     ":rels                list relation aliases",
     ":codec load file     load a codec module from file (e.g. :codec load codecs/int.mjs)",
     ":codec unload name   unload a registered codec",

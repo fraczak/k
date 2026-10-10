@@ -36,11 +36,7 @@ is complete.
 | `:engine [wasm\|js]` | Display or switch evaluation engine (`wasm` or `js`) |
 | `:wasm` / `:js` | Shortcut to switch engine |
 | `:rel name` | Show relation definition |
-| `:type name` | Show the canonical definition of a type |
-| `:types` | List type aliases |
 | `:rels` | List relation aliases |
-| `:code name` | Alias for `:C name` |
-| `:C name` | Show canonical code definition |
 | `:codec load file` | Load a codec from an ES module file (e.g. `:codec load codecs/int.mjs`) |
 | `:codec unload name` | Unload a registered codec |
 | `:codec list` | List loaded REPL codecs (alias: `:codecs`) |
