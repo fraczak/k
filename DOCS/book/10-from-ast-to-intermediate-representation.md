@@ -42,7 +42,7 @@ Each function in the program becomes a small list or tree of such IR instruction
 Source program:
 
 ```k-lang
-bool = ?< {} true, {} false >;
+bool? = ?< {} true, {} false >;
 neg = ?< {} true, {} false > < /true | false, /false | true >;
 ```
 
@@ -50,7 +50,7 @@ The IR for `neg` can be written informally as:
 
 ```text
 neg:
-  CHECK_FILTER bool
+  CHECK_FILTER bool?
   UNION [
     SEQ [ PROJECT true, CONST false ],
     SEQ [ PROJECT false, CONST true ]

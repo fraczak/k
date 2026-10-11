@@ -56,9 +56,9 @@ A k script can describe a pattern through:
 Examples:
 
 ```k
-bits = ?< {} _, bits 0, bits 1 > = bits;
-list = ?< {} nil, { < {} _, B 0, B 1 >=B car, L cdr } cons > = L;
-list
+bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
+list? = ?< {} nil, { < {} _, B 0, B 1 >=B car, L cdr } cons > = L;
+list?
 ```
 
 ```k

@@ -122,9 +122,9 @@ All data structures in k are built from products and tagged unions (variants).
 Relations and pattern filters describe their domains:
 
 ```k
-bit  = ?< {} 0, {} 1 >;
-byte = ?{ Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7 };
-bits = ?< {} _, bits 0, bits 1 > = bits;
+bit?  = ?< {} 0, {} 1 >;
+byte? = ?{ Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7 };
+bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
 ```
 
 There are no built-in primitive values. The empty product `{}` is the

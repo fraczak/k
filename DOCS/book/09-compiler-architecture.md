@@ -73,8 +73,8 @@ These tables ensure that generated code can find fields and variants by number r
 Consider a simple k program:
 
 ```k-lang
-bool = ?< {} true, {} false >;
-neg = bool < /true | false, /false | true > bool;
+bool? = ?< {} true, {} false >;
+neg = bool? < /true | false, /false | true > bool?;
 ```
 
 1. **Parsing:**

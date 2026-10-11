@@ -153,7 +153,7 @@ for any given input, at most one result tree can be produced.
 Given:
 
 ```k-lang
-bool = ?< {} true, {} false >;
+bool? = ?< {} true, {} false >;
 neg = ?< {} true, {} false > < /true | false, /false | true >;
 ```
 

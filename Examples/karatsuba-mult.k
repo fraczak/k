@@ -5,12 +5,12 @@
 yes = {} | yes;
 no = {} | no;
 
-bits = ?< {} _, bits 0, bits 1 > = bits;
+bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
 0b = {} | _;
 0 = 0b |0;
 1 = 0b |1;
 
-unat = ?< {} _, unat 1 > = unat;
+unat? = ?< {} _, unat? 1 > = unat?;
 0u = {} | _;
 
 empty = < /_ yes, no >;

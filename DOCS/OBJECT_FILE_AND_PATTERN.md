@@ -15,18 +15,18 @@ The pattern is the framing protocol. There is no separate envelope type.
 [`core.k`](../core.k) defines the canonical self-hosted pattern type:
 
 ```k
-edge = ?{ string label, bits target };
-edges = ?< {} nil, { edge car, E cdr } cons > = E;
+edge? = ?{ string? label, bits? target };
+edges? = ?< {} nil, { edge? car, E cdr } cons > = E;
 
-pattern-node = ?<
+pattern-node? = ?<
   {} any,
-  edges open-product,
-  edges open-union,
-  edges closed-product,
-  edges closed-union
+  edges? open-product,
+  edges? open-union,
+  edges? closed-product,
+  edges? closed-union
 >;
 
-pattern = ?< {} nil, { pattern-node car, P cdr } cons > = P;
+pattern? = ?< {} nil, { pattern-node? car, P cdr } cons > = P;
 ```
 
 This does not mean `core.k` is pre-loaded into ordinary program execution. The
@@ -274,7 +274,7 @@ For a definitions-only source file:
 
 ```k
 -- defs.k
-nat = ?< {} zero, N succ > = N;
+nat? = ?< {} zero, N succ > = N;
 succ = |succ;
 ```
 

@@ -7,8 +7,8 @@ A schema in `k` describes a set of finite labeled trees, which can be recognized
 For example, the recursive schema of a `list`:
 
 ```k-lang
-bool = ?< {} true, {} false >;
-list = ?< {} nil, { < {} true, {} false > head, L tail } cons > = L;
+bool? = ?< {} true, {} false >;
+list? = ?< {} nil, { < {} true, {} false > head, L tail } cons > = L;
 ```
 
 corresponds to the following 4-rule grammar:
@@ -44,7 +44,7 @@ Each schema structure introduces one or more *states* in the automaton. A union 
 For example, consider the `bool` schema:
 
 ```k-lang
-bool = ?< {} true, {} false >;
+bool? = ?< {} true, {} false >;
 ```
 
 This schema translates to an automaton with two states:
@@ -88,7 +88,7 @@ This traversal produces a unique and deterministic numbering for any finite dire
 For a schema representing binary natural numbers:
 
 ```k-lang
-bnat = ?< Bnat 0, Bnat 1, {} _ > = Bnat;
+bnat? = ?< Bnat 0, Bnat 1, {} _ > = Bnat;
 ```
 
 the canonical automaton form is:

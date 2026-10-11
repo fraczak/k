@@ -49,7 +49,7 @@ set of pairwise distinct labels `l1, l2, ..., ln`:
 - Variant values are constructed using "|" (pipe) followed by the tag:
   - Unit variant: `{} | nil`, `{} | zero`
   - Variant with payload `v` at tag: `v | tag`
-- Example (list): with `list = ?< {} nil, { X car, L cdr } cons > = L;`:
+- Example (list): with `list? = ?< {} nil, { X car, L cdr } cons > = L;`:
   - Empty list `[]`: `{} | nil`
   - Singleton `[v]`: `{ v car, {} | nil cdr } | cons`
 - Angle brackets `< ... >` denote ordered choice (union expressions); use
@@ -202,14 +202,14 @@ The contract derivation steps are:
 #### Example 1
 
 ```text
-bit = ?< {} o, {} i >;
+bit? = ?< {} o, {} i >;
 bit0 = | o;
 bit1 = | i;
 
-byte = ?{ bit b0, bit b1, bit b2, bit b3 };
+byte? = ?{ bit? b0, bit? b1, bit? b2, bit? b3 };
 zero = bit0 { () b0, () b1, () b2, () b3 };
 
-inc = byte
+inc = byte?
    <
       { bit0 overflown,  { .b0 /o bit1 b0, .b1  b1,  .b2 b2,  .b3 b3 } byte }, 
       { bit0 overflown,  { bit0 b0, .b1 /o bit1 b1,  .b2 b2,  .b3 b3 } byte },
@@ -347,7 +347,7 @@ conversion via `5 int`.
 Bit trees are defined algebraically:
 
 ```text
-bits = ?< {} _, B 0, B 1 > = B;
+bits? = ?< {} _, B 0, B 1 > = B;
 ```
 
 ### Literals for `@bits` are:

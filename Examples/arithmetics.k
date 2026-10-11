@@ -3,7 +3,7 @@ swap_yes_no = < /yes |no, /no |yes >;
 yes = {}|yes;
 no = yes swap_yes_no;
 
-bits = ?< {} _, bits 0, bits 1 > = bits;
+bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
 
 0b = {} | _;
 -- |1 = | 1;
@@ -64,7 +64,7 @@ GT = {inOrder /no if, () then} . then;
 EQ = {inOrder /yes if, {.x y, .y x} inOrder /yes and, () then} .then;
 
 --------------------------------------
-int = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" >;
+int? = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" >;
 
 remove_leading_zeros = <
   /0 remove_leading_zeros, 

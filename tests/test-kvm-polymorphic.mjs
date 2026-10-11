@@ -91,8 +91,8 @@ console.log("==> Starting Polymorphic kVM & Specialization Tests");
 // Test 3: Type Error on Envelope Mismatch
 {
   const script = `
-    check = ?< {} true, {} false >;
-    check
+    check? = ?< {} true, {} false >;
+    check?
   `;
   const obj = decodeObject(compileObjectBuffer(script));
   const kvmArtifact = objectToKVMArtifact(obj);

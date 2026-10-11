@@ -1,17 +1,17 @@
 -- core.k — the k standard core library
 --
 -- Defines:
---   1. bits — canonical binary number / bit-path relation
---   2. string — unicode strings relation (used for labels)
---   3. pattern — pattern graph relation
+--   1. bits? — canonical binary number / bit-path relation
+--   2. string? — unicode strings relation (used for labels)
+--   3. pattern? — pattern graph relation
 
 ---------------------------------------------------------------
 -- §1. Bits
 ---------------------------------------------------------------
 
-bit = ?< {} 0, {} 1 >;
+bit? = ?< {} 0, {} 1 >;
 
-bits = ?< {} _, bits 0, bits 1 > = bits;
+bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
 
 _ = {}|_;
 
@@ -22,7 +22,7 @@ _ = {}|_;
 -- §2. Unicode and String
 ---------------------------------------------------------------
 
-string = ? <
+string? = ? <
   {} nil,
   {
     <
@@ -82,7 +82,7 @@ string = ? <
 -- to decode any value, first decode a pattern under that constant,
 -- then decode the value under the pattern just obtained.
 
-pattern = ? <
+pattern? = ? <
   {} nil,
   {
     <
@@ -150,4 +150,4 @@ pattern = ? <
   } cons
 > = Pattern;
 
-pattern
+pattern?

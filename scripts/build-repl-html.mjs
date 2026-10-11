@@ -1888,8 +1888,8 @@ const htmlContent = `<!DOCTYPE html>
               <li><code>{} | ok</code> &mdash; Constant relation producing variant <code>ok</code> with empty document payload <code>{}</code></li>
               <li><code>not = &lt; / true | false, / false | true &gt;;</code> &mdash; Polymorphic negation via branch projections and ordered choice</li>
               <li><code>{} | true not</code> &mdash; Compose constant relation <code>{} | true</code> with <code>not</code> (evaluates to <code>{} | false</code>)</li>
-              <li><code>bool = ?&lt; {} true, {} false &gt;;</code> &mdash; Define a boolean pattern filter relation</li>
-              <li><code>not = bool ?X &lt; / true | false, {} | true &gt; ?X;</code> &mdash; Filtered boolean negation: guarded by <code>bool</code>, defaulting to <code>{} | true</code></li>
+              <li><code>bool? = ?&lt; {} true, {} false &gt;;</code> &mdash; Define a boolean pattern filter relation</li>
+              <li><code>not = bool? ?X &lt; / true | false, {} | true &gt; ?X;</code> &mdash; Filtered boolean negation: guarded by <code>bool?</code>, defaulting to <code>{} | true</code></li>
               <li><code>swap = { . y x, . x y };</code> &mdash; Define a product field-swapping relation</li>
               <li><code>{ {} | ok x, {} | nil y } swap</code> &mdash; Construct a product and pass it through <code>swap</code></li>
             </ul>

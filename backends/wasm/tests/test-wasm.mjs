@@ -443,11 +443,11 @@ console.log("==> Running End-to-End Peano Addition & Serialization Tests");
   const runtimeWat = fs.readFileSync("runtime.wat", "utf8");
 
   const script = `
-    nat = ?< {} 0, nat +1 >;
-    0 = {} | 0 nat;
-    inc = | +1 nat;
-    dec = nat / +1;
-    add = ?{ nat x, nat y } = X <
+    nat? = ?< {} 0, nat? +1 >;
+    0 = {} | 0 nat?;
+    inc = | +1 nat?;
+    dec = nat? / +1;
+    add = ?{ nat? x, nat? y } = X <
       { . x dec x, . y inc y } ?X add,
       . y
     >;

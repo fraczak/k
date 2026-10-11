@@ -1,6 +1,6 @@
 -- Standard binary encoding of natural numbers
 
-bnat = ?< {} _, bnat 0, bnat 1 > = bnat;
+bnat? = ?< {} _, bnat? 0, bnat? 1 > = bnat?;
 
 _ = {}|_;
 _1 = |1;

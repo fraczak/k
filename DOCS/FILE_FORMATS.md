@@ -398,9 +398,9 @@ In `k`, there are no primitive numerical types or built-in integer
 literals. Identifiers such as `5` or `10` are not language keywords;
 they are defined relations (aliases) in `Examples/arithmetics.k`:
 - `5` and `10` are nullary relations (constants) of type `{} -> bits`,
-  defined as binary digit trees over `bits = ?< {} _, bits 0, bits 1 > = bits;`.
+  defined as binary digit trees over `bits? = ?< {} _, bits? 0, bits? 1 > = bits?;`.
 - Arithmetic operations (`plus`, `minus`, `times`, `inc`) operate on
-  signed integers (`int = < <bits 0, bits 1, {} _>=bits "+", bits "-" >`).
+  signed integers (`int? = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" >`).
 - Passing a bit-representation like `5` to an integer relation requires
   applying the `int` constructor (`5 int`), producing a constant
   relation of type `{} -> int`.

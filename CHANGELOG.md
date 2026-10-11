@@ -18,6 +18,12 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     memory layout (`tagId` at header slots).
   - Resolved polymorphic list and open product projection alignment across
     LLVM, WASM, and Web REPL.
+- **Filter Relation Naming Convention (`?` Suffix)**:
+  - Standardized naming convention for all filter and schema relations to use
+    the `?` suffix (e.g. `int?`, `bits?`, `bit?`, `string?`, `pattern?`,
+    `bnat?`, `nat?`, `bool?`, matching `list?`).
+  - Separated integer filter schema `int? = ?<...>` from constructor
+    `int = nat | '+'` in `Examples/arithmetics.k`, removing symbol collision.
 
 ## [7.0.0] — 2026-10-10 — Unified Schemas, Relational Contracts, and Pure Syntax
 

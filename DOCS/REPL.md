@@ -58,7 +58,7 @@ Examples:
 ```
 
 ```k
-> bool = ?<{} true, {} false>;
+> bool? = ?<{} true, {} false>;
 ```
 
 ```k
@@ -147,7 +147,7 @@ aliases, and metadata into the session. Aliases are recovered from
 
 In `k`, there are no primitive numbers or built-in numerical literals.
 Values such as integers are represented as algebraic bit trees (e.g.
-`bits = ?< {} _, B 0, B 1 > = B;`).
+`bits? = ?< {} _, B 0, B 1 > = B;`).
 
 A codec translates between external text and enveloped *k* values:
 - `parse(text)`: parses an external string into an enveloped *k* value.
@@ -309,7 +309,7 @@ Evaluated values print in k syntax together with the inferred envelope:
 ## Example Session
 
 ```text
-> nat = ?< {} 0, N +1 > = N;
+> nat? = ?< {} 0, N +1 > = N;
 > inc = | +1;
 > {} | 0
 {}|0 ?<{} 0, ...>
