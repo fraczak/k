@@ -41,19 +41,29 @@ The architecture bridges two fundamental physical data representations:
     - Demand-driven **Spine Promotion**: materializing only the immediate
       outer product spine into an arena node with child pointers remaining
       as serialized wire slices.
-- **TDD Test Suite Planned**:
-  - Initial suite created in `tests/test-polymorphic-tdd.mjs`.
-  - Targets 5 orthogonal polymorphic patterns:
+- **TDD Test Suite Planned & Implemented**:
+  - Initial suite created in `tests/test-polymorphic-tdd.mjs` (all 6 tests passing).
+  - Targets 6 orthogonal polymorphic patterns:
     1. Filtered Search (`search`): Opaque payload preservation & non-linear
        condition testing.
-    2. Field Update (`toggle_flag`): Open product modification while
-       preserving untouched field slices.
-    3. Dual-Stream Zip (`zip`): Concurrent polymorphic streams with
-       independent schemas.
-    4. Multi-Variant Dispatch (`extract_id`): Variable byte offsets for
-       a common field across distinct union branches.
-    5. Tree Branching (`tree_lookup`): Non-linear recursion over nested
-       structures.
+    2. Search with Field Reordering: Varied syntax and memory ordering.
+    3. Boundary Cases: Empty lists, zero matches, all match.
+    4. Multi-Variant Dispatch (`extract_id`): Variable byte offsets across variants.
+    5. Dual-Stream Zip (`zip`): Concurrent independent polymorphic streams.
+    6. Polymorphic Reverse (`poly_rev`): Accumulator and spine reconstruction.
+
+### 2026-10-12: State-Indexed Access Table (`access-table.mjs`)
+
+- **Algorithm Implemented (`buildAccessTable`)**:
+  - Implemented in `access-table.mjs`.
+  - Maps any input value schema $S$ to a function's structural access profile $P$.
+  - Generates a state-indexed table of `NodeDescriptor` entries:
+    - Products: maps logical field slots to physical slots, byte offsets, and child states.
+    - Unions: maps physical discriminators to branch indices and child states.
+  - Zero runtime string lookups; single-array-load machine instruction dispatch.
+- **Unit Verification (`tests/test-access-table.mjs`)**:
+  - All tests passing: verifies offset calculation for `search` and `extract_id`.
+  - Simulates in-memory payload navigation with zero string comparisons.
 
 ---
 
@@ -62,8 +72,10 @@ The architecture bridges two fundamental physical data representations:
 - [x] Branch creation (`transducer`)
 - [x] Execution model & duality analysis documented
 - [x] Initialize `JOURNAL.md`
-- [ ] Create `tests/test-polymorphic-tdd.mjs` test harness
-- [ ] Establish evaluator & kVM baseline passes
+- [x] Create `tests/test-polymorphic-tdd.mjs` test harness (passing)
+- [x] Establish evaluator & kVM baseline passes
+- [x] Design & implement `buildAccessTable` algorithm (`access-table.mjs`)
+- [x] Create `tests/test-access-table.mjs` test suite (passing)
 - [ ] Prototype `KVal` fat-pointer representation
 - [ ] Implement Spine Promotion primitive
-- [ ] Implement Layout Witness & Transducer dispatch
+- [ ] Implement Layout Witness & Transducer dispatch in kVM
