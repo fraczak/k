@@ -27,3 +27,13 @@ export {
   isIdentityIntrinsic,
   unsupportedIntrinsic
 } from "./intrinsics.mjs";
+export { buildAccessTable, AccessTable } from "./access-table.mjs";
+export {
+  PKIR_FORMAT,
+  PKIR_VERSION,
+  compileRelationToPKIR,
+  executePKIR,
+  specializePKIR,
+  valueToKVal,
+  kvalToValue
+} from "./pkir.mjs";

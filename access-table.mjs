@@ -110,13 +110,22 @@ function toPropertyList(patternOrGraph) {
   }
   if (patternOrGraph?.patterns?.nodes) {
     // TypePatternGraph from KIR / KVM
-    return patternOrGraph.patterns.nodes.map((node) => {
+    return patternOrGraph.patterns.nodes.map((node, nodeIdx) => {
       let kind = "any";
       if (node.pattern === "{}") kind = "closed-product";
       else if (node.pattern === "{...}") kind = "open-product";
       else if (node.pattern === "<>") kind = "closed-union";
       else if (node.pattern === "<...>") kind = "open-union";
-      const edges = (node.fields || []).map((f, i) => [f, i]);
+      const edgeMap = patternOrGraph.edges?.[nodeIdx] || {};
+      const edges = (node.fields || []).map((f) => {
+        const dest = edgeMap[f];
+        const target = Array.isArray(dest)
+          ? dest[0]
+          : typeof dest === "object" && dest !== null
+            ? Object.values(dest)[0]
+            : (dest ?? 0);
+        return [f, target];
+      });
       return [kind, edges];
     });
   }
@@ -141,9 +150,12 @@ export function buildAccessTable(schema, pattern, options = {}) {
   const stateCount = sList.length;
   const descriptors = new Array(stateCount);
 
+  const schemaRoot = options.schemaRoot ?? 0;
+  const patternRoot = options.patternRoot ?? 0;
+
   // Simulation worklist: pairs of [stateInS, stateInP]
   const visited = new Set();
-  const worklist = [[0, 0]];
+  const worklist = [[schemaRoot, patternRoot]];
 
   while (worklist.length > 0) {
     const [sId, pId] = worklist.shift();
@@ -327,5 +339,5 @@ export function buildAccessTable(schema, pattern, options = {}) {
     }
   }
 
-  return new AccessTable(descriptors, 0, wordSize);
+  return new AccessTable(descriptors, schemaRoot, wordSize);
 }
