@@ -816,11 +816,32 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
           storeI64At(ctx, product, K_VALUE_PRODUCT_CAPACITY_OFFSET, N);
           storePtrAt(ctx, product, K_VALUE_PRODUCT_FIELDS_OFFSET, fields);
 
-          const sortedFields = [...fieldValues].sort((a, b) => {
-            if (a.label < b.label) return -1;
-            if (a.label > b.label) return 1;
-            return 0;
-          });
+          let sortedFields;
+          if (Array.isArray(inst.pattern) && inst.pattern.length > 0) {
+            const root = inst.pattern[0];
+            if (
+              (root[0] === "open-product" ||
+                root[0] === "closed-product") &&
+              Array.isArray(root[1])
+            ) {
+              const order = new Map(root[1].map(([l], i) => [l, i]));
+              sortedFields = [...fieldValues].sort((a, b) => {
+                const aI = order.has(a.label)
+                  ? order.get(a.label)
+                  : 999999;
+                const bI = order.has(b.label)
+                  ? order.get(b.label)
+                  : 999999;
+                if (aI !== bI) return aI - bI;
+                return a.label.localeCompare(b.label);
+              });
+            }
+          }
+          if (!sortedFields) {
+            sortedFields = [...fieldValues].sort((a, b) =>
+              a.label.localeCompare(b.label)
+            );
+          }
 
           for (let sIdx = 0; sIdx < N; sIdx++) {
             const { label: fLabel, val: fVal } = sortedFields[sIdx];
@@ -839,7 +860,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
           const uInput = getReg(inst.src);
 
           if (!isTopLevel) {
-            // Nested union: synthesize a helper function @k_union_expr_${index}
+            // Nested union: synthesize helper @k_union_expr_${index}
             const exprIndex = moduleCtx.unionExprIndex++;
             const exprName = `@k_union_expr_${exprIndex}`;
             const exprFunc = {
@@ -864,7 +885,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
             break;
           }
 
-          // Top-level union: synthesize arm functions @k_union_arm_${index}
+          // Top-level union: synthesize arms @k_union_arm_${index}
           const mark = lowerRtMark(ctx);
           const unionDone = ctx.blockName("union_done");
           const N = inst.branches.length;

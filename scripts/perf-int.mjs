@@ -63,6 +63,8 @@ across Native JS, kVM interpreter, LLVM, and Wasm backends.
 Options:
   --wasm-in-process
       Run WebAssembly in-process instead of persistent subprocess runner.
+  --squaring-llvm-only
+      Run squaring benchmark on LLVM only.
   -h, --help
       Show this help message and exit.
 
@@ -75,6 +77,8 @@ Environment Variables:
       Run only WebAssembly backend ('1' to enable).
   BACKENDS_ONLY
       Skip JS and kVM interpreter baselines ('1' to enable).
+  SQUARING_LLVM_ONLY
+      Run squaring benchmark on LLVM only ('1' to enable).
   INPUTS
       Comma-separated integer strings to benchmark.
   ITERATIONS
@@ -112,11 +116,12 @@ if (process.argv.includes("-h") || process.argv.includes("--help")) {
 
 // Backend selection
 const backendsEnv = process.env.BACKENDS?.toLowerCase();
-const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";
-const wasmOnly = process.env.WASM_ONLY === "1" || backendsEnv === "wasm";
+const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm" || process.argv.includes("--llvm-only");
+const wasmOnly = process.env.WASM_ONLY === "1" || backendsEnv === "wasm" || process.argv.includes("--wasm-only");
 const runLLVM = !wasmOnly;
 const runWasm = !llvmOnly;
 const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1");
+const squaringLlvmOnly = llvmOnly || process.env.SQUARING_LLVM_ONLY === "1" || process.argv.includes("--squaring-llvm-only");
 
 const ops = ["plus", "minus", "times"];
 const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
@@ -496,10 +501,10 @@ console.log(`Conformance validation: ${validationSummary.join(", ")} cases match
 if (runLLVM && shouldStrictFail(testSuite)) process.exitCode = 1;
 if (runWasm && testSuite.some(tc => tc.wasmConformance !== "ok")) process.exitCode = 1;
 
-// =========================================================================
+// =======================================================================
 // Squaring Scale & Memory Profiling Benchmark
-// Expression: s = {()x,()y}times; 987654321 s s s s s s s s s s
-// =========================================================================
+// Expressions: s = {()x,()y}times; and s = {()x,()y}karatsuba;
+// =======================================================================
 
 function countBitsValue(val) {
   let count = 0;
@@ -538,170 +543,214 @@ const squaringInputText = process.env.SQUARING_INPUT || "987654321";
 const squaringStepTimeoutMs = parsePositiveIntEnv("SQUARING_STEP_TIMEOUT_MS", 60000);
 
 console.log("\n=================== SQUARING SCALE & MEMORY BENCHMARK ===================");
-console.log(`Expression: s = {()x,()y}times; ${squaringInputText} ${"s ".repeat(squaringSteps).trim()}`);
-console.log(`Evaluation: ${squaringSteps} successive squarings doubling bit length each step`);
+console.log(`Algorithms: times vs karatsuba (${squaringSteps} successive squarings doubling bit length)`);
 
-await evaluateInput("s = {()x,()y}times;", state);
-codes.load(state.codes);
-const sRel = prepareRelation(state, "s", {
-  source: `${arithmeticsLibrarySource}\ns = {()x,()y}times;\ns`,
-  sourceLabel: "@fraczak/k/Examples/arithmetics.k#s"
-});
+// Load and initialize Karatsuba multiplication relation
+const karatsubaPath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/karatsuba-mult.k"));
+const karatsubaSource = fs.readFileSync(karatsubaPath, "utf8");
+const karatsubaLibrarySource = karatsubaSource.replace(/\s*\(\)\s*$/, "\n");
+const stateKara = createState();
+await evaluateInput(`:load ${karatsubaPath}`, stateKara);
+codes.load(stateKara.codes);
 
 const sInitialVal = intValue(squaringInputText);
 const { inputWire: sInitWire, inputPattern: sInputPattern } = wireInput(sInitialVal);
 
-// Build executables for persistent servers
-let sLlvmServer = null;
-if (runLLVM) {
-  const sLlvmCompiled = tryCompileCase({
-    object: sRel.object,
-    relationName: sRel.relationName,
-    relHash: sRel.relHash,
-    inputPattern: sInputPattern,
-    cacheDir,
-    sourceLabel: "@fraczak/k/Examples/arithmetics.k#s"
-  });
-  if (sLlvmCompiled.status === "ok") {
-    sLlvmServer = new PersistentExecutable(sLlvmCompiled.exePath);
+const squaringAlgos = [
+  {
+    id: "times",
+    name: "times",
+    title: "Long Multiplication (times)",
+    expr: "s = {()x,()y}times;",
+    librarySource: arithmeticsLibrarySource,
+    sourceLabel: "@fraczak/k/Examples/arithmetics.k#s",
+    state: state,
+    relName: "s"
+  },
+  {
+    id: "karatsuba",
+    name: "karatsuba",
+    title: "Karatsuba Multiplication (karatsuba)",
+    expr: "s = {()x,()y}karatsuba;",
+    librarySource: karatsubaLibrarySource,
+    sourceLabel: "@fraczak/k/Examples/karatsuba-mult.k#s",
+    state: stateKara,
+    relName: "s"
   }
-}
+];
 
-let sWasmServer = null;
-if (runWasm) {
-  try {
-    const sWasmPath = path.join(cacheDir, "perf_int_wasm_s.wasm");
-    const sWasmExe = path.join(cacheDir, "perf_int_wasm_s.exe");
-    const wasmBuf = await compileWasmArtifactFromObject(sRel.object, { entry: "__main__" });
-    fs.writeFileSync(sWasmPath, wasmBuf);
-    const runBin = fileURLToPath(import.meta.resolve("../backends/wasm/bin/k-wasm-run.mjs"));
-    fs.writeFileSync(sWasmExe, `#!/bin/sh\nexec node "${runBin}" "${sWasmPath}" "$@"\n`, { mode: 0o755 });
-    sWasmServer = new PersistentExecutable(sWasmExe);
-  } catch (e) {
-    console.log("Failed to build Wasm executable for 's':", e.message);
+// Build executables for persistent servers
+for (const algo of squaringAlgos) {
+  await evaluateInput(algo.expr, algo.state);
+  codes.load(algo.state.codes);
+  algo.rel = prepareRelation(algo.state, algo.relName, {
+    source: `${algo.librarySource}\n${algo.expr}\n${algo.relName}`,
+    sourceLabel: algo.sourceLabel
+  });
+
+  algo.llvmServer = null;
+  if (runLLVM) {
+    const sLlvmCompiled = tryCompileCase({
+      object: algo.rel.object,
+      relationName: algo.rel.relationName,
+      relHash: algo.rel.relHash,
+      inputPattern: sInputPattern,
+      cacheDir,
+      sourceLabel: algo.sourceLabel
+    });
+    if (sLlvmCompiled.status === "ok") {
+      algo.llvmServer = new PersistentExecutable(sLlvmCompiled.exePath);
+    }
   }
+
+  algo.wasmServer = null;
+  if (runWasm && !squaringLlvmOnly) {
+    try {
+      const sWasmPath = path.join(cacheDir, `perf_int_wasm_${algo.id}.wasm`);
+      const sWasmExe = path.join(cacheDir, `perf_int_wasm_${algo.id}.exe`);
+      const wasmBuf = await compileWasmArtifactFromObject(algo.rel.object, { entry: "__main__" });
+      fs.writeFileSync(sWasmPath, wasmBuf);
+      const runBin = fileURLToPath(import.meta.resolve("../backends/wasm/bin/k-wasm-run.mjs"));
+      fs.writeFileSync(sWasmExe, `#!/bin/sh\nexec node "${runBin}" "${sWasmPath}" "$@"\n`, { mode: 0o755 });
+      algo.wasmServer = new PersistentExecutable(sWasmExe);
+    } catch (e) {
+      console.log(`Failed to build Wasm executable for '${algo.id}':`, e.message);
+    }
+  }
+
+  algo.results = {};
 }
 
 const squaringLanes = [];
-if (runBaselines) {
+if (runBaselines && !squaringLlvmOnly) {
   squaringLanes.push({ id: "jsAware", name: "Native JS (Aware)", type: "jsAware", memLabel: "heap" });
   squaringLanes.push({ id: "jsFree", name: "Native JS (Free)", type: "jsFree", memLabel: "heap" });
   squaringLanes.push({ id: "kvm", name: "kVM (Env-Free)", type: "kvm", memLabel: "heap" });
 }
-if (runLLVM && sLlvmServer) {
-  squaringLanes.push({ id: "llvm", name: llvmLaneName(), type: "persistent", server: sLlvmServer, memLabel: "peak RSS" });
+if (runLLVM) {
+  squaringLanes.push({ id: "llvm", name: llvmLaneName(), type: "persistent", memLabel: "peak RSS" });
 }
-if (runWasm && sWasmServer) {
-  squaringLanes.push({ id: "wasm", name: wasmLaneName(), type: "persistent", server: sWasmServer, memLabel: "peak RSS" });
+if (runWasm && !squaringLlvmOnly) {
+  squaringLanes.push({ id: "wasm", name: wasmLaneName(), type: "persistent", memLabel: "peak RSS" });
 }
 
-const squaringResults = {};
-for (const lane of squaringLanes) squaringResults[lane.id] = [];
+for (const algo of squaringAlgos) {
+  for (const lane of squaringLanes) {
+    algo.results[lane.id] = [];
+  }
+}
 const stepMetadata = [];
 
 try {
   // 1. Persistent child processes (Wasm, LLVM)
   for (const lane of squaringLanes.filter(l => l.type === "persistent")) {
-    console.log(`==> Running ${lane.name} squaring lane...`);
-    let curWire = sInitWire;
-    for (let step = 1; step <= squaringSteps; step++) {
-      try {
-        const t0 = performance.now();
-        curWire = await lane.server.request(curWire);
-        const t1 = performance.now();
-        const timeMs = t1 - t0;
-        const mem = getProcessMemory(lane.server.child.pid);
-        squaringResults[lane.id].push({ status: "ok", timeMs, memMb: mem.peakRssMb, wire: curWire });
-        if (!stepMetadata[step - 1]) {
-          stepMetadata[step - 1] = {
-            wireLen: curWire.length,
-            bits: null,
-            canonicalWire: curWire
-          };
+    for (const algo of squaringAlgos) {
+      const server = lane.id === "llvm" ? algo.llvmServer : algo.wasmServer;
+      if (!server) continue;
+      console.log(`==> Running ${lane.name} squaring [${algo.name}]...`);
+      let curWire = sInitWire;
+      for (let step = 1; step <= squaringSteps; step++) {
+        try {
+          const t0 = performance.now();
+          curWire = await server.request(curWire);
+          const t1 = performance.now();
+          const timeMs = t1 - t0;
+          const mem = getProcessMemory(server.child.pid);
+          algo.results[lane.id].push({ status: "ok", timeMs, memMb: mem.peakRssMb, wire: curWire });
+          if (!stepMetadata[step - 1]) {
+            stepMetadata[step - 1] = {
+              wireLen: curWire.length,
+              bits: null,
+              canonicalWire: curWire
+            };
+          }
+          if (timeMs > squaringStepTimeoutMs) break;
+        } catch (e) {
+          algo.results[lane.id].push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
+          break;
         }
-        if (timeMs > squaringStepTimeoutMs) break;
-      } catch (e) {
-        squaringResults[lane.id].push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
-        break;
       }
     }
   }
 
   // 2. In-process baselines (JS Aware, JS Free, kVM)
-  if (runBaselines) {
-    // JS Aware
-    console.log("==> Running Native JS (Envelope-Aware) squaring lane...");
-    let curValAware = sInitialVal;
-    run.defs = state;
-    for (let step = 1; step <= squaringSteps; step++) {
-      try {
-        const t0 = performance.now();
-        curValAware = run(codes.find, sRel.relDef.def, curValAware, sRel.relDef.typePatternGraph);
-        const t1 = performance.now();
-        const timeMs = t1 - t0;
-        const mem = getNodeMemory();
-        squaringResults.jsAware.push({ status: "ok", timeMs, memMb: mem.heapMb, value: curValAware });
-        if (stepMetadata[step - 1] && stepMetadata[step - 1].bits == null) {
-          stepMetadata[step - 1].bits = countBitsValue(curValAware);
+  if (runBaselines && !squaringLlvmOnly) {
+    for (const algo of squaringAlgos) {
+      // JS Aware
+      console.log(`==> Running Native JS (Aware) squaring [${algo.name}]...`);
+      let curValAware = sInitialVal;
+      run.defs = algo.state;
+      for (let step = 1; step <= squaringSteps; step++) {
+        try {
+          const t0 = performance.now();
+          curValAware = run(codes.find, algo.rel.relDef.def, curValAware, algo.rel.relDef.typePatternGraph);
+          const t1 = performance.now();
+          const timeMs = t1 - t0;
+          const mem = getNodeMemory();
+          algo.results.jsAware.push({ status: "ok", timeMs, memMb: mem.heapMb, value: curValAware });
+          if (stepMetadata[step - 1] && stepMetadata[step - 1].bits == null) {
+            stepMetadata[step - 1].bits = countBitsValue(curValAware);
+          }
+          if (timeMs > squaringStepTimeoutMs) break;
+        } catch (e) {
+          algo.results.jsAware.push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
+          break;
         }
-        if (timeMs > squaringStepTimeoutMs) break;
-      } catch (e) {
-        squaringResults.jsAware.push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
-        break;
       }
-    }
 
-    // JS Free
-    console.log("==> Running Native JS (Envelope-Free) squaring lane...");
-    let curValFree = sInitialVal;
-    run_converged.defs = state;
-    for (let step = 1; step <= squaringSteps; step++) {
-      try {
-        const t0 = performance.now();
-        curValFree = run_converged(codes.find, sRel.relDef.def, curValFree, sRel.relDef.typePatternGraph);
-        const t1 = performance.now();
-        const timeMs = t1 - t0;
-        const mem = getNodeMemory();
-        squaringResults.jsFree.push({ status: "ok", timeMs, memMb: mem.heapMb, value: curValFree });
-        if (stepMetadata[step - 1] && stepMetadata[step - 1].bits == null) {
-          stepMetadata[step - 1].bits = countBitsValue(curValFree);
+      // JS Free
+      console.log(`==> Running Native JS (Free) squaring [${algo.name}]...`);
+      let curValFree = sInitialVal;
+      run_converged.defs = algo.state;
+      for (let step = 1; step <= squaringSteps; step++) {
+        try {
+          const t0 = performance.now();
+          curValFree = run_converged(codes.find, algo.rel.relDef.def, curValFree, algo.rel.relDef.typePatternGraph);
+          const t1 = performance.now();
+          const timeMs = t1 - t0;
+          const mem = getNodeMemory();
+          algo.results.jsFree.push({ status: "ok", timeMs, memMb: mem.heapMb, value: curValFree });
+          if (stepMetadata[step - 1] && stepMetadata[step - 1].bits == null) {
+            stepMetadata[step - 1].bits = countBitsValue(curValFree);
+          }
+          if (timeMs > squaringStepTimeoutMs) break;
+        } catch (e) {
+          algo.results.jsFree.push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
+          break;
         }
-        if (timeMs > squaringStepTimeoutMs) break;
-      } catch (e) {
-        squaringResults.jsFree.push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
-        break;
       }
-    }
 
-    // kVM
-    console.log("==> Running kVM Interpreter (Env-Free) squaring lane...");
-    let curValKvm = sInitialVal;
-    const kvmContext = { rels: state.rels, findCode: codes.find, options: { envelopeFree: true } };
-    for (let step = 1; step <= squaringSteps; step++) {
-      try {
-        const t0 = performance.now();
-        curValKvm = executeKVM(sRel.kvmFunc, curValKvm, kvmContext);
-        const t1 = performance.now();
-        const timeMs = t1 - t0;
-        const mem = getNodeMemory();
-        squaringResults.kvm.push({ status: "ok", timeMs, memMb: mem.heapMb, value: curValKvm });
-        if (stepMetadata[step - 1] && stepMetadata[step - 1].bits == null) {
-          stepMetadata[step - 1].bits = countBitsValue(curValKvm);
+      // kVM
+      console.log(`==> Running kVM Interpreter squaring [${algo.name}]...`);
+      let curValKvm = sInitialVal;
+      const kvmContext = { rels: algo.state.rels, findCode: codes.find, options: { envelopeFree: true } };
+      for (let step = 1; step <= squaringSteps; step++) {
+        try {
+          const t0 = performance.now();
+          curValKvm = executeKVM(algo.rel.kvmFunc, curValKvm, kvmContext);
+          const t1 = performance.now();
+          const timeMs = t1 - t0;
+          const mem = getNodeMemory();
+          algo.results.kvm.push({ status: "ok", timeMs, memMb: mem.heapMb, value: curValKvm });
+          if (stepMetadata[step - 1] && stepMetadata[step - 1].bits == null) {
+            stepMetadata[step - 1].bits = countBitsValue(curValKvm);
+          }
+          if (timeMs > squaringStepTimeoutMs) break;
+        } catch (e) {
+          algo.results.kvm.push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
+          break;
         }
-        if (timeMs > squaringStepTimeoutMs) break;
-      } catch (e) {
-        squaringResults.kvm.push({ status: "failed", error: e.message?.split("\n")[0] || String(e) });
-        break;
       }
     }
   }
-
 } finally {
-  if (sWasmServer) sWasmServer.close();
-  if (sLlvmServer) sLlvmServer.close();
+  for (const algo of squaringAlgos) {
+    if (algo.wasmServer) algo.wasmServer.close();
+    if (algo.llvmServer) algo.llvmServer.close();
+  }
 }
 
-// For any remaining steps without bit counts, decode canonicalWire safely to get bits:
+// For any remaining steps without bit counts, decode canonicalWire safely
 for (let step = 1; step <= squaringSteps; step++) {
   const meta = stepMetadata[step - 1];
   if (meta && meta.bits == null && meta.canonicalWire) {
@@ -713,87 +762,158 @@ for (let step = 1; step <= squaringSteps; step++) {
 }
 
 // Display results table
-console.log("\n======================== SQUARING SCALING & MEMORY BENCHMARK ========================");
-console.log(`Expression: s = {()x,()y}times; ${squaringInputText} ${"s ".repeat(squaringSteps).trim()}`);
-console.log(`Initial: ${squaringInputText} (${countBitsValue(sInitialVal)} bits)`);
-console.log("----------------------------------------------------------------------------------------------------------------------------------");
-const headerCols = ["Step", "Bits", "Wire(B)", ...squaringLanes.map(l => `${l.name} (${l.memLabel})`)];
-const colWidths = [4, 6, 7, ...squaringLanes.map(l => Math.max(22, l.name.length + l.memLabel.length + 5))];
-console.log(headerCols.map((h, i) => i < 3 ? h.padStart(colWidths[i]) : h.padEnd(colWidths[i])).join(" | "));
-console.log(colWidths.map(w => "-".repeat(w)).join("-|-"));
+const sep130 = "=".repeat(130);
+const line130 = "-".repeat(130);
 
-for (let step = 1; step <= squaringSteps; step++) {
-  const meta = stepMetadata[step - 1] || { bits: "?", wireLen: "?" };
-  const cols = [
-    String(step).padStart(colWidths[0]),
-    String(meta.bits ?? "?").padStart(colWidths[1]),
-    String(meta.wireLen ?? "?").padStart(colWidths[2])
+if (squaringLanes.length === 1 && squaringLanes[0].id === "llvm") {
+  // LLVM Only side-by-side comparison table
+  console.log(`\n${sep130}`);
+  console.log("=================== SQUARING SCALE & ALGORITHM BENCHMARK (LLVM) ===================");
+  console.log(`Algorithms: times vs karatsuba on ${squaringLanes[0].name}`);
+  console.log(`Initial: ${squaringInputText} (${countBitsValue(sInitialVal)} bits)`);
+  console.log(line130);
+
+  const tAlgo = squaringAlgos[0];
+  const kAlgo = squaringAlgos[1];
+  const colW = [4, 6, 7, 34, 34, 15];
+  const hCols = [
+    "Step",
+    "Bits",
+    "Wire(B)",
+    "LLVM times (peak RSS)",
+    "LLVM karatsuba (peak RSS)",
+    "Speedup (T/K)"
   ];
-  for (let li = 0; li < squaringLanes.length; li++) {
-    const lane = squaringLanes[li];
-    const res = squaringResults[lane.id][step - 1];
-    const w = colWidths[3 + li];
-    if (!res) {
-      cols.push("-".padEnd(w));
-    } else if (res.status === "ok") {
-      const t = res.timeMs < 10 ? `${res.timeMs.toFixed(2)}ms` : `${res.timeMs.toFixed(1)}ms`;
-      const m = res.memMb != null ? `${res.memMb}MB` : "";
-      cols.push(`${t} / ${m}`.padEnd(w));
-    } else {
-      let errText = res.error;
-      if (errText.includes("Maximum call stack")) {
-        errText = "Stack overflow (V8)";
-      } else if (errText.includes("status null") || errText.includes("failed with status")) {
-        errText = "Arena limit reached";
-      }
-      cols.push(errText.slice(0, w - 1).padEnd(w));
-    }
-  }
-  console.log(cols.join(" | "));
-}
-console.log("==================================================================================================================================");
+  console.log(hCols.map((h, i) => (i < 3 ? h.padStart(colW[i]) : h.padEnd(colW[i]))).join(" | "));
+  console.log(colW.map(w => "-".repeat(w)).join("-|-"));
 
-// Conformance check across all computed steps
+  for (let step = 1; step <= squaringSteps; step++) {
+    const meta = stepMetadata[step - 1] || { bits: "?", wireLen: "?" };
+    const tRes = tAlgo.results.llvm[step - 1];
+    const kRes = kAlgo.results.llvm[step - 1];
+
+    const formatCell = (res, w) => {
+      if (!res) return "-".padEnd(w);
+      if (res.status === "ok") {
+        const t = res.timeMs < 10 ? `${res.timeMs.toFixed(2)}ms` : `${res.timeMs.toFixed(1)}ms`;
+        const m = res.memMb != null ? `${res.memMb}MB` : "";
+        return `${t} / ${m}`.padEnd(w);
+      }
+      let errText = res.error || "error";
+      if (errText.includes("Maximum call stack")) errText = "Stack overflow (V8)";
+      else if (errText.includes("status null") || errText.includes("failed with status")) errText = "Arena limit reached";
+      return errText.slice(0, w - 1).padEnd(w);
+    };
+
+    let speedupStr = "-";
+    if (tRes?.status === "ok" && kRes?.status === "ok" && kRes.timeMs > 0) {
+      speedupStr = `${(tRes.timeMs / kRes.timeMs).toFixed(2)}x`;
+    }
+
+    const row = [
+      String(step).padStart(colW[0]),
+      String(meta.bits ?? "?").padStart(colW[1]),
+      String(meta.wireLen ?? "?").padStart(colW[2]),
+      formatCell(tRes, colW[3]),
+      formatCell(kRes, colW[4]),
+      speedupStr.padEnd(colW[5])
+    ];
+    console.log(row.join(" | "));
+  }
+  console.log(sep130);
+} else {
+  // Print each algorithm table
+  for (const algo of squaringAlgos) {
+    console.log(`\n${sep130}`);
+    console.log(`=================== SQUARING SCALE: ${algo.title.toUpperCase()} ===================`);
+    console.log(`Expression: ${algo.expr} ${squaringInputText} ${"s ".repeat(squaringSteps).trim()}`);
+    console.log(`Initial: ${squaringInputText} (${countBitsValue(sInitialVal)} bits)`);
+    console.log(line130);
+
+    const headerCols = ["Step", "Bits", "Wire(B)", ...squaringLanes.map(l => `${l.name} (${l.memLabel})`)];
+    const colWidths = [4, 6, 7, ...squaringLanes.map(l => Math.max(22, l.name.length + l.memLabel.length + 5))];
+    console.log(headerCols.map((h, i) => (i < 3 ? h.padStart(colWidths[i]) : h.padEnd(colWidths[i]))).join(" | "));
+    console.log(colWidths.map(w => "-".repeat(w)).join("-|-"));
+
+    for (let step = 1; step <= squaringSteps; step++) {
+      const meta = stepMetadata[step - 1] || { bits: "?", wireLen: "?" };
+      const cols = [
+        String(step).padStart(colWidths[0]),
+        String(meta.bits ?? "?").padStart(colWidths[1]),
+        String(meta.wireLen ?? "?").padStart(colWidths[2])
+      ];
+      for (let li = 0; li < squaringLanes.length; li++) {
+        const lane = squaringLanes[li];
+        const res = algo.results[lane.id][step - 1];
+        const w = colWidths[3 + li];
+        if (!res) {
+          cols.push("-".padEnd(w));
+        } else if (res.status === "ok") {
+          const t = res.timeMs < 10 ? `${res.timeMs.toFixed(2)}ms` : `${res.timeMs.toFixed(1)}ms`;
+          const m = res.memMb != null ? `${res.memMb}MB` : "";
+          cols.push(`${t} / ${m}`.padEnd(w));
+        } else {
+          let errText = res.error;
+          if (errText.includes("Maximum call stack")) {
+            errText = "Stack overflow (V8)";
+          } else if (errText.includes("status null") || errText.includes("failed with status")) {
+            errText = "Arena limit reached";
+          }
+          cols.push(errText.slice(0, w - 1).padEnd(w));
+        }
+      }
+      console.log(cols.join(" | "));
+    }
+    console.log(sep130);
+  }
+}
+
+// Conformance check across all computed steps and algorithms
 let squaringConformanceOk = true;
 for (let step = 1; step <= squaringSteps; step++) {
   const meta = stepMetadata[step - 1];
   if (!meta?.canonicalWire) continue;
-  for (const lane of squaringLanes) {
-    const res = squaringResults[lane.id][step - 1];
-    if (res?.status === "ok") {
-      if (res.wire) {
-        if (Buffer.compare(res.wire, meta.canonicalWire) !== 0) {
-          squaringConformanceOk = false;
-          console.log(`Squaring conformance mismatch on step ${step} (${lane.name})`);
-        }
-      } else if (res.value) {
-        try {
-          const wireVal = decodeWire(meta.canonicalWire).value;
-          if (!safeDeepEqual(res.value, wireVal)) {
+  for (const algo of squaringAlgos) {
+    for (const lane of squaringLanes) {
+      const res = algo.results[lane.id][step - 1];
+      if (res?.status === "ok") {
+        if (res.wire) {
+          if (Buffer.compare(res.wire, meta.canonicalWire) !== 0) {
             squaringConformanceOk = false;
-            console.log(`Squaring conformance mismatch on step ${step} (${lane.name})`);
+            console.log(`Squaring conformance mismatch on step ${step} (${algo.name} / ${lane.name})`);
           }
-        } catch {}
+        } else if (res.value) {
+          try {
+            const wireVal = decodeWire(meta.canonicalWire).value;
+            if (!safeDeepEqual(res.value, wireVal)) {
+              squaringConformanceOk = false;
+              console.log(`Squaring conformance mismatch on step ${step} (${algo.name} / ${lane.name})`);
+            }
+          } catch {}
+        }
       }
     }
   }
 }
 
 console.log("\nSquaring Performance & Scaling Summary:");
-for (const lane of squaringLanes) {
-  const okSteps = squaringResults[lane.id].filter(r => r.status === "ok");
-  const maxStep = okSteps.length;
-  const lastOk = okSteps[okSteps.length - 1];
-  const peakMem = okSteps.reduce((max, r) => Math.max(max, r.memMb || 0), 0);
-  const failureReason = squaringResults[lane.id][maxStep]?.error;
-  let statusDetail = "";
-  if (failureReason) {
-    if (failureReason.includes("Maximum call stack")) statusDetail = " (V8 call stack overflow)";
-    else if (failureReason.includes("status null") || failureReason.includes("failed with status")) statusDetail = " (arena capacity limit reached)";
-    else statusDetail = ` (${failureReason.slice(0, 30)})`;
+for (const algo of squaringAlgos) {
+  console.log(`  Algorithm: ${algo.title}`);
+  for (const lane of squaringLanes) {
+    const okSteps = algo.results[lane.id].filter(r => r.status === "ok");
+    const maxStep = okSteps.length;
+    const lastOk = okSteps[okSteps.length - 1];
+    const peakMem = okSteps.reduce((max, r) => Math.max(max, r.memMb || 0), 0);
+    const failureReason = algo.results[lane.id][maxStep]?.error;
+    let statusDetail = "";
+    if (failureReason) {
+      if (failureReason.includes("Maximum call stack")) statusDetail = " (V8 call stack overflow)";
+      else if (failureReason.includes("status null") || failureReason.includes("failed with status")) statusDetail = " (arena capacity limit reached)";
+      else statusDetail = ` (${failureReason.slice(0, 30)})`;
+    }
+    const timeStr = lastOk ? ` (step ${maxStep} in ${lastOk.timeMs < 10 ? lastOk.timeMs.toFixed(2) : lastOk.timeMs.toFixed(1)}ms)` : "";
+    console.log(`    - ${lane.name.padEnd(32)}: reached Step ${String(maxStep).padStart(2)}/${squaringSteps}${timeStr}, peak ${lane.memLabel}: ${peakMem}MB${statusDetail}`);
   }
-  const timeStr = lastOk ? ` (step ${maxStep} in ${lastOk.timeMs < 10 ? lastOk.timeMs.toFixed(2) : lastOk.timeMs.toFixed(1)}ms)` : "";
-  console.log(`  - ${lane.name.padEnd(32)}: reached Step ${String(maxStep).padStart(2)}/${squaringSteps}${timeStr}, peak ${lane.memLabel}: ${peakMem}MB${statusDetail}`);
 }
 
 if (squaringConformanceOk) {
