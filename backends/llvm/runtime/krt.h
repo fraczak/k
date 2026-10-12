@@ -104,6 +104,7 @@ k_wire_input k_read_wire_envelope(FILE *in, k_rt *rt);
 k_wire_input k_decode_wire_envelope(const unsigned char *bytes, size_t length, k_rt *rt);
 void k_wire_input_free(k_wire_input input);
 int k_pattern_equal(k_pattern *a, k_pattern *b);
+int k_pattern_compatible(k_pattern *a, k_pattern *b);
 k_wire_prefix k_wire_prefix_for_pattern(k_pattern *pattern);
 void k_wire_prefix_free(k_wire_prefix prefix);
 k_value *k_decode_wire_value_with_prefix(const unsigned char *bytes, size_t length, k_wire_prefix *prefix, k_pattern *pattern, k_rt *rt);

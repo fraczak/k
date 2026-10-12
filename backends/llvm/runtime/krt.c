@@ -1489,6 +1489,39 @@ k_value *k_read_wire(FILE *in, k_rt *rt) {
   return value;
 }
 
+static int is_union_kind(int kind) {
+  return kind == KP_OPEN_UNION || kind == KP_CLOSED_UNION;
+}
+
+static int is_product_kind(int kind) {
+  return kind == KP_OPEN_PRODUCT || kind == KP_CLOSED_PRODUCT;
+}
+
+int k_pattern_compatible(k_pattern *a, k_pattern *b) {
+  if (a == b) return 1;
+  if (a == NULL || b == NULL) return 0;
+  if (a->node_count != b->node_count) return 0;
+  for (size_t i = 0; i < a->node_count; i++) {
+    k_pattern_node *left = &a->nodes[i];
+    k_pattern_node *right = &b->nodes[i];
+    if (left->kind != right->kind) {
+      if (!(is_union_kind(left->kind) && is_union_kind(right->kind)) &&
+          !(is_product_kind(left->kind) && is_product_kind(right->kind))) {
+        return 0;
+      }
+    }
+    if (left->edge_count != right->edge_count) return 0;
+    for (size_t j = 0; j < left->edge_count; j++) {
+      if (left->edges[j].target != right->edges[j].target) return 0;
+      if (!bytes_equal(left->edges[j].label, left->edges[j].label_length,
+                       right->edges[j].label, right->edges[j].label_length)) {
+        return 0;
+      }
+    }
+  }
+  return 1;
+}
+
 int k_pattern_equal(k_pattern *a, k_pattern *b) {
   if (a == b) return 1;
   if (a == NULL || b == NULL) return 0;
