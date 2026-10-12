@@ -288,12 +288,12 @@ Export all currently loaded relations and types into a reusable library:
    `make_variant`, `project_variant`, `jump_if_fail`, `call`, and loops).
 
 2. **$1 \times N$ Backend Decoupling:**
-   Rather than having every code generator (LLVM, WebAssembly, ARM64,
-   and the JIT interpreter) independently lower the relational tree and
+   Rather than having every code generator (LLVM, WebAssembly, and the
+   interpreter) independently lower the relational tree and
    re-implement type-guided control flow, relational-to-imperative
    lowering occurs once in `kvm.mjs`. All backends consume the exact same
    ~10 linear kVM instructions (`kvm2llvm.mjs`, `kvm2wasm.mjs`,
-   `kvm2arm64.mjs`, `kvm.mjs`).
+   `kvm.mjs`).
 
 3. **Microsecond Polymorphic Specialization (`layer: "KVM-P"`):**
    In polymorphic programs, specializing `.ko` requires re-running the

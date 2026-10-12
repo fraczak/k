@@ -439,7 +439,8 @@ function relTypeStatus(defs, name) {
   const rel = defs.rels?.[name];
   const explicit = rel?.typeDerivation?.status;
   if (explicit) return explicit;
-  const scc = compileStatsByRelName(defs.compileStats).get(name);
+  const stats = compileStatsByRelName(defs.compileStats);
+  const scc = stats.get(name) || (name.includes("$") ? stats.get(name.split("$")[0]) : null);
   if (scc) return scc.converged ? "converged" : "not-converged";
   return "unknown";
 }

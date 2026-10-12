@@ -23,8 +23,6 @@ import {
   csvEnv,
   formatTiming,
   createLLVMRunner,
-  createARM64Runner,
-  arm64LaneName,
   llvmLaneName,
   makeCacheDir,
   parseNonNegativeIntEnv,
@@ -53,7 +51,6 @@ import {
   writeValueToArena
 } from "../backends/wasm/tests/perf-support.mjs";
 
-import { compileARM64ArtifactFromObject } from "../backends/arm64/src/arm64.mjs";
 import { compileWasmArtifactFromObject } from "../backends/wasm/src/wasm.mjs";
 
 function printHelp() {
@@ -61,7 +58,7 @@ function printHelp() {
 
 Big Integer Arithmetic Performance Benchmark Harness.
 Benchmarks plus, minus, times, and squaring scale on arithmetics.k
-across Native JS, kVM interpreter, LLVM, Wasm, and ARM64 backends.
+across Native JS, kVM interpreter, LLVM, and Wasm backends.
 
 Options:
   --wasm-in-process
@@ -71,27 +68,17 @@ Options:
 
 Environment Variables:
   BACKENDS
-      Target backend to run: 'llvm', 'wasm', or 'arm64'.
+      Target backend to run: 'llvm' or 'wasm'.
   LLVM_ONLY
       Run only LLVM backend ('1' to enable).
   WASM_ONLY
       Run only WebAssembly backend ('1' to enable).
-  ARM64_ONLY
-      Run only ARM64 backend ('1' to enable).
   BACKENDS_ONLY
       Skip JS and kVM interpreter baselines ('1' to enable).
   INPUTS
       Comma-separated integer strings to benchmark.
   ITERATIONS
       Measured iterations per benchmark (default: 3).
-  ARM64_WARMUP_ITERATIONS
-      Warmup iterations for ARM64 backend (default: 1).
-  ARM64_OPT
-      ARM64 backend optimization flags (default: -O2).
-  ARM64_SPAWN_PER_CALL
-      Spawn process per ARM64 call instead of persistent ('1' or '0').
-  ARM64_PIPELINE
-      Use persistent pipelined runner for ARM64 ('1' or '0').
   LLVM_WARMUP_ITERATIONS
       Warmup iterations for LLVM backend (default: 1).
   LLVM_SPAWN_PER_CALL
@@ -127,13 +114,9 @@ if (process.argv.includes("-h") || process.argv.includes("--help")) {
 const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";
 const wasmOnly = process.env.WASM_ONLY === "1" || backendsEnv === "wasm";
-const arm64Only = process.env.ARM64_ONLY === "1" || backendsEnv === "arm64";
-
-const isArm64Host = process.arch === "arm64" && process.platform === "linux";
-const runARM64 = !wasmOnly && !llvmOnly && (isArm64Host || arm64Only);
-const runLLVM = !wasmOnly && !arm64Only;
-const runWasm = !llvmOnly && !arm64Only;
-const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1") && (process.env.ARM64_ONLY !== "1");
+const runLLVM = !wasmOnly;
+const runWasm = !llvmOnly;
+const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1");
 
 const ops = ["plus", "minus", "times"];
 const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
@@ -143,9 +126,6 @@ const inputTexts = csvEnv(
 );
 const iterations = parsePositiveIntEnv("ITERATIONS", 3);
 
-// ARM64 options
-const arm64WarmupIterations = parseNonNegativeIntEnv("ARM64_WARMUP_ITERATIONS", 1);
-const arm64OptLevel = process.env.ARM64_OPT || "-O2";
 if (!process.env.K_ARENA_CAPACITY_MB && !process.env.K_ARENA_MB) {
   process.env.K_ARENA_CAPACITY_MB = "4096";
 }
@@ -175,7 +155,7 @@ for (const op of ops) {
 }
 
 function intValue(text) {
-  return valueForCode(parseIntValue(text), state.typeAliases.int, codes.find);
+  return parseIntValue(text);
 }
 
 console.log("==> Preparing relations");
@@ -315,39 +295,6 @@ function createWasmRunner(testSuite) {
   };
 }
 
-// Setup ARM64
-const arm64Exes = new Map();
-if (runARM64) {
-  console.log(`==> Compiling Linux ARM64 executables (${arm64OptLevel})...`);
-  for (const op of ops) {
-    const relation = relations[op];
-    try {
-      const exePath = path.join(cacheDir, `perf_int_arm64_${op}`);
-      compileARM64ArtifactFromObject(relation.object, {
-        entry: "__main__",
-        outputPath: exePath,
-        optLevel: arm64OptLevel
-      });
-      arm64Exes.set(op, { status: "ok", exePath });
-    } catch (error) {
-      arm64Exes.set(op, {
-        status: "failed",
-        error: error.stack || error.message || String(error)
-      });
-    }
-  }
-  for (const tc of testSuite) {
-    tc.arm64 = arm64Exes.get(tc.op);
-  }
-  const failedOps = [...arm64Exes.entries()].filter(([_, v]) => v.status !== "ok");
-  if (failedOps.length > 0) {
-    console.log("Linux ARM64 compilation failures:");
-    for (const [op, res] of failedOps) {
-      console.log(`  ${op}: ${res.error.split("\n")[0]}`);
-    }
-  }
-}
-
 function printBenchmarkDescription() {
   const lanes = [];
   if (runBaselines) {
@@ -357,7 +304,6 @@ function printBenchmarkDescription() {
   }
   if (runLLVM) lanes.push(llvmLaneName());
   if (runWasm) lanes.push(wasmLaneName());
-  if (runARM64) lanes.push(arm64LaneName(arm64OptLevel));
 
   console.log("==> Benchmark description");
   console.log("    source: @fraczak/k/Examples/arithmetics.k");
@@ -373,12 +319,6 @@ function printBenchmarkDescription() {
     console.log(`    wasm runner mode: ${wasmPipe ? "persistent pipe" : "in-process"}`);
     console.log(`    wasm warmup iterations: ${wasmWarmupIterations}`);
     if (!wasmPipe) console.log(`    wasm arena reset: ${wasmReset ? "yes" : "no"}`);
-  }
-  if (runARM64) {
-    console.log(`    arm64-ready cases: ${testSuite.filter(tc => tc.arm64?.status === "ok").length}`);
-    console.log(`    arm64 warmup iterations: ${arm64WarmupIterations}`);
-    console.log(`    arm64 opt level: ${arm64OptLevel}`);
-    console.log(`    arm64 runner mode: ${process.env.ARM64_SPAWN_PER_CALL === "1" ? "spawn per call" : "persistent"}`);
   }
   console.log(`    iterations: ${iterations}`);
   console.log(`    benchmark lanes: ${lanes.join("; ")}`);
@@ -458,26 +398,6 @@ if (runWasm) {
   }
 }
 
-// 4. Linux ARM64 lane
-let arm64Result = null;
-if (runARM64) {
-  const arm64Cases = testSuite.filter(tc => tc.arm64?.status === "ok");
-  if (arm64Cases.length === testSuite.length) {
-    const arm64Runner = createARM64Runner(testSuite);
-    try {
-      if (arm64WarmupIterations > 0) {
-        console.log(`==> Warming Linux ARM64 (${arm64WarmupIterations} iterations)...`);
-        await arm64Runner.run(arm64WarmupIterations);
-      }
-
-      console.log(`==> Running Linux ARM64 (${iterations} iterations)...`);
-      arm64Result = await arm64Runner.run(iterations);
-    } finally {
-      arm64Runner.close();
-    }
-  }
-}
-
 console.log("\n=================== INTEGER BENCHMARK RESULTS ===================");
 console.log(`Operation calls per iteration: ${testSuite.length}`);
 console.log(`Total requested operation calls: ${iterations * testSuite.length}`);
@@ -493,10 +413,6 @@ if (runLLVM) {
 }
 if (runWasm) {
   console.log(`${laneIndex++}. ${wasmLaneName().padEnd(29)} ${formatTiming(wasmResult)}`);
-}
-if (runARM64) {
-  const timingStr = arm64Result ? formatTiming(arm64Result) : "compile failed";
-  console.log(`${laneIndex++}. ${arm64LaneName(arm64OptLevel).padEnd(29)} ${timingStr}`);
 }
 console.log("=================================================================\n");
 
@@ -563,23 +479,6 @@ for (const tc of testSuite) {
     }
   }
 
-  if (runARM64) {
-    if (tc.arm64?.status !== "ok") {
-      tc.arm64Conformance = "compile-failed";
-    } else {
-      try {
-        const outputWire = await runExecutable(tc.arm64.exePath, tc.inputWire);
-        const actual = decodeWire(outputWire).value;
-        assert.deepEqual(toPlainObject(actual), toPlainObject(tc.expected));
-        tc.arm64Conformance = "ok";
-      } catch (error) {
-        tc.arm64Conformance = "failed";
-        tc.arm64.error = error.stack || error.message || String(error);
-        console.log(`Linux ARM64 conformance failure for ${tc.op}(${tc.label}):`);
-        console.log(tc.arm64.error.split("\n").slice(0, 8).join("\n"));
-      }
-    }
-  }
 }
 
 const validationSummary = [];
@@ -592,15 +491,10 @@ if (runWasm) {
   const wasmOk = testSuite.filter(tc => tc.wasmConformance === "ok").length;
   validationSummary.push(`Wasm ${wasmOk}/${testSuite.length}`);
 }
-if (runARM64) {
-  const arm64Ok = testSuite.filter(tc => tc.arm64Conformance === "ok").length;
-  validationSummary.push(`Linux ARM64 ${arm64Ok}/${testSuite.length}`);
-}
 
 console.log(`Conformance validation: ${validationSummary.join(", ")} cases match expected values.`);
 if (runLLVM && shouldStrictFail(testSuite)) process.exitCode = 1;
 if (runWasm && testSuite.some(tc => tc.wasmConformance !== "ok")) process.exitCode = 1;
-if (runARM64 && testSuite.some(tc => tc.arm64Conformance !== "ok")) process.exitCode = 1;
 
 // =========================================================================
 // Squaring Scale & Memory Profiling Benchmark
@@ -688,21 +582,6 @@ if (runWasm) {
   }
 }
 
-let sArm64Server = null;
-if (runARM64) {
-  try {
-    const sArm64Exe = path.join(cacheDir, "perf_int_arm64_s");
-    compileARM64ArtifactFromObject(sRel.object, {
-      entry: "__main__",
-      outputPath: sArm64Exe,
-      optLevel: arm64OptLevel
-    });
-    sArm64Server = new PersistentExecutable(sArm64Exe);
-  } catch (e) {
-    console.log("Failed to build ARM64 executable for 's':", e.message);
-  }
-}
-
 const squaringLanes = [];
 if (runBaselines) {
   squaringLanes.push({ id: "jsAware", name: "Native JS (Aware)", type: "jsAware", memLabel: "heap" });
@@ -715,16 +594,13 @@ if (runLLVM && sLlvmServer) {
 if (runWasm && sWasmServer) {
   squaringLanes.push({ id: "wasm", name: wasmLaneName(), type: "persistent", server: sWasmServer, memLabel: "peak RSS" });
 }
-if (runARM64 && sArm64Server) {
-  squaringLanes.push({ id: "arm64", name: arm64LaneName(arm64OptLevel), type: "persistent", server: sArm64Server, memLabel: "peak RSS" });
-}
 
 const squaringResults = {};
 for (const lane of squaringLanes) squaringResults[lane.id] = [];
 const stepMetadata = [];
 
 try {
-  // 1. Persistent child processes (ARM64, Wasm, LLVM)
+  // 1. Persistent child processes (Wasm, LLVM)
   for (const lane of squaringLanes.filter(l => l.type === "persistent")) {
     console.log(`==> Running ${lane.name} squaring lane...`);
     let curWire = sInitWire;
@@ -821,7 +697,6 @@ try {
   }
 
 } finally {
-  if (sArm64Server) sArm64Server.close();
   if (sWasmServer) sWasmServer.close();
   if (sLlvmServer) sLlvmServer.close();
 }

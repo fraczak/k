@@ -24,8 +24,6 @@ import {
   csvEnv,
   formatTiming,
   createLLVMRunner,
-  createARM64Runner,
-  arm64LaneName,
   llvmLaneName,
   makeCacheDir,
   parseNonNegativeIntEnv,
@@ -56,7 +54,6 @@ import {
   writeValueToArena
 } from "../backends/wasm/tests/perf-support.mjs";
 
-import { compileARM64ArtifactFromObject } from "../backends/arm64/src/arm64.mjs";
 import { compileWasmArtifactFromObject } from "../backends/wasm/src/wasm.mjs";
 import { inputPatternForObjectRelation } from "../backends/llvm/src/executable.mjs";
 
@@ -65,7 +62,7 @@ function printHelp() {
 
 Polymorphic List Operations Benchmark Harness.
 Benchmarks reverse, concat, split_by, get_nth, and length on
-Examples/poly.k across Native JS, kVM interpreter, LLVM, Wasm, and ARM64.
+Examples/poly.k across Native JS, kVM interpreter, LLVM, and Wasm.
 
 Options:
   --trace
@@ -79,13 +76,11 @@ Options:
 
 Environment Variables:
   BACKENDS
-      Target backend to run: 'llvm', 'wasm', or 'arm64'.
+      Target backend to run: 'llvm' or 'wasm'.
   LLVM_ONLY
       Run only LLVM backend ('1' to enable).
   WASM_ONLY
       Run only WebAssembly backend ('1' to enable).
-  ARM64_ONLY
-      Run only ARM64 backend ('1' to enable).
   BACKENDS_ONLY
       Skip JS and kVM interpreter baselines ('1' to enable).
   LIST_LENGTH
@@ -96,14 +91,6 @@ Environment Variables:
       Enable nanosecond execution tracing ('1' to enable).
   PROFILE, K_PROFILE
       Enable per-function call count profiling ('1' to enable).
-  ARM64_WARMUP_ITERATIONS
-      Warmup iterations for ARM64 backend (default: 1).
-  ARM64_OPT
-      ARM64 backend optimization flags (default: -O2).
-  ARM64_SPAWN_PER_CALL
-      Spawn process per ARM64 call instead of persistent ('1' or '0').
-  ARM64_PIPELINE
-      Use persistent pipelined runner for ARM64 ('1' or '0').
   LLVM_WARMUP_ITERATIONS
       Warmup iterations for LLVM backend (default: 1).
   LLVM_SPAWN_PER_CALL
@@ -131,13 +118,9 @@ if (process.argv.includes("-h") || process.argv.includes("--help")) {
 const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";
 const wasmOnly = process.env.WASM_ONLY === "1" || backendsEnv === "wasm";
-const arm64Only = process.env.ARM64_ONLY === "1" || backendsEnv === "arm64";
-
-const isArm64Host = process.arch === "arm64" && process.platform === "linux";
-const runARM64 = !wasmOnly && !llvmOnly && (isArm64Host || arm64Only);
-const runLLVM = !wasmOnly && !arm64Only;
-const runWasm = !llvmOnly && !arm64Only;
-const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1") && (process.env.ARM64_ONLY !== "1");
+const runLLVM = !wasmOnly;
+const runWasm = !llvmOnly;
+const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1");
 
 const ops = ["reverse", "concat", "split_by", "get_nth", "length"];
 const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
@@ -145,10 +128,6 @@ const listLength = parsePositiveIntEnv("LIST_LENGTH", 40);
 const iterations = parsePositiveIntEnv("ITERATIONS", 3);
 const runTrace = process.argv.includes("--trace") || process.env.TRACE === "1" || process.env.K_TRACE === "1";
 const runProfile = runTrace || process.argv.includes("--profile") || process.env.K_PROFILE === "1" || process.env.PROFILE === "1";
-
-// ARM64 options
-const arm64WarmupIterations = parseNonNegativeIntEnv("ARM64_WARMUP_ITERATIONS", 1);
-const arm64OptLevel = process.env.ARM64_OPT || "-O2";
 
 // LLVM options
 const llvmWarmupIterations = parseNonNegativeIntEnv("LLVM_WARMUP_ITERATIONS", 1);
@@ -193,7 +172,7 @@ function buildExportPreamble(exports, libraries) {
   return lines.join("\n") + "\n";
 }
 
-const neededExports = ["0", "int", "inc", "dec", "nat", "zero_int?"];
+const neededExports = ["0", "int", "inc", "dec", "nat", "zero_int?", "neg?", "GT"];
 const exportPreamble = buildExportPreamble(neededExports, [arithmeticsLib]);
 const polyLib = loadLibrary(compileLibrary(exportPreamble + polySource, {
   source: polyPath,
@@ -219,7 +198,7 @@ for (const op of ops) {
 }
 
 function intValue(text) {
-  return valueForCode(parseIntValue(text), state.typeAliases.int, codes.find);
+  return parseIntValue(text);
 }
 
 function makeList(elements) {
@@ -392,41 +371,6 @@ function createWasmRunner(testSuite) {
   };
 }
 
-// Setup ARM64
-const arm64Exes = new Map();
-if (runARM64) {
-  console.log(`==> Compiling Linux ARM64 executables (${arm64OptLevel})...`);
-  for (const tc of testSuite) {
-    const relation = relations[tc.op];
-    try {
-      const exePath = path.join(cacheDir, `perf_poly_arm64_${tc.op}`);
-      compileARM64ArtifactFromObject(relation.object, {
-        entry: relation.relationName,
-        inputPattern: tc.inputPattern,
-        outputPattern: tc.outputPattern,
-        outputPath: exePath,
-        optLevel: arm64OptLevel,
-        profile: runProfile
-      });
-      tc.arm64 = { status: "ok", exePath };
-      arm64Exes.set(tc.op, tc.arm64);
-    } catch (error) {
-      tc.arm64 = {
-        status: "failed",
-        error: error.stack || error.message || String(error)
-      };
-      arm64Exes.set(tc.op, tc.arm64);
-    }
-  }
-  const failedOps = [...arm64Exes.entries()].filter(([_, v]) => v.status !== "ok");
-  if (failedOps.length > 0) {
-    console.log("Linux ARM64 compilation failures:");
-    for (const [op, res] of failedOps) {
-      console.log(`  ${op}: ${res.error.split("\n")[0]}`);
-    }
-  }
-}
-
 function printBenchmarkDescription() {
   const lanes = [];
   if (runBaselines) {
@@ -436,7 +380,6 @@ function printBenchmarkDescription() {
   }
   if (runLLVM) lanes.push(llvmLaneName());
   if (runWasm) lanes.push(wasmLaneName());
-  if (runARM64) lanes.push(arm64LaneName(arm64OptLevel));
 
   console.log("==> Benchmark description");
   console.log("    source: @fraczak/k/Examples/poly.k");
@@ -452,12 +395,6 @@ function printBenchmarkDescription() {
     console.log(`    wasm runner mode: ${wasmPipe ? "persistent pipe" : "in-process"}`);
     console.log(`    wasm warmup iterations: ${wasmWarmupIterations}`);
     if (!wasmPipe) console.log(`    wasm arena reset: ${wasmReset ? "yes" : "no"}`);
-  }
-  if (runARM64) {
-    console.log(`    arm64-ready cases: ${testSuite.filter(tc => tc.arm64?.status === "ok").length}`);
-    console.log(`    arm64 warmup iterations: ${arm64WarmupIterations}`);
-    console.log(`    arm64 opt level: ${arm64OptLevel}`);
-    console.log(`    arm64 runner mode: ${process.env.ARM64_SPAWN_PER_CALL === "1" ? "spawn per call" : "persistent"}`);
   }
   console.log(`    iterations: ${iterations}`);
   console.log(`    benchmark lanes: ${lanes.join("; ")}`);
@@ -539,26 +476,6 @@ if (runWasm) {
   }
 }
 
-// 4. Linux ARM64 lane
-let arm64Result = null;
-if (runARM64) {
-  const arm64Cases = testSuite.filter(tc => tc.arm64?.status === "ok");
-  if (arm64Cases.length === testSuite.length) {
-    const arm64Runner = createARM64Runner(testSuite);
-    try {
-      if (arm64WarmupIterations > 0) {
-        console.log(`==> Warming Linux ARM64 (${arm64WarmupIterations} iterations)...`);
-        await arm64Runner.run(arm64WarmupIterations);
-      }
-
-      console.log(`==> Running Linux ARM64 (${iterations} iterations)...`);
-      arm64Result = await arm64Runner.run(iterations);
-    } finally {
-      arm64Runner.close();
-    }
-  }
-}
-
 console.log("\n=================== POLYMORPHIC BENCHMARK RESULTS ===================");
 console.log(`Polymorphic operations per iteration: ${testSuite.length}`);
 console.log(`Total requested operation calls: ${iterations * testSuite.length}`);
@@ -574,10 +491,6 @@ if (runLLVM) {
 }
 if (runWasm) {
   console.log(`${laneIndex++}. ${wasmLaneName().padEnd(29)} ${formatTiming(wasmResult)}`);
-}
-if (runARM64) {
-  const timingStr = arm64Result ? formatTiming(arm64Result) : "compile failed";
-  console.log(`${laneIndex++}. ${arm64LaneName(arm64OptLevel).padEnd(29)} ${timingStr}`);
 }
 console.log("=====================================================================\n");
 
@@ -644,22 +557,6 @@ for (const tc of testSuite) {
     }
   }
 
-  if (runARM64) {
-    if (tc.arm64?.status !== "ok") {
-      tc.arm64Conformance = "compile-failed";
-    } else {
-      try {
-        const outputWire = await runExecutable(tc.arm64.exePath, tc.inputWire);
-        const actual = decodeWire(outputWire).value;
-        assert.ok(safeDeepEqual(actual, tc.expected), `ARM64 output mismatch for ${tc.op}`);
-        tc.arm64Conformance = "ok";
-      } catch (error) {
-        tc.arm64Conformance = "failed";
-        tc.arm64.error = error.stack || error.message || String(error);
-        console.log(`Linux ARM64 conformance failure for ${tc.op}:`, tc.arm64.error.split("\n")[0]);
-      }
-    }
-  }
 }
 
 const validationSummary = [];
@@ -672,15 +569,10 @@ if (runWasm) {
   const wasmOk = testSuite.filter(tc => tc.wasmConformance === "ok").length;
   validationSummary.push(`Wasm ${wasmOk}/${testSuite.length}`);
 }
-if (runARM64) {
-  const arm64Ok = testSuite.filter(tc => tc.arm64Conformance === "ok").length;
-  validationSummary.push(`Linux ARM64 ${arm64Ok}/${testSuite.length}`);
-}
 
 console.log(`Conformance validation: ${validationSummary.join(", ")} cases match expected values.`);
 if (runLLVM && shouldStrictFail(testSuite)) process.exitCode = 1;
 if (runWasm && testSuite.some(tc => tc.wasmConformance !== "ok")) process.exitCode = 1;
-if (runARM64 && testSuite.some(tc => tc.arm64Conformance !== "ok")) process.exitCode = 1;
 
 if (runTrace && process.exitCode !== 1) {
   console.log("\n=================== RUNNING MACRO-PHASE TRACING ===================");
@@ -701,15 +593,6 @@ if (runTrace && process.exitCode !== 1) {
     for (const tc of testSuite) {
       if (tc.wasm?.status === "ok") {
         wasmServers.set(tc.op, new PersistentExecutable(tc.wasm.exePath));
-      }
-    }
-  }
-
-  const arm64Servers = new Map();
-  if (runARM64) {
-    for (const tc of testSuite) {
-      if (tc.arm64?.status === "ok") {
-        arm64Servers.set(tc.op, new PersistentExecutable(tc.arm64.exePath));
       }
     }
   }
@@ -745,33 +628,6 @@ if (runTrace && process.exitCode !== 1) {
   for (const tc of testSuite) {
     const op = tc.op;
     const opData = { op, label: tc.label };
-
-    // 1. ARM64
-    if (arm64Servers.has(op)) {
-      const server = arm64Servers.get(op);
-      for (let i = 0; i < 3; i++) await server.requestWithTrace(tc.inputWire);
-      const samples = [];
-      let arm64Profile = null;
-      for (let i = 0; i < sampleReps; i++) {
-        const res = await server.requestWithTrace(tc.inputWire);
-        if (res.trace) {
-          samples.push(res.trace);
-          if (res.trace.profile) arm64Profile = res.trace.profile;
-        }
-      }
-      opData.arm64 = averageTrace(samples);
-      if (arm64Profile) {
-        if (arm64Profile.__main__ !== undefined) {
-          if (arm64Profile[op] !== undefined) {
-            arm64Profile[benchNames[op]] = arm64Profile.__main__;
-          } else {
-            arm64Profile[op] = arm64Profile.__main__;
-          }
-          delete arm64Profile.__main__;
-        }
-        opData.arm64Profile = arm64Profile;
-      }
-    }
 
     // 2. LLVM
     if (llvmServers.has(op)) {
@@ -891,7 +747,6 @@ if (runTrace && process.exitCode !== 1) {
   }
 
   for (const s of llvmServers.values()) s.close();
-  for (const s of arm64Servers.values()) s.close();
   for (const s of wasmServers.values()) s.close();
 
   function formatUs(ns) {
@@ -913,24 +768,22 @@ if (runTrace && process.exitCode !== 1) {
 
   for (const item of phaseResults) {
     console.log(`\n--- Operation: ${item.op} (${item.label}) ---`);
-    console.log("Phase                    | Linux ARM64   | LLVM          | WebAssembly   | kVM Interp");
-    console.log("-------------------------+---------------+---------------+---------------+---------------");
+    console.log("Phase                    | LLVM          | WebAssembly   | kVM Interp");
+    console.log("-------------------------+---------------+---------------+---------------");
     for (const phase of phases) {
       if (phase.isTotal) {
-        console.log("-------------------------+---------------+---------------+---------------+---------------");
+        console.log("-------------------------+---------------+---------------+---------------");
       }
       const pName = phase.name.padEnd(24);
-      const arm64Col = formatUs(item.arm64?.[phase.key]);
       const llvmCol = formatUs(item.llvm?.[phase.key]);
       const wasmCol = formatUs(item.wasm?.[phase.key]);
       const kvmCol = formatUs(item.kvm?.[phase.key]);
-      console.log(`${pName} | ${arm64Col}  | ${llvmCol}  | ${wasmCol}  | ${kvmCol}`);
+      console.log(`${pName} | ${llvmCol}  | ${wasmCol}  | ${kvmCol}`);
     }
 
-    const hasProfile = item.arm64Profile || item.wasmProfile || item.kvmProfile;
+    const hasProfile = item.wasmProfile || item.kvmProfile;
     if (hasProfile) {
       const allFuncs = new Set([
-        ...Object.keys(item.arm64Profile || {}),
         ...Object.keys(item.wasmProfile || {}),
         ...Object.keys(item.kvmProfile || {})
       ]);
@@ -945,37 +798,33 @@ if (runTrace && process.exitCode !== 1) {
       });
 
       console.log(`\n  Function Call Profile: ${item.op}`);
-      console.log("  Function Name            | Linux ARM64 Calls | WebAssembly Calls | kVM Interp Calls");
-      console.log("  -------------------------+-------------------+-------------------+------------------");
-      let arm64Total = 0, wasmTotal = 0, kvmTotal = 0;
+      console.log("  Function Name            | WebAssembly Calls | kVM Interp Calls");
+      console.log("  -------------------------+-------------------+------------------");
+      let wasmTotal = 0, kvmTotal = 0;
       for (const fn of sortedFuncs) {
-        const aCount = item.arm64Profile?.[fn] ?? 0;
         const wCount = item.wasmProfile?.[fn] ?? 0;
         const kCount = item.kvmProfile?.[fn] ?? 0;
-        arm64Total += aCount;
         wasmTotal += wCount;
         kvmTotal += kCount;
         const fnCol = fn.padEnd(24);
-        const aStr = (aCount > 0 ? String(aCount) : "-").padStart(17);
         const wStr = (wCount > 0 ? String(wCount) : "-").padStart(17);
         const kStr = (kCount > 0 ? String(kCount) : "-").padStart(16);
-        console.log(`  ${fnCol} | ${aStr} | ${wStr} | ${kStr}`);
+        console.log(`  ${fnCol} | ${wStr} | ${kStr}`);
       }
-      console.log("  -------------------------+-------------------+-------------------+------------------");
+      console.log("  -------------------------+-------------------+------------------");
       const totCol = "Total Calls".padEnd(24);
-      const aTotStr = String(arm64Total).padStart(17);
       const wTotStr = String(wasmTotal).padStart(17);
       const kTotStr = String(kvmTotal).padStart(16);
-      console.log(`  ${totCol} | ${aTotStr} | ${wTotStr} | ${kTotStr}`);
+      console.log(`  ${totCol} | ${wTotStr} | ${kTotStr}`);
     }
   }
 
   console.log(`\n=== AVERAGE ACROSS ALL ${phaseResults.length} OPERATIONS ===`);
-  console.log("Phase                    | Linux ARM64   | LLVM          | WebAssembly   | kVM Interp");
-  console.log("-------------------------+---------------+---------------+---------------+---------------");
+  console.log("Phase                    | LLVM          | WebAssembly   | kVM Interp");
+  console.log("-------------------------+---------------+---------------+---------------");
   for (const phase of phases) {
     if (phase.isTotal) {
-      console.log("-------------------------+---------------+---------------+---------------+---------------");
+      console.log("-------------------------+---------------+---------------+---------------");
     }
     const pName = phase.name.padEnd(24);
     const avg = (backend) => {
@@ -983,30 +832,27 @@ if (runTrace && process.exitCode !== 1) {
       if (vals.length === 0) return null;
       return vals.reduce((a, b) => a + b, 0) / vals.length;
     };
-    const arm64Col = formatUs(avg("arm64"));
     const llvmCol = formatUs(avg("llvm"));
     const wasmCol = formatUs(avg("wasm"));
     const kvmCol = formatUs(avg("kvm"));
-    console.log(`${pName} | ${arm64Col}  | ${llvmCol}  | ${wasmCol}  | ${kvmCol}`);
+    console.log(`${pName} | ${llvmCol}  | ${wasmCol}  | ${kvmCol}`);
   }
 
-  if (phaseResults.some(r => r.arm64Profile || r.wasmProfile || r.kvmProfile)) {
+  if (phaseResults.some(r => r.wasmProfile || r.kvmProfile)) {
     console.log("\n=== FUNCTION CALL COUNT SUMMARY ACROSS ALL OPERATIONS ===");
-    console.log("Operation (Case)         | Linux ARM64 Calls | WebAssembly Calls | kVM Interp Calls");
-    console.log("-------------------------+-------------------+-------------------+------------------");
-    let arm64Grand = 0, wasmGrand = 0, kvmGrand = 0;
+    console.log("Operation (Case)         | WebAssembly Calls | kVM Interp Calls");
+    console.log("-------------------------+-------------------+------------------");
+    let wasmGrand = 0, kvmGrand = 0;
     for (const r of phaseResults) {
-      const aSum = Object.values(r.arm64Profile || {}).reduce((a, b) => a + b, 0);
       const wSum = Object.values(r.wasmProfile || {}).reduce((a, b) => a + b, 0);
       const kSum = Object.values(r.kvmProfile || {}).reduce((a, b) => a + b, 0);
-      arm64Grand += aSum;
       wasmGrand += wSum;
       kvmGrand += kSum;
       const opCol = `${r.op} (${r.label})`.slice(0, 24).padEnd(24);
-      console.log(`${opCol} | ${String(aSum).padStart(17)} | ${String(wSum).padStart(17)} | ${String(kSum).padStart(16)}`);
+      console.log(`${opCol} | ${String(wSum).padStart(17)} | ${String(kSum).padStart(16)}`);
     }
-    console.log("-------------------------+-------------------+-------------------+------------------");
-    console.log(`${"Total Calls".padEnd(24)} | ${String(arm64Grand).padStart(17)} | ${String(wasmGrand).padStart(17)} | ${String(kvmGrand).padStart(16)}`);
+    console.log("-------------------------+-------------------+------------------");
+    console.log(`${"Total Calls".padEnd(24)} | ${String(wasmGrand).padStart(17)} | ${String(kvmGrand).padStart(16)}`);
   }
   console.log("=====================================================================\n");
 }

@@ -1,7 +1,6 @@
 import { NativeAdapter } from "./adapters/native.mjs";
 import { KVMAdapter } from "./adapters/kvm.mjs";
 import { WasmAdapter } from "./adapters/wasm.mjs";
-import { ARM64Adapter } from "./adapters/arm64.mjs";
 import { LLVMAdapter } from "./adapters/llvm.mjs";
 
 export function createRegistry(config = {}) {
@@ -16,7 +15,6 @@ export function createRegistry(config = {}) {
   register("kvm", () => new KVMAdapter(config.state));
   register("wasm", () => new WasmAdapter(config.wasm || {}));
   register("wasm-in-process", () => new WasmAdapter({ id: "wasm-in-process", mode: "in-process", ...(config.wasm || {}) }));
-  register("arm64", () => new ARM64Adapter(config.arm64 || {}));
   register("llvm", () => new LLVMAdapter(config.llvm || {}));
 
   return {

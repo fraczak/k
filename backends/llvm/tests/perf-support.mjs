@@ -216,7 +216,7 @@ export function runExecutableMainBench(exePath, inputWire, calls) {
         reject(new Error(`${exePath} --bench-main failed with status ${status}\n${text}`.trim()));
         return;
       }
-      const match = text.match(/K_(?:LLVM|ARM64)_BENCH_MAIN calls=(\d+) total_ns=(\d+) per_call_ns=([0-9.]+)/);
+      const match = text.match(/K_LLVM_BENCH_MAIN calls=(\d+) total_ns=(\d+) per_call_ns=([0-9.]+)/);
       if (!match) {
         reject(new Error(`${exePath} --bench-main did not report timing\n${text}`.trim()));
         return;
@@ -599,61 +599,7 @@ export function llvmLaneName() {
     : "LLVM Executable (persistent)";
 }
 
-export function arm64LaneName(optLevel = "-O2") {
-  const mode = process.env.ARM64_SPAWN_PER_CALL === "1"
-    ? "spawn/call"
-    : (process.env.ARM64_PIPELINE === "1" ? "persistent, pipelined" : "persistent");
-  return `Linux ARM64 ${optLevel} (${mode})`;
-}
 
-export function createARM64Runner(testSuite) {
-  const arm64Cases = testSuite.filter(tc => tc.arm64?.status === "ok");
-  if (process.env.ARM64_SPAWN_PER_CALL === "1") {
-    return {
-      run(iterations) {
-        if (arm64Cases.length === 0) return null;
-        return runTimedIterationsAsync(iterations, async () => {
-          for (const tc of arm64Cases) {
-            await runExecutable(tc.arm64.exePath, tc.inputWire);
-          }
-        });
-      },
-      close() {}
-    };
-  }
-
-  const servers = new Map();
-  function serverFor(exePath) {
-    let server = servers.get(exePath);
-    if (server == null) {
-      server = new PersistentExecutable(exePath);
-      servers.set(exePath, server);
-    }
-    return server;
-  }
-
-  return {
-    async run(iterations) {
-      if (arm64Cases.length === 0) return null;
-      return runTimedIterationsAsync(iterations, async () => {
-        if (process.env.ARM64_PIPELINE === "1") {
-          const pending = [];
-          for (const tc of arm64Cases) {
-            pending.push(serverFor(tc.arm64.exePath).request(tc.inputWire));
-          }
-          await Promise.all(pending);
-          return;
-        }
-        for (const tc of arm64Cases) {
-          await serverFor(tc.arm64.exePath).request(tc.inputWire);
-        }
-      });
-    },
-    close() {
-      for (const server of servers.values()) server.close();
-    }
-  };
-}
 
 export function average(times) {
   return times.reduce((sum, time) => sum + time, 0) / times.length;

@@ -21,13 +21,12 @@ import {
   retypeObjectRelationForBackend,
   patternToPropertyList,
   propertyListToPattern,
-  parseFloat64,
   run,
   run_converged,
-  valueForCode,
   Value
 } from "../backend-api.mjs";
 import { parse as parseIntValue } from "../codecs/int.mjs";
+import { parse as parseFloatValue } from "../codecs/ieee.mjs";
 import {
   compileObjectBuffer as compileBackendObjectBuffer,
   decodeObject as decodeBackendObject
@@ -460,13 +459,10 @@ async function prepareState(suite) {
 }
 
 function ieeeInput(testCase, state) {
-  const float64Hash = state.typeAliases.float64;
-  const floatPairHash = state.typeAliases.float_pair;
-  const float64 = text => valueForCode(parseFloat64(text), float64Hash, codes.find);
-  return valueForCode(Value.product({
-    x: float64(testCase.input.x),
-    y: float64(testCase.input.y)
-  }), floatPairHash, codes.find);
+  return Value.product({
+    x: parseFloatValue(testCase.input.x),
+    y: parseFloatValue(testCase.input.y)
+  });
 }
 
 function arithmeticInput(testCase) {

@@ -35,15 +35,17 @@ function alignArenaSize(size) {
 }
 
 function cStringBytes(text) {
-  return [...Buffer.from(text, "utf8"), 0]
-    .map((byte) => {
-      if (byte === 10) return "\\0A";
-      if (byte === 34) return "\\22";
-      if (byte === 92) return "\\5C";
-      if (byte >= 32 && byte <= 126) return String.fromCharCode(byte);
-      return `\\${byte.toString(16).padStart(2, "0").toUpperCase()}`;
-    })
-    .join("");
+  const buf = Buffer.from(text, "utf8");
+  let out = "";
+  for (let i = 0; i < buf.length; i++) {
+    const byte = buf[i];
+    if (byte === 10) out += "\\0A";
+    else if (byte === 34) out += "\\22";
+    else if (byte === 92) out += "\\5C";
+    else if (byte >= 32 && byte <= 126) out += String.fromCharCode(byte);
+    else out += `\\${byte.toString(16).padStart(2, "0").toUpperCase()}`;
+  }
+  return out + "\\00";
 }
 
 export function runtimeDeclarations() {
@@ -551,8 +553,7 @@ export function compileKVMModuleToLLVM(entryName, kvmProgram, options = {}) {
   const payload = JSON.stringify({
     format: ARTIFACT_FORMAT,
     version: ARTIFACT_VERSION,
-    relation,
-    kvm: kvmProgram
+    relation
   });
   const payloadBytes = Buffer.byteLength(payload, "utf8") + 1;
   const symbol = llvmIdentifier(options.symbol || relation);

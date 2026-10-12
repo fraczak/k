@@ -236,7 +236,6 @@ For a detailed guide to all four formats, commands, and workflows, see
 | `k-vm` | Execute or inspect lowered kVM bytecode artifacts (`.kvm`) |
 | `k-wasm` / `k-wasm-compile` / `k-wasm-run` | Compile and run via WebAssembly backend |
 | `k-llvm-build` / `k-llvm-compile` / `k-llvm-run` | Compile and run via LLVM backend |
-| `k-arm64` / `k-arm64-compile` / `k-arm64-run` | Compile and run via Linux ARM64 native backend |
 
 Installed binary names are `k-` plus the source basename without
 `.mjs`, except for `k.mjs` itself. Source names that already include
@@ -251,9 +250,6 @@ Backends live under [`backends/`](backends/) as npm workspaces:
   and the standalone Web REPL.
 - [`backends/llvm`](backends/llvm/) lowers polymorphic kVM programs into
   LLVM IR and compiled native test executables.
-- [`backends/arm64`](backends/arm64/) lowers polymorphic kVM programs
-  directly into standalone Linux ARM64 native executables without external
-  compiler dependencies.
 
 All backends integrate with the compiler and binary codecs through
 [`backend-api.mjs`](backend-api.mjs).
@@ -353,7 +349,6 @@ npm run prepare         # regenerate parsers from .jison grammars
 npm test                # run the fail-fast full suite with per-test timings
 npm run test:wasm       # run the WebAssembly backend tests
 npm run test:llvm       # run the LLVM backend tests
-npm run test:arm64      # run the Linux ARM64 backend tests
 npm run build:repl-html # build the standalone single-file Web REPL (repl.html)
 npm run compare         # run multi-backend benchmark and conformance harness
 npm run perf:poly       # run polymorphic benchmark across backends

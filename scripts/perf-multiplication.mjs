@@ -9,7 +9,6 @@
  *   - WebAssembly (persistent runner via Wasm)
  *   - kVM Interpreter (envelope-free bytecode engine)
  *   - Native JS (envelope-free convergence engine)
- *   - ARM64 (native binary, on supported Linux aarch64 hosts)
  *
  * Modes:
  *   --mode squaring : Successive squarings starting from --input
@@ -67,7 +66,7 @@ function printHelp() {
 
 Multiplication Algorithm & Multi-Backend Performance Harness.
 Compares multiplication algorithms ('times' vs 'karatsuba') across
-available execution backends (LLVM, Wasm, kVM, JS, ARM64).
+available execution backends (LLVM, Wasm, kVM, JS).
 
 Options:
   --mode <squaring|sizes>
@@ -76,7 +75,7 @@ Options:
       (default: squaring)
   --backends <csv>
       Comma-separated list of execution backends to test:
-      llvm, wasm, kvm, js, arm64. (default: llvm,wasm,kvm,js)
+      llvm, wasm, kvm, js. (default: llvm,wasm,kvm,js)
   --algos <csv>
       Comma-separated list of multiplication algorithms to test:
       times, karatsuba. (default: times,karatsuba)
@@ -106,11 +105,7 @@ Environment Variables:
   LLVM_PIPELINE
       Set to '1' to use persistent pipelined LLVM runner mode.
   LLVM_SPAWN_PER_CALL
-      Set to '1' to spawn a new LLVM process on each invocation.
-  ARM64_PIPELINE
-      Set to '1' to use persistent pipelined ARM64 runner mode.
-  ARM64_SPAWN_PER_CALL
-      Set to '1' to spawn a new ARM64 process on each invocation.`);
+      Set to '1' to spawn a new LLVM process on each invocation.`);
 }
 
 if (hasFlag("-h") || hasFlag("--help")) {
@@ -277,7 +272,10 @@ for (const algo of selectedAlgos) {
     const exePath = path.join(cacheDir, `perf_mult_llvm_${algo}`);
     try {
       compileObjectToExecutable(
-        algoRelations[algo].object, exePath, { clangOpt: "-O2" }
+        algoRelations[algo].object, exePath, {
+          clangOpt: "-O2",
+          inputPattern: parseIntValue("0").pattern
+        }
       );
       algoServers.llvm[algo] = new PersistentExecutable(exePath);
     } catch (e) {
@@ -315,11 +313,7 @@ for (const algo of selectedAlgos) {
 
 // 3. Squaring Mode Benchmark
 if (mode === "squaring") {
-  const sInitVal = valueForCode(
-    parseIntValue(squaringInputText),
-    commonState.typeAliases.int,
-    codes.find
-  );
+  const sInitVal = parseIntValue(squaringInputText);
   const { inputWire: sInitWire } = wireInput(sInitVal);
 
   const results = {};
@@ -584,12 +578,8 @@ if (mode === "sizes") {
     const strA = randomBigIntBits(bits);
     const strB = randomBigIntBits(bits);
 
-    const valA = valueForCode(
-      parseIntValue(strA), commonState.typeAliases.int, codes.find
-    );
-    const valB = valueForCode(
-      parseIntValue(strB), commonState.typeAliases.int, codes.find
-    );
+    const valA = parseIntValue(strA);
+    const valB = parseIntValue(strB);
     const pairInput = { tag: "product", value: { x: valA, y: valB } };
 
     for (const backend of selectedBackends) {

@@ -1,6 +1,6 @@
 import { PHASES, formatUs } from "./trace.mjs";
 
-export function formatPhaseTable(phaseResults, backendIds = ["arm64", "llvm", "wasm", "kvm"]) {
+export function formatPhaseTable(phaseResults, backendIds = ["llvm", "wasm", "kvm"]) {
   const lines = [];
 
   for (const item of phaseResults) {
@@ -25,7 +25,7 @@ export function formatPhaseTable(phaseResults, backendIds = ["arm64", "llvm", "w
   return lines.join("\n");
 }
 
-export function formatProfileTable(profileResults, backendIds = ["arm64", "wasm", "kvm"]) {
+export function formatProfileTable(profileResults, backendIds = ["wasm", "kvm"]) {
   const lines = [];
 
   for (const item of profileResults) {

@@ -337,6 +337,64 @@ function findRelation(rels, relAlias, name) {
   return null;
 }
 
+function findDots(exp, res = []) {
+  if (!exp || typeof exp !== "object") return res;
+  if (exp.op === "dot") res.push(exp);
+  if (Array.isArray(exp.comp)) exp.comp.forEach((c) => findDots(c, res));
+  if (Array.isArray(exp.items)) exp.items.forEach((c) => findDots(c, res));
+  if (Array.isArray(exp.union)) exp.union.forEach((c) => findDots(c, res));
+  if (Array.isArray(exp.product)) {
+    exp.product.forEach((c) => findDots(c?.exp || c?.expr, res));
+  }
+  if (Array.isArray(exp.fields)) {
+    exp.fields.forEach((c) => findDots(c?.expr || c?.exp, res));
+  }
+  return res;
+}
+
+function getDotIndex(rel, dotExp) {
+  const label = dotExp.dot || dotExp.label;
+  if (!label) return -1;
+  const propList = expPatternPropertyList(rel, dotExp, 0);
+  if (Array.isArray(propList?.[0]?.[1])) {
+    return propList[0][1].findIndex(([l]) => l === label);
+  }
+  return -1;
+}
+
+function relationLayoutSignature(rel) {
+  const inPropList = relationPatternPropertyList(rel, 0);
+  if (!Array.isArray(inPropList)) return "";
+
+  const dots = findDots(rel.def);
+  const dotIndices = dots.map((d) => {
+    const lbl = d.dot || d.label || "";
+    return `${lbl}:${getDotIndex(rel, d)}`;
+  });
+
+  const productShapes = [];
+  for (const [kind, edges] of inPropList) {
+    if (kind === "open-product" || kind === "closed-product") {
+      const fieldNames = edges.map(([l]) => l).sort().join(",");
+      if (fieldNames.length > 0) productShapes.push(fieldNames);
+    }
+  }
+
+  return dotIndices.join(",") + "|" + productShapes.sort().join(";");
+}
+
+function productShapeSignature(propList) {
+  if (!Array.isArray(propList)) return "";
+  const shapes = [];
+  for (const [kind, edges] of propList) {
+    if (kind === "open-product" || kind === "closed-product") {
+      const fieldNames = edges.map(([l]) => l).sort().join(",");
+      if (fieldNames.length > 0) shapes.push(fieldNames);
+    }
+  }
+  return shapes.sort().join(";");
+}
+
 export function specializeObjectRelations(object, entryRelationName = null, inputPattern = null) {
   if (object?.format !== "k-object") {
     throw new Error("specializeObjectRelations requires a k object");
@@ -362,77 +420,105 @@ export function specializeObjectRelations(object, entryRelationName = null, inpu
   const specializedRels = new Map();
   const specializedCounts = new Map();
   const newRels = {};
+  const inProgress = new Map();
+  let entryCandidate = null;
 
-  const entryRel = cloneRelation(entry.rel);
-  newRels[entry.name] = entryRel;
+  function specializeRelation(relName, argPropList) {
+    const target = findRelation(baseRels, object.relAlias, relName);
+    if (!target) return relName;
 
-  if (Array.isArray(inputPattern) && inputPattern.length > 0) {
-    const inRoot = addPropertyListToPatternGraph(entryRel.typePatternGraph, inputPattern);
-    try {
-      entryRel.typePatternGraph.unify("specialize", entryRel.def.patterns[0], inRoot);
-    } catch {
-      // Best-effort entry unification
+    const baseInSig = relationLayoutSignature(target.rel);
+    const shapeSig = productShapeSignature(argPropList);
+    const specKey = target.name + "::" + shapeSig;
+
+    if (specializedRels.has(specKey)) {
+      return specializedRels.get(specKey);
     }
-    specializedRels.set(entry.name + "::" + JSON.stringify(inputPattern), entry.name);
-  }
+    if (inProgress.has(specKey)) {
+      return inProgress.get(specKey);
+    }
 
-  const worklist = [entry.name];
-  while (worklist.length > 0) {
-    const currentName = worklist.shift();
-    const currentRel = newRels[currentName];
-    if (!currentRel) continue;
+    const count = (specializedCounts.get(target.name) || 0) + 1;
+    const specName = `${target.name}$${count}`;
+    inProgress.set(specKey, specName);
 
-    const calls = findCallSites(currentRel.def);
+    const candidateRel = cloneRelation(target.rel);
+    if (!candidateRel.typeDerivation) candidateRel.typeDerivation = {};
+    if (!candidateRel.typeDerivation.status) {
+      candidateRel.typeDerivation.status = target.rel?.typeDerivation?.status || "converged";
+    }
+
+    if (Array.isArray(argPropList) && argPropList.length > 0) {
+      const tInRoot = addPropertyListToPatternGraph(candidateRel.typePatternGraph, argPropList);
+      try {
+        candidateRel.typePatternGraph.unify("specialize", candidateRel.def.patterns[0], tInRoot);
+      } catch {
+        // Unification failure: keep target unspecialized
+      }
+    }
+
+    if (relName === entry.name && (!entryCandidate || Array.isArray(argPropList))) {
+      entryCandidate = candidateRel;
+    }
+
+    let anyCallChanged = false;
+    const calls = findCallSites(candidateRel.def);
     for (const call of calls) {
-      const target = findRelation(baseRels, object.relAlias, call.ref);
-      if (!target) continue;
-
       const argPatternId = call.patterns?.[0];
       if (argPatternId != null) {
-        const argRoot = currentRel.typePatternGraph.find(argPatternId);
-        const argPropList = patternToPropertyList(
-          exportPatternGraph(currentRel.typePatternGraph, argRoot)
+        const argRoot = candidateRel.typePatternGraph.find(argPatternId);
+        const childArgPropList = patternToPropertyList(
+          exportPatternGraph(candidateRel.typePatternGraph, argRoot)
         );
-        const argSig = JSON.stringify(argPropList);
-        const specKey = target.name + "::" + argSig;
-
-        let specName = specializedRels.get(specKey);
-        if (!specName) {
-          const count = (specializedCounts.get(target.name) || 0) + 1;
-          specializedCounts.set(target.name, count);
-          specName = count === 1 ? target.name : `${target.name}$${count}`;
-          specializedRels.set(specKey, specName);
-
-          const targetRel = cloneRelation(target.rel);
-          const tInRoot = addPropertyListToPatternGraph(targetRel.typePatternGraph, argPropList);
-          try {
-            targetRel.typePatternGraph.unify("specialize", targetRel.def.patterns[0], tInRoot);
-          } catch {
-            // Unification failure: keep target unspecialized
-          }
-          newRels[specName] = targetRel;
-          worklist.push(specName);
+        const childSpecName = specializeRelation(call.ref, childArgPropList);
+        if (childSpecName !== call.ref) {
+          call.ref = childSpecName;
+          anyCallChanged = true;
         }
 
-        call.ref = specName;
-
-        const targetRel = newRels[specName];
-        const outPatternId = targetRel.def.patterns?.[1];
-        const retPatternId = call.patterns?.[1];
-        if (outPatternId != null && retPatternId != null) {
-          const outRoot = targetRel.typePatternGraph.find(outPatternId);
-          const retPropList = patternToPropertyList(
-            exportPatternGraph(targetRel.typePatternGraph, outRoot)
-          );
-          const rRetRoot = addPropertyListToPatternGraph(currentRel.typePatternGraph, retPropList);
-          try {
-            currentRel.typePatternGraph.unify("specialize", retPatternId, rRetRoot);
-          } catch {
-            // Keep existing call return pattern on unification error
+        const childRel = newRels[childSpecName] || baseRels[childSpecName];
+        if (childRel) {
+          const outPatternId = childRel.def.patterns?.[1];
+          const retPatternId = call.patterns?.[1];
+          if (outPatternId != null && retPatternId != null) {
+            const outRoot = childRel.typePatternGraph.find(outPatternId);
+            const retPropList = patternToPropertyList(
+              exportPatternGraph(childRel.typePatternGraph, outRoot)
+            );
+            const rRetRoot = addPropertyListToPatternGraph(candidateRel.typePatternGraph, retPropList);
+            try {
+              candidateRel.typePatternGraph.unify("specialize", retPatternId, rRetRoot);
+            } catch {
+              // Keep existing call return pattern on unification error
+            }
           }
         }
       }
     }
+
+    inProgress.delete(specKey);
+
+    const newInSig = relationLayoutSignature(candidateRel);
+    const isDifferent = (newInSig !== baseInSig) || anyCallChanged;
+
+    if (!isDifferent) {
+      specializedRels.set(specKey, target.name);
+      return target.name;
+    }
+
+    specializedCounts.set(target.name, count);
+    specializedRels.set(specKey, specName);
+    newRels[specName] = candidateRel;
+    return specName;
+  }
+
+  const entrySpecName = specializeRelation(entry.name, inputPattern);
+  if (entrySpecName !== entry.name && newRels[entrySpecName]) {
+    newRels[entry.name] = newRels[entrySpecName];
+  } else if (entryCandidate) {
+    newRels[entry.name] = entryCandidate;
+  } else if (!newRels[entry.name]) {
+    newRels[entry.name] = baseRels[entry.name];
   }
 
   const resultRels = {

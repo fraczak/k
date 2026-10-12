@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
@@ -80,13 +80,17 @@ for (const example of benchmarkExamples) {
 
   for (let i = 0; i < iterations; i++) {
     const out = mkdtempSync(join(tmpdir(), `k-idempotency-bench-${example.replaceAll("/", "_")}-`));
-    const t0 = performance.now();
-    run(["objects/compile.mjs", example, join(out, "1.klib")]);
-    run(["objects/decompile.mjs", join(out, "1.klib"), join(out, "1.k")]);
-    run(["objects/compile.mjs", join(out, "1.k"), join(out, "2.klib")]);
-    run(["objects/decompile.mjs", join(out, "2.klib"), join(out, "2.k")]);
-    times.push(performance.now() - t0);
-    size = statSync(join(out, "1.klib")).size;
+    try {
+      const t0 = performance.now();
+      run(["objects/compile.mjs", example, join(out, "1.klib")]);
+      run(["objects/decompile.mjs", join(out, "1.klib"), join(out, "1.k")]);
+      run(["objects/compile.mjs", join(out, "1.k"), join(out, "2.klib")]);
+      run(["objects/decompile.mjs", join(out, "2.klib"), join(out, "2.k")]);
+      times.push(performance.now() - t0);
+      size = statSync(join(out, "1.klib")).size;
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
   }
 
   console.log([
