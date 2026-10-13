@@ -165,6 +165,31 @@ The architecture bridges two fundamental physical data representations:
   - Test suites (`tests/test-pkir.mjs`, `tests/test-repl.mjs`,
     `tests/test-repl-html.mjs`, and `npm test`) pass with 100% green.
 
+### 2026-10-12: Integration into Performance Harnesses (`perf:*`)
+
+- **Benchmark Integration**:
+  - Integrated `pkir` execution lane into:
+    - `scripts/perf-int.mjs`: Big Integer ops and 10-step squaring scale.
+    - `scripts/perf-ieee.mjs`: IEEE 754 float ops across 144 evaluations.
+    - `scripts/perf-multiplication.mjs`: Multi-backend squaring benchmark.
+    - `scripts/perf-poly.mjs`: Polymorphic list ops and macro tracing.
+  - Generates and compiles WebAssembly artifacts via
+    `compileWasmArtifactFromObject(rel.object, { usePKIR: true })`.
+- **Target Backend Selection**:
+  - Added support for `BACKENDS=pkir`, `PKIR_ONLY=1`, and `--pkir-only`.
+  - When unrestricted, all backends (`llvm`, `wasm`, `pkir`, `kvm`, `js`)
+    execute concurrently for direct side-by-side comparison.
+- **Convenience NPM Scripts (`package.json`)**:
+  - Added `perf:int:pkir`: `BACKENDS=pkir node scripts/perf-int.mjs`
+  - Added `perf:ieee:pkir`: `BACKENDS=pkir node scripts/perf-ieee.mjs`
+  - Added `perf:mult:pkir`:
+    `node scripts/perf-multiplication.mjs --backends pkir`
+  - Added `perf:poly:pkir`: `BACKENDS=pkir node scripts/perf-poly.mjs`
+- **Verification**:
+  - All benchmarks verify 100% output conformance against native K
+    oracle values.
+  - Squaring benchmarks reach full 10/10 steps with matching outputs.
+
 ---
 
 ## Work Items & Progress
@@ -187,3 +212,4 @@ The architecture bridges two fundamental physical data representations:
 - [x] Integrate PKIR into Wasm lowering (`lowerPKIRToKVM`)
 - [x] Enable PKIR in `repl.mjs` (`--pkir`, `:engine pkir`)
 - [x] Enable PKIR in `repl.html` (3-way engine badge toggle)
+- [x] Add PKIR to perf:* harnesses (perf:int, perf:ieee, perf:mult, poly)

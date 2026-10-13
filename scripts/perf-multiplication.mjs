@@ -7,6 +7,7 @@
  * across available execution backends:
  *   - LLVM (native binary via Clang/LLVM)
  *   - WebAssembly (persistent runner via Wasm)
+ *   - PKIR (persistent runner via Wasm/PKIR)
  *   - kVM Interpreter (envelope-free bytecode engine)
  *   - Native JS (envelope-free convergence engine)
  *
@@ -66,7 +67,7 @@ function printHelp() {
 
 Multiplication Algorithm & Multi-Backend Performance Harness.
 Compares multiplication algorithms ('times' vs 'karatsuba') across
-available execution backends (LLVM, Wasm, kVM, JS).
+available execution backends (LLVM, Wasm, PKIR, kVM, JS).
 
 Options:
   --mode <squaring|sizes>
@@ -75,7 +76,7 @@ Options:
       (default: squaring)
   --backends <csv>
       Comma-separated list of execution backends to test:
-      llvm, wasm, kvm, js. (default: llvm,wasm,kvm,js)
+      llvm, wasm, pkir, kvm, js. (default: llvm,wasm,pkir,kvm,js)
   --algos <csv>
       Comma-separated list of multiplication algorithms to test:
       times, karatsuba. (default: times,karatsuba)
@@ -114,7 +115,7 @@ if (hasFlag("-h") || hasFlag("--help")) {
 }
 
 const mode = getArg("--mode", "squaring"); // 'squaring' or 'sizes'
-const backendsArg = getArg("--backends", "llvm,wasm,kvm,js");
+const backendsArg = getArg("--backends", "llvm,wasm,pkir,kvm,js");
 const selectedBackends = backendsArg
   .split(",").map(b => b.trim().toLowerCase()).filter(Boolean);
 const algosArg = getArg("--algos", "times,karatsuba");
@@ -239,7 +240,7 @@ const cacheDir = makeCacheDir("k-mult-perf-");
 // 2. Prepare Squaring Relations & Binaries
 // For squaring: relation name `s_${algo} = {()x, ()y} ${algo}; s_${algo}`
 const algoRelations = {};
-const algoServers = { llvm: {}, wasm: {} };
+const algoServers = { llvm: {}, wasm: {}, pkir: {} };
 
 let commonState = null;
 
@@ -309,6 +310,31 @@ for (const algo of selectedAlgos) {
       );
     }
   }
+
+  // PKIR
+  if (selectedBackends.includes("pkir")) {
+    const pkirPath = path.join(cacheDir, `perf_mult_pkir_${algo}.wasm`);
+    const exePath = path.join(cacheDir, `perf_mult_pkir_${algo}.exe`);
+    try {
+      const wasmBuf = await compileWasmArtifactFromObject(
+        algoRelations[algo].object, { entry: "__main__", usePKIR: true }
+      );
+      fs.writeFileSync(pkirPath, wasmBuf);
+      const runBin = fileURLToPath(
+        import.meta.resolve("../backends/wasm/bin/k-wasm-run.mjs")
+      );
+      fs.writeFileSync(
+        exePath,
+        `#!/bin/sh\nexec node "${runBin}" "${pkirPath}" "$@"\n`,
+        { mode: 0o755 }
+      );
+      algoServers.pkir[algo] = new PersistentExecutable(exePath);
+    } catch (e) {
+      console.warn(
+        `[WARN] Failed to compile PKIR for ${algo}: ${e.message}`
+      );
+    }
+  }
 }
 
 // 3. Squaring Mode Benchmark
@@ -327,8 +353,8 @@ if (mode === "squaring") {
   const stepBits = [];
 
   try {
-    // A. Run persistent backends (LLVM, Wasm)
-    const activeBackends = ["llvm", "wasm"]
+    // A. Run persistent backends (LLVM, Wasm, PKIR)
+    const activeBackends = ["llvm", "wasm", "pkir"]
       .filter(b => selectedBackends.includes(b));
     for (const backend of activeBackends) {
       for (const algo of selectedAlgos) {
@@ -541,7 +567,7 @@ if (mode === "squaring") {
 
   } finally {
     // Teardown persistent servers
-    for (const backend of ["llvm", "wasm"]) {
+    for (const backend of ["llvm", "wasm", "pkir"]) {
       for (const algo of selectedAlgos) {
         algoServers[backend]?.[algo]?.child?.kill();
       }
