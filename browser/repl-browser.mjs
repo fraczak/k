@@ -311,13 +311,17 @@ export async function executeCommand(input) {
 function updateEngineUI() {
   const badge = document.getElementById("engine-badge");
   if (!badge) return;
-  badge.textContent = state.engine === "js" ? "js-in-process" : "wasm-in-process";
-  badge.title = `Engine: ${state.engine} (click to toggle wasm/js)`;
+  badge.classList.remove("js-mode", "pkir-mode");
   if (state.engine === "js") {
+    badge.textContent = "js-in-process";
     badge.classList.add("js-mode");
+  } else if (state.engine === "pkir") {
+    badge.textContent = "pkir-wasm";
+    badge.classList.add("pkir-mode");
   } else {
-    badge.classList.remove("js-mode");
+    badge.textContent = "wasm-in-process";
   }
+  badge.title = `Engine: ${state.engine} (click to toggle wasm/pkir/js)`;
 }
 
 function adjustInputHeight() {
@@ -979,11 +983,18 @@ export function initRepl() {
     }
   });
 
-  // Engine Badge toggle (wasm <-> js)
+  // Engine Badge toggle (wasm -> pkir -> js -> wasm)
   const engineBadge = document.getElementById("engine-badge");
   if (engineBadge) {
     engineBadge.onclick = () => {
-      const nextEngine = state.engine === "wasm" ? "js" : "wasm";
+      let nextEngine;
+      if (state.engine === "wasm") {
+        nextEngine = "pkir";
+      } else if (state.engine === "pkir") {
+        nextEngine = "js";
+      } else {
+        nextEngine = "wasm";
+      }
       executeCommand(`:engine ${nextEngine}`);
     };
   }

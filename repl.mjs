@@ -50,7 +50,7 @@ const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 const COMMAND_NAMES = [
   "help", "rel",
   "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
-  "engine", "wasm", "js",
+  "engine", "wasm", "pkir", "js",
   "quit", "exit"
 ];
 const CODEC_COMMAND_NAMES = ["load", "unload", "list"];
@@ -76,8 +76,10 @@ function emptyValue() {
 function createState(options = {}) {
   codes.load(cloneJSON(initialCodes));
   const engine = (options.engine || "wasm").toLowerCase();
-  if (engine !== "wasm" && engine !== "js") {
-    throw new Error(`Invalid engine '${options.engine}'. Valid engines: wasm, js`);
+  if (engine !== "wasm" && engine !== "pkir" && engine !== "js") {
+    throw new Error(
+      `Invalid engine '${options.engine}'. Valid engines: wasm, pkir, js`
+    );
   }
   return {
     engine,
@@ -768,7 +770,7 @@ function completeCommandArgument(line, state) {
   }
 
   if (command === "engine") {
-    return completeCommandWord(line, argStart, arg, ["wasm", "js"]);
+    return completeCommandWord(line, argStart, arg, ["wasm", "pkir", "js"]);
   }
 
   if (command === "input") {
@@ -1003,7 +1005,8 @@ async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
 
   const wasmCompileStart = performance.now();
   const wasmBytes = await compileWasmArtifactFromObject(obj, {
-    inputEnvelopePattern: inputValue?.pattern
+    inputEnvelopePattern: inputValue?.pattern,
+    usePKIR: state.engine === "pkir" || state.usePKIR
   });
   const runner = await instantiateWasmArtifact(wasmBytes);
   const wasmCompileMs = performance.now() - wasmCompileStart;
@@ -1242,8 +1245,10 @@ async function evaluateCommand(line, state) {
       if (!mode) {
         return [`Current engine: ${state.engine}`];
       }
-      if (mode !== "wasm" && mode !== "js") {
-        throw new Error(`Invalid engine '${arg.trim()}'. Valid engines: wasm, js`);
+      if (mode !== "wasm" && mode !== "pkir" && mode !== "js") {
+        throw new Error(
+          `Invalid engine '${arg.trim()}'. Valid engines: wasm, pkir, js`
+        );
       }
       state.engine = mode;
       return [`engine set to ${mode}`];
@@ -1251,6 +1256,10 @@ async function evaluateCommand(line, state) {
     case "wasm": {
       state.engine = "wasm";
       return ["engine set to wasm"];
+    }
+    case "pkir": {
+      state.engine = "pkir";
+      return ["engine set to pkir"];
     }
     case "js": {
       state.engine = "js";
@@ -1290,7 +1299,7 @@ async function evaluateCommand(line, state) {
 
 function helpText() {
   return [
-    ":engine [wasm|js]    display or switch evaluation engine (wasm or js)",
+    ":engine [wasm|pkir|js]   display or switch evaluation engine",
     ":rel name            show relation definition",
     ":rels                list relation aliases",
     ":codec load file     load a codec module from file (e.g. :codec load codecs/int.mjs)",
@@ -1321,9 +1330,10 @@ function cliUsage() {
   console.log("Start the interactive k interpreter. Type :help inside the REPL for commands.");
   console.log("");
   console.log("Options:");
-  console.log("  --engine=<wasm|js>  Select evaluation engine (default: wasm)");
-  console.log("  --js                Shortcut for --engine=js");
+  console.log("  --engine=<wasm|pkir|js>  Select evaluation engine (default: wasm)");
+  console.log("  --pkir              Shortcut for --engine=pkir");
   console.log("  --wasm              Shortcut for --engine=wasm");
+  console.log("  --js                Shortcut for --engine=js");
   console.log("  -h, --help          Show this help.");
 }
 
@@ -1428,18 +1438,24 @@ if (isMainEntrypoint()) {
       engine = "js";
     } else if (arg === "--wasm") {
       engine = "wasm";
+    } else if (arg === "--pkir") {
+      engine = "pkir";
     } else if (arg.startsWith("--engine=")) {
       const val = arg.slice("--engine=".length).toLowerCase();
-      if (val !== "wasm" && val !== "js") {
-        console.error(`Invalid engine '${val}'. Valid engines: wasm, js`);
+      if (val !== "wasm" && val !== "pkir" && val !== "js") {
+        console.error(
+          `Invalid engine '${val}'. Valid engines: wasm, pkir, js`
+        );
         exit(1);
       }
       engine = val;
     } else if (arg === "--engine") {
       i++;
       const val = (args[i] || "").toLowerCase();
-      if (val !== "wasm" && val !== "js") {
-        console.error(`Invalid engine '${val}'. Valid engines: wasm, js`);
+      if (val !== "wasm" && val !== "pkir" && val !== "js") {
+        console.error(
+          `Invalid engine '${val}'. Valid engines: wasm, pkir, js`
+        );
         exit(1);
       }
       engine = val;

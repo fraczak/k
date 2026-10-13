@@ -284,6 +284,17 @@ const htmlContent = `<!DOCTYPE html>
       border-color: rgba(240, 180, 41, 0.7);
     }
 
+    .engine-badge.pkir-mode {
+      background: rgba(187, 128, 255, 0.15);
+      color: #d2a8ff;
+      border-color: rgba(187, 128, 255, 0.4);
+    }
+
+    .engine-badge.pkir-mode:hover {
+      background: rgba(187, 128, 255, 0.3);
+      border-color: rgba(187, 128, 255, 0.7);
+    }
+
     .status-indicator {
       display: flex;
       align-items: center;
@@ -1644,7 +1655,7 @@ const htmlContent = `<!DOCTYPE html>
       <div class="nav-left">
         <div class="brand">
           <span class="brand-name">k repl</span>
-          <span id="engine-badge" class="engine-badge" title="Click to toggle engine (wasm/js)">wasm-in-process</span>
+          <span id="engine-badge" class="engine-badge" title="Click to toggle engine (wasm/pkir/js)">wasm-in-process</span>
         </div>
         <div class="status-indicator">
           <span id="status-dot" class="status-dot ready"></span>
@@ -1673,6 +1684,7 @@ const htmlContent = `<!DOCTYPE html>
               <option value="expr::rels">:rels (list relations)</option>
               <option value="expr::engine">:engine (show engine)</option>
               <option value="expr::engine wasm">:engine wasm</option>
+              <option value="expr::engine pkir">:engine pkir</option>
               <option value="expr::engine js">:engine js</option>
             </optgroup>
             <optgroup label="Codecs &amp; Format Adapters">
@@ -1867,7 +1879,7 @@ const htmlContent = `<!DOCTYPE html>
           <div class="help-section">
             <h4>REPL Commands</h4>
             <table class="help-table">
-              <tr><td><code>:engine [wasm|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code> or <code>js</code>)</td></tr>
+              <tr><td><code>:engine [wasm|pkir|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code>, <code>pkir</code>, or <code>js</code>)</td></tr>
               <tr><td><code>:load &lt;file&gt;</code></td><td>Load a <code>.k</code> source or <code>.klib</code> library into current state</td></tr>
               <tr><td><code>:rel &lt;name&gt;</code></td><td>Display definition of relation <code>&lt;name&gt;</code></td></tr>
               <tr><td><code>:rels</code></td><td>List all relation aliases</td></tr>

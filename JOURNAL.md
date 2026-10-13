@@ -134,6 +134,37 @@ The architecture bridges two fundamental physical data representations:
   - Opaque payload slices (`data: payload_i`) are forwarded by fat-pointer
     references without traversing, unpacking, or re-serializing them.
 
+### 2026-10-12: WebAssembly Integration in REPL (`repl.mjs` & `repl.html`)
+
+- **PKIR-to-KVM Lowering (`lowerPKIRToKVM`)**:
+  - Implemented and exported `lowerPKIRToKVM(pkir)` in `pkir.mjs` and
+    `backend-api.mjs`.
+  - Translates state-indexed PKIR instructions (`id`, `filter`,
+    `project_slot`, `match_variant`, `make_variant`, `product`, `union`,
+    `call_rel`) into machine-level KVM instructions for `lowerToWasm`.
+  - Maps top-level input register and branch-local input registers to
+    `%in`, enabling seamless integration with Wasm register allocation.
+- **WebAssembly Compilation Pipeline**:
+  - Extended `compileModule`, `compileWasmArtifactFromDefs`, and
+    `compileWasmArtifactFromObject` in `backends/wasm/src/wasm.mjs` with
+    the `usePKIR` option.
+  - Implemented and exported `compileWasmArtifactFromPKIR(pkirInput)`.
+- **REPL CLI Support (`repl.mjs`)**:
+  - Added `pkir` engine mode: `--pkir`, `--engine=pkir`, `:pkir`,
+    `:engine pkir`, and autocompletion in `:engine [wasm|pkir|js]`.
+  - In `executeExpressionWithWasm`: routes compilation through PKIR when
+    the engine is set to `pkir`.
+- **Browser Web REPL (`repl.html`)**:
+  - Updated `browser/repl-browser.mjs` with a 3-way engine badge toggle
+    (`wasm-in-process` -> `pkir-wasm` -> `js-in-process`).
+  - Added `.engine-badge.pkir-mode` badge styling in
+    `scripts/build-repl-html.mjs` and rebuilt `repl.html`.
+- **Verification**:
+  - Verified evaluation of arithmetic, boolean logic, and lists via
+    PKIR-generated WebAssembly.
+  - Test suites (`tests/test-pkir.mjs`, `tests/test-repl.mjs`,
+    `tests/test-repl-html.mjs`, and `npm test`) pass with 100% green.
+
 ---
 
 ## Work Items & Progress
@@ -153,3 +184,6 @@ The architecture bridges two fundamental physical data representations:
 - [x] Create `tests/test-pkir.mjs` test suite (passing)
 - [x] Integrate with test runner (`scripts/run-tests.mjs`) & verify
 - [x] Benchmark performance against previous work (AST & kVM baselines)
+- [x] Integrate PKIR into Wasm lowering (`lowerPKIRToKVM`)
+- [x] Enable PKIR in `repl.mjs` (`--pkir`, `:engine pkir`)
+- [x] Enable PKIR in `repl.html` (3-way engine badge toggle)

@@ -35,5 +35,6 @@ export {
   executePKIR,
   specializePKIR,
   valueToKVal,
-  kvalToValue
+  kvalToValue,
+  lowerPKIRToKVM
 } from "./pkir.mjs";

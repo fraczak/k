@@ -11,6 +11,10 @@ import {
 } from "../pkir.mjs";
 import { buildAccessTable } from "../access-table.mjs";
 import { Value } from "../Value.mjs";
+import {
+  compileWasmArtifactFromPKIR,
+  instantiateWasmArtifact
+} from "../backends/wasm/src/wasm.mjs";
 
 console.log("==> Running PKIR Test Suite (tests/test-pkir.mjs)");
 
@@ -382,6 +386,38 @@ async function compileKRel(script, relName) {
   const res = executePKIR(pkir, kval, null);
   assert.equal(res, null);
   console.log("    Passed: Non-matching variant returns null (fail).");
+}
+
+// --------------------------------------------------------------------
+// Test 9: WebAssembly compilation via compileWasmArtifactFromPKIR
+// --------------------------------------------------------------------
+{
+  console.log("--> Test 9: WebAssembly compilation from PKIR");
+  const script = "extract_id = </click.id, /sensor.id, /ping.id>;";
+  const { relDef } = await compileKRel(script, "extract_id");
+  const pkir = compileRelationToPKIR(relDef, "extract_id");
+
+  const wasmBuffer = await compileWasmArtifactFromPKIR(pkir, {
+    entry: "extract_id"
+  });
+  assert.ok(wasmBuffer && wasmBuffer.length > 0);
+
+  const runner = await instantiateWasmArtifact(wasmBuffer);
+  const inputClick = Value.variant(
+    "click",
+    Value.product({ id: Value.variant("123", Value.product({})) })
+  );
+  const resClick = runner.executeValue(inputClick);
+  assert.equal(resClick?.tag, "123");
+
+  const inputSensor = Value.variant(
+    "sensor",
+    Value.product({ id: Value.variant("sensor_456", Value.product({})) })
+  );
+  const resSensor = runner.executeValue(inputSensor);
+  assert.equal(resSensor?.tag, "sensor_456");
+
+  console.log("    Passed: PKIR lowered to Wasm and executed correctly.");
 }
 
 console.log("\n==> All PKIR Tests Passed Successfully!");

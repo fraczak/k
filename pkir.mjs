@@ -5,6 +5,8 @@
 
 import { buildAccessTable } from "./access-table.mjs";
 import { Value, isProduct, isVariant } from "./Value.mjs";
+import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
+import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 
 export const PKIR_FORMAT = "pk-ir";
 export const PKIR_VERSION = 1;
@@ -633,5 +635,138 @@ export function specializePKIR(pkirFunc, accessTable) {
     ...pkirFunc,
     isSpecialized: true,
     instructions: specializeList(pkirFunc.instructions, initialStates)
+  };
+}
+
+/**
+ * Lowers a PKIR function into a KVM function representation compatible
+ * with WebAssembly and machine code generators.
+ */
+export function lowerPKIRToKVM(pkir) {
+  function convert(insts, branchInReg = null) {
+    function mapReg(r) {
+      if (branchInReg != null && r === branchInReg) return "%in";
+      if (r === pkir.inputReg) return "%in";
+      return r;
+    }
+
+    const res = [];
+    for (const inst of insts) {
+      switch (inst.op) {
+        case "id":
+        case "filter":
+          res.push({
+            op: "id",
+            dest: mapReg(inst.dest),
+            src: mapReg(inst.src)
+          });
+          break;
+        case "fail":
+          res.push({ op: "fail" });
+          break;
+        case "project_slot":
+        case "project_offset":
+          res.push({
+            op: "project_field",
+            dest: mapReg(inst.dest),
+            src: mapReg(inst.src),
+            label: inst.label,
+            slot: inst.slot ?? inst.skipCount
+          });
+          break;
+        case "match_variant":
+        case "match_tag_imm":
+          res.push({
+            op: "project_variant",
+            dest: mapReg(inst.dest),
+            src: mapReg(inst.src),
+            tag: inst.tag
+          });
+          break;
+        case "make_variant":
+          res.push({
+            op: "make_variant",
+            dest: mapReg(inst.dest),
+            src: mapReg(inst.src),
+            tag: inst.tag
+          });
+          break;
+        case "product":
+          res.push({
+            op: "product",
+            dest: mapReg(inst.dest),
+            src: mapReg(inst.src),
+            branches: inst.fields.map((f) => {
+              const body = convert(f.instructions, inst.src);
+              const branchOut = f.outReg === inst.src
+                ? "%in"
+                : mapReg(f.outReg);
+              body.push({ op: "return", src: branchOut });
+              return { label: f.label, body };
+            })
+          });
+          break;
+        case "union":
+          res.push({
+            op: "union",
+            dest: mapReg(inst.dest),
+            src: mapReg(inst.src),
+            branches: inst.branches.map((b) => {
+              const body = convert(b.instructions, inst.src);
+              const branchOut = b.outReg === inst.src
+                ? "%in"
+                : mapReg(b.outReg);
+              body.push({ op: "return", src: branchOut });
+              return { body };
+            })
+          });
+          break;
+        case "call_rel":
+          res.push({
+            op: "call",
+            dest: mapReg(inst.dest),
+            func: inst.ref,
+            src: mapReg(inst.src)
+          });
+          break;
+      }
+    }
+    return res;
+  }
+
+  const body = convert(pkir.instructions);
+  body.push({
+    op: "return",
+    src: pkir.outputReg === pkir.inputReg ? "%in" : pkir.outputReg
+  });
+
+  let inputPattern = [["any", []]];
+  let outputPattern = [["any", []]];
+  const graph = pkir.patternGraph;
+  if (graph) {
+    if (pkir.inputPattern != null) {
+      try {
+        const inId = graph.find(pkir.inputPattern);
+        inputPattern = patternToPropertyList(
+          exportPatternGraph(graph, inId)
+        );
+      } catch {}
+    }
+    if (pkir.outputPattern != null) {
+      try {
+        const outId = graph.find(pkir.outputPattern);
+        outputPattern = patternToPropertyList(
+          exportPatternGraph(graph, outId)
+        );
+      } catch {}
+    }
+  }
+
+  return {
+    name: pkir.name,
+    body,
+    inputPattern,
+    outputPattern,
+    typePatternGraph: graph
   };
 }

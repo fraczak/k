@@ -622,9 +622,12 @@ if (chromiumBin) {
     assert.strictEqual(narrowNavbarCheck.hasTiming, false, "Help modal should not contain :timing");
     assert.strictEqual(narrowNavbarCheck.hasCodecDefine, false, "Help modal should not contain :codec define");
 
-    // 6. Test dual engine switching in browser (wasm <-> js)
+    // 6. Test 3-way engine switching in browser (wasm -> pkir -> js)
     const engineCheck = await evaluateAsync(`(async () => {
       const initialEngine = window.kRepl.getEngine();
+      await window.kRepl.executeCommand(":engine pkir");
+      const pkirEngine = window.kRepl.getEngine();
+      const badgePkirText = document.getElementById("engine-badge")?.textContent;
       await window.kRepl.executeCommand(":engine js");
       const jsEngine = window.kRepl.getEngine();
       const badgeJsText = document.getElementById("engine-badge")?.textContent;
@@ -632,9 +635,19 @@ if (chromiumBin) {
       await window.kRepl.executeCommand(":engine wasm");
       const wasmEngine = window.kRepl.getEngine();
       const badgeWasmText = document.getElementById("engine-badge")?.textContent;
-      return { initialEngine, jsEngine, wasmEngine, badgeJsText, badgeWasmText };
+      return {
+        initialEngine,
+        pkirEngine,
+        jsEngine,
+        wasmEngine,
+        badgePkirText,
+        badgeJsText,
+        badgeWasmText
+      };
     })()`);
     assert.strictEqual(engineCheck.initialEngine, "wasm");
+    assert.strictEqual(engineCheck.pkirEngine, "pkir");
+    assert.strictEqual(engineCheck.badgePkirText, "pkir-wasm");
     assert.strictEqual(engineCheck.jsEngine, "js");
     assert.strictEqual(engineCheck.badgeJsText, "js-in-process");
     assert.strictEqual(engineCheck.wasmEngine, "wasm");
