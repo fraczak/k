@@ -123,29 +123,48 @@ const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const backendsList = backendsEnv
   ? backendsEnv.split(",").map(s => s.trim())
   : null;
-const pkirOnly = process.env.PKIR_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "pkir")
-  || process.argv.includes("--pkir-only");
-const llvmOnly = !pkirOnly && (
-  process.env.LLVM_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "llvm")
+const llvmPkirOnly = process.env.LLVM_PKIR_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "llvm-pkir")
+  || process.argv.includes("--llvm-pkir-only");
+const llvmUsePKIR = llvmPkirOnly
+  || (backendsList && backendsList.includes("llvm-pkir"))
+  || process.argv.includes("--llvm-pkir");
+const pkirOnly = !llvmPkirOnly && (
+  process.env.PKIR_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "pkir")
+  || process.argv.includes("--pkir-only")
 );
-const wasmOnly = !pkirOnly && (
+const llvmOnly = !pkirOnly && !llvmPkirOnly && (
+  process.env.LLVM_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "llvm")
+);
+const wasmOnly = !pkirOnly && !llvmPkirOnly && (
   process.env.WASM_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "wasm")
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "wasm")
 );
 const runLLVM = backendsList
-  ? backendsList.includes("llvm")
+  ? (backendsList.includes("llvm") ||
+     backendsList.includes("llvm-pkir"))
   : !wasmOnly && !pkirOnly;
 const runWasm = backendsList
   ? backendsList.includes("wasm")
-  : !llvmOnly && !pkirOnly;
+  : !llvmOnly && !pkirOnly && !llvmPkirOnly;
 const runPKIR = backendsList
   ? backendsList.includes("pkir")
-  : !llvmOnly && !wasmOnly;
+  : !llvmOnly && !wasmOnly && !llvmPkirOnly;
 const runBaselines = !process.env.BACKENDS_ONLY
-  && (backendsList == null || backendsList.includes("kvm") || backendsList.includes("js"))
-  && !llvmOnly && !wasmOnly && !pkirOnly;
+  && (backendsList == null || backendsList.includes("kvm") ||
+      backendsList.includes("js"))
+  && !llvmOnly && !wasmOnly && !pkirOnly && !llvmPkirOnly;
+
+function activeLlvmLaneName() {
+  const base = llvmLaneName();
+  return llvmUsePKIR ? base.replace("LLVM", "LLVM-PKIR") : base;
+}
 
 const ops = ["add", "sub", "mul", "div"];
 const values = csvEnv("VALUES", "0.5,-4,0,Infinity,-Infinity,NaN");
@@ -278,7 +297,8 @@ if (runLLVM) {
       cacheDir,
       sourceLabel: "@fraczak/k/Examples/ieee.k#perf_ieee",
       runtimeMode: llvmRuntimeMode,
-      clangOpt: opt
+      clangOpt: opt,
+      usePKIR: llvmUsePKIR
     });
     const singleCase = [{
       op: "perf_ieee",
@@ -370,8 +390,14 @@ function printBenchmarkDescription() {
   }
   if (runLLVM) {
     for (const opt of llvmOptLevels) {
-      const mode = llvmLaneName().replace(/^LLVM Executable\s*\((.*)\)$/, "$1");
-      lanes.push(llvmOptLevels.length > 1 ? `LLVM ${opt} (${mode})` : llvmLaneName());
+      const mode = activeLlvmLaneName()
+        .replace(/^LLVM(?:-PKIR)? Executable\s*\((.*)\)$/, "$1");
+      const prefix = llvmUsePKIR ? "LLVM-PKIR" : "LLVM";
+      lanes.push(
+        llvmOptLevels.length > 1
+          ? `${prefix} ${opt} (${mode})`
+          : activeLlvmLaneName()
+      );
     }
   }
   if (runWasm) lanes.push(wasmLaneName());
@@ -534,10 +560,16 @@ if (runBaselines) {
 }
 if (runLLVM) {
   for (const opt of llvmOptLevels) {
+    const mode = activeLlvmLaneName()
+      .replace(/^LLVM(?:-PKIR)? Executable\s*\((.*)\)$/, "$1");
+    const prefix = llvmUsePKIR ? "LLVM-PKIR" : "LLVM";
     const title = llvmOptLevels.length > 1
-      ? `LLVM ${opt} (${llvmLaneName().replace(/^LLVM Executable\s*\((.*)\)$/, "$1")})`
-      : llvmLaneName();
-    console.log(`${laneIndex++}. ${title.padEnd(29)} ${formatTiming(llvmResults.get(opt))}`);
+      ? `${prefix} ${opt} (${mode})`
+      : activeLlvmLaneName();
+    console.log(
+      `${laneIndex++}. ${title.padEnd(29)} ` +
+      `${formatTiming(llvmResults.get(opt))}`
+    );
   }
 }
 if (runWasm) {

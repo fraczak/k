@@ -9,17 +9,19 @@ import {
 } from "../src/cli.mjs";
 import {
   compileKVMToExecutable,
-  compileObjectToExecutable
+  compileObjectToExecutable,
+  compilePKIRToExecutable
 } from "../src/executable.mjs";
 
 function usage(stream = console.error) {
   const prog = argv[1] || "k-llvm-build.mjs";
   stream(`Usage: node ${prog} [options] [source-snippet | input-file [output-exe]]`);
-  stream("Compile k source, .ko, .klib, or .kvm input into a native executable.");
+  stream("Compile k source, .ko, .klib, .kvm, or .pkir into native executable.");
   stream("");
   stream("Arguments:");
   stream("  source-snippet  Inline k source, in the same style as k.mjs.");
-  stream("  input-file      Source .k, .ko, .klib, or .kvm file. Reads UTF-8 source from stdin when omitted.");
+  stream("  input-file      Source .k, .ko, .klib, .kvm, or .pkir file.");
+  stream("                  Reads UTF-8 source from stdin when omitted.");
   stream("  output-exe      Output executable path.");
   stream("");
   stream("The executable reads a binary k pattern+value envelope from stdin and");
@@ -29,9 +31,10 @@ function usage(stream = console.error) {
   stream("");
   stream("Options:");
   stream("  -o, --output path        Specify output file path explicitly.");
-  stream("  --input-pattern pattern  Input pattern JSON or file path for specialization.");
-  stream("  --lib file               Load one .klib dependency before compiling.");
-  stream("  --export spec            Export a library alias into source scope. May be repeated.");
+  stream("  --pkir                   Lower via Polymorphic K IR (PKIR).");
+  stream("  --input-pattern pattern  Input pattern JSON or file for spec.");
+  stream("  --lib file               Load one .klib dependency before build.");
+  stream("  --export spec            Export a library alias into scope.");
   stream("                           spec is 'name' or 'libname:localname'.");
   stream("  -h, --help               Show this help.");
 }
@@ -72,7 +75,7 @@ try {
 
   const inputPattern = readPattern(rawInputPattern);
 
-  const { libraries, exportSpecs } = parseCompileOptions(remainingArgs);
+  const { libraries, exportSpecs, usePKIR } = parseCompileOptions(remainingArgs);
   const input = resolveProgramInput(remainingArgs, { allowStdinSource: true });
   const positionalOutput = remainingArgs.shift();
   if (remainingArgs.length > 0) throw new Error("Too many arguments");
@@ -80,7 +83,10 @@ try {
   const outputPath = explicitOutput || positionalOutput || null;
   if (outputPath == null) throw new Error("Output executable path is required (pass output-exe or -o/--output)");
 
-  if (input.kind === "kvm") {
+  if (input.kind === "pkir") {
+    const pkir = JSON.parse(fs.readFileSync(input.path, "utf8"));
+    compilePKIRToExecutable(pkir, outputPath, { inputPattern });
+  } else if (input.kind === "kvm") {
     const kvm = JSON.parse(fs.readFileSync(input.path, "utf8"));
     compileKVMToExecutable(kvm, outputPath, { inputPattern });
   } else {
@@ -90,7 +96,7 @@ try {
       stdin
     });
 
-    compileObjectToExecutable(object, outputPath, { inputPattern });
+    compileObjectToExecutable(object, outputPath, { inputPattern, usePKIR });
   }
 } catch (error) {
   console.error(error.stack || error.message || String(error));

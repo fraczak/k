@@ -15,6 +15,7 @@ export function parseCompileOptions(args) {
   const libraries = [];
   const exportSpecs = [];
   let loadedLibrary = false;
+  let usePKIR = false;
 
   while (args.length > 0) {
     if (args[0] === "--") {
@@ -38,6 +39,9 @@ export function parseCompileOptions(args) {
       const spec = args.shift();
       if (!spec) throw new Error("--export requires a spec argument (name or libname:localname)");
       exportSpecs.push(spec);
+    } else if (args[0] === "--pkir") {
+      args.shift();
+      usePKIR = true;
     } else if (args[0].startsWith("--")) {
       break;
     } else {
@@ -45,7 +49,7 @@ export function parseCompileOptions(args) {
     }
   }
 
-  return { libraries, exportSpecs };
+  return { libraries, exportSpecs, usePKIR };
 }
 
 export function fileInputType(filePath) {
@@ -53,6 +57,7 @@ export function fileInputType(filePath) {
   if (ext === ".ko") return "ko";
   if (ext === ".kvm") return "kvm";
   if (ext === ".klib") return "klib";
+  if (ext === ".pkir") return "pkir";
   return "source-file";
 }
 
@@ -69,7 +74,7 @@ export function resolveProgramInput(args, { allowStdinSource = false } = {}) {
     return { kind, path: inputArg, sourceName: inputArg };
   }
 
-  if ([".k", ".ko", ".kvm", ".klib"].includes(ext)) {
+  if ([".k", ".ko", ".kvm", ".klib", ".pkir"].includes(ext)) {
     throw new Error(`Input file not found: ${inputArg}`);
   }
 
@@ -135,7 +140,15 @@ export async function compileProgramInputToObject(
   } else if (input.kind === "ko" || input.kind === "klib") {
     object = decodeObject(fs.readFileSync(input.path));
   } else if (input.kind === "kvm") {
-    throw new Error("Input is already lowered to .kvm bytecode; use compileLLVMArtifactFromKVM or compileKVMToExecutable.");
+    throw new Error(
+      "Input is already lowered to .kvm bytecode; use " +
+      "compileLLVMArtifactFromKVM or compileKVMToExecutable."
+    );
+  } else if (input.kind === "pkir") {
+    throw new Error(
+      "Input is already lowered to .pkir IR; use " +
+      "compileLLVMArtifactFromPKIR or compilePKIRToExecutable."
+    );
   } else {
     throw new Error(`Unsupported input kind: ${input.kind}`);
   }

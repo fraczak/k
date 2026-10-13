@@ -123,29 +123,48 @@ const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const backendsList = backendsEnv
   ? backendsEnv.split(",").map(s => s.trim())
   : null;
-const pkirOnly = process.env.PKIR_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "pkir")
-  || process.argv.includes("--pkir-only");
-const llvmOnly = !pkirOnly && (
-  process.env.LLVM_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "llvm")
+const llvmPkirOnly = process.env.LLVM_PKIR_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "llvm-pkir")
+  || process.argv.includes("--llvm-pkir-only");
+const llvmUsePKIR = llvmPkirOnly
+  || (backendsList && backendsList.includes("llvm-pkir"))
+  || process.argv.includes("--llvm-pkir");
+const pkirOnly = !llvmPkirOnly && (
+  process.env.PKIR_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "pkir")
+  || process.argv.includes("--pkir-only")
 );
-const wasmOnly = !pkirOnly && (
+const llvmOnly = !pkirOnly && !llvmPkirOnly && (
+  process.env.LLVM_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "llvm")
+);
+const wasmOnly = !pkirOnly && !llvmPkirOnly && (
   process.env.WASM_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "wasm")
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "wasm")
 );
 const runLLVM = backendsList
-  ? backendsList.includes("llvm")
+  ? (backendsList.includes("llvm") ||
+     backendsList.includes("llvm-pkir"))
   : !wasmOnly && !pkirOnly;
 const runWasm = backendsList
   ? backendsList.includes("wasm")
-  : !llvmOnly && !pkirOnly;
+  : !llvmOnly && !pkirOnly && !llvmPkirOnly;
 const runPKIR = backendsList
   ? backendsList.includes("pkir")
-  : !llvmOnly && !wasmOnly;
+  : !llvmOnly && !wasmOnly && !llvmPkirOnly;
 const runBaselines = !process.env.BACKENDS_ONLY
-  && (backendsList == null || backendsList.includes("kvm") || backendsList.includes("js"))
-  && !llvmOnly && !wasmOnly && !pkirOnly;
+  && (backendsList == null || backendsList.includes("kvm") ||
+      backendsList.includes("js"))
+  && !llvmOnly && !wasmOnly && !pkirOnly && !llvmPkirOnly;
+
+function activeLlvmLaneName() {
+  const base = llvmLaneName();
+  return llvmUsePKIR ? base.replace("LLVM", "LLVM-PKIR") : base;
+}
 
 const ops = ["reverse", "concat", "split_by", "get_nth", "length"];
 const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
@@ -322,7 +341,9 @@ if (runLLVM) {
       relHash: relation.relHash,
       inputPattern: tc.inputPattern,
       cacheDir,
-      sourceLabel: `@fraczak/k/Examples/poly.k#${relation.relationName}`
+      sourceLabel:
+        `@fraczak/k/Examples/poly.k#${relation.relationName}`,
+      usePKIR: llvmUsePKIR
     });
   }
   codes.load(state.codes);
@@ -462,7 +483,7 @@ function printBenchmarkDescription() {
     lanes.push("Native JS (Envelope-Free)");
     lanes.push("kVM Interpreter (Env-Free)");
   }
-  if (runLLVM) lanes.push(llvmLaneName());
+  if (runLLVM) lanes.push(activeLlvmLaneName());
   if (runWasm) lanes.push(wasmLaneName());
   if (runPKIR) lanes.push(pkirLaneName());
 
@@ -594,7 +615,8 @@ if (runBaselines) {
   console.log(`${laneIndex++}. kVM Interpreter (Env-Free):   ${formatTiming(kvmFreeResult)}`);
 }
 if (runLLVM) {
-  console.log(`${laneIndex++}. ${llvmLaneName().padEnd(29)} ${formatTiming(llvmResult)}`);
+  const name = activeLlvmLaneName().padEnd(29);
+  console.log(`${laneIndex++}. ${name} ${formatTiming(llvmResult)}`);
 }
 if (runWasm) {
   console.log(`${laneIndex++}. ${wasmLaneName().padEnd(29)} ${formatTiming(wasmResult)}`);
@@ -921,7 +943,12 @@ if (runTrace && process.exitCode !== 1) {
   ];
 
   const activeTraceLanes = [];
-  if (runLLVM) activeTraceLanes.push({ id: "llvm", label: "LLVM" });
+  if (runLLVM) {
+    activeTraceLanes.push({
+      id: "llvm",
+      label: llvmUsePKIR ? "LLVM-PKIR" : "LLVM"
+    });
+  }
   if (runWasm) activeTraceLanes.push({ id: "wasm", label: "WebAssembly" });
   if (runPKIR) activeTraceLanes.push({ id: "pkir", label: "PKIR (Wasm)" });
   if (runBaselines) activeTraceLanes.push({ id: "kvm", label: "kVM Interp" });

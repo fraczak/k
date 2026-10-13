@@ -148,7 +148,17 @@ export function wireInput(value, pattern = value.pattern) {
   };
 }
 
-export function compileCaseExecutable({ object, relationName, relHash, inputPattern, cacheDir, sourceLabel, runtimeMode = "fast", clangOpt = "-O3" }) {
+export function compileCaseExecutable({
+  object,
+  relationName,
+  relHash,
+  inputPattern,
+  cacheDir,
+  sourceLabel,
+  runtimeMode = "fast",
+  clangOpt = "-O3",
+  usePKIR = false
+}) {
   const key = sha256([
     "k-llvm-perf-v1",
     backendFingerprint(),
@@ -157,12 +167,23 @@ export function compileCaseExecutable({ object, relationName, relHash, inputPatt
     sourceLabel,
     relationName,
     relHash,
-    JSON.stringify(inputPattern)
+    JSON.stringify(inputPattern),
+    usePKIR ? "pkir" : "kir"
   ].join("\0"));
   const exePath = path.join(cacheDir, `${key}.exe`);
   if (!fs.existsSync(exePath)) {
     const tmpPath = path.join(cacheDir, `${key}.${process.pid}.tmp`);
-    compileObjectToExecutable(cloneObjectPayload(object), tmpPath, { relation: relationName, inputPattern, runtimeMode, clangOpt });
+    compileObjectToExecutable(
+      cloneObjectPayload(object),
+      tmpPath,
+      {
+        relation: relationName,
+        inputPattern,
+        runtimeMode,
+        clangOpt,
+        usePKIR
+      }
+    );
     fs.renameSync(tmpPath, exePath);
   }
   return exePath;

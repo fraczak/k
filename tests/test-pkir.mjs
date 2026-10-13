@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import assert from "node:assert/strict";
 import { createState, evaluateInput } from "../backend-api.mjs";
 import {
@@ -15,6 +18,13 @@ import {
   compileWasmArtifactFromPKIR,
   instantiateWasmArtifact
 } from "../backends/wasm/src/wasm.mjs";
+import {
+  compileLLVMArtifactFromPKIR
+} from "../backends/llvm/src/llvm.mjs";
+import {
+  compilePKIRAndRun,
+  compilePKIRToExecutable
+} from "../backends/llvm/src/executable.mjs";
 
 console.log("==> Running PKIR Test Suite (tests/test-pkir.mjs)");
 
@@ -418,6 +428,103 @@ async function compileKRel(script, relName) {
   assert.equal(resSensor?.tag, "sensor_456");
 
   console.log("    Passed: PKIR lowered to Wasm and executed correctly.");
+}
+
+// --------------------------------------------------------------------
+// Test 10: LLVM IR compilation via compileLLVMArtifactFromPKIR
+// --------------------------------------------------------------------
+{
+  console.log("--> Test 10: LLVM compilation from PKIR");
+  const script = "extract_id = </click.id, /sensor.id, /ping.id>;";
+  const { relDef } = await compileKRel(script, "extract_id");
+  const pkir = compileRelationToPKIR(relDef, "extract_id");
+
+  const llvmText = compileLLVMArtifactFromPKIR(pkir, {
+    entry: "extract_id"
+  });
+  assert.ok(typeof llvmText === "string" && llvmText.includes("@k_main"));
+  assert.ok(llvmText.includes("@k_union_arm_0"));
+
+  const inputClick = Value.variant(
+    "click",
+    Value.product({ id: Value.variant("llvm_click_789", Value.product({})) })
+  );
+  const resClick = compilePKIRAndRun(pkir, { input: inputClick });
+  assert.equal(resClick.stdout.trim(), '"llvm_click_789"');
+
+  const inputSensor = Value.variant(
+    "sensor",
+    Value.product({ id: Value.variant("llvm_sensor_101", Value.product({})) })
+  );
+  const resSensor = compilePKIRAndRun(pkir, { input: inputSensor });
+  assert.equal(resSensor.stdout.trim(), '"llvm_sensor_101"');
+
+  console.log("    Passed: PKIR lowered to LLVM and executed correctly.");
+}
+
+// --------------------------------------------------------------------
+// Test 11: LLVM executable compilation via compilePKIRToExecutable
+// --------------------------------------------------------------------
+{
+  console.log("--> Test 11: LLVM executable compilation from PKIR");
+  const script = "extract_id = </click.id, /sensor.id, /ping.id>;";
+  const { relDef } = await compileKRel(script, "extract_id");
+  const pkir = compileRelationToPKIR(relDef, "extract_id");
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-test-pkir-llvm-"));
+  const exePath = path.join(tmpDir, "extract_id_test");
+  try {
+    compilePKIRToExecutable(pkir, exePath);
+    assert.ok(fs.existsSync(exePath));
+
+    const inputPing = Value.variant(
+      "ping",
+      Value.product({ id: Value.variant("llvm_ping_42", Value.product({})) })
+    );
+    const res = compilePKIRAndRun(pkir, { input: inputPing });
+    assert.equal(res.stdout.trim(), '"llvm_ping_42"');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  console.log("    Passed: PKIR compiled to standalone LLVM executable.");
+}
+
+// --------------------------------------------------------------------
+// Test 12: Recursive polymorphic relation via PKIR on LLVM
+// --------------------------------------------------------------------
+{
+  console.log("--> Test 12: Recursive polymorphic relation on LLVM");
+  const script = `
+    list? = ?< {} nil, { {} car, list? cdr } cons >;
+    rec_copy = list? <
+      /nil |nil,
+      /cons { .car car, .cdr rec_copy cdr } |cons
+    > list?;
+  `;
+  const { relDef } = await compileKRel(script, "rec_copy");
+  const pkirRec = compileRelationToPKIR(relDef, "rec_copy");
+
+  const inputList = Value.variant(
+    "cons",
+    Value.product({
+      car: Value.variant("elem1", Value.product({})),
+      cdr: Value.variant(
+        "cons",
+        Value.product({
+          car: Value.variant("elem2", Value.product({})),
+          cdr: Value.variant("nil", Value.product({}))
+        })
+      )
+    })
+  );
+
+  const res = compilePKIRAndRun(pkirRec, { input: inputList });
+  assert.equal(
+    res.stdout.trim(),
+    '{"cons":{"car":"elem1","cdr":{"cons":{"car":"elem2","cdr":"nil"}}}}'
+  );
+  console.log("    Passed: Recursive polymorphic relation executed on LLVM.");
 }
 
 console.log("\n==> All PKIR Tests Passed Successfully!");

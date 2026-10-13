@@ -190,6 +190,47 @@ The architecture bridges two fundamental physical data representations:
     oracle values.
   - Squaring benchmarks reach full 10/10 steps with matching outputs.
 
+### 2026-10-13: LLVM Backend Integration for PKIR
+
+- **Compiler Lowering & CLI Integration**:
+  - Implemented `compileLLVMArtifactFromPKIR` and `{ usePKIR: true }` in
+    `backends/llvm/src/llvm.mjs` and `backends/llvm/src/executable.mjs`.
+  - Added CLI support (`--pkir` and `.pkir` input files) for
+    `k-llvm-compile`, `k-llvm-build`, and `k-wasm-compile`.
+  - Exported `compilePKIRToExecutable` and `compilePKIRAndRun` from
+    `backends/llvm/src/executable.mjs`.
+- **Runtime & Slot Lowering Fixes**:
+  - Synthesized union helper `inputPattern`: resolved input pattern in
+    `union_expr` and `union_arm` from
+    `regPatterns.get(cleanReg(inst.src))`
+    so field access in arm functions targets correct physical slots.
+  - Open product field indexing in PKIR: restricted static physical slot
+    addressing in `getFieldEdgeIndex` to closed products when `usePKIR`
+    is active, falling back to dynamic `k_product_get_n` for polymorphic
+    open products to prevent physical index misalignment.
+  - Wire serialization for polymorphic outputs: implemented and exported
+    `k_encode_wire` via `derive_pattern(value)` in `krt.h` and `krt.c`,
+    with fallback in `executable.mjs` when static output pattern has
+    `KP_ANY`.
+  - Pattern graph ID 0 check: updated `compileObjectToLLVM` pattern
+    lookups to check `!== undefined` so node ID 0 is not treated as falsy.
+- **Performance Harnesses & NPM Automation**:
+  - Added `llvm-pkir` backend lane across:
+    - `scripts/perf-multiplication.mjs` (`--backends llvm-pkir`)
+    - `scripts/perf-int.mjs` (`BACKENDS=llvm-pkir`)
+    - `scripts/perf-poly.mjs` (`BACKENDS=llvm-pkir`)
+    - `scripts/perf-ieee.mjs` (`BACKENDS=llvm-pkir`)
+  - Added npm scripts to `package.json`:
+    - `perf:mult:llvm-pkir`
+    - `perf:int:llvm-pkir`
+    - `perf:poly:llvm-pkir`
+    - `perf:ieee:llvm-pkir`
+- **Verification**:
+  - Added PKIR LLVM lowering, compilation, and execution tests
+    (Tests 10, 11, 12 in `tests/test-pkir.mjs`).
+  - Verified 100% test pass on `npm test` and `npm run test:backends`.
+  - Verified 100% output conformance across all `perf:*` benchmarks.
+
 ---
 
 ## Work Items & Progress
@@ -213,3 +254,10 @@ The architecture bridges two fundamental physical data representations:
 - [x] Enable PKIR in `repl.mjs` (`--pkir`, `:engine pkir`)
 - [x] Enable PKIR in `repl.html` (3-way engine badge toggle)
 - [x] Add PKIR to perf:* harnesses (perf:int, perf:ieee, perf:mult, poly)
+- [x] Integrate PKIR into LLVM lowering (`compileLLVMArtifactFromPKIR`)
+- [x] Add CLI support for PKIR in LLVM tools (`k-llvm-compile`, etc.)
+- [x] Standalone executable compilation (`compilePKIRToExecutable`)
+- [x] Integrate `llvm-pkir` into all `perf:*` benchmarks and
+  `package.json`
+- [x] Fix polymorphic open product slot resolution and dynamic wire
+  encoding

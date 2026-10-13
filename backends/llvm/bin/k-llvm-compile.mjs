@@ -9,24 +9,29 @@ import {
 } from "../src/cli.mjs";
 import {
   compileObjectToLLVM,
-  compileLLVMArtifactFromKVM
+  compileLLVMArtifactFromKVM,
+  compileLLVMArtifactFromPKIR
 } from "../src/llvm.mjs";
 import { inputPatternForObjectRelation } from "../src/executable.mjs";
 
 function usage(stream = console.error) {
   const prog = argv[1] || "k-llvm-compile.mjs";
   stream(`Usage: node ${prog} [options] [source-snippet | input-file [output.ll]]`);
-  stream("Compile a k .ko/.klib object, source, or .kvm input into prototype LLVM IR.");
+  stream(
+    "Compile a k .ko/.klib object, source, .kvm, or .pkir into LLVM IR."
+  );
   stream("");
   stream("Arguments:");
   stream("  source-snippet  Inline k source, in the same style as k.mjs.");
-  stream("  input-file      Source .k, .ko, .klib, or .kvm file. Reads UTF-8 source from stdin when omitted.");
-  stream("  output.ll       Output LLVM IR path. Writes to stdout when omitted.");
+  stream("  input-file      Source .k, .ko, .klib, .kvm, or .pkir file.");
+  stream("                  Reads UTF-8 source from stdin when omitted.");
+  stream("  output.ll       Output LLVM IR path. Writes to stdout if omitted.");
   stream("");
   stream("Options:");
   stream("  -o, --output path  Specify output file path explicitly.");
+  stream("  --pkir             Lower via Polymorphic K IR (PKIR).");
   stream("  --lib file         Load one .klib dependency before compiling.");
-  stream("  --export spec      Export a library alias into source scope. May be repeated.");
+  stream("  --export spec      Export a library alias into source scope.");
   stream("                     spec is 'name' or 'libname:localname'.");
   stream("  -h, --help         Show this help.");
 }
@@ -51,7 +56,7 @@ try {
     }
   }
 
-  const { libraries, exportSpecs } = parseCompileOptions(remainingArgs);
+  const { libraries, exportSpecs, usePKIR } = parseCompileOptions(remainingArgs);
   const input = resolveProgramInput(remainingArgs, { allowStdinSource: true });
   const positionalOutput = remainingArgs.shift();
   if (remainingArgs.length > 0) throw new Error("Too many arguments");
@@ -59,7 +64,15 @@ try {
   const outputPath = explicitOutput || positionalOutput || null;
 
   let llvm;
-  if (input.kind === "kvm") {
+  if (input.kind === "pkir") {
+    const pkir = JSON.parse(fs.readFileSync(input.path, "utf8"));
+    const entry = pkir.entry || pkir.name || "__main__";
+    llvm = compileLLVMArtifactFromPKIR(pkir, {
+      relation: entry,
+      inputPattern: pkir.inputPattern,
+      outputPattern: pkir.outputPattern
+    });
+  } else if (input.kind === "kvm") {
     const kvm = JSON.parse(fs.readFileSync(input.path, "utf8"));
     const entry = kvm.entry || kvm.relation || "__main__";
     const mainFunc = kvm.functions?.[entry];
@@ -78,7 +91,8 @@ try {
 
     const res = compileObjectToLLVM(object, {
       relation: object.main,
-      inputPattern: inputPatternForObjectRelation(object, object.main)
+      inputPattern: inputPatternForObjectRelation(object, object.main),
+      usePKIR
     });
     llvm = res.llvm;
   }

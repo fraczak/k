@@ -1914,6 +1914,14 @@ unsigned char *k_encode_wire_as(k_pattern *pattern, k_value *value, size_t *out_
   return bytes;
 }
 
+unsigned char *k_encode_wire(k_value *value, size_t *out_length) {
+  k_pattern *pattern = derive_pattern(value);
+  if (pattern == NULL) return NULL;
+  unsigned char *bytes = k_encode_wire_as(pattern, value, out_length);
+  free_pattern(pattern);
+  return bytes;
+}
+
 int k_write_wire_as(FILE *out, k_pattern *pattern, k_value *value) {
   size_t length = 0;
   unsigned char *bytes = k_encode_wire_as(pattern, value, &length);

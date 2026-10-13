@@ -110,6 +110,7 @@ void k_wire_prefix_free(k_wire_prefix prefix);
 k_value *k_decode_wire_value_with_prefix(const unsigned char *bytes, size_t length, k_wire_prefix *prefix, k_pattern *pattern, k_rt *rt);
 unsigned char *k_encode_wire_as_with_prefix(k_wire_prefix *prefix, k_pattern *pattern, k_value *value, size_t *out_length);
 unsigned char *k_encode_wire_as(k_pattern *pattern, k_value *value, size_t *out_length);
+unsigned char *k_encode_wire(k_value *value, size_t *out_length);
 int k_write_wire(FILE *out, k_value *value);
 int k_write_wire_as(FILE *out, k_pattern *pattern, k_value *value);
 

@@ -82,6 +82,9 @@ flowchart TD
     %% Execution and Specialization from .pkir
     PKIR -->|"executePKIR + AccessTable"| INTERP
     PKIR -->|"specializePKIR"| PKIR_SPEC["Specialized PKIR"]
+    PKIR -->|"k-wasm-compile"| WASM
+    PKIR -->|"k-llvm-compile"| LLVM[".ll (LLVM IR)"]
+    PKIR -->|"k-llvm-build"| NATIVE
     PKIR_SPEC -->|"executePKIR"| INTERP
     PKIR_SPEC -->|"backend lowering"| WASM
     PKIR_SPEC -->|"backend lowering"| NATIVE
@@ -528,6 +531,57 @@ const pkir = compileRelationToPKIR(relDef, "extract_id");
 
   // Executes with zero table overhead:
   const result = executePKIR(specialized, kval, null);
+  ```
+
+- **Lowering to WebAssembly (`compileWasmArtifactFromPKIR`):**
+  ```javascript
+  import {
+    compileWasmArtifactFromPKIR
+  } from "@fraczak/k/backend-api.mjs";
+
+  const wasmBytes = await compileWasmArtifactFromPKIR(pkir);
+  ```
+  CLI commands:
+  ```bash
+  # Compile .pkir directly to WebAssembly binary:
+  node backends/wasm/bin/k-wasm-compile.mjs input.pkir -o prog.wasm
+
+  # Lower .k source via PKIR to WebAssembly:
+  node backends/wasm/bin/k-wasm-compile.mjs --pkir prog.k -o prog.wasm
+  ```
+
+- **Lowering to LLVM IR & Native Binaries:**
+  ```javascript
+  import {
+    compileLLVMArtifactFromPKIR
+  } from "@fraczak/k/backend-api.mjs";
+  import {
+    compilePKIRToExecutable,
+    compilePKIRAndRun
+  } from "@fraczak/k/backends/llvm/src/executable.mjs";
+
+  // Compile PKIR directly to LLVM IR string:
+  const llvmIR = compileLLVMArtifactFromPKIR(pkir);
+
+  // Compile PKIR directly to a native executable:
+  compilePKIRToExecutable(pkir, "./prog.exe");
+
+  // Compile and execute in one step:
+  const res = compilePKIRAndRun(pkir, { input: inputVal });
+  ```
+  CLI commands:
+  ```bash
+  # Compile .pkir directly to LLVM IR:
+  node backends/llvm/bin/k-llvm-compile.mjs input.pkir -o prog.ll
+
+  # Lower .k source via PKIR to LLVM IR:
+  node backends/llvm/bin/k-llvm-compile.mjs --pkir prog.k -o prog.ll
+
+  # Compile .pkir directly to native executable:
+  node backends/llvm/bin/k-llvm-build.mjs input.pkir -o prog.exe
+
+  # Lower .k source via PKIR to native executable:
+  node backends/llvm/bin/k-llvm-build.mjs --pkir prog.k -o prog.exe
   ```
 
 ---

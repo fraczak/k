@@ -12,17 +12,19 @@ import {
 function usage(stream = console.error) {
   const prog = argv[1] || "k-wasm-compile.mjs";
   stream(`Usage: node ${prog} [options] [source-snippet | input-file [wasm-file]]`);
-  stream("Compile k source, .ko, or .kvm input into a standalone WebAssembly artifact.");
+  stream("Compile k source, .ko, .kvm, or .pkir into a WebAssembly artifact.");
   stream("");
   stream("Arguments:");
   stream("  source-snippet  Inline k source, in the same style as k.mjs.");
-  stream("  input-file      Source .k, .ko, or .kvm file. Reads UTF-8 source from stdin when omitted.");
-  stream("  wasm-file       Output .wasm path. Writes the binary artifact to stdout when omitted.");
+  stream("  input-file      Source .k, .ko, .kvm, or .pkir file.");
+  stream("                  Reads UTF-8 source from stdin when omitted.");
+  stream("  wasm-file       Output .wasm path. Writes to stdout if omitted.");
   stream("");
   stream("Options:");
   stream("  -o, --output     Specify output file path explicitly.");
+  stream("  --pkir           Lower via Polymorphic K IR (PKIR).");
   stream("  --lib file       Load one .klib dependency before compiling.");
-  stream("  --export spec    Export a library alias into source scope. May be repeated.");
+  stream("  --export spec    Export a library alias into source scope.");
   stream("                   spec is 'name' or 'libname:localname'.");
   stream("  -h, --help       Show this help.");
 }
@@ -47,12 +49,17 @@ try {
     }
   }
 
-  const { libraries, exportSpecs } = parseCompileOptions(remainingArgs);
+  const { libraries, exportSpecs, usePKIR } = parseCompileOptions(remainingArgs);
   const input = resolveProgramInput(remainingArgs, { allowStdinSource: true });
   const positionalOutput = remainingArgs.shift();
   if (remainingArgs.length > 0) throw new Error("Too many arguments");
   const outputPath = explicitOutput || positionalOutput || null;
-  const artifact = await compileProgramInput(input, { libraries, exportSpecs, stdin });
+  const artifact = await compileProgramInput(input, {
+    libraries,
+    exportSpecs,
+    stdin,
+    usePKIR
+  });
   if (outputPath == null) {
     stdout.write(artifact);
   } else {

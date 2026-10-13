@@ -451,12 +451,15 @@ function hasSelfTailCall(insts, funcName, isTail = true) {
   return false;
 }
 
-function getFieldEdgeIndex(inst, regPatterns, kvmFunc) {
+function getFieldEdgeIndex(inst, regPatterns, kvmFunc, ctx = {}) {
   const srcReg = cleanReg(inst.src);
   const srcPattern = regPatterns.get(srcReg) || (srcReg === "in" ? kvmFunc.inputPattern : null);
   if (Array.isArray(srcPattern) && srcPattern.length > 0) {
     const root = srcPattern[0];
-    if ((root[0] === "open-product" || root[0] === "closed-product") && Array.isArray(root[1])) {
+    const allowed = ctx.usePKIR
+      ? root[0] === "closed-product"
+      : (root[0] === "open-product" || root[0] === "closed-product");
+    if (allowed && Array.isArray(root[1])) {
       const idx = root[1].findIndex(([l]) => l === inst.label);
       if (idx >= 0) return idx;
     }
@@ -514,6 +517,7 @@ export function compileKVMModuleToLLVM(entryName, kvmProgram, options = {}) {
     labels,
     functionNames,
     runtimeMode,
+    usePKIR: Boolean(options.usePKIR),
     armIndex: 0,
     unionExprIndex: 0,
     syntheticFunctions: [],
@@ -584,6 +588,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
     labels: moduleCtx.labels,
     functionNames: moduleCtx.functionNames,
     runtimeMode: moduleCtx.runtimeMode,
+    usePKIR: moduleCtx.usePKIR,
     allocas: [],
     lines: [],
     currentBlock: "entry",
@@ -675,7 +680,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
         case "project_field": {
           const input = getReg(inst.src);
           nullCheck(ctx, input, failTarget);
-          const edgeIndex = getFieldEdgeIndex(inst, regPatterns, kvmFunc);
+          const edgeIndex = getFieldEdgeIndex(inst, regPatterns, kvmFunc, ctx);
           const label = ctx.labelRef(inst.label);
           let val;
           if (edgeIndex >= 0 && ctx.runtimeMode !== "compact") {
@@ -865,7 +870,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
             const exprName = `@k_union_expr_${exprIndex}`;
             const exprFunc = {
               name: `union_expr_${exprIndex}`,
-              inputPattern: kvmFunc.inputPattern,
+              inputPattern: regPatterns.get(cleanReg(inst.src)) || null,
               outputPattern: kvmFunc.outputPattern,
               body: [
                 { op: "id", dest: "%v0", src: "%in" },
@@ -899,7 +904,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
 
             const armFunc = {
               name: `union_arm_${armIndex}`,
-              inputPattern: kvmFunc.inputPattern,
+              inputPattern: regPatterns.get(cleanReg(inst.src)) || null,
               outputPattern: kvmFunc.outputPattern,
               body: branch.body
             };

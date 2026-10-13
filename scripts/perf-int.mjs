@@ -123,34 +123,53 @@ const backendsEnv = process.env.BACKENDS?.toLowerCase();
 const backendsList = backendsEnv
   ? backendsEnv.split(",").map(s => s.trim())
   : null;
-const pkirOnly = process.env.PKIR_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "pkir")
-  || process.argv.includes("--pkir-only");
-const llvmOnly = !pkirOnly && (
+const llvmPkirOnly = process.env.LLVM_PKIR_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "llvm-pkir")
+  || process.argv.includes("--llvm-pkir-only");
+const llvmUsePKIR = llvmPkirOnly
+  || (backendsList && backendsList.includes("llvm-pkir"))
+  || process.argv.includes("--llvm-pkir");
+const pkirOnly = !llvmPkirOnly && (
+  process.env.PKIR_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "pkir")
+  || process.argv.includes("--pkir-only")
+);
+const llvmOnly = !pkirOnly && !llvmPkirOnly && (
   process.env.LLVM_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "llvm")
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "llvm")
   || process.argv.includes("--llvm-only")
 );
-const wasmOnly = !pkirOnly && (
+const wasmOnly = !pkirOnly && !llvmPkirOnly && (
   process.env.WASM_ONLY === "1"
-  || (backendsList && backendsList.length === 1 && backendsList[0] === "wasm")
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "wasm")
   || process.argv.includes("--wasm-only")
 );
 const runLLVM = backendsList
-  ? backendsList.includes("llvm")
+  ? (backendsList.includes("llvm") ||
+     backendsList.includes("llvm-pkir"))
   : !wasmOnly && !pkirOnly;
 const runWasm = backendsList
   ? backendsList.includes("wasm")
-  : !llvmOnly && !pkirOnly;
+  : !llvmOnly && !pkirOnly && !llvmPkirOnly;
 const runPKIR = backendsList
   ? backendsList.includes("pkir")
-  : !llvmOnly && !wasmOnly;
+  : !llvmOnly && !wasmOnly && !llvmPkirOnly;
 const runBaselines = !process.env.BACKENDS_ONLY
-  && (backendsList == null || backendsList.includes("kvm") || backendsList.includes("js"))
-  && !llvmOnly && !wasmOnly && !pkirOnly;
-const squaringLlvmOnly = llvmOnly
+  && (backendsList == null || backendsList.includes("kvm") ||
+      backendsList.includes("js"))
+  && !llvmOnly && !wasmOnly && !pkirOnly && !llvmPkirOnly;
+const squaringLlvmOnly = llvmOnly || llvmPkirOnly
   || process.env.SQUARING_LLVM_ONLY === "1"
   || process.argv.includes("--squaring-llvm-only");
+
+function activeLlvmLaneName() {
+  const base = llvmLaneName();
+  return llvmUsePKIR ? base.replace("LLVM", "LLVM-PKIR") : base;
+}
 
 const ops = ["plus", "minus", "times"];
 const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
@@ -244,7 +263,9 @@ if (runLLVM) {
       relHash: relation.relHash,
       inputPattern: tc.inputPattern,
       cacheDir,
-      sourceLabel: `@fraczak/k/Examples/arithmetics.k#${relation.relationName}`
+      sourceLabel:
+        `@fraczak/k/Examples/arithmetics.k#${relation.relationName}`,
+      usePKIR: llvmUsePKIR
     });
   }
   codes.load(state.codes);
@@ -396,7 +417,7 @@ function printBenchmarkDescription() {
     lanes.push("Native JS (Envelope-Free)");
     lanes.push("kVM Interpreter (Env-Free)");
   }
-  if (runLLVM) lanes.push(llvmLaneName());
+  if (runLLVM) lanes.push(activeLlvmLaneName());
   if (runWasm) lanes.push(wasmLaneName());
   if (runPKIR) lanes.push(pkirLaneName());
 
@@ -526,7 +547,8 @@ if (runBaselines) {
   console.log(`${laneIndex++}. kVM Interpreter (Env-Free):   ${formatTiming(kvmFreeResult)}`);
 }
 if (runLLVM) {
-  console.log(`${laneIndex++}. ${llvmLaneName().padEnd(29)} ${formatTiming(llvmResult)}`);
+  const name = activeLlvmLaneName().padEnd(29);
+  console.log(`${laneIndex++}. ${name} ${formatTiming(llvmResult)}`);
 }
 if (runWasm) {
   console.log(`${laneIndex++}. ${wasmLaneName().padEnd(29)} ${formatTiming(wasmResult)}`);
@@ -734,7 +756,8 @@ for (const algo of squaringAlgos) {
       relHash: algo.rel.relHash,
       inputPattern: sInputPattern,
       cacheDir,
-      sourceLabel: algo.sourceLabel
+      sourceLabel: algo.sourceLabel,
+      usePKIR: llvmUsePKIR
     });
     if (sLlvmCompiled.status === "ok") {
       algo.llvmServer = new PersistentExecutable(sLlvmCompiled.exePath);
@@ -784,7 +807,12 @@ if (runBaselines && !squaringLlvmOnly) {
   squaringLanes.push({ id: "kvm", name: "kVM (Env-Free)", type: "kvm", memLabel: "heap" });
 }
 if (runLLVM) {
-  squaringLanes.push({ id: "llvm", name: llvmLaneName(), type: "persistent", memLabel: "peak RSS" });
+  squaringLanes.push({
+    id: "llvm",
+    name: activeLlvmLaneName(),
+    type: "persistent",
+    memLabel: "peak RSS"
+  });
 }
 if (runWasm && !squaringLlvmOnly) {
   squaringLanes.push({ id: "wasm", name: wasmLaneName(), type: "persistent", memLabel: "peak RSS" });

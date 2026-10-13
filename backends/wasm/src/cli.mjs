@@ -5,7 +5,8 @@ import { decodeObject, loadLibrary } from "@fraczak/k/backend-api.mjs";
 import {
   compileWasmArtifact,
   compileWasmArtifactFromKVM,
-  compileWasmArtifactFromObject
+  compileWasmArtifactFromObject,
+  compileWasmArtifactFromPKIR
 } from "./wasm.mjs";
 
 function readAll(stream) {
@@ -21,6 +22,7 @@ function parseCompileOptions(args) {
   const libraries = [];
   const exportSpecs = [];
   let loadedLibrary = false;
+  let usePKIR = false;
 
   while (args.length > 0) {
     if (args[0] === "--") {
@@ -39,6 +41,9 @@ function parseCompileOptions(args) {
       const spec = args.shift();
       if (!spec) throw new Error("--export requires a spec argument (name or libname:localname)");
       exportSpecs.push(spec);
+    } else if (args[0] === "--pkir") {
+      args.shift();
+      usePKIR = true;
     } else if (args[0].startsWith("--")) {
       throw new Error(`Unknown option: ${args[0]}`);
     } else {
@@ -46,7 +51,7 @@ function parseCompileOptions(args) {
     }
   }
 
-  return { libraries, exportSpecs };
+  return { libraries, exportSpecs, usePKIR };
 }
 
 function fileInputType(filePath) {
@@ -54,6 +59,7 @@ function fileInputType(filePath) {
   if (ext === ".ko") return "ko";
   if (ext === ".kvm") return "kvm";
   if (ext === ".klib") return "klib";
+  if (ext === ".pkir") return "pkir";
   return "source-file";
 }
 
@@ -73,7 +79,7 @@ function resolveProgramInput(args, { allowStdinSource = false } = {}) {
     return { kind, path: inputArg, sourceName: inputArg };
   }
 
-  if ([".k", ".ko", ".kvm", ".klib", ".wasm"].includes(ext)) {
+  if ([".k", ".ko", ".kvm", ".klib", ".wasm", ".pkir"].includes(ext)) {
     throw new Error(`Input file not found: ${inputArg}`);
   }
 
@@ -82,14 +88,21 @@ function resolveProgramInput(args, { allowStdinSource = false } = {}) {
 
 async function compileProgramInput(
   input,
-  { libraries = [], exportSpecs = [], stdin = null, inputEnvelopePattern = null } = {}
+  {
+    libraries = [],
+    exportSpecs = [],
+    stdin = null,
+    inputEnvelopePattern = null,
+    usePKIR = false
+  } = {}
 ) {
   if (input.kind === "inline-source") {
     return compileWasmArtifact(input.source, {
       libraries,
       exports: exportSpecs,
       source: input.sourceName,
-      inputEnvelopePattern
+      inputEnvelopePattern,
+      usePKIR
     });
   }
 
@@ -99,7 +112,8 @@ async function compileProgramInput(
       libraries,
       exports: exportSpecs,
       source: input.sourceName,
-      inputEnvelopePattern
+      inputEnvelopePattern,
+      usePKIR
     });
   }
 
@@ -108,14 +122,20 @@ async function compileProgramInput(
       libraries,
       exports: exportSpecs,
       source: input.sourceName,
-      inputEnvelopePattern
+      inputEnvelopePattern,
+      usePKIR
     });
   }
 
   if (input.kind === "ko") {
     return compileWasmArtifactFromObject(decodeObject(fs.readFileSync(input.path)), {
-      inputEnvelopePattern
+      inputEnvelopePattern,
+      usePKIR
     });
+  }
+
+  if (input.kind === "pkir") {
+    return compileWasmArtifactFromPKIR(JSON.parse(fs.readFileSync(input.path, "utf8")));
   }
 
   if (input.kind === "kvm") {

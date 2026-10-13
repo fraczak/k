@@ -76,7 +76,8 @@ Options:
       (default: squaring)
   --backends <csv>
       Comma-separated list of execution backends to test:
-      llvm, wasm, pkir, kvm, js. (default: llvm,wasm,pkir,kvm,js)
+      llvm, llvm-pkir, wasm, pkir, kvm, js.
+      (default: llvm,wasm,pkir,kvm,js)
   --algos <csv>
       Comma-separated list of multiplication algorithms to test:
       times, karatsuba. (default: times,karatsuba)
@@ -240,7 +241,7 @@ const cacheDir = makeCacheDir("k-mult-perf-");
 // 2. Prepare Squaring Relations & Binaries
 // For squaring: relation name `s_${algo} = {()x, ()y} ${algo}; s_${algo}`
 const algoRelations = {};
-const algoServers = { llvm: {}, wasm: {}, pkir: {} };
+const algoServers = { llvm: {}, "llvm-pkir": {}, wasm: {}, pkir: {} };
 
 let commonState = null;
 
@@ -282,6 +283,26 @@ for (const algo of selectedAlgos) {
     } catch (e) {
       console.warn(
         `[WARN] Failed to compile LLVM for ${algo}: ${e.message}`
+      );
+    }
+  }
+
+  // LLVM (via PKIR)
+  if (selectedBackends.includes("llvm-pkir")) {
+    const exePath = path.join(cacheDir, `perf_mult_llvm_pkir_${algo}`);
+    try {
+      compileObjectToExecutable(
+        algoRelations[algo].object, exePath, {
+          clangOpt: "-O2",
+          inputPattern: parseIntValue("0").pattern,
+          usePKIR: true
+        }
+      );
+      algoServers["llvm-pkir"][algo] =
+        new PersistentExecutable(exePath);
+    } catch (e) {
+      console.warn(
+        `[WARN] Failed to compile LLVM-PKIR for ${algo}: ${e.message}`
       );
     }
   }
@@ -353,8 +374,8 @@ if (mode === "squaring") {
   const stepBits = [];
 
   try {
-    // A. Run persistent backends (LLVM, Wasm, PKIR)
-    const activeBackends = ["llvm", "wasm", "pkir"]
+    // A. Run persistent backends (LLVM, LLVM-PKIR, Wasm, PKIR)
+    const activeBackends = ["llvm", "llvm-pkir", "wasm", "pkir"]
       .filter(b => selectedBackends.includes(b));
     for (const backend of activeBackends) {
       for (const algo of selectedAlgos) {
@@ -567,7 +588,7 @@ if (mode === "squaring") {
 
   } finally {
     // Teardown persistent servers
-    for (const backend of ["llvm", "wasm", "pkir"]) {
+    for (const backend of ["llvm", "llvm-pkir", "wasm", "pkir"]) {
       for (const algo of selectedAlgos) {
         algoServers[backend]?.[algo]?.child?.kill();
       }

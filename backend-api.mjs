@@ -38,3 +38,10 @@ export {
   kvalToValue,
   lowerPKIRToKVM
 } from "./pkir.mjs";
+export {
+  compileWasmArtifactFromPKIR
+} from "./backends/wasm/src/wasm.mjs";
+export {
+  compileLLVMArtifactFromPKIR
+} from "./backends/llvm/src/llvm.mjs";
+
