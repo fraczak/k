@@ -231,6 +231,30 @@ The architecture bridges two fundamental physical data representations:
   - Verified 100% test pass on `npm test` and `npm run test:backends`.
   - Verified 100% output conformance across all `perf:*` benchmarks.
 
+### 2026-10-13: Concurrent LLVM & LLVM-PKIR Benchmark Comparison
+
+- **Motivation**:
+  - The previous harness integration allowed selecting either `llvm` or
+    `llvm-pkir` via `BACKENDS=llvm-pkir`, but did not run both
+    concurrently in default runs (`npm run perf:int`, etc.).
+  - Users expecting direct performance comparisons between the original
+    monomorphic LLVM backend and the new polymorphic PKIR LLVM backend
+    now see both lanes evaluated side-by-side by default.
+- **Changes Across All Perf Harnesses**:
+  - `scripts/perf-int.mjs`: Separated `runLLVM` and `runLLVMPKIR` into
+    distinct lanes enabled by default. Both `LLVM` and `LLVM-PKIR` are
+    compiled, warmed, timed, and reported in the main integer benchmark
+    table and squaring scale benchmark.
+  - `scripts/perf-ieee.mjs`: Both `LLVM` and `LLVM-PKIR` executables are
+    compiled across specified optimization levels and reported side-by-
+    side in the results table and conformance validation.
+  - `scripts/perf-poly.mjs`: Both `LLVM` and `LLVM-PKIR` are benchmarked
+    side-by-side in default runs and supported in 7-phase execution
+    tracing (`--trace`).
+  - `scripts/perf-multiplication.mjs`: Added `llvm-pkir` to default
+    backend list (`llvm,llvm-pkir,wasm,pkir,kvm,js`) and respected
+    `BACKENDS` environment variable.
+
 ---
 
 ## Work Items & Progress
@@ -261,3 +285,4 @@ The architecture bridges two fundamental physical data representations:
   `package.json`
 - [x] Fix polymorphic open product slot resolution and dynamic wire
   encoding
+- [x] Run both LLVM and LLVM-PKIR side-by-side by default in perf:* tests

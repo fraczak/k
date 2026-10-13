@@ -127,9 +127,6 @@ const llvmPkirOnly = process.env.LLVM_PKIR_ONLY === "1"
   || (backendsList && backendsList.length === 1 &&
       backendsList[0] === "llvm-pkir")
   || process.argv.includes("--llvm-pkir-only");
-const llvmUsePKIR = llvmPkirOnly
-  || (backendsList && backendsList.includes("llvm-pkir"))
-  || process.argv.includes("--llvm-pkir");
 const pkirOnly = !llvmPkirOnly && (
   process.env.PKIR_ONLY === "1"
   || (backendsList && backendsList.length === 1 &&
@@ -142,16 +139,18 @@ const llvmOnly = !pkirOnly && !llvmPkirOnly && (
       backendsList[0] === "llvm")
   || process.argv.includes("--llvm-only")
 );
-const wasmOnly = !pkirOnly && !llvmPkirOnly && (
+const wasmOnly = !pkirOnly && !llvmPkirOnly && !llvmOnly && (
   process.env.WASM_ONLY === "1"
   || (backendsList && backendsList.length === 1 &&
       backendsList[0] === "wasm")
   || process.argv.includes("--wasm-only")
 );
 const runLLVM = backendsList
-  ? (backendsList.includes("llvm") ||
-     backendsList.includes("llvm-pkir"))
-  : !wasmOnly && !pkirOnly;
+  ? backendsList.includes("llvm")
+  : !wasmOnly && !pkirOnly && !llvmPkirOnly;
+const runLLVMPKIR = backendsList
+  ? backendsList.includes("llvm-pkir")
+  : !wasmOnly && !pkirOnly && !llvmOnly;
 const runWasm = backendsList
   ? backendsList.includes("wasm")
   : !llvmOnly && !pkirOnly && !llvmPkirOnly;
@@ -166,9 +165,11 @@ const squaringLlvmOnly = llvmOnly || llvmPkirOnly
   || process.env.SQUARING_LLVM_ONLY === "1"
   || process.argv.includes("--squaring-llvm-only");
 
-function activeLlvmLaneName() {
-  const base = llvmLaneName();
-  return llvmUsePKIR ? base.replace("LLVM", "LLVM-PKIR") : base;
+function llvmLaneNameStr() {
+  return llvmLaneName();
+}
+function llvmPkirLaneNameStr() {
+  return llvmLaneName().replace("LLVM", "LLVM-PKIR");
 }
 
 const ops = ["plus", "minus", "times"];
@@ -265,11 +266,33 @@ if (runLLVM) {
       cacheDir,
       sourceLabel:
         `@fraczak/k/Examples/arithmetics.k#${relation.relationName}`,
-      usePKIR: llvmUsePKIR
+      usePKIR: false
     });
   }
   codes.load(state.codes);
   printCompileFailures(testSuite);
+}
+
+// Setup LLVM-PKIR
+if (runLLVMPKIR) {
+  console.log("==> Compiling LLVM-PKIR executables");
+  for (const tc of testSuite) {
+    const relation = relations[tc.op];
+    tc.llvmPKIR = tryCompileCase({
+      object: relation.object,
+      relationName: relation.relationName,
+      relHash: relation.relHash,
+      inputPattern: tc.inputPattern,
+      cacheDir,
+      sourceLabel:
+        `@fraczak/k/Examples/arithmetics.k#${relation.relationName}`,
+      usePKIR: true
+    });
+  }
+  codes.load(state.codes);
+  printCompileFailures(
+    testSuite.map(tc => ({ ...tc, llvm: tc.llvmPKIR }))
+  );
 }
 
 // Setup Wasm
@@ -417,7 +440,8 @@ function printBenchmarkDescription() {
     lanes.push("Native JS (Envelope-Free)");
     lanes.push("kVM Interpreter (Env-Free)");
   }
-  if (runLLVM) lanes.push(activeLlvmLaneName());
+  if (runLLVM) lanes.push(llvmLaneNameStr());
+  if (runLLVMPKIR) lanes.push(llvmPkirLaneNameStr());
   if (runWasm) lanes.push(wasmLaneName());
   if (runPKIR) lanes.push(pkirLaneName());
 
@@ -430,6 +454,10 @@ function printBenchmarkDescription() {
   if (runLLVM) {
     console.log(`    llvm-ready cases: ${testSuite.filter(tc => tc.llvm?.status === "ok").length}`);
     console.log(`    llvm warmup iterations: ${llvmWarmupIterations}`);
+  }
+  if (runLLVMPKIR) {
+    console.log(`    llvm-pkir ready cases: ${testSuite.filter(tc => tc.llvmPKIR?.status === "ok").length}`);
+    console.log(`    llvm-pkir warmup iterations: ${llvmWarmupIterations}`);
   }
   if (runWasm) {
     console.log(`    wasm runner mode: ${wasmPipe ? "persistent pipe" : "in-process"}`);
@@ -470,6 +498,22 @@ if (runLLVM) {
     llvmResult = await llvmRunner.run(iterations);
   } finally {
     llvmRunner.close();
+  }
+}
+
+// 2b. LLVM-PKIR lane
+let llvmPkirResult = null;
+if (runLLVMPKIR) {
+  const llvmPkirCases = testSuite.map(tc => ({ ...tc, llvm: tc.llvmPKIR }));
+  const llvmPkirRunner = createLLVMRunner(llvmPkirCases);
+  try {
+    if (llvmWarmupIterations > 0) {
+      console.log(`==> Warming LLVM-PKIR executables (${llvmWarmupIterations} iterations)...`);
+      await llvmPkirRunner.run(llvmWarmupIterations);
+    }
+    llvmPkirResult = await llvmPkirRunner.run(iterations);
+  } finally {
+    llvmPkirRunner.close();
   }
 }
 
@@ -547,8 +591,12 @@ if (runBaselines) {
   console.log(`${laneIndex++}. kVM Interpreter (Env-Free):   ${formatTiming(kvmFreeResult)}`);
 }
 if (runLLVM) {
-  const name = activeLlvmLaneName().padEnd(29);
+  const name = llvmLaneNameStr().padEnd(29);
   console.log(`${laneIndex++}. ${name} ${formatTiming(llvmResult)}`);
+}
+if (runLLVMPKIR) {
+  const name = llvmPkirLaneNameStr().padEnd(29);
+  console.log(`${laneIndex++}. ${name} ${formatTiming(llvmPkirResult)}`);
 }
 if (runWasm) {
   console.log(`${laneIndex++}. ${wasmLaneName().padEnd(29)} ${formatTiming(wasmResult)}`);
@@ -579,6 +627,24 @@ for (const tc of testSuite) {
         tc.llvm.error = error.stack || error.message || String(error);
         console.log(`LLVM conformance failure for ${tc.op}(${tc.label}):`);
         console.log(tc.llvm.error.split("\n").slice(0, 8).join("\n"));
+      }
+    }
+  }
+
+  if (runLLVMPKIR) {
+    if (tc.llvmPKIR.status !== "ok") {
+      tc.llvmPkirConformance = "compile-failed";
+    } else {
+      try {
+        const outputWire = await runExecutable(tc.llvmPKIR.exePath, tc.inputWire);
+        const actual = decodeWire(outputWire).value;
+        assert.deepEqual(toPlainObject(actual), toPlainObject(tc.expected));
+        tc.llvmPkirConformance = "ok";
+      } catch (error) {
+        tc.llvmPkirConformance = "failed";
+        tc.llvmPKIR.error = error.stack || error.message || String(error);
+        console.log(`LLVM-PKIR conformance failure for ${tc.op}(${tc.label}):`);
+        console.log(tc.llvmPKIR.error.split("\n").slice(0, 8).join("\n"));
       }
     }
   }
@@ -647,6 +713,10 @@ if (runLLVM) {
   const llvmOk = testSuite.filter(tc => tc.llvmConformance === "ok").length;
   validationSummary.push(`LLVM ${llvmOk}/${testSuite.length}`);
 }
+if (runLLVMPKIR) {
+  const pkirOk = testSuite.filter(tc => tc.llvmPkirConformance === "ok").length;
+  validationSummary.push(`LLVM-PKIR ${pkirOk}/${testSuite.length}`);
+}
 if (runWasm) {
   const wasmOk = testSuite.filter(tc => tc.wasmConformance === "ok").length;
   validationSummary.push(`Wasm ${wasmOk}/${testSuite.length}`);
@@ -658,6 +728,7 @@ if (runPKIR) {
 
 console.log(`Conformance validation: ${validationSummary.join(", ")} cases match expected values.`);
 if (runLLVM && shouldStrictFail(testSuite)) process.exitCode = 1;
+if (runLLVMPKIR && shouldStrictFail(testSuite.map(tc => ({ ...tc, llvm: tc.llvmPKIR })))) process.exitCode = 1;
 if (runWasm && testSuite.some(tc => tc.wasmConformance !== "ok")) process.exitCode = 1;
 if (runPKIR && testSuite.some(tc => tc.pkirConformance !== "ok")) process.exitCode = 1;
 
@@ -757,10 +828,27 @@ for (const algo of squaringAlgos) {
       inputPattern: sInputPattern,
       cacheDir,
       sourceLabel: algo.sourceLabel,
-      usePKIR: llvmUsePKIR
+      usePKIR: false
     });
     if (sLlvmCompiled.status === "ok") {
       algo.llvmServer = new PersistentExecutable(sLlvmCompiled.exePath);
+    }
+  }
+
+  algo.llvmPkirServer = null;
+  if (runLLVMPKIR) {
+    const sLlvmPkirCompiled = tryCompileCase({
+      object: algo.rel.object,
+      relationName: algo.rel.relationName,
+      relHash: algo.rel.relHash,
+      inputPattern: sInputPattern,
+      cacheDir,
+      sourceLabel: algo.sourceLabel,
+      usePKIR: true
+    });
+    if (sLlvmPkirCompiled.status === "ok") {
+      algo.llvmPkirServer =
+        new PersistentExecutable(sLlvmPkirCompiled.exePath);
     }
   }
 
@@ -809,7 +897,15 @@ if (runBaselines && !squaringLlvmOnly) {
 if (runLLVM) {
   squaringLanes.push({
     id: "llvm",
-    name: activeLlvmLaneName(),
+    name: llvmLaneNameStr(),
+    type: "persistent",
+    memLabel: "peak RSS"
+  });
+}
+if (runLLVMPKIR) {
+  squaringLanes.push({
+    id: "llvm-pkir",
+    name: llvmPkirLaneNameStr(),
     type: "persistent",
     memLabel: "peak RSS"
   });
@@ -834,9 +930,11 @@ try {
     for (const algo of squaringAlgos) {
       const server = lane.id === "llvm"
         ? algo.llvmServer
-        : lane.id === "pkir"
-          ? algo.pkirServer
-          : algo.wasmServer;
+        : lane.id === "llvm-pkir"
+          ? algo.llvmPkirServer
+          : lane.id === "pkir"
+            ? algo.pkirServer
+            : algo.wasmServer;
       if (!server) continue;
       console.log(`==> Running ${lane.name} squaring [${algo.name}]...`);
       let curWire = sInitWire;
@@ -939,6 +1037,7 @@ try {
     if (algo.wasmServer) algo.wasmServer.close();
     if (algo.pkirServer) algo.pkirServer.close();
     if (algo.llvmServer) algo.llvmServer.close();
+    if (algo.llvmPkirServer) algo.llvmPkirServer.close();
   }
 }
 
@@ -957,11 +1056,13 @@ for (let step = 1; step <= squaringSteps; step++) {
 const sep130 = "=".repeat(130);
 const line130 = "-".repeat(130);
 
-if (squaringLanes.length === 1 && squaringLanes[0].id === "llvm") {
+if (squaringLanes.length === 1 && (squaringLanes[0].id === "llvm" || squaringLanes[0].id === "llvm-pkir")) {
+  const laneId = squaringLanes[0].id;
+  const laneName = squaringLanes[0].name;
   // LLVM Only side-by-side comparison table
   console.log(`\n${sep130}`);
-  console.log("=================== SQUARING SCALE & ALGORITHM BENCHMARK (LLVM) ===================");
-  console.log(`Algorithms: times vs karatsuba on ${squaringLanes[0].name}`);
+  console.log(`=================== SQUARING SCALE & ALGORITHM BENCHMARK (${laneName}) ===================`);
+  console.log(`Algorithms: times vs karatsuba on ${laneName}`);
   console.log(`Initial: ${squaringInputText} (${countBitsValue(sInitialVal)} bits)`);
   console.log(line130);
 
@@ -972,8 +1073,8 @@ if (squaringLanes.length === 1 && squaringLanes[0].id === "llvm") {
     "Step",
     "Bits",
     "Wire(B)",
-    "LLVM times (peak RSS)",
-    "LLVM karatsuba (peak RSS)",
+    `${laneName} times (peak RSS)`,
+    `${laneName} karatsuba (peak RSS)`,
     "Speedup (T/K)"
   ];
   console.log(hCols.map((h, i) => (i < 3 ? h.padStart(colW[i]) : h.padEnd(colW[i]))).join(" | "));
@@ -981,8 +1082,8 @@ if (squaringLanes.length === 1 && squaringLanes[0].id === "llvm") {
 
   for (let step = 1; step <= squaringSteps; step++) {
     const meta = stepMetadata[step - 1] || { bits: "?", wireLen: "?" };
-    const tRes = tAlgo.results.llvm[step - 1];
-    const kRes = kAlgo.results.llvm[step - 1];
+    const tRes = tAlgo.results[laneId][step - 1];
+    const kRes = kAlgo.results[laneId][step - 1];
 
     const formatCell = (res, w) => {
       if (!res) return "-".padEnd(w);

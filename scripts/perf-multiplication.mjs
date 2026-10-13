@@ -77,7 +77,7 @@ Options:
   --backends <csv>
       Comma-separated list of execution backends to test:
       llvm, llvm-pkir, wasm, pkir, kvm, js.
-      (default: llvm,wasm,pkir,kvm,js)
+      (default: llvm,llvm-pkir,wasm,pkir,kvm,js)
   --algos <csv>
       Comma-separated list of multiplication algorithms to test:
       times, karatsuba. (default: times,karatsuba)
@@ -116,7 +116,11 @@ if (hasFlag("-h") || hasFlag("--help")) {
 }
 
 const mode = getArg("--mode", "squaring"); // 'squaring' or 'sizes'
-const backendsArg = getArg("--backends", "llvm,wasm,pkir,kvm,js");
+const defaultBackends = "llvm,llvm-pkir,wasm,pkir,kvm,js";
+const backendsArg = getArg(
+  "--backends",
+  process.env.BACKENDS || defaultBackends
+);
 const selectedBackends = backendsArg
   .split(",").map(b => b.trim().toLowerCase()).filter(Boolean);
 const algosArg = getArg("--algos", "times,karatsuba");
