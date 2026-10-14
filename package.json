@@ -52,6 +52,7 @@
         "k-inspect-object": "objects/inspect.mjs",
         "k-validate-object": "objects/validate.mjs",
         "k-kir": "kir.mjs",
+        "k-llvm": "backends/llvm/bin/k-llvm.mjs",
         "k-llvm-build": "backends/llvm/bin/k-llvm-build.mjs",
         "k-llvm-compile": "backends/llvm/bin/k-llvm-compile.mjs",
         "k-llvm-jit": "backends/llvm/bin/k-llvm-jit.mjs",

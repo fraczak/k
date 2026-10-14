@@ -9,24 +9,39 @@ import {
   resolveProgramInput
 } from "../src/cli.mjs";
 
-function usage(stream = console.error) {
+function helpText() {
   const prog = argv[1] || "k-wasm-compile.mjs";
-  stream(`Usage: node ${prog} [options] [source-snippet | input-file [wasm-file]]`);
-  stream("Compile k source, .ko, .kvm, or .pkir into a WebAssembly artifact.");
-  stream("");
-  stream("Arguments:");
-  stream("  source-snippet  Inline k source, in the same style as k.mjs.");
-  stream("  input-file      Source .k, .ko, .kvm, or .pkir file.");
-  stream("                  Reads UTF-8 source from stdin when omitted.");
-  stream("  wasm-file       Output .wasm path. Writes to stdout if omitted.");
-  stream("");
-  stream("Options:");
-  stream("  -o, --output     Specify output file path explicitly.");
-  stream("  --pkir           Lower via Polymorphic K IR (PKIR).");
-  stream("  --lib file       Load one .klib dependency before compiling.");
-  stream("  --export spec    Export a library alias into source scope.");
-  stream("                   spec is 'name' or 'libname:localname'.");
-  stream("  -h, --help       Show this help.");
+  return [
+    "Compile k source, .ko, .kvm, or .pkir into a WebAssembly (.wasm)",
+    "artifact.",
+    "",
+    `Usage: ${prog} [options]`,
+    "       [source-snippet | input-file [output-wasm]]",
+    "",
+    "Arguments:",
+    "  source-snippet   Inline k source snippet (in the style of k.mjs).",
+    "  input-file       Source .k, .ko, .kvm, or .pkir file.",
+    "                   Reads UTF-8 source from stdin when omitted.",
+    "  output-wasm      Output .wasm path. Writes to stdout if omitted.",
+    "",
+    "Options:",
+    "  -o, --output path  Specify output file path explicitly.",
+    "  --pkir             Lower via Polymorphic K IR (PKIR).",
+    "  --lib file         Load one .klib or .k library before compiling.",
+    "  --export spec      Export library alias into scope. Repeatable.",
+    "                     spec is 'name' or 'libname:localname'.",
+    "  -h, --help         Show this help.",
+    "",
+    "Examples:",
+    `  ${prog} 'x = |x; x x' program.wasm`,
+    `  ${prog} program.k -o program.wasm`,
+    `  ${prog} --pkir program.k -o program.wasm`,
+    `  ${prog} --lib core.klib --export add program.k program.wasm`
+  ].join("\n");
+}
+
+function usage(stream = console.error) {
+  stream(helpText());
 }
 
 try {
@@ -43,14 +58,19 @@ try {
     if (arg === "-o" || arg === "--output") {
       args.shift();
       explicitOutput = args.shift();
-      if (!explicitOutput) throw new Error("-o/--output requires a file argument");
+      if (!explicitOutput) {
+        throw new Error("-o/--output requires a file argument");
+      }
     } else {
       remainingArgs.push(args.shift());
     }
   }
 
-  const { libraries, exportSpecs, usePKIR } = parseCompileOptions(remainingArgs);
-  const input = resolveProgramInput(remainingArgs, { allowStdinSource: true });
+  const { libraries, exportSpecs, usePKIR } =
+    parseCompileOptions(remainingArgs);
+  const input = resolveProgramInput(remainingArgs, {
+    allowStdinSource: true
+  });
   const positionalOutput = remainingArgs.shift();
   if (remainingArgs.length > 0) throw new Error("Too many arguments");
   const outputPath = explicitOutput || positionalOutput || null;
@@ -67,6 +87,5 @@ try {
   }
 } catch (error) {
   console.error(error.stack || error.message || String(error));
-  usage();
   exit(1);
 }

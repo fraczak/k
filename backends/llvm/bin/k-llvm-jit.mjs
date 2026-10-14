@@ -13,19 +13,43 @@ import { compileObjectToExecutable } from "../src/executable.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function usage(stream = console.error) {
+function helpText() {
   const prog = argv[1] || "k-llvm-jit.mjs";
-  stream(`Usage: node ${prog} [options] object-file`);
-  stream("Compile and execute a k .ko/.klib object against the stdin binary envelope.");
-  stream("");
-  stream("The runner reads a binary k pattern+value envelope from stdin, specializes");
-  stream("the object with that envelope pattern, then writes a binary envelope to stdout.");
-  stream("");
-  stream("Options:");
-  stream("  --retype rel            Relation to specialize. Defaults to object main.");
-  stream("  --cache-dir path        Directory for compiled native executables.");
-  stream("  --no-cache              Compile in a temporary directory and remove it after execution.");
-  stream("  -h, --help              Show this help.");
+  return [
+    "Compile and execute a k .ko/.klib object against",
+    "the stdin binary envelope.",
+    "",
+    `Usage: ${prog} [options] object-file`,
+    "",
+    "The runner reads a binary k pattern+value envelope from stdin,",
+    "specializes the object with that pattern, then writes a binary",
+    "envelope to stdout.",
+    "",
+    "Arguments:",
+    "  object-file       Input .ko or .klib file.",
+    "",
+    "Options:",
+    "  --retype rel      Relation to specialize (default: object main).",
+    "  --cache-dir path  Directory for compiled native executables.",
+    "  --no-cache        Compile in a temporary directory and discard.",
+    "  --opt flag        Clang optimization level (-O0, -O1, -O2, -O3).",
+    "  --pkir            Lower via Polymorphic K IR (PKIR).",
+    "  -h, --help        Show this help.",
+    "",
+    "Environment Variables:",
+    "  K_LLVM_CACHE_DIR  Default cache directory for executables.",
+    "  K_LLVM_CLANG_OPT  Default Clang optimization flag (default: -O1).",
+    "  CLANG, CC         Path to Clang compiler binary (default: clang).",
+    "  K_TRACE, TRACE    When '1', output phase tracing to stderr.",
+    "",
+    "Examples:",
+    `  cat input.wire | ${prog} program.ko > output.wire`,
+    `  cat input.wire | ${prog} --cache-dir /tmp/cache program.ko`
+  ].join("\n");
+}
+
+function usage(stream = console.error) {
+  stream(helpText());
 }
 
 async function readStdinBuffer() {
@@ -41,7 +65,13 @@ let cachedBackendFingerprint = null;
 function backendFingerprint() {
   if (cachedBackendFingerprint != null) return cachedBackendFingerprint;
   const hash = crypto.createHash("sha256");
-  for (const relPath of ["src/llvm.mjs", "src/kvm2llvm.mjs", "src/executable.mjs", "runtime/krt.c", "runtime/krt.h"]) {
+  for (const relPath of [
+    "src/llvm.mjs",
+    "src/kvm2llvm.mjs",
+    "src/executable.mjs",
+    "runtime/krt.c",
+    "runtime/krt.h"
+  ]) {
     hash.update(relPath);
     hash.update("\0");
     hash.update(fs.readFileSync(path.join(root, relPath)));
@@ -51,13 +81,22 @@ function backendFingerprint() {
   return cachedBackendFingerprint;
 }
 
-function cacheKey({ objectBuffer, relation, inputPattern }) {
+function cacheKey({
+  objectBuffer,
+  relation,
+  inputPattern,
+  clangOpt,
+  usePKIR
+}) {
   const hash = crypto.createHash("sha256");
-  hash.update("k-llvm-jit-v2\0");
+  hash.update("k-llvm-jit-v3\0");
   hash.update(backendFingerprint());
   hash.update("\0");
   hash.update(relation);
   hash.update("\0");
+  hash.update(clangOpt);
+  hash.update("\0");
+  hash.update(usePKIR ? "pkir\0" : "direct\0");
   hash.update(JSON.stringify(inputPattern));
   hash.update("\0");
   hash.update(objectBuffer);
@@ -76,7 +115,12 @@ function runExecutable(exePath, inputBuffer) {
     child.on("close", (status) => {
       if (status !== 0) {
         const stderr = Buffer.concat(stderrChunks).toString("utf8");
-        reject(new Error(`${exePath} failed with status ${status}${stderr ? `\n${stderr}` : ""}`));
+        reject(
+          new Error(
+            `${exePath} failed with status ${status}` +
+              (stderr ? `\n${stderr}` : "")
+          )
+        );
         return;
       }
       resolve(Buffer.concat(stdoutChunks));
@@ -86,22 +130,52 @@ function runExecutable(exePath, inputBuffer) {
   });
 }
 
-function compileCached({ object, objectBuffer, relation, inputPattern, cacheDir }) {
+function compileCached({
+  object,
+  objectBuffer,
+  relation,
+  inputPattern,
+  cacheDir,
+  clangOpt,
+  usePKIR
+}) {
   fs.mkdirSync(cacheDir, { recursive: true });
-  const key = cacheKey({ objectBuffer, relation, inputPattern });
+  const key = cacheKey({
+    objectBuffer,
+    relation,
+    inputPattern,
+    clangOpt,
+    usePKIR
+  });
   const exePath = path.join(cacheDir, `${key}.exe`);
   if (!fs.existsSync(exePath)) {
     const tmpPath = path.join(cacheDir, `${key}.${process.pid}.tmp`);
-    compileObjectToExecutable(object, tmpPath, { relation, inputPattern });
+    compileObjectToExecutable(object, tmpPath, {
+      relation,
+      inputPattern,
+      clangOpt,
+      usePKIR
+    });
     fs.renameSync(tmpPath, exePath);
   }
   return exePath;
 }
 
-function compileTemporary({ object, relation, inputPattern }) {
+function compileTemporary({
+  object,
+  relation,
+  inputPattern,
+  clangOpt,
+  usePKIR
+}) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-llvm-jit-"));
   const exePath = path.join(tmpDir, "program");
-  compileObjectToExecutable(object, exePath, { relation, inputPattern });
+  compileObjectToExecutable(object, exePath, {
+    relation,
+    inputPattern,
+    clangOpt,
+    usePKIR
+  });
   return { exePath, tmpDir };
 }
 
@@ -113,8 +187,12 @@ try {
   }
 
   let relation = null;
-  let cacheDir = path.join(os.tmpdir(), "k-llvm-jit-cache");
+  let cacheDir =
+    process.env.K_LLVM_CACHE_DIR ||
+    path.join(os.tmpdir(), "k-llvm-jit-cache");
+  let clangOpt = process.env.K_LLVM_CLANG_OPT || "-O1";
   let useCache = true;
+  let usePKIR = false;
   while (args.length > 0 && args[0].startsWith("--")) {
     const option = args.shift();
     if (option === "--retype") {
@@ -125,6 +203,13 @@ try {
       if (!cacheDir) throw new Error("--cache-dir requires a path");
     } else if (option === "--no-cache") {
       useCache = false;
+    } else if (option === "--opt") {
+      clangOpt = args.shift();
+      if (!clangOpt) {
+        throw new Error("--opt requires an optimization flag");
+      }
+    } else if (option === "--pkir") {
+      usePKIR = true;
     } else {
       throw new Error(`Unknown option: ${option}`);
     }
@@ -143,18 +228,33 @@ try {
   let tmpDir = null;
   try {
     const exePath = useCache
-      ? compileCached({ object, objectBuffer, relation: relationName, inputPattern, cacheDir })
+      ? compileCached({
+          object,
+          objectBuffer,
+          relation: relationName,
+          inputPattern,
+          cacheDir,
+          clangOpt,
+          usePKIR
+        })
       : (() => {
-          const compiled = compileTemporary({ object, relation: relationName, inputPattern });
+          const compiled = compileTemporary({
+            object,
+            relation: relationName,
+            inputPattern,
+            clangOpt,
+            usePKIR
+          });
           tmpDir = compiled.tmpDir;
           return compiled.exePath;
         })();
     stdout.write(await runExecutable(exePath, inputBuffer));
   } finally {
-    if (tmpDir != null) fs.rmSync(tmpDir, { recursive: true, force: true });
+    if (tmpDir != null) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   }
 } catch (error) {
   console.error(error.stack || error.message || String(error));
-  usage();
   exit(1);
 }
