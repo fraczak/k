@@ -5,6 +5,36 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.2] — 2026-10-13 — LLVM Squaring Scaling & Backend Streamlining
+
+### Features & Performance Improvements
+
+- **Multiplication Algorithm Scaling Benchmark (LLVM & Multi-Backend)**:
+  - Added successive squaring scale benchmark comparing standard long
+    multiplication (`times`) and Karatsuba multiplication (`karatsuba`)
+    across bit lengths doubling up to 7,650+ bits.
+  - Added support for squaring execution and memory (peak RSS / heap)
+    tracking across LLVM, WebAssembly, and interpreter lanes.
+  - Aligned product field layouts and offset indexing in `kvm2llvm.mjs`.
+
+### Bug Fixes & Compatibility
+
+- **LLVM Open/Closed Pattern Compatibility on Wire Input**:
+  - Allowed open and closed pattern compatibility when validating and
+    unpacking wire inputs in the LLVM runtime (`krt.c` and
+    `executable.mjs`).
+  - Gracefully accepts framed inputs matching open-product schemas.
+
+### Chores & Maintenance
+
+- **Backend Streamlining (Wasm & LLVM Focus)**:
+  - Removed legacy experimental ARM64 backend (`backends/arm64`) to focus
+    on WebAssembly (portable) and LLVM (native) backends.
+  - Updated documentation (`DOCS/FILE_FORMATS.md`,
+    `DOCS/PROFILING_AND_TRACING.md`) and benchmark suites.
+  - Enhanced pattern graph specialization and KIR monomorphization in
+    `kir.mjs`.
+
 ## [7.0.1] — 2026-10-10 — Call-Graph Pattern Graph Specialization
 
 ### Bug Fixes & Backend Alignments
