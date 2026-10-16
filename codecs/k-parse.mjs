@@ -7,10 +7,32 @@ import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { patternFromFilter } from "./runtime/pattern-k.mjs";
 import { encodeToWire } from "./runtime/prefix-codec.mjs";
 
-function usage(prog) {
-  console.error(`Usage: ${prog} [--input-type <type-script|type-file> | --input-pattern <pattern-script|pattern-file>] [value-file]`);
-  console.error("  Parse a textual k value and emit the self-hosted binary pattern+value stream.");
-  console.error("  If no pattern or type is provided, derive a closed pattern from the value.");
+function helpText() {
+  const prog = argv[1] || "k-parse.mjs";
+  return [
+    "Parse a textual k value and emit a binary pattern+value stream.",
+    "If no pattern or type is provided, derives a closed pattern from",
+    "the value.",
+    "",
+    `Usage: ${prog} [options] [value-file]`,
+    "",
+    "Arguments:",
+    "  value-file             Input textual k value file.",
+    "                         Reads from stdin when omitted.",
+    "",
+    "Options:",
+    "  --input-type type      Type filter script or file for pattern.",
+    "  --input-pattern json   Pattern JSON string or file.",
+    "  -h, --help             Show this help.",
+    "",
+    "Examples:",
+    `  echo '{"x": 1}' | ${prog} | k-print`,
+    `  ${prog} --input-type '<{} a, {} b>' value.kv`
+  ].join("\n");
+}
+
+function usage(stream = console.error) {
+  stream(helpText());
 }
 
 function maybeReadFile(s) {
@@ -31,11 +53,10 @@ function readAll(stream) {
 }
 
 async function main() {
-  const prog = argv[1];
   const args = argv.slice(2);
 
   if (args.includes("-h") || args.includes("--help")) {
-    usage(prog);
+    usage(console.log);
     return exit(0);
   }
 
@@ -51,13 +72,13 @@ async function main() {
     } else if (valueFile == null) {
       valueFile = args[i];
     } else {
-      usage(prog);
+      usage();
       return exit(1);
     }
   }
 
   if (inputTypeArg != null && inputPatternArg != null) {
-    usage(prog);
+    usage();
     return exit(1);
   }
 

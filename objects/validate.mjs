@@ -346,19 +346,25 @@ export function validateKIRP(kir) {
 }
 
 function helpText() {
+  const prog = argv[1] || "validate.mjs";
   return [
     "Validate a k .ko/.klib object or KIR-P JSON file.",
     "",
-    `Usage: ${argv[1]} [options] [input-file]`,
+    `Usage: ${prog} [options] [input-file]`,
     "",
     "Arguments:",
-    "  input-file     Input .ko/.klib file, or KIR JSON with --kir. Reads stdin when omitted.",
+    "  input-file     Input .ko/.klib file, or KIR JSON with --kir.",
+    "                 Reads stdin when omitted.",
     "",
     "Options:",
-    "  --kir          Validate input as KIR-P JSON instead of a k object.",
+    "  --kir          Validate input as KIR-P JSON instead of an object.",
     "  -h, --help     Show this help.",
     "",
-    "Object validation also validates the derived KIR-P export view."
+    "Object validation also validates the derived KIR-P export view.",
+    "",
+    "Examples:",
+    `  ${prog} program.ko`,
+    `  ${prog} --kir program.kir.json`
   ].join("\n");
 }
 
@@ -382,17 +388,18 @@ async function main() {
   }
 
   let mode = "object";
-  while (args.length > 0 && args[0].startsWith("--")) {
-    const option = args.shift();
-    if (option === "--kir") {
+  let inputPath = null;
+  for (const arg of args) {
+    if (arg === "--kir") {
       mode = "kir";
+    } else if (arg.startsWith("-")) {
+      throw new Error(`Unknown option: ${arg}`);
+    } else if (inputPath == null) {
+      inputPath = arg;
     } else {
-      throw new Error(`Unknown option: ${option}`);
+      throw new Error(`Unexpected argument: ${arg}`);
     }
   }
-
-  const inputPath = args.shift() || null;
-  if (args.length > 0) throw new Error(`Unexpected argument: ${args[0]}`);
 
   const input = inputPath == null ? await readStdinBytes() : fs.readFileSync(inputPath);
   if (mode === "kir") {

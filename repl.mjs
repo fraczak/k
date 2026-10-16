@@ -1325,16 +1325,18 @@ function promptForState(state) {
 }
 
 function cliUsage() {
+  console.log("Start the interactive k interpreter.");
+  console.log("Type :help inside the REPL for commands.");
+  console.log("");
   console.log("Usage: k-repl [options]");
   console.log("");
-  console.log("Start the interactive k interpreter. Type :help inside the REPL for commands.");
-  console.log("");
   console.log("Options:");
-  console.log("  --engine=<wasm|pkir|js>  Select evaluation engine (default: wasm)");
-  console.log("  --pkir              Shortcut for --engine=pkir");
-  console.log("  --wasm              Shortcut for --engine=wasm");
-  console.log("  --js                Shortcut for --engine=js");
-  console.log("  -h, --help          Show this help.");
+  console.log("  --engine=<wasm|pkir|js>  Select engine: wasm, pkir, js");
+  console.log("                           (default: wasm).");
+  console.log("  --pkir                   Shortcut for --engine=pkir.");
+  console.log("  --wasm                   Shortcut for --engine=wasm.");
+  console.log("  --js                     Shortcut for --engine=js.");
+  console.log("  -h, --help               Show this help.");
 }
 
 function startRepl(options = {}) {

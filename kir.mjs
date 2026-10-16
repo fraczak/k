@@ -601,20 +601,27 @@ export default {
 };
 
 function helpText() {
+  const prog = argv[1] || "kir.mjs";
   return [
     "Export the KIR-P JSON view from a k .ko or .klib object.",
     "",
-    `Usage: ${argv[1]} [options] [object-file]`,
+    `Usage: ${prog} [options] [object-file]`,
     "",
     "Arguments:",
-    "  object-file    Input .ko or .klib file. Reads from stdin when omitted.",
+    "  object-file            Input .ko or .klib file (default: stdin).",
     "",
     "Options:",
+    "  -o, --output path      Specify output file path explicitly.",
     "  --retype rel           Export retyped KIR-P for relation rel.",
-    "  --input-pattern json   Input pattern property-list JSON, or a file containing it.",
-    "  -h, --help     Show this help.",
+    "  --input-pattern json   Input pattern JSON or file for spec.",
+    "  -h, --help             Show this help.",
     "",
-    "KIR-P is an inspection/export view; retyping also emits KIR-P."
+    "KIR-P is an inspection/export view; retyping also emits KIR-P.",
+    "",
+    "Examples:",
+    `  ${prog} program.ko`,
+    `  ${prog} program.ko -o program.kir.json`,
+    `  ${prog} --retype main --input-pattern pattern.json program.ko`
   ].join("\n");
 }
 
@@ -643,32 +650,64 @@ async function main() {
 
   let retypeRelation = null;
   let inputPatternArg = null;
-  while (args.length > 0 && args[0].startsWith("--")) {
-    const option = args.shift();
-    if (option === "--retype") {
+  let explicitOutput = null;
+  const remainingArgs = [];
+  while (args.length > 0) {
+    const arg = args[0];
+    if (arg === "-o" || arg === "--output") {
+      args.shift();
+      explicitOutput = args.shift();
+      if (!explicitOutput) {
+        throw new Error("-o/--output requires a file argument");
+      }
+    } else if (arg === "--retype") {
+      args.shift();
       retypeRelation = args.shift();
       if (!retypeRelation) throw new Error("--retype requires a relation name");
-    } else if (option === "--input-pattern") {
+    } else if (arg === "--input-pattern") {
+      args.shift();
       inputPatternArg = args.shift();
-      if (!inputPatternArg) throw new Error("--input-pattern requires JSON or a file path");
+      if (!inputPatternArg) {
+        throw new Error("--input-pattern requires JSON or a file path");
+      }
+    } else if (arg.startsWith("-")) {
+      throw new Error(`Unknown option: ${arg}`);
     } else {
-      throw new Error(`Unknown option: ${option}`);
+      remainingArgs.push(args.shift());
     }
   }
 
-  const inputPath = args.shift() || null;
-  if (args.length > 0) {
-    throw new Error(`Unexpected argument: ${args[0]}`);
+  const inputPath = remainingArgs.shift() || null;
+  if (remainingArgs.length > 0) {
+    throw new Error(`Unexpected argument: ${remainingArgs[0]}`);
   }
 
-  const buffer = inputPath == null ? await readStdinBytes() : fs.readFileSync(inputPath);
+  const buffer = inputPath == null
+    ? await readStdinBytes()
+    : fs.readFileSync(inputPath);
   const object = decodeObject(buffer);
+  let outputData;
   if (retypeRelation != null) {
-    if (inputPatternArg == null) throw new Error("--retype requires --input-pattern");
-    const inputPatternText = fs.existsSync(inputPatternArg) ? fs.readFileSync(inputPatternArg, "utf8") : inputPatternArg;
-    stdout.write(JSON.stringify(retypeObjectRelation(object, retypeRelation, JSON.parse(inputPatternText)), null, 2) + "\n");
+    if (inputPatternArg == null) {
+      throw new Error("--retype requires --input-pattern");
+    }
+    const inputPatternText = fs.existsSync(inputPatternArg)
+      ? fs.readFileSync(inputPatternArg, "utf8")
+      : inputPatternArg;
+    outputData = retypeObjectRelation(
+      object,
+      retypeRelation,
+      JSON.parse(inputPatternText)
+    );
   } else {
-    stdout.write(JSON.stringify(objectToKIRP(object), null, 2) + "\n");
+    outputData = objectToKIRP(object);
+  }
+
+  const json = JSON.stringify(outputData, null, 2) + "\n";
+  if (explicitOutput) {
+    fs.writeFileSync(explicitOutput, json, "utf8");
+  } else {
+    stdout.write(json);
   }
 }
 

@@ -9,7 +9,12 @@ import {
 } from "./run.mjs";
 import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
 import { intersectPropertyListPatterns } from "./codecs/runtime/codec.mjs";
-import { compileObjectBuffer, decodeObject, loadLibrary } from "./object.mjs";
+import {
+  compileLibrary,
+  compileObjectBuffer,
+  decodeObject,
+  loadLibrary
+} from "./object.mjs";
 import codes from "./codes.mjs";
 import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
 import { isIntrinsic, unsupportedIntrinsic } from "./intrinsics.mjs";
@@ -964,20 +969,43 @@ export default {
   specializeKVM
 };
 
-function usage() {
+function helpText() {
   const prog = argv[1] || "kvm.mjs";
-  console.error(`Usage: node ${prog} [ options ] ( k-expr | input-file ) [ input-file ]`);
-  console.error("Options:");
-  console.error("  --lib file          Load one .klib dependency before compiling.");
-  console.error("  --export spec       Export a library alias into scope. 'name' or 'libname:localname'. May be repeated.");
-  console.error("  --envelope-free     Run the interpreter in envelope-free mode.");
-  console.error("  -h, --help          Show this help.");
+  return [
+    "Execute a k expression or file via the kVM bytecode interpreter",
+    "over a binary pattern+value wire stream.",
+    "",
+    `Usage: ${prog} [options]`,
+    "       ( source-snippet | input-file ) [ input-wire-file ]",
+    "",
+    "Arguments:",
+    "  source-snippet   Inline k source snippet.",
+    "  input-file       Source .k, .ko, or .klib file.",
+    "  input-wire-file  Optional binary wire input (default: stdin).",
+    "",
+    "Options:",
+    "  --lib file       Load one .klib or .k library before compiling.",
+    "  --export spec    Export library alias into scope. Repeatable.",
+    "                   spec is 'name' or 'libname:localname'.",
+    "  --envelope-free  Run the interpreter in envelope-free mode.",
+    "  -h, --help       Show this help.",
+    "",
+    "Examples:",
+    `  echo '"abc"' | k-parse | ${prog} '{.1 0}' | k-print`,
+    `  echo '{"x":1,"y":2}' | k-json --parse | \\`,
+    `    ${prog} --lib Examples/poly.k --export concat \\`,
+    `      's={()xs,()ys}concat; s' | k-json --print`
+  ].join("\n");
+}
+
+function usage(stream = console.error) {
+  stream(helpText());
 }
 
 async function main() {
   const args = argv.slice(2);
   if (args.includes("-h") || args.includes("--help")) {
-    usage();
+    usage(console.log);
     return exit(0);
   }
 
@@ -994,9 +1022,18 @@ async function main() {
       args.shift();
       const libPath = args.shift();
       if (!libPath) throw new Error("--lib requires a file argument");
-      if (libraries.length > 0) throw new Error("--lib may be specified at most once");
-      const libBuffer = fs.readFileSync(libPath);
-      libraries.push(loadLibrary(decodeObject(libBuffer)));
+      if (libraries.length > 0) {
+        throw new Error("--lib may be specified at most once");
+      }
+      if (libPath.endsWith(".k")) {
+        const raw = fs.readFileSync(libPath, "utf8");
+        libraries.push(
+          loadLibrary(compileLibrary(raw, { source: libPath }))
+        );
+      } else {
+        const libBuffer = fs.readFileSync(libPath);
+        libraries.push(loadLibrary(decodeObject(libBuffer)));
+      }
     } else if (args[0] === "--export") {
       args.shift();
       const spec = args.shift();
