@@ -72,19 +72,19 @@ node ./bin/k-llvm-compile.mjs --help | grep -q 'Compile a k .ko/.klib object'
 
 node ./bin/k-llvm-build.mjs --help | grep -q 'binary k pattern+value envelope'
 
-node ./bin/k-llvm-jit.mjs --help | grep -q 'stdin binary envelope'
+node ./bin/k-llvm.mjs --help | grep -q 'binary pattern+value wire stream'
 
-node ./bin/k-llvm-run.mjs --help | grep -q 'Compile and execute a k .ko/.klib object'
+node ./tests/k-llvm-run.mjs --help | grep -q 'Compile and execute a k .ko/.klib object'
 
 node ../../objects/compile.mjs '.x' "$TMP_DIR/run.ko"
 printf '{"x":"left","y":"right"}' > "$TMP_DIR/run-input.kv"
 printf '"left"' > "$TMP_DIR/run-expected.kv"
-node ./bin/k-llvm-run.mjs --expect "$TMP_DIR/run-expected.kv" "$TMP_DIR/run.ko" "$TMP_DIR/run-input.kv" | grep -qx 'OK'
-node ./bin/k-llvm-run.mjs "$TMP_DIR/run.ko" "$TMP_DIR/run-input.kv" | grep -qx '"left"'
+node ./tests/k-llvm-run.mjs --expect "$TMP_DIR/run-expected.kv" "$TMP_DIR/run.ko" "$TMP_DIR/run-input.kv" | grep -qx 'OK'
+node ./tests/k-llvm-run.mjs "$TMP_DIR/run.ko" "$TMP_DIR/run-input.kv" | grep -qx '"left"'
 
 node ../../objects/compile.mjs '{ .x fieldA, .y fieldB }' "$TMP_DIR/run-product.ko"
 printf '{"x":"left","y":"right"}' > "$TMP_DIR/run-product-input.kv"
-node ./bin/k-llvm-run.mjs "$TMP_DIR/run-product.ko" "$TMP_DIR/run-product-input.kv" | grep -qx '{"fieldA":"left","fieldB":"right"}'
+node ./tests/k-llvm-run.mjs "$TMP_DIR/run-product.ko" "$TMP_DIR/run-product-input.kv" | grep -qx '{"fieldA":"left","fieldB":"right"}'
 
 node ./bin/k-llvm-build.mjs '?{<{}=X0 left, ...> x, <X0 right, ...> y} .x' -o "$TMP_DIR/run-exe"
 printf '{"x":"left","y":"right"}' \
@@ -130,31 +130,31 @@ printf '987654321' \
 
 printf '{"x":"left","y":"right"}' \
   | node ../../codecs/k-parse.mjs \
-  | node ./bin/k-llvm-jit.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/run.ko" \
+  | node ./bin/k-llvm.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/run.ko" \
   | node ../../codecs/k-print.mjs \
   | grep -qx '"left"'
 
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const pattern = [[\"open-union\",[[\"left\",1],[\"right\",1]]],[\"closed-product\",[]]]; stdout.write(encodeToWire(Value.variant(\"left\", Value.product({}), pattern), pattern));" \
-  | node ./bin/k-llvm-jit.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/id.ko" \
+  | node ./bin/k-llvm.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/id.ko" \
   | node --input-type=module -e "import { stdin } from 'node:process'; import { decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; const chunks = []; stdin.on('data', (chunk) => chunks.push(chunk)); stdin.on('end', () => console.log(JSON.stringify(decodeWire(Buffer.concat(chunks)).pattern)));" \
   | grep -Fqx '[["open-union",[["left",1],["right",1]]],["closed-product",[]]]'
 
 node ../../objects/compile.mjs '/"ह" |"😀"' "$TMP_DIR/unicode-variant.ko"
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const pattern = [[\"closed-union\", [[\"ह\", 1]]], [\"closed-product\", []]]; stdout.write(encodeToWire(Value.variant('ह', Value.product({}), pattern), pattern));" \
-  | node ./bin/k-llvm-jit.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/unicode-variant.ko" \
+  | node ./bin/k-llvm.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/unicode-variant.ko" \
   | node ../../codecs/k-print.mjs \
   | grep -qx '"😀"'
 
 node ../../objects/compile.mjs '/"a\u0000b" |"nul-ok"' "$TMP_DIR/nul-variant.ko"
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const tag = 'a\u0000b'; const pattern = [[\"closed-union\", [[tag, 1]]], [\"closed-product\", []]]; stdout.write(encodeToWire(Value.variant(tag, Value.product({}), pattern), pattern));" \
-  | node ./bin/k-llvm-jit.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/nul-variant.ko" \
+  | node ./bin/k-llvm.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/nul-variant.ko" \
   | node ../../codecs/k-print.mjs \
   | grep -qx '"nul-ok"'
 
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const labels = ['a', 'é', 'ह', '\uE000', '😀', '𠀀', 'a\u0000b']; const pattern = [[\"closed-product\", labels.map((label) => [label, 1])], [\"closed-product\", []]]; const value = Value.product(Object.fromEntries(labels.map((label) => [label, Value.product({})])), pattern); stdout.write(encodeToWire(value, pattern));" \
-  | node ./bin/k-llvm-jit.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/id.ko" \
+  | node ./bin/k-llvm.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/id.ko" \
   | node --input-type=module -e "import assert from 'node:assert/strict'; import { stdin } from 'node:process'; import { decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; const chunks = []; for await (const chunk of stdin) chunks.push(chunk); const labels = ['a', 'é', 'ह', '\uE000', '😀', '𠀀', 'a\u0000b']; const { pattern } = decodeWire(Buffer.concat(chunks)); assert.equal(pattern[0][0], 'closed-product'); assert.deepEqual(new Set(pattern[0][1].map(([label]) => label)), new Set(labels));"
 
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const labels = ['a', 'é', 'ह', '\uE000', '😀', '𠀀', 'a\u0000b']; const pattern = [[\"open-union\", labels.map((label) => [label, 1])], [\"closed-product\", []]]; stdout.write(encodeToWire(Value.variant('a\u0000b', Value.product({}), pattern), pattern));" \
-  | node ./bin/k-llvm-jit.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/id.ko" \
+  | node ./bin/k-llvm.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/id.ko" \
   | node --input-type=module -e "import assert from 'node:assert/strict'; import { stdin } from 'node:process'; import { decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; const chunks = []; for await (const chunk of stdin) chunks.push(chunk); const labels = ['a', 'é', 'ह', '\uE000', '😀', '𠀀', 'a\u0000b']; const { pattern, value } = decodeWire(Buffer.concat(chunks)); assert.equal(pattern[0][0], 'open-union'); assert.deepEqual(new Set(pattern[0][1].map(([label]) => label)), new Set(labels)); assert.equal(value.tag, 'a\u0000b');"

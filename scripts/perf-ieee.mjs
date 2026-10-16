@@ -54,7 +54,7 @@ function printHelp() {
 
 IEEE 754 Floating-Point Arithmetic Benchmark Harness.
 Benchmarks add, sub, mul, and div on Examples/ieee.k across
-Native JS, kVM interpreter, LLVM, and Wasm backends.
+Native JS, kVM interpreter, LLVM, Wasm, and PKIR backends.
 
 Options:
   --opt=<levels>, --opts=<levels>
@@ -65,16 +65,20 @@ Options:
       Run full LLVM optimization sweep (-O0, -O1, -O2).
   --wasm-in-process
       Run WebAssembly in-process instead of persistent subprocess runner.
+  --pkir-only
+      Run only PKIR backend.
   -h, --help
       Show this help message and exit.
 
 Environment Variables:
   BACKENDS
-      Target backend to run: 'llvm' or 'wasm'.
+      Target backend to run: 'llvm', 'wasm', or 'pkir'.
   LLVM_ONLY
       Run only LLVM backend ('1' to enable).
   WASM_ONLY
       Run only WebAssembly backend ('1' to enable).
+  PKIR_ONLY
+      Run only PKIR backend ('1' to enable).
   BACKENDS_ONLY
       Skip JS and kVM interpreter baselines ('1' to enable).
   VALUES
@@ -116,11 +120,52 @@ if (process.argv.includes("-h") || process.argv.includes("--help")) {
 
 // Backend selection
 const backendsEnv = process.env.BACKENDS?.toLowerCase();
-const llvmOnly = process.env.LLVM_ONLY === "1" || backendsEnv === "llvm";
-const wasmOnly = process.env.WASM_ONLY === "1" || backendsEnv === "wasm";
-const runLLVM = !wasmOnly;
-const runWasm = !llvmOnly;
-const runBaselines = !process.env.BACKENDS_ONLY && (process.env.LLVM_ONLY !== "1") && (process.env.WASM_ONLY !== "1");
+const backendsList = backendsEnv
+  ? backendsEnv.split(",").map(s => s.trim())
+  : null;
+const llvmPkirOnly = process.env.LLVM_PKIR_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "llvm-pkir")
+  || process.argv.includes("--llvm-pkir-only");
+const pkirOnly = !llvmPkirOnly && (
+  process.env.PKIR_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "pkir")
+  || process.argv.includes("--pkir-only")
+);
+const llvmOnly = !pkirOnly && !llvmPkirOnly && (
+  process.env.LLVM_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "llvm")
+);
+const wasmOnly = !pkirOnly && !llvmPkirOnly && !llvmOnly && (
+  process.env.WASM_ONLY === "1"
+  || (backendsList && backendsList.length === 1 &&
+      backendsList[0] === "wasm")
+);
+const runLLVM = backendsList
+  ? backendsList.includes("llvm")
+  : !wasmOnly && !pkirOnly && !llvmPkirOnly;
+const runLLVMPKIR = backendsList
+  ? backendsList.includes("llvm-pkir")
+  : !wasmOnly && !pkirOnly && !llvmOnly;
+const runWasm = backendsList
+  ? backendsList.includes("wasm")
+  : !llvmOnly && !pkirOnly && !llvmPkirOnly;
+const runPKIR = backendsList
+  ? backendsList.includes("pkir")
+  : !llvmOnly && !wasmOnly && !llvmPkirOnly;
+const runBaselines = !process.env.BACKENDS_ONLY
+  && (backendsList == null || backendsList.includes("kvm") ||
+      backendsList.includes("js"))
+  && !llvmOnly && !wasmOnly && !pkirOnly && !llvmPkirOnly;
+
+function llvmLaneNameStr() {
+  return llvmLaneName();
+}
+function llvmPkirLaneNameStr() {
+  return llvmLaneName().replace("LLVM", "LLVM-PKIR");
+}
 
 const ops = ["add", "sub", "mul", "div"];
 const values = csvEnv("VALUES", "0.5,-4,0,Infinity,-Infinity,NaN");
@@ -172,6 +217,9 @@ function wasmLaneName() {
   const mode = wasmPipe ? "persistent" : "in-process";
   return `WebAssembly (${mode})`;
 }
+function pkirLaneName() {
+  return "PKIR (Wasm persistent)";
+}
 
 console.log("==> Initializing state and loading @fraczak/k/Examples/ieee.k");
 const state = createState();
@@ -206,7 +254,8 @@ const perfKSource = generatePerfK(values);
 await evaluateInput(perfKSource, state);
 
 const ieeeRaw = fs.readFileSync(ieeePath, "utf8");
-// Exclude trailing unassigned expression and comment block to ensure clean parse
+// Exclude trailing unassigned expression and comment block to ensure
+// clean parse.
 const endIdx = ieeeRaw.indexOf("\n()\n");
 const ieeeBase = endIdx !== -1 ? ieeeRaw.slice(0, endIdx) : ieeeRaw;
 const fullSource = `${ieeeBase}\n${perfKSource}\nperf_ieee`;
@@ -249,7 +298,8 @@ if (runLLVM) {
       cacheDir,
       sourceLabel: "@fraczak/k/Examples/ieee.k#perf_ieee",
       runtimeMode: llvmRuntimeMode,
-      clangOpt: opt
+      clangOpt: opt,
+      usePKIR: false
     });
     const singleCase = [{
       op: "perf_ieee",
@@ -261,6 +311,37 @@ if (runLLVM) {
       llvm
     }];
     llvmCasesByOpt.set(opt, singleCase);
+    printCompileFailures(singleCase);
+  }
+  codes.load(state.codes);
+}
+
+// Setup LLVM-PKIR
+const llvmPkirCasesByOpt = new Map();
+if (runLLVMPKIR) {
+  for (const opt of llvmOptLevels) {
+    console.log(`==> Compiling LLVM-PKIR executable (${opt})...`);
+    const llvm = tryCompileCase({
+      object: relation.object,
+      relationName: relation.relationName,
+      relHash: relation.relHash,
+      inputPattern,
+      cacheDir,
+      sourceLabel: "@fraczak/k/Examples/ieee.k#perf_ieee",
+      runtimeMode: llvmRuntimeMode,
+      clangOpt: opt,
+      usePKIR: true
+    });
+    const singleCase = [{
+      op: "perf_ieee",
+      label: "params",
+      inputVal,
+      inputWire,
+      inputPattern,
+      expected,
+      llvm
+    }];
+    llvmPkirCasesByOpt.set(opt, singleCase);
     printCompileFailures(singleCase);
   }
   codes.load(state.codes);
@@ -310,6 +391,28 @@ if (runWasm) {
   }
 }
 
+// Setup PKIR
+let pkirExePath = null;
+let pkirCompileError = null;
+if (runPKIR) {
+  console.log("==> Compiling PKIR executable (persistent runner)...");
+  try {
+    const pkirPath = path.join(cacheDir, "perf_ieee_pkir.wasm");
+    pkirExePath = path.join(cacheDir, "perf_ieee_pkir.exe");
+    const wasmBuf = await compileWasmArtifactFromObject(relation.object, {
+      entry: "__main__",
+      usePKIR: true
+    });
+    fs.writeFileSync(pkirPath, wasmBuf);
+    const runBin = fileURLToPath(import.meta.resolve("../backends/wasm/bin/k-wasm-run.mjs"));
+    fs.writeFileSync(pkirExePath, `#!/bin/sh\nexec node "${runBin}" "${pkirPath}" "$@"\n`, { mode: 0o755 });
+  } catch (error) {
+    pkirCompileError = error.stack || error.message || String(error);
+    console.log("PKIR compilation failed:");
+    console.log(pkirCompileError.split("\n").slice(0, 8).join("\n"));
+  }
+}
+
 function printBenchmarkDescription() {
   const lanes = [];
   if (runBaselines) {
@@ -319,11 +422,28 @@ function printBenchmarkDescription() {
   }
   if (runLLVM) {
     for (const opt of llvmOptLevels) {
-      const mode = llvmLaneName().replace(/^LLVM Executable\\s*\\((.*)\\)$/, "$1");
-      lanes.push(llvmOptLevels.length > 1 ? `LLVM ${opt} (${mode})` : llvmLaneName());
+      const mode = llvmLaneName()
+        .replace(/^LLVM Executable\s*\((.*)\)$/, "$1");
+      lanes.push(
+        llvmOptLevels.length > 1
+          ? `LLVM ${opt} (${mode})`
+          : llvmLaneName()
+      );
+    }
+  }
+  if (runLLVMPKIR) {
+    for (const opt of llvmOptLevels) {
+      const mode = llvmLaneName()
+        .replace(/^LLVM Executable\s*\((.*)\)$/, "$1");
+      lanes.push(
+        llvmOptLevels.length > 1
+          ? `LLVM-PKIR ${opt} (${mode})`
+          : llvmLaneName().replace("LLVM", "LLVM-PKIR")
+      );
     }
   }
   if (runWasm) lanes.push(wasmLaneName());
+  if (runPKIR) lanes.push(pkirLaneName());
 
   console.log("==> Benchmark description");
   console.log("    source: @fraczak/k/Examples/ieee.k#perf_ieee (single program)");
@@ -336,12 +456,20 @@ function printBenchmarkDescription() {
     console.log(`    llvm clang opts: ${llvmOptLevels.join(", ")}`);
     console.log(`    llvm cache dir: ${cacheDir}`);
   }
+  if (runLLVMPKIR) {
+    console.log(`    llvm-pkir warmup iterations: ${llvmWarmupIterations}`);
+    console.log(`    llvm-pkir runtime mode: ${llvmRuntimeMode}`);
+    console.log(`    llvm-pkir clang opts: ${llvmOptLevels.join(", ")}`);
+  }
   if (runWasm) {
     console.log(`    wasm runner mode: ${wasmPipe ? "persistent pipe" : "in-process"}`);
     console.log(`    wasm warmup iterations: ${wasmWarmupIterations}`);
     if (!wasmPipe) {
       console.log(`    wasm arena reset: ${wasmReset ? "yes" : "no"}`);
     }
+  }
+  if (runPKIR) {
+    console.log(`    pkir warmup iterations: ${wasmWarmupIterations}`);
   }
   console.log(`    iterations: ${iterations}`);
   console.log(`    benchmark lanes: ${lanes.join("; ")}`);
@@ -403,6 +531,28 @@ if (runLLVM) {
   }
 }
 
+// 2b. LLVM-PKIR lanes
+const llvmPkirResults = new Map();
+if (runLLVMPKIR) {
+  for (const opt of llvmOptLevels) {
+    const casesForOpt = llvmPkirCasesByOpt.get(opt);
+    const llvmRunner = createLLVMRunner(casesForOpt);
+    try {
+      if (llvmWarmupIterations > 0) {
+        console.log(`==> Warming LLVM-PKIR (${opt}) executable (${llvmWarmupIterations} iterations)...`);
+        await llvmRunner.run(llvmWarmupIterations);
+      }
+      console.log(`==> Running LLVM-PKIR (${opt}) (${iterations} iterations)...`);
+      const result = await llvmRunner.run(iterations);
+      llvmPkirResults.set(opt, result);
+    } catch (err) {
+      console.log(`==> LLVM-PKIR (${opt}) execution failed: ${err.message?.split("\n")[0]}`);
+    } finally {
+      llvmRunner.close();
+    }
+  }
+}
+
 // 3. Wasm lane
 let wasmResult = null;
 if (runWasm) {
@@ -445,6 +595,28 @@ if (runWasm) {
   }
 }
 
+// 4. PKIR lane
+let pkirResult = null;
+if (runPKIR) {
+  if (pkirExePath) {
+    const server = new PersistentExecutable(pkirExePath);
+    try {
+      if (wasmWarmupIterations > 0) {
+        console.log(`==> Warming PKIR (${wasmWarmupIterations} iterations)...`);
+        for (let i = 0; i < wasmWarmupIterations; i++) {
+          await server.request(inputWire);
+        }
+      }
+      console.log(`==> Running PKIR (${iterations} iterations)...`);
+      pkirResult = await runTimedIterationsAsync(iterations, async () => {
+        await server.request(inputWire);
+      });
+    } finally {
+      server.close();
+    }
+  }
+}
+
 console.log("\n=================== IEEE BENCHMARK RESULTS ===================");
 console.log(`Program calls per iteration: 1 (${totalOps} IEEE operations evaluated inside)`);
 console.log(`Total requested program calls: ${iterations} (${iterations * totalOps} equivalent IEEE operations)`);
@@ -457,15 +629,37 @@ if (runBaselines) {
 }
 if (runLLVM) {
   for (const opt of llvmOptLevels) {
+    const mode = llvmLaneName()
+      .replace(/^LLVM Executable\s*\((.*)\)$/, "$1");
     const title = llvmOptLevels.length > 1
-      ? `LLVM ${opt} (${llvmLaneName().replace(/^LLVM Executable\\s*\\((.*)\\)$/, "$1")})`
+      ? `LLVM ${opt} (${mode})`
       : llvmLaneName();
-    console.log(`${laneIndex++}. ${title.padEnd(29)} ${formatTiming(llvmResults.get(opt))}`);
+    console.log(
+      `${laneIndex++}. ${title.padEnd(29)} ` +
+      `${formatTiming(llvmResults.get(opt))}`
+    );
+  }
+}
+if (runLLVMPKIR) {
+  for (const opt of llvmOptLevels) {
+    const mode = llvmLaneName()
+      .replace(/^LLVM Executable\s*\((.*)\)$/, "$1");
+    const title = llvmOptLevels.length > 1
+      ? `LLVM-PKIR ${opt} (${mode})`
+      : llvmLaneName().replace("LLVM", "LLVM-PKIR");
+    console.log(
+      `${laneIndex++}. ${title.padEnd(29)} ` +
+      `${formatTiming(llvmPkirResults.get(opt))}`
+    );
   }
 }
 if (runWasm) {
   const timingStr = wasmResult ? formatTiming(wasmResult) : "compile failed";
   console.log(`${laneIndex++}. ${wasmLaneName().padEnd(29)} ${timingStr}`);
+}
+if (runPKIR) {
+  const timingStr = pkirResult ? formatTiming(pkirResult) : "compile failed";
+  console.log(`${laneIndex++}. ${pkirLaneName().padEnd(29)} ${timingStr}`);
 }
 console.log("==============================================================\n");
 
@@ -498,6 +692,28 @@ if (runLLVM) {
         tc.llvmConformance = "failed";
         tc.llvm.error = error.stack || error.message || String(error);
         console.log(`LLVM (${opt}) conformance failure:`);
+        console.log(tc.llvm.error.split("\n").slice(0, 8).join("\n"));
+      }
+    }
+  }
+}
+
+if (runLLVMPKIR) {
+  for (const opt of llvmOptLevels) {
+    const casesForOpt = llvmPkirCasesByOpt.get(opt);
+    const tc = casesForOpt[0];
+    if (tc.llvm.status !== "ok") {
+      tc.llvmConformance = "compile-failed";
+    } else {
+      try {
+        const outputWire = await runExecutable(tc.llvm.exePath, tc.inputWire);
+        const actual = decodeWire(outputWire).value;
+        assert.deepEqual(toPlainObject(actual), toPlainObject(expected));
+        tc.llvmConformance = "ok";
+      } catch (error) {
+        tc.llvmConformance = "failed";
+        tc.llvm.error = error.stack || error.message || String(error);
+        console.log(`LLVM-PKIR (${opt}) conformance failure:`);
         console.log(tc.llvm.error.split("\n").slice(0, 8).join("\n"));
       }
     }
@@ -540,6 +756,22 @@ if (runWasm) {
   }
 }
 
+let pkirOk = false;
+if (runPKIR) {
+  if (!pkirExePath) {
+    console.log("PKIR conformance failure: executable was not compiled");
+  } else {
+    try {
+      const outputWire = await runExecutable(pkirExePath, inputWire);
+      const actual = decodeWire(outputWire).value;
+      assert.deepEqual(toPlainObject(actual), toPlainObject(expected));
+      pkirOk = true;
+    } catch (error) {
+      console.log("PKIR conformance failure:", error.message || error);
+    }
+  }
+}
+
 const validationSummary = [];
 if (runBaselines && kvmOk) validationSummary.push(`kVM (all ${totalOps} ops)`);
 if (runLLVM) {
@@ -549,8 +781,20 @@ if (runLLVM) {
     validationSummary.push(`LLVM ${opt} (${tc.llvmConformance === "ok" ? `all ${totalOps} ops` : tc.llvmConformance})`);
   }
 }
+if (runLLVMPKIR) {
+  for (const opt of llvmOptLevels) {
+    const casesForOpt = llvmPkirCasesByOpt.get(opt);
+    const tc = casesForOpt[0];
+    validationSummary.push(
+      `LLVM-PKIR ${opt} (${tc.llvmConformance === "ok" ? `all ${totalOps} ops` : tc.llvmConformance})`
+    );
+  }
+}
 if (runWasm) {
   validationSummary.push(`Wasm (${wasmOk ? `all ${totalOps} ops` : "failed"})`);
+}
+if (runPKIR) {
+  validationSummary.push(`PKIR (${pkirOk ? `all ${totalOps} ops` : "failed"})`);
 }
 
 console.log(`Conformance validation: ${validationSummary.join(", ")} match expected values.`);
@@ -560,4 +804,11 @@ if (runLLVM) {
     if (shouldStrictFail(casesForOpt)) process.exitCode = 1;
   }
 }
+if (runLLVMPKIR) {
+  for (const opt of llvmOptLevels) {
+    const casesForOpt = llvmPkirCasesByOpt.get(opt);
+    if (shouldStrictFail(casesForOpt)) process.exitCode = 1;
+  }
+}
 if (runWasm && !wasmOk) process.exitCode = 1;
+if (runPKIR && !pkirOk) process.exitCode = 1;

@@ -13,38 +13,43 @@ import {
 import { objectToKVMArtifact } from "../kvm.mjs";
 
 function helpText() {
+  const prog = argv[1] || "compile.mjs";
   return [
-    "Compile a k source, .ko, or .klib into .ko, .klib, or .kvm output.",
-    "Output format is inferred from the output file extension, or from --format.",
+    "Compile k source, .ko, or .klib into .ko, .klib, or .kvm output.",
+    "Output format is inferred from the output extension or --format.",
     "",
-    `Usage: ${argv[1]} [options] [source-snippet | input-file [output-file]]`,
+    `Usage: ${prog} [options]`,
+    "       [source-snippet | input-file [output-file]]",
     "",
     "Arguments:",
-    "  source-snippet  Inline k source, in the same style as k.mjs.",
-    "  input-file      Source .k, .ko, or .klib file. Reads UTF-8 source from stdin when omitted.",
-    "  output-file     Output path (.ko, .klib, or .kvm). Writes to stdout when omitted.",
+    "  source-snippet   Inline k source, in the same style as k.mjs.",
+    "  input-file       Source .k, .ko, or .klib file.",
+    "                   Reads UTF-8 source from stdin when omitted.",
+    "  output-file      Output path (.ko, .klib, or .kvm).",
+    "                   Writes to stdout when omitted.",
     "",
     "Options:",
-    "  --lib file       Load one .klib or .k library dependency before compiling.",
-    "  --export spec    Export a library alias into the source scope. May be repeated.",
-    "                   spec is 'name' or 'libname:localname'.",
-    "  --format fmt     Output format: ko, klib, or kvm. Overrides extension detection.",
-    "  -h, --help       Show this help.",
+    "  -o, --output path  Specify output file path explicitly.",
+    "  --format fmt       Output format: ko, klib, or kvm.",
+    "                     Overrides extension detection.",
+    "  --lib file         Load one .klib or .k library before compiling.",
+    "  --export spec      Export library alias into scope. Repeatable.",
+    "                     spec is 'name' or 'libname:localname'.",
+    "  -h, --help         Show this help.",
     "",
-    "Existing input paths are read as files. A non-existing input with .k, .ko,",
-    "or .klib extension is reported as a missing file; otherwise it is compiled",
-    "as inline k source.",
+    "Existing input paths are read as files. A non-existing input with",
+    ".k, .ko, or .klib extension is reported as missing; otherwise it is",
+    "compiled as inline k source.",
     "",
     ".kvm is a polymorphic kVM template artifact (layer: KVM-P).",
     "A .klib input can only be copied to .klib output.",
     "",
     "Examples:",
-    `  ${argv[1]} 'x = |x; x x'`,
-    `  ${argv[1]} program.k program.ko`,
-    `  ${argv[1]} program.k program.klib`,
-    `  ${argv[1]} program.k program.kvm`,
-    `  ${argv[1]} --lib Examples/arithmetics.k --export plus:+ --export succ --export int '{succ int x,int y}+' a.kvm`,
-    `  ${argv[1]} --lib core.klib --export add --export mul:times program.k program.ko`
+    `  ${prog} 'x = |x; x x'`,
+    `  ${prog} program.k -o program.ko`,
+    `  ${prog} program.k program.klib`,
+    `  ${prog} program.k program.kvm`,
+    `  ${prog} --lib core.klib --export add program.k program.ko`
   ].join("\n");
 }
 
@@ -144,6 +149,7 @@ try {
 
   const libraries = [];
   let format = null;
+  let explicitOutput = null;
   const exports = [];
 
   while (args.length > 0) {
@@ -151,7 +157,13 @@ try {
       args.shift();
       break;
     }
-    if (args[0] === "--lib") {
+    if (args[0] === "-o" || args[0] === "--output") {
+      args.shift();
+      explicitOutput = args.shift();
+      if (!explicitOutput) {
+        throw new Error("-o/--output requires a file argument");
+      }
+    } else if (args[0] === "--lib") {
       args.shift();
       const libPath = args.shift();
       if (!libPath) throw new Error("--lib requires a file argument");
@@ -172,7 +184,7 @@ try {
       format = args.shift();
       if (!["ko", "klib", "kvm"].includes(format))
         throw new Error(`Unknown format: ${format}. Use ko, klib, or kvm.`);
-    } else if (args[0].startsWith("--")) {
+    } else if (args[0].startsWith("-")) {
       throw new Error(`Unknown option: ${args[0]}`);
     } else {
       break;
@@ -180,10 +192,12 @@ try {
   }
 
   const inputArg = args.shift() || null;
-  const outputPath = args.shift() || null;
+  const positionalOutput = args.shift() || null;
   if (args.length > 0) {
     throw new Error(`Unexpected argument: ${args[0]}`);
   }
+
+  const outputPath = explicitOutput || positionalOutput || null;
 
   const outputFormat = format || inferFormat(outputPath);
   const input = resolveInput(inputArg);

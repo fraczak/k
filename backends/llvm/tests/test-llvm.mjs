@@ -1,7 +1,14 @@
 import assert from "node:assert";
 import { compileObjectBuffer, decodeObject } from "@fraczak/k/object.mjs";
-import { compileObjectToLLVM, compileLLVMArtifactFromKVM, emitLLVMModule, llvmIdentifier } from "../src/llvm.mjs";
+import {
+  compileObjectToLLVM,
+  compileLLVMArtifactFromKVM,
+  compileLLVMArtifactFromPKIR,
+  emitLLVMModule,
+  llvmIdentifier
+} from "../src/llvm.mjs";
 import { objectToKVMArtifact } from "@fraczak/k/kvm.mjs";
+import { compileRelationToPKIR } from "@fraczak/k/backend-api.mjs";
 
 function kirP(body, { patternGraph = null } = {}) {
   return {
@@ -269,5 +276,19 @@ const kvmLLVM = compileLLVMArtifactFromKVM(kvmArtifact, {
 assert.match(kvmLLVM, /source_filename = "k-llvm:__main__"/);
 assert.match(kvmLLVM, /define %k_result @k_main/);
 assert.match(kvmLLVM, /store ptr %product_fields\d+, ptr %ptr_slot\d+/);
+
+// Test PKIR lowering via compileObjectToLLVM with usePKIR: true
+const pkirObjectLLVM = compileObjectToLLVM(productObject, {
+  usePKIR: true
+});
+assert.match(pkirObjectLLVM.llvm, /source_filename = "k-llvm:__main__"/);
+assert.match(pkirObjectLLVM.llvm, /define %k_result @k_main/);
+
+// Test compileLLVMArtifactFromPKIR directly
+const mainRel = productObject.rels[productObject.main || "__main__"];
+const pkirFromRel = compileRelationToPKIR(mainRel, "__main__");
+const pkirLLVM = compileLLVMArtifactFromPKIR(pkirFromRel);
+assert.match(pkirLLVM, /source_filename = "k-llvm:__main__"/);
+assert.match(pkirLLVM, /define %k_result @k_main/);
 
 console.log("OK");

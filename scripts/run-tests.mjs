@@ -51,6 +51,9 @@ const tests = [
   ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],
   ["tests/test-karatsuba.mjs", node, ["tests/test-karatsuba.mjs"]],
   ["tests/test-poly.mjs", node, ["tests/test-poly.mjs"]],
+  ["tests/test-polymorphic-tdd.mjs", node, ["tests/test-polymorphic-tdd.mjs"]],
+  ["tests/test-access-table.mjs", node, ["tests/test-access-table.mjs"]],
+  ["tests/test-pkir.mjs", node, ["tests/test-pkir.mjs"]],
   ["tests/test-ieee-arithmetic.mjs", node, ["tests/test-ieee-arithmetic.mjs"]],
   ["tests/integration.sh", path.join(root, "tests/integration.sh"), []]
 ];

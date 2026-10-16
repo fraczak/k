@@ -7,7 +7,11 @@ import {
   objectToKVMArtifact,
   specializeKVM,
   lowerKIRToKVM,
-  objectToKIRP
+  objectToKIRP,
+  compileRelationToPKIR,
+  lowerPKIRToKVM,
+  exportPatternGraph,
+  patternToPropertyList
 } from "@fraczak/k/backend-api.mjs";
 import { compileKVMModuleToLLVM } from "./kvm2llvm.mjs";
 
@@ -923,7 +927,8 @@ function emitFunctionBody(symbol, body, ctx, linkage = "", options = {}) {
   }
   const value = lowerExpr(ctx, body, input, { tail: options.tail !== false });
   if (value === false) {
-    // The expression emitted complete control flow, including all returns.
+    // The expression emitted complete control flow, including all
+    // returns.
   } else if (value == null) {
     unsupported(ctx);
   } else {
@@ -1010,24 +1015,73 @@ export function emitLLVMModule(input, options = {}) {
 }
 
 export function compileObjectToLLVM(object, options = {}) {
-  const inputPattern = options.inputPattern ? readPattern(options.inputPattern) : null;
+  const inputPattern = options.inputPattern
+    ? readPattern(options.inputPattern)
+    : null;
   const relation = options.relation || object.main;
   let targetObject = object;
   let entryInputPattern = inputPattern;
   let outputPattern = null;
 
-  if (inputPattern) {
-    const retyped = retypeObjectRelationForBackend(object, relation, inputPattern, {
-      source: options.source || "<k-llvm>"
-    });
+  if (options.usePKIR) {
+    const rel = object.rels?.[relation] ||
+      (object.relAlias?.[relation] &&
+       object.rels?.[object.relAlias[relation]]) ||
+      object.rels?.[object.main];
+    if (rel?.typePatternGraph) {
+      const graph = rel.typePatternGraph;
+      if (!entryInputPattern &&
+          rel.def?.patterns?.[0] !== undefined) {
+        const inId = graph.find(rel.def.patterns[0]);
+        entryInputPattern =
+          patternToPropertyList(exportPatternGraph(graph, inId));
+      }
+      if (rel.def?.patterns?.[1] !== undefined) {
+        const outId = graph.find(rel.def.patterns[1]);
+        outputPattern =
+          patternToPropertyList(exportPatternGraph(graph, outId));
+      }
+    }
+  } else if (inputPattern) {
+    const retyped = retypeObjectRelationForBackend(
+      object, relation, inputPattern, {
+        source: options.source || "<k-llvm>"
+      }
+    );
     targetObject = retyped.retypedObject;
     entryInputPattern = retyped.inputPattern;
     outputPattern = retyped.outputPattern;
   }
 
-  const retypedKir = objectToKIRP(targetObject);
-  const functions = lowerKIRToKVM(retypedKir);
+  let functions;
+  let retypedKir = null;
   const entry = relation || targetObject.main || "__main__";
+
+  if (options.usePKIR) {
+    functions = {};
+    for (const [name, relDef] of Object.entries(targetObject.rels || {})) {
+      const pkir = compileRelationToPKIR(relDef, name);
+      functions[name] = lowerPKIRToKVM(pkir);
+    }
+    for (const [alias, target] of Object.entries(targetObject.relAlias || {})) {
+      if (functions[target] && !functions[alias]) {
+        functions[alias] = functions[target];
+      }
+      const stripped = target.startsWith("@") ? target.slice(1) : target;
+      if (functions[stripped] && !functions[alias]) {
+        functions[alias] = functions[stripped];
+      }
+      if (functions[alias] && !functions[target]) {
+        functions[target] = functions[alias];
+      }
+    }
+    if (relation && !functions[relation] && functions[targetObject.main]) {
+      functions[relation] = functions[targetObject.main];
+    }
+  } else {
+    retypedKir = objectToKIRP(targetObject);
+    functions = lowerKIRToKVM(retypedKir);
+  }
 
   const specializedKvm = {
     format: "k-vm",
@@ -1065,6 +1119,63 @@ export function compileLLVMArtifactFromKVM(kvmInput, options = {}) {
   return compileKVMModuleToLLVM(entry, functions, options);
 }
 
+export function compileLLVMArtifactFromPKIR(pkirInput, options = {}) {
+  let kvmProgram;
+  let entry;
+  if (
+    (pkirInput.format === "pk-ir" || pkirInput.format === "k-pkir") &&
+    pkirInput.functions
+  ) {
+    entry =
+      pkirInput.entry ||
+      options.entry ||
+      Object.keys(pkirInput.functions)[0] ||
+      "__main__";
+    kvmProgram = {};
+    for (const [name, f] of Object.entries(pkirInput.functions)) {
+      kvmProgram[name] = lowerPKIRToKVM(f);
+    }
+  } else if (pkirInput.instructions) {
+    const kvm = lowerPKIRToKVM(pkirInput);
+    entry = pkirInput.name || options.entry || "__main__";
+    kvmProgram = { [entry]: kvm };
+    const scan = (insts) => {
+      for (const inst of insts || []) {
+        if (inst.op === "call" && inst.func && !kvmProgram[inst.func]) {
+          kvmProgram[inst.func] = kvm;
+        }
+        if (inst.branches) {
+          for (const b of inst.branches) scan(b.body);
+        }
+      }
+    };
+    scan(kvm.body);
+  } else if (pkirInput.functions) {
+    entry =
+      pkirInput.entry ||
+      options.entry ||
+      Object.keys(pkirInput.functions)[0] ||
+      "__main__";
+    kvmProgram = {};
+    for (const [name, f] of Object.entries(pkirInput.functions)) {
+      kvmProgram[name] = lowerPKIRToKVM(f);
+    }
+  } else {
+    const kvm = lowerPKIRToKVM(pkirInput);
+    entry = pkirInput.name || options.entry || "__main__";
+    kvmProgram = { [entry]: kvm };
+  }
+  return compileLLVMArtifactFromKVM(
+    {
+      format: "k-vm",
+      layer: "KVM",
+      entry,
+      functions: kvmProgram
+    },
+    options
+  );
+}
+
 export function compileLLVMArtifactFromObject(object, options = {}) {
   return compileObjectToLLVM(object, options);
 }
@@ -1080,6 +1191,7 @@ export default {
   compileBufferToLLVM,
   compileObjectToLLVM,
   compileLLVMArtifactFromKVM,
+  compileLLVMArtifactFromPKIR,
   compileLLVMArtifactFromObject,
   emitLLVMModule,
   llvmIdentifier

@@ -6,20 +6,26 @@ import { decodeObject } from "../object.mjs";
 import { objectToKIRP } from "../kir.mjs";
 
 function helpText() {
+  const prog = argv[1] || "inspect.mjs";
   return [
     "Inspect a k .ko or .klib object.",
     "",
-    `Usage: ${argv[1]} [options] [object-file]`,
+    `Usage: ${prog} [options] [object-file]`,
     "",
     "Arguments:",
-    "  object-file    Input .ko or .klib file. Reads from stdin when omitted.",
+    "  object-file    Input .ko or .klib file (default: stdin).",
     "",
     "Options:",
     "  --kir          Print the KIR-P JSON view.",
-    "  --summary      Print a compact section summary. This is the default.",
+    "  --summary      Print a compact section summary (default).",
     "  -h, --help     Show this help.",
     "",
-    "KIR-P is an inspection/export view; it does not change the stored object format."
+    "KIR-P is an inspection/export view; it does not change the stored",
+    "object format.",
+    "",
+    "Examples:",
+    `  ${prog} program.ko`,
+    `  ${prog} --kir program.ko`
   ].join("\n");
 }
 
@@ -66,20 +72,19 @@ try {
   }
 
   let mode = "summary";
-  while (args.length > 0 && args[0].startsWith("--")) {
-    const option = args.shift();
-    if (option === "--kir") {
+  let inputPath = null;
+  for (const arg of args) {
+    if (arg === "--kir") {
       mode = "kir";
-    } else if (option === "--summary") {
+    } else if (arg === "--summary") {
       mode = "summary";
+    } else if (arg.startsWith("-")) {
+      throw new Error(`Unknown option: ${arg}`);
+    } else if (inputPath == null) {
+      inputPath = arg;
     } else {
-      throw new Error(`Unknown option: ${option}`);
+      throw new Error(`Unexpected argument: ${arg}`);
     }
-  }
-
-  const inputPath = args.shift() || null;
-  if (args.length > 0) {
-    throw new Error(`Unexpected argument: ${args[0]}`);
   }
 
   const buffer = inputPath == null ? await readStdinBytes() : fs.readFileSync(inputPath);

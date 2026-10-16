@@ -6,13 +6,27 @@ import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire } from "./runtime/prefix-codec.mjs";
 import { propertyListToFilter, valueToK } from "./runtime/show-value.mjs";
 
+function helpText() {
+  const prog = argv[1] || "show.mjs";
+  return [
+    "Pass a binary wire stream through unchanged on stdout while",
+    "printing the decoded value and filter to stderr.",
+    "",
+    `Usage: ${prog} [wire-file]`,
+    "",
+    "Arguments:",
+    "  wire-file    Input binary wire file (default: stdin).",
+    "",
+    "Options:",
+    "  -h, --help   Show this help.",
+    "",
+    "Examples:",
+    `  echo '"hello"' | k-parse | ${prog} | k-print`
+  ].join("\n");
+}
+
 function usage(stream = console.error) {
-  stream(`Usage: ${argv[1]} [wire-file]`);
-  stream("  Pass the wire stream through unchanged on stdout.");
-  stream("  Print the decoded value and filter to stderr.");
-  stream("");
-  stream("Options:");
-  stream("  -h, --help   Show this help.");
+  stream(helpText());
 }
 
 function readAll(stream) {

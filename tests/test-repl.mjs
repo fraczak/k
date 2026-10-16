@@ -471,6 +471,10 @@ output = await evaluateInput(":wasm", timingState);
 assert.equal(output[0], "engine set to wasm");
 assert.equal(timingState.engine, "wasm");
 
+output = await evaluateInput(":pkir", timingState);
+assert.equal(output[0], "engine set to pkir");
+assert.equal(timingState.engine, "pkir");
+
 output = await evaluateInput(":js", timingState);
 assert.equal(output[0], "engine set to js");
 assert.equal(timingState.engine, "js");
@@ -483,12 +487,13 @@ assert.equal(timingState.engine, "js");
 // Verify invalid engine error
 await assert.rejects(
   () => evaluateInput(":engine invalid", timingState),
-  /Invalid engine 'invalid'\. Valid engines: wasm, js/
+  /Invalid engine 'invalid'\. Valid engines: wasm, pkir, js/
 );
 
 // Verify autocompletion for :engine
 completions = completeInput(":engine ", timingState)[0];
 assert(completions.includes(":engine wasm"));
+assert(completions.includes(":engine pkir"));
 assert(completions.includes(":engine js"));
 
 // Verify evaluating expressions in JS engine
@@ -508,6 +513,30 @@ assert.equal(output[0], "loaded Examples/arithmetics.k");
 output = await evaluateInput("{ 10 int x, 5 int y } plus", jsState);
 assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
 assert.match(output[1], /\(js\)/);
+
+// Verify evaluating expressions in PKIR-powered Wasm engine
+const pkirState = createState({ engine: "pkir" });
+assert.equal(pkirState.engine, "pkir");
+
+output = await evaluateInput(
+  "succ = | succ;\n{} | zero succ succ",
+  pkirState
+);
+assert.match(output[0], /^\{\}\|zero\|succ\|succ/);
+assert.match(output[1], /\(pkir\)/);
+
+output = await evaluateInput(
+  "not = </true | false, /false | true >;\n{} | true not",
+  pkirState
+);
+assert.match(output[0], /^\{\}\|false/);
+assert.match(output[1], /\(pkir\)/);
+
+output = await evaluateInput(":load Examples/arithmetics.k", pkirState);
+assert.equal(output[0], "loaded Examples/arithmetics.k");
+output = await evaluateInput("{ 10 int x, 5 int y } plus", pkirState);
+assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
+assert.match(output[1], /\(pkir\)/);
 
 // Verify open product projection in wasm engine
 const wasmListState = createState({ engine: "wasm" });

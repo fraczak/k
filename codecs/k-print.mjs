@@ -5,13 +5,29 @@ import { argv, stdin, stdout } from "node:process";
 import { isMainEntrypoint } from "./runtime/cli-entry.mjs";
 import { decodeWire } from "./runtime/prefix-codec.mjs";
 
+function helpText() {
+  const prog = argv[1] || "k-print.mjs";
+  return [
+    "Read a binary pattern+value stream and print the decoded",
+    "textual value.",
+    "",
+    `Usage: ${prog} [options] [file]`,
+    "",
+    "Arguments:",
+    "  file         Input binary wire file (default: stdin).",
+    "",
+    "Options:",
+    "  --debug      Print decoded pattern and value as JSON.",
+    "  -h, --help   Show this help.",
+    "",
+    "Examples:",
+    `  echo '"hello"' | k-parse | ${prog}`,
+    `  ${prog} input.wire`
+  ].join("\n");
+}
+
 function usage(stream = console.error) {
-  stream(`Usage: ${argv[1]} [--debug] [file]`);
-  stream("  Read a binary pattern+value stream and print the decoded textual value.");
-  stream("");
-  stream("Options:");
-  stream("  --debug      Print decoded pattern and value as JSON.");
-  stream("  -h, --help   Show this help.");
+  stream(helpText());
 }
 
 function readAll(stream) {

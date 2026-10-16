@@ -22,10 +22,14 @@ function printUsage(fileName, doc) {
   if (doc) {
     stdout.write(`${doc.trim()}\n\n`);
   }
-  stdout.write("Options:\n");
-  stdout.write("  --parse      Read external text from stdin, write binary pattern+value stream to stdout.\n");
-  stdout.write("  --print      Read binary pattern+value stream from stdin, write external text to stdout.\n");
-  stdout.write("  -h, --help   Show this help.\n");
+  stdout.write(
+    "Options:\n" +
+    "  --parse      Read external text from stdin, write binary\n" +
+    "               pattern+value stream to stdout.\n" +
+    "  --print      Read binary pattern+value stream from stdin,\n" +
+    "               write external text to stdout.\n" +
+    "  -h, --help   Show this help.\n"
+  );
 }
 
 function runCodecCLI(metaUrl, codec) {

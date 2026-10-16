@@ -4,27 +4,58 @@
 import fs from "node:fs";
 import { argv, stdin, exit, stdout } from "node:process";
 import k from "./index.mjs";
-import { decodeWire, encodeToWire } from "./codecs/runtime/prefix-codec.mjs";
-import { decodeObject, objectToFunction, loadLibrary } from "./object.mjs";
-
-const prog = argv[1];
+import {
+  decodeWire,
+  encodeToWire
+} from "./codecs/runtime/prefix-codec.mjs";
+import {
+  compileLibrary,
+  decodeObject,
+  objectToFunction,
+  loadLibrary
+} from "./object.mjs";
 
 let kScript, inputStream;
 
-function usage() {
-  console.error(`Usage: ${prog} [ --lib lib-file ] [ --export spec ]... ( k-expr | file ) [ input-file ]`);
-  console.error(`       E.g.,  echo '["zebara","ela"]' | k-parse --input-type '$x=<{} zebara, {} ela>; $v={x 0, x 1}; $v' | ${prog} '{.1 0}'`);
-  console.error("Options:");
-  console.error("  --lib file      Load one .klib dependency before compiling.");
-  console.error("  --export spec   Export a library alias into scope. 'name' or 'libname:localname'. May be repeated.");
-  console.error("  -h, --help      Show this help.");
+function helpText() {
+  const prog = argv[1] || "k.mjs";
+  return [
+    "Compile and execute a k expression or file over a binary",
+    "pattern+value wire stream using the JavaScript interpreter.",
+    "",
+    `Usage: ${prog} [options]`,
+    "       ( source-snippet | input-file ) [ input-wire-file ]",
+    "",
+    "Arguments:",
+    "  source-snippet   Inline k source snippet.",
+    "  input-file       Source .k, .ko, or .klib file.",
+    "  input-wire-file  Optional binary wire input (default: stdin).",
+    "",
+    "Options:",
+    "  --lib file       Load one .klib or .k library before compiling.",
+    "  --export spec    Export library alias into scope. Repeatable.",
+    "                   spec is 'name' or 'libname:localname'.",
+    "  -h, --help       Show this help.",
+    "",
+    "Examples:",
+    `  echo '"abc"' | k-parse | ${prog} '{.1 0}' | k-print`,
+    `  echo '{"x":1,"y":2}' | k-json --parse | \\`,
+    `    ${prog} --lib Examples/poly.k --export concat \\`,
+    `      's={()xs,()ys}concat; s' | k-json --print`
+  ].join("\n");
+}
+
+function usage(stream = console.error) {
+  stream(helpText());
 }
 
 function isFile(filePath) {
   try {
     return fs.statSync(filePath).isFile();
   } catch (error) {
-    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return false;
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
+      return false;
+    }
     throw error;
   }
 }
@@ -41,7 +72,7 @@ function compileFile(filePath, libraries, preamble) {
 ({ kScript, inputStream } = ((args) => {
   try {
     if (args.includes("-h") || args.includes("--help")) {
-      usage();
+      usage(console.log);
       return exit(0);
     }
 
@@ -53,9 +84,18 @@ function compileFile(filePath, libraries, preamble) {
         args.shift();
         const libPath = args.shift();
         if (!libPath) throw new Error("--lib requires a file argument");
-        if (libraries.length > 0) throw new Error("--lib may be specified at most once");
-        const libBuffer = fs.readFileSync(libPath);
-        libraries.push(loadLibrary(decodeObject(libBuffer)));
+        if (libraries.length > 0) {
+          throw new Error("--lib may be specified at most once");
+        }
+        if (libPath.endsWith(".k")) {
+          const raw = fs.readFileSync(libPath, "utf8");
+          libraries.push(
+            loadLibrary(compileLibrary(raw, { source: libPath }))
+          );
+        } else {
+          const libBuffer = fs.readFileSync(libPath);
+          libraries.push(loadLibrary(decodeObject(libBuffer)));
+        }
       } else if (args[0] === "--export") {
         args.shift();
         const spec = args.shift();

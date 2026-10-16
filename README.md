@@ -2,6 +2,10 @@
 
 **k is a small language for content-addressable schemas and data transformations.**
 
+> [!TIP]
+> **Live Web REPL (`repl.html`):** Try k online with zero install:
+> [**https://fraczak.github.io/k/**](https://fraczak.github.io/k/)
+
 It describes data as algebraic schemas, programs as first-order partial
 relations, and runtime values as a self-describing binary `schema + payload`
 stream that can be parsed, transformed, printed, compiled, and inspected.
@@ -69,7 +73,9 @@ adds one successor. The REPL also prints the inferred value envelope.
 
 ### In the Browser (Zero Install)
 
-Try k directly in your browser without installing anything:
+Try k directly in your browser without installing anything using the
+live Web REPL (`repl.html`):
+
 **[https://fraczak.github.io/k/](https://fraczak.github.io/k/)**
 
 The Web REPL is self-contained, powered by an in-process WebAssembly
@@ -235,7 +241,7 @@ For a detailed guide to all four formats, commands, and workflows, see
 | `k-kir` | Export KIR-P from `.ko` or `.klib` |
 | `k-vm` | Execute or inspect lowered kVM bytecode artifacts (`.kvm`) |
 | `k-wasm` / `k-wasm-compile` / `k-wasm-run` | Compile and run via WebAssembly backend |
-| `k-llvm-build` / `k-llvm-compile` / `k-llvm-run` | Compile and run via LLVM backend |
+| `k-llvm` / `k-llvm-build` / `k-llvm-compile` | Compile and run via LLVM backend |
 
 Installed binary names are `k-` plus the source basename without
 `.mjs`, except for `k.mjs` itself. Source names that already include
@@ -372,6 +378,8 @@ The suite covers:
 
 ## Further Reading
 
+- [Web REPL (`repl.html`)](https://fraczak.github.io/k/) -
+  live in-browser interpreter (hosted on GitHub Pages)
 - [DOCS/FILE_FORMATS.md](DOCS/FILE_FORMATS.md) - guide to
   .k, .ko, .klib, and .kvm file formats and workflows
 - [DOCS/DICTIONARY.md](DOCS/DICTIONARY.md) - concept names and terminology

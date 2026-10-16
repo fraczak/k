@@ -14,7 +14,9 @@ import {
   propertyListToPattern,
   Value,
   specializeKVM,
-  specializeObjectRelations
+  specializeObjectRelations,
+  compileRelationToPKIR,
+  lowerPKIRToKVM
 } from "@fraczak/k/backend-api.mjs";
 import { intersectPropertyListPatterns } from "@fraczak/k/codecs/runtime/codec.mjs";
 import { propertyListToFilter } from "@fraczak/k/codecs/runtime/show-value.mjs";
@@ -283,7 +285,7 @@ function cloneKVMFunction(kvmFunc) {
   };
 }
 
-function compileModule(mainRelName, defs) {
+function compileModule(mainRelName, defs, { usePKIR = false } = {}) {
   const compiled = new Set();
   const queue = [mainRelName];
   const wats = [];
@@ -299,8 +301,14 @@ function compileModule(mainRelName, defs) {
       throw new Error(`Relation ${name} not found`);
     }
 
-    const kvmFunc = lowerToKVM(relDef, name);
-    kvmFunc.typePatternGraph = relDef.typePatternGraph;
+    let kvmFunc;
+    if (usePKIR) {
+      const pkir = compileRelationToPKIR(relDef, name);
+      kvmFunc = lowerPKIRToKVM(pkir);
+    } else {
+      kvmFunc = lowerToKVM(relDef, name);
+      kvmFunc.typePatternGraph = relDef.typePatternGraph;
+    }
     scanCalls(kvmFunc.body, compiled, queue);
 
     kvmFunc.name = nameMap.get(name) || cleanName(name);
@@ -502,7 +510,7 @@ function buildExportPreamble(exportSpecs, libraries) {
 async function compileWasmArtifactFromDefs(
   defs,
   mainRelName = "__main__",
-  { typingMode = "generic" } = {}
+  { typingMode = "generic", usePKIR = false } = {}
 ) {
   resetTagIds();
   const mainRel = defs.rels[mainRelName];
@@ -510,7 +518,11 @@ async function compileWasmArtifactFromDefs(
     throw new Error(`No main relation (${mainRelName}) defined in script`);
   }
 
-  const { wat: moduleWatBody, relationNames, entryName } = compileModule(mainRelName, defs);
+  const { wat: moduleWatBody, relationNames, entryName } = compileModule(
+    mainRelName,
+    defs,
+    { usePKIR }
+  );
   assertRelationsConverged(defs, relationNames);
   const fullWat = runtimeWat.trim().slice(0, -1) + "\n" + moduleWatBody + "\n)";
   const graph = mainRel.typePatternGraph;
@@ -523,7 +535,12 @@ async function compileWasmArtifactFromDefs(
     entry: entryName || cleanName(mainRelName),
     inputPattern,
     outputPattern,
-    typing: classifyTyping(inputPattern, outputPattern, relTypeStatus(defs, mainRelName), typingMode),
+    typing: classifyTyping(
+      inputPattern,
+      outputPattern,
+      relTypeStatus(defs, mainRelName),
+      typingMode
+    ),
     tags: getTagEntries()
   };
   return appendCustomSection(await compileWat(fullWat), METADATA_SECTION, JSON.stringify(metadata));
@@ -598,12 +615,17 @@ async function compileWasmArtifactFromKVM(kvmInput, options = {}) {
   return appendCustomSection(await compileWat(fullWat), METADATA_SECTION, JSON.stringify(metadata));
 }
 
-async function compileWasmArtifactFromObject(object, { entry = null, inputEnvelopePattern = null } = {}) {
+async function compileWasmArtifactFromObject(
+  object,
+  { entry = null, inputEnvelopePattern = null, usePKIR = false } = {}
+) {
   if (!object?.rels) {
     throw new Error("Expected .ko input to contain k object relations");
   }
   if (object.main == null) {
-    throw new Error("Cannot compile a .klib library to WebAssembly without a main relation");
+    throw new Error(
+      "Cannot compile a .klib library to WebAssembly without a main relation"
+    );
   }
   const mainRelName = entry || object.main || "__main__";
   let defs = { rels: object.rels, compileStats: object.compileStats };
@@ -611,43 +633,126 @@ async function compileWasmArtifactFromObject(object, { entry = null, inputEnvelo
 
   if (inputEnvelopePattern) {
     const mainRel = object.rels[mainRelName];
-    if (!mainRel) throw new Error(`No main relation (${mainRelName}) defined in object`);
-    const inputPattern = getPatternPropertyList(mainRel.typePatternGraph, mainRel.def.patterns[0]);
-    const outputPattern = getPatternPropertyList(mainRel.typePatternGraph, mainRel.def.patterns[1]);
+    if (!mainRel) {
+      throw new Error(`No main relation (${mainRelName}) defined in object`);
+    }
+    const inputPattern = getPatternPropertyList(
+      mainRel.typePatternGraph,
+      mainRel.def.patterns[0]
+    );
+    const outputPattern = getPatternPropertyList(
+      mainRel.typePatternGraph,
+      mainRel.def.patterns[1]
+    );
     const typing = classifyTyping(inputPattern, outputPattern);
     if (typing.program === "polymorphic") {
-      const specialized = specializeObjectRelations(object, mainRelName, inputEnvelopePattern);
-      defs = { rels: specialized.rels, relAlias: specialized.relAlias, compileStats: specialized.compileStats };
+      const specialized = specializeObjectRelations(
+        object,
+        mainRelName,
+        inputEnvelopePattern
+      );
+      defs = {
+        rels: specialized.rels,
+        relAlias: specialized.relAlias,
+        compileStats: specialized.compileStats
+      };
       typingMode = "specialized";
     }
   }
 
-  return compileWasmArtifactFromDefs(defs, mainRelName, { typingMode });
+  return compileWasmArtifactFromDefs(defs, mainRelName, {
+    typingMode,
+    usePKIR
+  });
 }
 
 async function compileWasmArtifact(
   source,
-  { libraries = [], exports = [], source: sourceName = null, inputEnvelopePattern = null } = {}
+  {
+    libraries = [],
+    exports = [],
+    source: sourceName = null,
+    inputEnvelopePattern = null,
+    usePKIR = false
+  } = {}
 ) {
   const preamble = buildExportPreamble(exports, libraries);
   const fullSource = preamble + source;
-  const options = { libraries, ...(sourceName ? { source: sourceName } : {}) };
+  const options = {
+    libraries,
+    ...(sourceName ? { source: sourceName } : {})
+  };
   let defs = annotate(fullSource, options);
 
   let typingMode = "generic";
   if (inputEnvelopePattern) {
     const mainRel = defs.rels.__main__;
-    const inputPattern = getPatternPropertyList(mainRel.typePatternGraph, mainRel.def.patterns[0]);
-    const outputPattern = getPatternPropertyList(mainRel.typePatternGraph, mainRel.def.patterns[1]);
+    const inputPattern = getPatternPropertyList(
+      mainRel.typePatternGraph,
+      mainRel.def.patterns[0]
+    );
+    const outputPattern = getPatternPropertyList(
+      mainRel.typePatternGraph,
+      mainRel.def.patterns[1]
+    );
     if (classifyTyping(inputPattern, outputPattern).program === "polymorphic") {
-      const obj = { format: "k-object", rels: defs.rels, relAlias: defs.relAlias, compileStats: defs.compileStats, main: "__main__" };
-      const specialized = specializeObjectRelations(obj, "__main__", inputEnvelopePattern);
-      defs = { rels: specialized.rels, relAlias: specialized.relAlias, compileStats: specialized.compileStats };
+      const obj = {
+        format: "k-object",
+        rels: defs.rels,
+        relAlias: defs.relAlias,
+        compileStats: defs.compileStats,
+        main: "__main__"
+      };
+      const specialized = specializeObjectRelations(
+        obj,
+        "__main__",
+        inputEnvelopePattern
+      );
+      defs = {
+        rels: specialized.rels,
+        relAlias: specialized.relAlias,
+        compileStats: specialized.compileStats
+      };
       typingMode = "specialized";
     }
   }
 
-  return compileWasmArtifactFromDefs(defs, "__main__", { typingMode });
+  return compileWasmArtifactFromDefs(defs, "__main__", {
+    typingMode,
+    usePKIR
+  });
+}
+
+async function compileWasmArtifactFromPKIR(pkirInput, options = {}) {
+  let kvmProgram;
+  let entry = options.entry || "__main__";
+  if (pkirInput && typeof pkirInput === "object") {
+    if (pkirInput.format === "pk-ir" && pkirInput.functions) {
+      entry = pkirInput.entry || entry;
+      kvmProgram = {};
+      for (const [name, f] of Object.entries(pkirInput.functions)) {
+        kvmProgram[name] = lowerPKIRToKVM(f);
+      }
+    } else if (pkirInput.instructions) {
+      const kvm = lowerPKIRToKVM(pkirInput);
+      entry = kvm.name || entry;
+      kvmProgram = { [entry]: kvm };
+    } else if (pkirInput.functions) {
+      entry = pkirInput.entry || entry;
+      kvmProgram = {};
+      for (const [name, f] of Object.entries(pkirInput.functions)) {
+        kvmProgram[name] = lowerPKIRToKVM(f);
+      }
+    } else {
+      throw new Error("Invalid PKIR input for WebAssembly compilation");
+    }
+  } else {
+    throw new Error("Expected PKIR input object");
+  }
+  return compileWasmArtifactFromKVM(
+    { format: "k-vm", layer: "KVM", entry, functions: kvmProgram },
+    options
+  );
 }
 
 function createTagRegistry(entries) {
@@ -1050,6 +1155,7 @@ export {
   appendCustomSection,
   compileWasmArtifactFromKVM,
   compileWasmArtifactFromObject,
+  compileWasmArtifactFromPKIR,
   compileWasmArtifact,
   instantiateWasmArtifact,
   metadataFromModule,
@@ -1067,6 +1173,7 @@ export default {
   appendCustomSection,
   compileWasmArtifactFromKVM,
   compileWasmArtifactFromObject,
+  compileWasmArtifactFromPKIR,
   compileWasmArtifact,
   metadataFromModule,
   readArenaValue,
