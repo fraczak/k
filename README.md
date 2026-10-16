@@ -235,7 +235,7 @@ For a detailed guide to all four formats, commands, and workflows, see
 | `k-kir` | Export KIR-P from `.ko` or `.klib` |
 | `k-vm` | Execute or inspect lowered kVM bytecode artifacts (`.kvm`) |
 | `k-wasm` / `k-wasm-compile` / `k-wasm-run` | Compile and run via WebAssembly backend |
-| `k-llvm-build` / `k-llvm-compile` / `k-llvm-run` | Compile and run via LLVM backend |
+| `k-llvm` / `k-llvm-build` / `k-llvm-compile` | Compile and run via LLVM backend |
 
 Installed binary names are `k-` plus the source basename without
 `.mjs`, except for `k.mjs` itself. Source names that already include

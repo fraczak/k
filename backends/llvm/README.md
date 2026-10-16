@@ -46,34 +46,33 @@ status in `k_result`. These operations can compose through KIR `comp`.
 ```sh
 k-llvm-build [options] [source-snippet | input-file [output-exe]]
 k-llvm-compile [options] [source-snippet | input-file [output.ll]]
-k-llvm-jit [options] object.ko
-k-llvm-run [options] object.ko [input.kv]
+k-llvm [options] ( source-snippet | input-file ) [ input-wire-file ]
 ```
 
 Options:
 
 - `-o, --output path`: specify output file path explicitly.
 - `--lib file`: load one `.klib` or `.k` dependency before compiling.
-- `--export spec`: export a library alias into source scope (`name` or `libname:localname`). May be repeated.
-- `--input-pattern json-or-file`: for `k-llvm-run`, KIR property-list input pattern.
-- `--retype rel`: for `k-llvm-run`, relation to specialize (defaults to object main).
-- `--expect value-or-file`: for `k-llvm-run`, compare the output value against expected value text.
-- `-h`, `--help`: show usage.
+- `--export spec`: export a library alias into scope. Repeatable.
+- `--pkir`: lower via Polymorphic K IR (PKIR).
+- `--retype rel`: relation to specialize (defaults to object main).
+- `--opt flag`: Clang optimization flag (-O0, -O1, -O2, -O3).
+- `-h, --help`: show usage.
 
-The compile commands follow the unified k CLI input convention: pass inline
-source, an existing `.k` source file, or a `.ko`/`.klib` object. Reads UTF-8
-source from stdin when input is omitted. Output paths can be specified as a
-positional argument or explicitly with `-o, --output`.
-Without `--expect`, `k-llvm-run` prints the result value as compact JSON.
+The compile commands follow the unified k CLI input convention: pass
+inline source, an existing `.k` source file, or a `.ko`/`.klib` object.
+Reads UTF-8 source from stdin when input is omitted. Output paths can be
+specified as a positional argument or explicitly with `-o, --output`.
 `k-llvm-build` emits a native executable that reads and writes the binary
-k pattern+value envelope used by `codecs/k-parse.mjs` and `codecs/k-print.mjs`.
-The executable checks the stdin envelope pattern against the compiled input
-pattern and encodes stdout with the compiled output pattern.
-`k-llvm-jit` reads the stdin binary envelope first, specializes the object with
-that input pattern, caches the native executable, and writes the compiled
-output envelope to stdout.
-The native envelope codec supports the k Unicode string encoding used for
-labels and tags.
+k pattern+value envelope used by `codecs/k-parse.mjs` and
+`codecs/k-print.mjs`. The executable checks the stdin envelope pattern
+against the compiled input pattern and encodes stdout with the compiled
+output pattern.
+`k-llvm` reads the binary wire envelope, specializes the relation to
+that input pattern, caches the compiled native executable, and writes
+the compiled output envelope to stdout.
+The native envelope codec supports the k Unicode string encoding used
+for labels and tags.
 
 ## Tests
 

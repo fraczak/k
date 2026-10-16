@@ -55,8 +55,6 @@
         "k-llvm": "backends/llvm/bin/k-llvm.mjs",
         "k-llvm-build": "backends/llvm/bin/k-llvm-build.mjs",
         "k-llvm-compile": "backends/llvm/bin/k-llvm-compile.mjs",
-        "k-llvm-jit": "backends/llvm/bin/k-llvm-jit.mjs",
-        "k-llvm-run": "backends/llvm/bin/k-llvm-run.mjs",
         "k-wasm": "backends/wasm/bin/k-wasm.mjs",
         "k-wasm-compile": "backends/wasm/bin/k-wasm-compile.mjs",
         "k-wasm-run": "backends/wasm/bin/k-wasm-run.mjs",
