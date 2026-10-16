@@ -5,6 +5,48 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.1.0] — 2026-10-16 — Polymorphic K IR (PKIR) & CLI Standardization
+
+### Features & Architecture Improvements
+
+- **Polymorphic K IR (PKIR) & Access Table Engine**:
+  - Implemented `pkir.mjs` providing an intermediate representation
+    tailored for polymorphic relations with variant dispatch, projection
+    tables, and partial function failure semantics.
+  - Implemented `access-table.mjs` (`buildAccessTable`) for resolving
+    field offsets and variant selectors across arbitrary schemas.
+  - Added PKIR specialization (`specializePKIR`) eliminating dead
+    branches and baking in direct physical offsets.
+  - Supported PKIR execution and standalone executable generation across
+    both WebAssembly and LLVM backends.
+  - Added dedicated test suites: `tests/test-pkir.mjs`,
+    `tests/test-access-table.mjs`, and `tests/test-polymorphic-tdd.mjs`.
+  - Added specification and documentation in `DOCS/POLYMORPHIC_IR.md`
+    and updated `DOCS/FILE_FORMATS.md`.
+
+- **Web REPL (`repl.html`) & Wasm Integration**:
+  - Enabled `.pkir` generation and lowering to WebAssembly in
+    `repl.mjs` and `repl.html`.
+  - Promoted Web REPL visibility in `README.md` (top banner,
+    zero-install section, further reading).
+
+- **Multi-Backend CLI Standardization & Help Completeness**:
+  - Standardized CLI syntax, argument parsing, options, and help text
+    (`-h` / `--help`) across tools in `backends/*/bin/` and
+    `objects/`.
+  - Consolidated `backends/llvm/bin/` (`k-llvm.mjs`, `k-llvm-build.mjs`,
+    `k-llvm-compile.mjs`) to mirror `backends/wasm/bin/`.
+  - Aligned `--lib` and `--export` options across LLVM, Wasm, and object
+    tools.
+  - Documented explicit defaults (such as cache directories, Clang
+    optimization levels, and runtime modes) in CLI help texts.
+
+- **Concurrent Multi-Backend Performance Benchmarks**:
+  - Added concurrent `llvm` and `llvm-pkir` execution lanes across all
+    performance suites (`perf:ieee`, `perf:int`, `perf:poly`,
+    `perf:mult`).
+  - Documented benchmark findings and throughput in `JOURNAL.md`.
+
 ## [7.0.2] — 2026-10-13 — LLVM Squaring Scaling & Backend Streamlining
 
 ### Features & Performance Improvements
