@@ -50,75 +50,58 @@ function propertyListToFilter(propertyList, varPrefix = "X") {
 }
 
 function valueToK(root) {
-  let result = "";
-  const stack = [{
-    val: root,
-    assign(s) { result = s; }
-  }];
+  const out = [];
+  const stack = [root];
 
   while (stack.length > 0) {
-    const frame = stack.pop();
-    if (frame.finishProduct) {
-      frame.assign(`{${frame.parts.join(", ")}}`);
-      continue;
-    }
-    if (frame.finishVariant) {
-      const base = frame.base;
-      const tags = frame.tags;
-      frame.assign(tags.length === 0 ? base : `${base}|${tags.reverse().join("|")}`);
+    const item = stack.pop();
+    if (typeof item === "string") {
+      out.push(item);
       continue;
     }
 
-    const v = frame.val;
-    if (isVariant(v)) {
+    if (item == null) {
+      out.push(String(item));
+      continue;
+    }
+
+    if (isVariant(item)) {
       const tags = [];
-      let curr = v;
+      let curr = item;
       while (isVariant(curr)) {
         tags.push(pLabel(curr.tag).trimStart());
         curr = curr.value;
       }
-      const finishFrame = {
-        finishVariant: true,
-        tags,
-        base: "",
-        assign: frame.assign
-      };
-      stack.push(finishFrame);
-      stack.push({
-        val: curr,
-        assign(s) { finishFrame.base = s; }
-      });
+      if (tags.length > 0) {
+        stack.push("|" + tags.reverse().join("|"));
+      }
+      stack.push(curr);
       continue;
     }
 
-    if (isProduct(v)) {
-      const keys = Object.keys(v.product);
+    if (isProduct(item)) {
+      const keys = Object.keys(item.product);
       if (keys.length === 0) {
-        frame.assign("{}");
+        out.push("{}");
         continue;
       }
-      const parts = new Array(keys.length);
-      const finishFrame = {
-        finishProduct: true,
-        parts,
-        assign: frame.assign
-      };
-      stack.push(finishFrame);
+      out.push("{");
+      stack.push("}");
       for (let i = keys.length - 1; i >= 0; i--) {
         const k = keys[i];
-        const label = pLabel(k);
-        stack.push({
-          val: v.product[k],
-          assign(s) { parts[i] = `${s}${label}`; }
-        });
+        if (i < keys.length - 1) {
+          stack.push(", ");
+        }
+        stack.push(pLabel(k));
+        stack.push(item.product[k]);
       }
       continue;
     }
 
-    frame.assign(String(v));
+    out.push(String(item));
   }
 
-  return result;
+  return out.join("");
 }
 
 function valueWithEnvelopeToK(value) {

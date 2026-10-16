@@ -80,9 +80,21 @@ function propertyListToPattern(propertyList) {
       throw new Error("Pattern node 'any' cannot have outgoing edges");
     }
 
+    const tagIndex = Object.create(null);
+    for (let i = 0; i < edges.length; i++) {
+      tagIndex[edges[i].label] = i;
+    }
+    const choiceBits = edges.length <= 1
+      ? 0
+      : Math.ceil(Math.log2(edges.length));
     return {
       kind,
-      edges: edges.map((edge) => ({ ...edge, symbolId: symbolIds.get(edge.label) }))
+      edges: edges.map((edge) => ({
+        ...edge,
+        symbolId: symbolIds.get(edge.label)
+      })),
+      tagIndex,
+      choiceBits
     };
   });
 
