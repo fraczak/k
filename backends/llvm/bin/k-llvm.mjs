@@ -25,6 +25,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function helpText() {
   const prog = argv[1] || "k-llvm.mjs";
+  const defaultCache = path.join(os.tmpdir(), "k-llvm-cache");
   return [
     "Compile k source, .ko, .kvm, or .pkir to native machine code via",
     "LLVM and execute it over a binary pattern+value wire stream.",
@@ -49,8 +50,7 @@ function helpText() {
     "  -h, --help        Show this help.",
     "",
     "Environment Variables:",
-    "  K_LLVM_CACHE_DIR  Default cache directory",
-    "                    (default: <tmpdir>/k-llvm-cache).",
+    `  K_LLVM_CACHE_DIR  Cache directory (default: ${defaultCache}).`,
     "  K_LLVM_CLANG_OPT  Default Clang optimization flag (default: -O1).",
     "  CLANG, CC         Path to Clang compiler binary (default: clang).",
     "  K_TRACE, TRACE    When '1', output phase tracing to stderr.",
