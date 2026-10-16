@@ -169,13 +169,15 @@ export function renderValueNode(val, currentDepth = 1, depthLimit = 3) {
     if (isVariant(val.value)) {
       let chainCount = 0;
       let curr = val.value;
-      while (isVariant(curr)) {
+      while (isVariant(curr) && chainCount < 20) {
         chainCount++;
         curr = curr.value;
       }
       const badge = document.createElement("span");
       badge.className = "k-tree-badge";
-      badge.textContent = `+${chainCount} tags`;
+      badge.textContent = isVariant(curr)
+        ? "+20+ tags"
+        : `+${chainCount} tags`;
       summary.appendChild(badge);
     }
 
@@ -486,7 +488,15 @@ export function createOutputEntryElement({
 
   const valSummary = document.createElement("summary");
   valSummary.className = "k-tree-section-summary";
-  valSummary.innerHTML = `<span class="k-tree-arrow">▶</span> <span class="k-section-title">🌲 Value</span> <span class="k-section-preview">${escapeHtml(valueToK(value))}</span>`;
+  const rawValPreview = valueToK(value);
+  const valPreview = rawValPreview.length > 120
+    ? `${rawValPreview.slice(0, 120)}...`
+    : rawValPreview;
+  const valEscaped = escapeHtml(valPreview);
+  valSummary.innerHTML =
+    `<span class="k-tree-arrow">▶</span> ` +
+    `<span class="k-section-title">🌲 Value</span> ` +
+    `<span class="k-section-preview">${valEscaped}</span>`;
   valSection.appendChild(valSummary);
 
   const valBody = document.createElement("div");
@@ -504,8 +514,15 @@ export function createOutputEntryElement({
 
     const patSummary = document.createElement("summary");
     patSummary.className = "k-tree-section-summary";
-    const patPreview = propertyListToFilter(value.pattern);
-    patSummary.innerHTML = `<span class="k-tree-arrow">▶</span> <span class="k-section-title">🌿 Pattern</span> <span class="k-section-preview">?${escapeHtml(patPreview)}</span>`;
+    const rawPatPreview = propertyListToFilter(value.pattern);
+    const patPreview = rawPatPreview.length > 120
+      ? `${rawPatPreview.slice(0, 120)}...`
+      : rawPatPreview;
+    const patEscaped = escapeHtml(patPreview);
+    patSummary.innerHTML =
+      `<span class="k-tree-arrow">▶</span> ` +
+      `<span class="k-section-title">🌿 Pattern</span> ` +
+      `<span class="k-section-preview">?${patEscaped}</span>`;
     patSection.appendChild(patSummary);
 
     patBody = document.createElement("div");

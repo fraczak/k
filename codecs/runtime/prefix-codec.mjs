@@ -39,6 +39,8 @@ const CORE_PATTERN_PROPERTY_LIST = [
 
 const CORE_PATTERN_PATTERN = propertyListToPattern(CORE_PATTERN_PROPERTY_LIST);
 const UNIT = Value.product({});
+const BIT0 = Value.variant("0", UNIT);
+const BIT1 = Value.variant("1", UNIT);
 
 class BitWriter {
   constructor(initialCapacity = 4096) {
@@ -530,21 +532,340 @@ function encodeToWire(value, propertyList) {
   return writer.toBuffer();
 }
 
-function decodeWire(buffer) {
+function readBitsAt(buffer, bitOffset, width) {
+  if (width === 0) return 0;
+  if ((bitOffset + width - 1) >> 3 >= buffer.length) {
+    throw new Error("Unexpected end of bitstream");
+  }
+  if (width === 1) {
+    return (buffer[bitOffset >> 3] >> (7 - (bitOffset & 7))) & 1;
+  }
+  let v = 0;
+  for (let i = 0; i < width; i++) {
+    const pos = bitOffset + i;
+    v = (v << 1) | ((buffer[pos >> 3] >> (7 - (pos & 7))) & 1);
+  }
+  return v;
+}
+
+const SKIP_STACK = new Int32Array(2048);
+
+function fastSkipSubtree(
+  buffer,
+  startBitOffset,
+  pattern,
+  rootPatternNodeId
+) {
+  let bitOffset = startBitOffset;
+  let stack = SKIP_STACK;
+  stack[0] = rootPatternNodeId;
+  let stackPtr = 1;
+  const nodes = pattern.nodes;
+
+  while (stackPtr > 0) {
+    const nodeId = stack[--stackPtr];
+    const node = nodes[nodeId];
+    if (
+      node.kind === NODE_KIND.CLOSED_PRODUCT ||
+      node.kind === NODE_KIND.OPEN_PRODUCT
+    ) {
+      const edges = node.edges;
+      const count = edges.length;
+      if (stackPtr + count > stack.length) {
+        const newStack = new Int32Array(stack.length * 2);
+        newStack.set(stack);
+        stack = newStack;
+      }
+      for (let i = count - 1; i >= 0; i--) {
+        stack[stackPtr++] = edges[i].target;
+      }
+    } else if (
+      node.kind === NODE_KIND.CLOSED_UNION ||
+      node.kind === NODE_KIND.OPEN_UNION
+    ) {
+      const edges = node.edges;
+      const width = node.choiceBits !== undefined
+        ? node.choiceBits
+        : choiceWidth(edges.length);
+      const tagOrdinal = width > 0
+        ? readBitsAt(buffer, bitOffset, width)
+        : 0;
+      bitOffset += width;
+      if (tagOrdinal >= edges.length) {
+        throw new Error(
+          `Choice ${tagOrdinal} is out of range for pattern ` +
+          `node ${nodeId}`
+        );
+      }
+      if (stackPtr >= stack.length) {
+        const newStack = new Int32Array(stack.length * 2);
+        newStack.set(stack);
+        stack = newStack;
+      }
+      stack[stackPtr++] = edges[tagOrdinal].target;
+    }
+  }
+  return bitOffset;
+}
+
+class LazyVariant extends Value {
+  constructor(tag, buffer, bitOffset, pattern, targetId) {
+    super();
+    this.type = "<>";
+    this.tag = tag;
+    this.pattern = null;
+    this._buffer = buffer;
+    this._bitOffset = bitOffset;
+    this._pattern = pattern;
+    this._targetId = targetId;
+    Object.defineProperty(this, "value", {
+      get: this._resolveValue,
+      set: this._setValue,
+      enumerable: true,
+      configurable: true
+    });
+  }
+
+  _resolveValue() {
+    const val = decodeLazyNode(
+      this._buffer,
+      this._bitOffset,
+      this._pattern,
+      this._targetId
+    );
+    Object.defineProperty(this, "value", {
+      value: val,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
+    return val;
+  }
+
+  _setValue(v) {
+    Object.defineProperty(this, "value", {
+      value: v,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
+  }
+}
+
+function createLazyVariant(buffer, bitOffset, pattern, patternNodeId) {
+  const node = pattern.nodes[patternNodeId];
+  const edges = node.edges;
+  if (edges.length === 0) {
+    throw new Error(`Union pattern node ${patternNodeId} has no tags`);
+  }
+  const width = node.choiceBits !== undefined
+    ? node.choiceBits
+    : choiceWidth(edges.length);
+  const tagOrdinal = width > 0 ? readBitsAt(buffer, bitOffset, width) : 0;
+  if (tagOrdinal >= edges.length) {
+    throw new Error(
+      `Choice ${tagOrdinal} is out of range for pattern ` +
+      `node ${patternNodeId}`
+    );
+  }
+  const edge = edges[tagOrdinal];
+
+  // Fast-path: terminal variant whose target is empty product {}
+  const targetNode = pattern.nodes[edge.target];
+  if (
+    targetNode &&
+    (targetNode.kind === NODE_KIND.CLOSED_PRODUCT ||
+      targetNode.kind === NODE_KIND.OPEN_PRODUCT) &&
+    targetNode.edges.length === 0
+  ) {
+    if (edge.label === "0") return BIT0;
+    if (edge.label === "1") return BIT1;
+    return Value.variant(edge.label, UNIT);
+  }
+
+  return new LazyVariant(
+    edge.label,
+    buffer,
+    bitOffset + width,
+    pattern,
+    edge.target
+  );
+}
+
+class LazyConsProduct extends Value {
+  constructor(buffer, bitOffset, pattern, carTarget, cdrTarget) {
+    super();
+    this.type = "{}";
+    this.pattern = null;
+    let carVal = undefined;
+    let cdrVal = undefined;
+    let cdrOffset = -1;
+
+    this.product = {
+      get car() {
+        if (carVal === undefined) {
+          carVal = decodeLazyNode(buffer, bitOffset, pattern, carTarget);
+        }
+        return carVal;
+      },
+      set car(v) {
+        carVal = v;
+      },
+      get cdr() {
+        if (cdrVal === undefined) {
+          if (cdrOffset === -1) {
+            cdrOffset = fastSkipSubtree(
+              buffer,
+              bitOffset,
+              pattern,
+              carTarget
+            );
+          }
+          cdrVal = decodeLazyNode(buffer, cdrOffset, pattern, cdrTarget);
+        }
+        return cdrVal;
+      },
+      set cdr(v) {
+        cdrVal = v;
+      }
+    };
+  }
+}
+
+class LazyGeneralProduct extends Value {
+  constructor(buffer, bitOffset, pattern, patternNodeId) {
+    super();
+    this.type = "{}";
+    this.pattern = null;
+    const node = pattern.nodes[patternNodeId];
+    const edges = node.edges;
+    const edgeCount = edges.length;
+    const product = {};
+    this.product = product;
+
+    const edgeOffsets = new Array(edgeCount);
+    edgeOffsets[0] = bitOffset;
+    let nextKnownOffsetIndex = 1;
+
+    function ensureOffset(targetIndex) {
+      while (nextKnownOffsetIndex <= targetIndex) {
+        const prevIdx = nextKnownOffsetIndex - 1;
+        const prevStart = edgeOffsets[prevIdx];
+        const prevTargetId = edges[prevIdx].target;
+        edgeOffsets[nextKnownOffsetIndex] = fastSkipSubtree(
+          buffer,
+          prevStart,
+          pattern,
+          prevTargetId
+        );
+        nextKnownOffsetIndex++;
+      }
+      return edgeOffsets[targetIndex];
+    }
+
+    for (let i = 0; i < edgeCount; i++) {
+      const edge = edges[i];
+      const edgeIndex = i;
+      let cachedVal = undefined;
+      let resolved = false;
+
+      Object.defineProperty(product, edge.label, {
+        get() {
+          if (!resolved) {
+            const start = ensureOffset(edgeIndex);
+            cachedVal = decodeLazyNode(
+              buffer,
+              start,
+              pattern,
+              edge.target
+            );
+            resolved = true;
+          }
+          return cachedVal;
+        },
+        set(v) {
+          cachedVal = v;
+          resolved = true;
+        },
+        enumerable: true,
+        configurable: true
+      });
+    }
+  }
+}
+
+function decodeLazyNode(buffer, bitOffset, pattern, patternNodeId) {
+  const node = pattern.nodes[patternNodeId];
+  if (!node) {
+    throw new Error(`Unknown pattern node ${patternNodeId}`);
+  }
+  if (
+    node.kind === NODE_KIND.CLOSED_PRODUCT ||
+    node.kind === NODE_KIND.OPEN_PRODUCT
+  ) {
+    if (node.edges.length === 0) return UNIT;
+    if (
+      node.edges.length === 2 &&
+      node.edges[0].label === "car" &&
+      node.edges[1].label === "cdr"
+    ) {
+      return new LazyConsProduct(
+        buffer,
+        bitOffset,
+        pattern,
+        node.edges[0].target,
+        node.edges[1].target
+      );
+    }
+    return new LazyGeneralProduct(
+      buffer,
+      bitOffset,
+      pattern,
+      patternNodeId
+    );
+  }
+  return createLazyVariant(buffer, bitOffset, pattern, patternNodeId);
+}
+
+function decodeWire(buffer, options = {}) {
   if (!Buffer.isBuffer(buffer)) {
     throw new Error("Wire input must be a Buffer");
   }
   const reader = new BitReader(buffer);
-  const patternPropertyList = patternFromKValue(decodeNode(reader, CORE_PATTERN_PATTERN, 0));
+  const patternPropertyList = patternFromKValue(
+    decodeNode(reader, CORE_PATTERN_PATTERN, 0)
+  );
   const pattern = propertyListToPattern(patternPropertyList);
-  const value = decodeNode(reader, pattern, 0);
-  reader.assertZeroPadding();
-  return { pattern: patternPropertyList, value: withPattern(value, patternPropertyList) };
+
+  if (options.eager) {
+    const value = decodeNode(reader, pattern, 0);
+    reader.assertZeroPadding();
+    return {
+      pattern: patternPropertyList,
+      value: withPattern(value, patternPropertyList)
+    };
+  }
+
+  const valBitOffset = reader.byteOffset * 8 + reader.bitOffset;
+  const lazyRoot = decodeLazyNode(buffer, valBitOffset, pattern, 0);
+  lazyRoot.pattern = patternPropertyList;
+  return {
+    pattern: patternPropertyList,
+    value: withPattern(lazyRoot, patternPropertyList)
+  };
+}
+
+function decodeWireLazy(buffer) {
+  return decodeWire(buffer, { eager: false });
 }
 
 export {
   encodeToWire,
   decodeWire,
+  decodeWireLazy,
+  decodeLazyNode,
+  fastSkipSubtree,
+  readBitsAt,
   propertyListToPattern,
   patternToPropertyList,
   choiceWidth,
@@ -553,6 +874,10 @@ export {
 export default {
   encodeToWire,
   decodeWire,
+  decodeWireLazy,
+  decodeLazyNode,
+  fastSkipSubtree,
+  readBitsAt,
   propertyListToPattern,
   patternToPropertyList,
   choiceWidth,

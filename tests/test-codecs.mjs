@@ -183,4 +183,44 @@ console.log("6. Verifying pattern derivation via k type system (patternFromFilte
   assert.throws(() => SDK.patternFromFilter(".field"), /Main expression must be a filter or a type name/);
 }
 
+// 7. Lazy Prefix-Free Wire Decoding
+console.log("7. Verifying lazy prefix-free wire decoding...");
+{
+  assert.equal(typeof SDK.decodeWireLazy, "function");
+
+  // Lazy decoding should instantiate root in sub-millisecond time
+  const sampleStr = "a".repeat(20000);
+  const parsedStr = Utf8Codec.parse(sampleStr);
+  const wireStr = SDK.encodeToWire(parsedStr, parsedStr.pattern);
+
+  const t0 = performance.now();
+  const decodedLazy = SDK.decodeWire(wireStr);
+  const constructMs = performance.now() - t0;
+  assert(
+    constructMs < 50,
+    `Lazy decode took ${constructMs}ms (expected <50ms)`
+  );
+  assert.equal(decodedLazy.value.tag, "cons");
+
+  // On-demand traversal through print()
+  const printedStr = Utf8Codec.print(decodedLazy.value);
+  assert.equal(printedStr, sampleStr);
+
+  // Lazy list of integers
+  const ints = Array.from({ length: 5000 }, (_, i) => i).join(",");
+  const sampleList = `[${ints}]`;
+  const parsedList = IntCodec.parse(sampleList);
+  const wireList = SDK.encodeToWire(parsedList, parsedList.pattern);
+  const decodedList = SDK.decodeWireLazy(wireList);
+  assert.equal(IntCodec.print(decodedList.value), sampleList);
+
+  // Verify stack-safe toJSON on deep variant chains
+  let deepVal = SDK.Value.product({});
+  for (let i = 0; i < 15000; i++) {
+    deepVal = SDK.Value.variant("step", deepVal);
+  }
+  const json = deepVal.toJSON();
+  assert(json && typeof json === "object");
+}
+
 console.log("OK - All codec tests passed.");

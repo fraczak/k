@@ -193,15 +193,40 @@ class Value {
 
   toJSON() {
     if (isVariant(this)) {
-      if (isProduct(this.value) && Object.keys(this.value.product).length === 0) {
+      if (
+        isProduct(this.value) &&
+        Object.keys(this.value.product).length === 0
+      ) {
         return this.tag;
       }
-      return {[this.tag]: this.value.toJSON()};
+      const tags = [];
+      let curr = this;
+      while (isVariant(curr)) {
+        if (
+          isProduct(curr.value) &&
+          Object.keys(curr.value.product).length === 0
+        ) {
+          let res = curr.tag;
+          for (let i = tags.length - 1; i >= 0; i--) {
+            res = { [tags[i]]: res };
+          }
+          return res;
+        }
+        tags.push(curr.tag);
+        curr = curr.value;
+      }
+      let res = curr
+        ? (typeof curr.toJSON === "function" ? curr.toJSON() : curr)
+        : null;
+      for (let i = tags.length - 1; i >= 0; i--) {
+        res = { [tags[i]]: res };
+      }
+      return res;
     }
     if (!isProduct(this)) return { type: this.type };
     let vector = toVector(this.product);
     if (vector.length > 0) return vector;
-    return this.product; 
+    return this.product;
   }
 }
 export { Value, fromObject, cloneSubpattern, edgeSubpattern, composePattern, mergePatterns, withPattern, isProduct, isVariant, isValue };
