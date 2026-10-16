@@ -62,6 +62,10 @@ function runCodecCLI(metaUrl, codec) {
 
   const mode = args[0];
 
+  stdout.on("error", (err) => {
+    if (err.code === "EPIPE") exit(0);
+  });
+
   (async () => {
     if (mode === "--parse") {
       let parsed;

@@ -60,6 +60,10 @@ async function main() {
     }
   }
 
+  stdout.on("error", (err) => {
+    if (err.code === "EPIPE") process.exit(0);
+  });
+
   const input = fileArg ? fs.createReadStream(fileArg) : stdin;
   const buffer = await readAll(input);
   const { pattern, value } = decodeWire(buffer);

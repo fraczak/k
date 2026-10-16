@@ -12,6 +12,10 @@ import * as Utf8Codec from "../codecs/utf8.mjs";
 import * as Utf16Codec from "../codecs/utf16.mjs";
 import * as IeeeCodec from "../codecs/ieee.mjs";
 import * as UnitCodec from "../codecs/unit.mjs";
+import {
+  valueToK,
+  valueWithEnvelopeToK
+} from "../codecs/runtime/show-value.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -221,6 +225,72 @@ console.log("7. Verifying lazy prefix-free wire decoding...");
   }
   const json = deepVal.toJSON();
   assert(json && typeof json === "object");
+}
+
+// 8. High-Speed Direct Bitstream String Decoding & Bounded Rendering
+console.log("8. Verifying fast string decoding & bounded rendering...");
+{
+  const testStrings = [
+    "hello world",
+    "Zażółć gęślą jaźń",
+    "Unicode: 🚀🎉 𝒦-lang π ≈ 3.14159",
+    "a".repeat(50000),
+    ""
+  ];
+
+  for (const s of testStrings) {
+    const parsed = Utf8Codec.parse(s);
+    const wire = SDK.encodeToWire(parsed, parsed.pattern);
+    const decoded = SDK.decodeWire(wire);
+    const restored = Utf8Codec.print(decoded.value);
+    assert.equal(
+      restored,
+      s,
+      `String round-trip failed for "${s.slice(0, 20)}..."`
+    );
+  }
+
+  // Fast decoding performance: 50,000 ASCII chars in < 500ms
+  const bigAscii = "x".repeat(50000);
+  const bigParsed = Utf8Codec.parse(bigAscii);
+  const bigWire = SDK.encodeToWire(bigParsed, bigParsed.pattern);
+  const tStart = performance.now();
+  const bigDecoded = SDK.decodeWire(bigWire);
+  const bigRestored = Utf8Codec.print(bigDecoded.value);
+  const elapsed = performance.now() - tStart;
+  assert.equal(bigRestored.length, 50000);
+  assert(
+    elapsed < 500,
+    `Fast string decoding took ${elapsed}ms (expected < 500ms)`
+  );
+
+  // Bounded rendering: valueToK with limit
+  let deepVal = SDK.Value.product({});
+  for (let i = 0; i < 1000; i++) {
+    deepVal = SDK.Value.variant("item", deepVal);
+  }
+  const preview = valueToK(deepVal, 30);
+  assert(preview.endsWith("..."), "Output should end with '...'");
+  assert(preview.length <= 35, "Preview length should stay bounded");
+
+  // valueWithEnvelopeToK with limit
+  const enveloped = SDK.withPattern(deepVal, [["any", []]]);
+  const envPreview = valueWithEnvelopeToK(enveloped, 30);
+  assert(envPreview.includes("..."), "Preview should contain '...'");
+
+  // Ensure early termination: evaluating deep chain with limit 20
+  let hugeVal = SDK.Value.product({});
+  for (let i = 0; i < 50000; i++) {
+    hugeVal = SDK.Value.variant("v", hugeVal);
+  }
+  const tEarly0 = performance.now();
+  const earlyPreview = valueToK(hugeVal, 20);
+  const tEarlyElapsed = performance.now() - tEarly0;
+  assert(earlyPreview.endsWith("..."));
+  assert(
+    tEarlyElapsed < 50,
+    `Early termination took ${tEarlyElapsed}ms (expected < 50ms)`
+  );
 }
 
 console.log("OK - All codec tests passed.");

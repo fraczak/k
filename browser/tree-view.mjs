@@ -101,7 +101,9 @@ export function renderValueNode(val, currentDepth = 1, depthLimit = 3) {
     const populateChildren = () => {
       if (populated) return;
       populated = true;
-      for (const k of keys) {
+      const maxFields = 100;
+      const displayKeys = keys.slice(0, maxFields);
+      for (const k of displayKeys) {
         const row = document.createElement("div");
         row.className = "k-tree-row";
 
@@ -113,11 +115,24 @@ export function renderValueNode(val, currentDepth = 1, depthLimit = 3) {
         const childContainer = document.createElement("div");
         childContainer.className = "k-tree-child-val";
         childContainer.appendChild(
-          renderValueNode(val.product[k], isOpen ? currentDepth + 1 : 1, depthLimit)
+          renderValueNode(
+            val.product[k],
+            isOpen ? currentDepth + 1 : 1,
+            depthLimit
+          )
         );
         row.appendChild(childContainer);
 
         childrenContainer.appendChild(row);
+      }
+      if (keys.length > maxFields) {
+        const moreRow = document.createElement("div");
+        moreRow.className = "k-tree-row k-tree-more";
+        moreRow.style.color = "var(--color-muted)";
+        moreRow.style.paddingLeft = "1.2rem";
+        moreRow.textContent =
+          `... and ${keys.length - maxFields} more fields`;
+        childrenContainer.appendChild(moreRow);
       }
     };
 
@@ -488,7 +503,7 @@ export function createOutputEntryElement({
 
   const valSummary = document.createElement("summary");
   valSummary.className = "k-tree-section-summary";
-  const rawValPreview = valueToK(value);
+  const rawValPreview = valueToK(value, 120);
   const valPreview = rawValPreview.length > 120
     ? `${rawValPreview.slice(0, 120)}...`
     : rawValPreview;
@@ -514,7 +529,7 @@ export function createOutputEntryElement({
 
     const patSummary = document.createElement("summary");
     patSummary.className = "k-tree-section-summary";
-    const rawPatPreview = propertyListToFilter(value.pattern);
+    const rawPatPreview = propertyListToFilter(value.pattern, "X", 120);
     const patPreview = rawPatPreview.length > 120
       ? `${rawPatPreview.slice(0, 120)}...`
       : rawPatPreview;
@@ -562,7 +577,14 @@ export function createOutputEntryElement({
 
   const rawPre = document.createElement("pre");
   rawPre.className = "k-raw-pre";
-  rawPre.textContent = rawText;
+  const MAX_RAW_PRE_CHARS = 100000;
+  if (rawText.length > MAX_RAW_PRE_CHARS) {
+    rawPre.textContent =
+      rawText.slice(0, MAX_RAW_PRE_CHARS) +
+      `\n\n... [truncated, ${rawText.length - MAX_RAW_PRE_CHARS} more characters]`;
+  } else {
+    rawPre.textContent = rawText;
+  }
   rawWrapper.appendChild(rawPre);
 
   container.appendChild(rawWrapper);

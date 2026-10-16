@@ -51,6 +51,10 @@ async function main() {
     else { usage(); process.exit(1); }
   }
 
+  stdout.on("error", (err) => {
+    if (err.code === "EPIPE") process.exit(0);
+  });
+
   const buffer = fileArg ? fs.readFileSync(fileArg) : await readAll(stdin);
 
   // forward unchanged to stdout

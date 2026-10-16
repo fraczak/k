@@ -5,8 +5,16 @@ import {
   canonicalizePattern,
   NODE_KIND
 } from "./codec.mjs";
-import { patternToPropertyList, propertyListToPattern } from "./pattern-json.mjs";
-import { textToStringValue, stringValueToText } from "./unicode-string.mjs";
+import {
+  patternToPropertyList,
+  propertyListToPattern
+} from "./pattern-json.mjs";
+import {
+  textToStringValue,
+  stringValueToText,
+  unicodeValueToCodePoint,
+  setLazyStringDecoder
+} from "./unicode-string.mjs";
 
 const CORE_PATTERN_PROPERTY_LIST = [
   ["closed-union", [["cons", 1], ["nil", 3]]],
@@ -350,13 +358,17 @@ function preparePatternAndValue(value, propertyList) {
 
 function deriveClosedPatternFromValue(value) {
   const nodes = [];
+  const labelSet = new Set();
 
   function visit(node) {
     const nodeId = nodes.length;
     if (isProduct(node)) {
       const placeholder = { kind: NODE_KIND.CLOSED_PRODUCT, edges: [] };
       nodes.push(placeholder);
-      const labels = Object.keys(node.product).sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
+      const labels = Object.keys(node.product).sort((a, b) =>
+        Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"))
+      );
+      for (let i = 0; i < labels.length; i++) labelSet.add(labels[i]);
       placeholder.edges = labels.map((label) => ({
         label,
         symbolId: 0,
@@ -367,6 +379,7 @@ function deriveClosedPatternFromValue(value) {
     if (isVariant(node)) {
       const placeholder = { kind: NODE_KIND.OPEN_UNION, edges: [] };
       nodes.push(placeholder);
+      labelSet.add(node.tag);
       placeholder.edges = [{
         label: node.tag,
         symbolId: 0,
@@ -374,12 +387,17 @@ function deriveClosedPatternFromValue(value) {
       }];
       return nodeId;
     }
-    throw new Error(`Unsupported runtime value node: ${node?.constructor?.name || typeof node}`);
+    throw new Error(
+      `Unsupported runtime value node: ${
+        node?.constructor?.name || typeof node
+      }`
+    );
   }
 
   visit(value);
-  const dictionary = [...new Set(nodes.flatMap((node) => node.edges.map((edge) => edge.label)))]
-    .sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
+  const dictionary = Array.from(labelSet).sort((a, b) =>
+    Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"))
+  );
   const symbolIds = new Map(dictionary.map((label, index) => [label, index]));
 
   return {
@@ -565,6 +583,10 @@ function fastSkipSubtree(
   while (stackPtr > 0) {
     const nodeId = stack[--stackPtr];
     const node = nodes[nodeId];
+    if (node.fixedBitWidth !== undefined) {
+      bitOffset += node.fixedBitWidth;
+      continue;
+    }
     if (
       node.kind === NODE_KIND.CLOSED_PRODUCT ||
       node.kind === NODE_KIND.OPEN_PRODUCT
@@ -643,6 +665,7 @@ class LazyVariant extends Value {
   }
 
   _setValue(v) {
+    this._buffer = null;
     Object.defineProperty(this, "value", {
       value: v,
       writable: true,
@@ -683,13 +706,17 @@ function createLazyVariant(buffer, bitOffset, pattern, patternNodeId) {
     return Value.variant(edge.label, UNIT);
   }
 
-  return new LazyVariant(
+  const variant = new LazyVariant(
     edge.label,
     buffer,
     bitOffset + width,
     pattern,
     edge.target
   );
+  if (edge.fixedTargetBitWidth !== undefined) {
+    variant.bitWidth = width + edge.fixedTargetBitWidth;
+  }
+  return variant;
 }
 
 class LazyConsProduct extends Value {
@@ -697,6 +724,11 @@ class LazyConsProduct extends Value {
     super();
     this.type = "{}";
     this.pattern = null;
+    this.buffer = buffer;
+    this.bitOffset = bitOffset;
+    this.pattern = pattern;
+    this.carTarget = carTarget;
+    this.cdrTarget = cdrTarget;
     let carVal = undefined;
     let cdrVal = undefined;
     let cdrOffset = -1;
@@ -714,12 +746,18 @@ class LazyConsProduct extends Value {
       get cdr() {
         if (cdrVal === undefined) {
           if (cdrOffset === -1) {
-            cdrOffset = fastSkipSubtree(
-              buffer,
-              bitOffset,
-              pattern,
-              carTarget
-            );
+            if (carVal?.bitWidth !== undefined) {
+              cdrOffset = bitOffset + carVal.bitWidth;
+            } else if (pattern.nodes[carTarget].fixedBitWidth !== undefined) {
+              cdrOffset = bitOffset + pattern.nodes[carTarget].fixedBitWidth;
+            } else {
+              cdrOffset = fastSkipSubtree(
+                buffer,
+                bitOffset,
+                pattern,
+                carTarget
+              );
+            }
           }
           cdrVal = decodeLazyNode(buffer, cdrOffset, pattern, cdrTarget);
         }
@@ -742,6 +780,33 @@ class LazyGeneralProduct extends Value {
     const edgeCount = edges.length;
     const product = {};
     this.product = product;
+
+    if (node.staticOffsets !== undefined) {
+      const staticOffsets = node.staticOffsets;
+      for (let i = 0; i < edgeCount; i++) {
+        const edge = edges[i];
+        const off = bitOffset + staticOffsets[i];
+        let cachedVal = undefined;
+        let resolved = false;
+
+        Object.defineProperty(product, edge.label, {
+          get() {
+            if (!resolved) {
+              cachedVal = decodeLazyNode(buffer, off, pattern, edge.target);
+              resolved = true;
+            }
+            return cachedVal;
+          },
+          set(v) {
+            cachedVal = v;
+            resolved = true;
+          },
+          enumerable: true,
+          configurable: true
+        });
+      }
+      return;
+    }
 
     const edgeOffsets = new Array(edgeCount);
     edgeOffsets[0] = bitOffset;
@@ -858,6 +923,77 @@ function decodeWire(buffer, options = {}) {
 function decodeWireLazy(buffer) {
   return decodeWire(buffer, { eager: false });
 }
+
+function isLazyCanonicalString(val) {
+  if (!val || typeof val !== "object" || !val._buffer || !val._pattern) {
+    return false;
+  }
+  const nodes = val._pattern.nodes;
+  if (!nodes || nodes.length < 4) return false;
+  const n0 = nodes[0];
+  const n1 = nodes[1];
+  const n2 = nodes[2];
+  const n3 = nodes[3];
+  return (
+    n0?.edges?.length === 2 &&
+    n0.edges[0]?.label === "cons" &&
+    n0.edges[1]?.label === "nil" &&
+    n1?.edges?.length === 2 &&
+    n1.edges[0]?.label === "car" &&
+    n1.edges[1]?.label === "cdr" &&
+    n2?.edges?.[0]?.label === "ascii" &&
+    n3?.edges?.length === 7
+  );
+}
+
+function fastDecodeLazyString(lazyVariant) {
+  if (!isLazyCanonicalString(lazyVariant)) return null;
+  if (lazyVariant.tag === "nil") return "";
+  if (lazyVariant.tag !== "cons") return null;
+
+  const buffer = lazyVariant._buffer;
+  const pattern = lazyVariant._pattern;
+  let bitOffset = lazyVariant._bitOffset;
+
+  const chunks = [];
+  let chunk = "";
+
+  while (true) {
+    const carTag = readBitsAt(buffer, bitOffset, 3);
+    if (carTag === 0) {
+      let cp = 0;
+      for (let i = 0; i < 7; i++) {
+        cp |= (readBitsAt(buffer, bitOffset + 3 + i, 1) << i);
+      }
+      chunk += String.fromCharCode(cp);
+      if (chunk.length >= 8192) {
+        chunks.push(chunk);
+        chunk = "";
+      }
+      bitOffset += 10;
+    } else {
+      const charVal = decodeLazyNode(buffer, bitOffset, pattern, 2);
+      const cp = unicodeValueToCodePoint(charVal);
+      chunk += String.fromCodePoint(cp);
+      if (chunk.length >= 8192) {
+        chunks.push(chunk);
+        chunk = "";
+      }
+      bitOffset = fastSkipSubtree(buffer, bitOffset, pattern, 2);
+    }
+
+    const listTag = readBitsAt(buffer, bitOffset, 1);
+    bitOffset += 1;
+    if (listTag !== 0) {
+      break;
+    }
+  }
+
+  if (chunk.length > 0) chunks.push(chunk);
+  return chunks.join("");
+}
+
+setLazyStringDecoder(fastDecodeLazyString);
 
 export {
   encodeToWire,
