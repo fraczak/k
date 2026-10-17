@@ -58,6 +58,7 @@
         "k-wasm": "backends/wasm/bin/k-wasm.mjs",
         "k-wasm-compile": "backends/wasm/bin/k-wasm-compile.mjs",
         "k-wasm-run": "backends/wasm/bin/k-wasm-run.mjs",
+        "k-djson": "codecs/djson.mjs",
         "k-ieee": "codecs/ieee.mjs",
         "k-int": "codecs/int.mjs",
         "k-json": "codecs/json.mjs",

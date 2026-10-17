@@ -226,6 +226,18 @@ output = await evaluateInput(':input json.mjs {"left":true,"right":false}', json
 assert.match(output[0], /json\.mjs: \{"left":true,"right":false\}/);
 assert.equal(promptForState(jsonState), "> ");
 
+// Test djson.mjs in repl
+const djsonState = createState();
+output = await evaluateInput(":codec load ./codecs/djson.mjs", djsonState);
+assert.match(output[0], /^loaded codec djson\.mjs/);
+completions = completeInput(":input dj", djsonState)[0];
+assert(completions.includes(":input djson.mjs"));
+output = await evaluateInput(
+  ':input djson.mjs {"msg":"hello","values":[1,2]}',
+  djsonState
+);
+assert.match(output[0], /djson\.mjs: \{"msg":"hello","values":\[1,2\]\}/);
+
 const replPath = fileURLToPath(new URL("../repl.mjs", import.meta.url));
 try {
   fs.rmSync(symlinkPath, { force: true });

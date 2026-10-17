@@ -91,7 +91,14 @@ for (const filename of verifiedExamples) {
 }
 
 // Bundle verified codecs for browser VFS as 100% self-contained ES modules
-const verifiedCodecs = ["json.mjs", "utf8.mjs", "int.mjs", "unit.mjs", "ieee.mjs"];
+const verifiedCodecs = [
+  "json.mjs",
+  "djson.mjs",
+  "utf8.mjs",
+  "int.mjs",
+  "unit.mjs",
+  "ieee.mjs"
+];
 const codecsDir = path.join(projectRoot, "codecs");
 
 const browserCodecSdkShim = `

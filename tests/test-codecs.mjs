@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import * as SDK from "../codecs/runtime/codec-sdk.mjs";
 import * as IntCodec from "../codecs/int.mjs";
 import * as JsonCodec from "../codecs/json.mjs";
+import * as DjsonCodec from "../codecs/djson.mjs";
 import * as Utf8Codec from "../codecs/utf8.mjs";
 import * as Utf16Codec from "../codecs/utf16.mjs";
 import * as IeeeCodec from "../codecs/ieee.mjs";
@@ -53,6 +54,7 @@ console.log("2. Verifying in-memory parse -> enveloped value (P, v)...");
 for (const [name, codec, sampleInput] of [
   ["int.mjs", IntCodec, "42"],
   ["json.mjs", JsonCodec, '{"x": 1}'],
+  ["djson.mjs", DjsonCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
   ["utf8.mjs", Utf8Codec, "hello"],
   ["utf16.mjs", Utf16Codec, "hello"],
   ["ieee.mjs", IeeeCodec, "3.14"],
@@ -72,6 +74,7 @@ console.log("3. Verifying CLI --help flag...");
 for (const relPath of [
   "codecs/int.mjs",
   "codecs/json.mjs",
+  "codecs/djson.mjs",
   "codecs/utf8.mjs",
   "codecs/utf16.mjs",
   "codecs/ieee.mjs",
@@ -113,6 +116,24 @@ console.log("4. Verifying CLI --parse and --print pipelines...");
   const printRes = runCLI("codecs/json.mjs", ["--print"], parseRes.stdout);
   assert.equal(printRes.status, 0);
   assert.deepEqual(JSON.parse(printRes.stdout.toString("utf8")), JSON.parse(jsonInput));
+}
+
+// djson.mjs: dynamic JSON AST with singleton pattern
+{
+  const djsonInput = JSON.stringify({
+    name: "k",
+    count: 42.5,
+    tags: ["fast", "typed"],
+    meta: { active: true, extra: null }
+  });
+  const parseRes = runCLI("codecs/djson.mjs", ["--parse"], djsonInput);
+  assert.equal(parseRes.status, 0);
+  const printRes = runCLI("codecs/djson.mjs", ["--print"], parseRes.stdout);
+  assert.equal(printRes.status, 0);
+  assert.deepEqual(
+    JSON.parse(printRes.stdout.toString("utf8")),
+    JSON.parse(djsonInput)
+  );
 }
 
 // utf8.mjs: unicode text
@@ -291,6 +312,43 @@ console.log("8. Verifying fast string decoding & bounded rendering...");
     tEarlyElapsed < 50,
     `Early termination took ${tEarlyElapsed}ms (expected < 50ms)`
   );
+}
+
+// 9. DJSON Singleton Pattern Invariant & Round-Trip
+console.log("9. Verifying DJSON singleton pattern invariant...");
+{
+  assert(Array.isArray(DjsonCodec.DJSON_PATTERN));
+  assert.equal(DjsonCodec.DJSON_PATTERN.length, 29);
+
+  const samples = [
+    null,
+    true,
+    false,
+    123.456,
+    "Hello world!",
+    [],
+    [1, "text", false, null],
+    {},
+    { key: "value", nested: [1, 2, { deep: true }] }
+  ];
+
+  for (const sample of samples) {
+    const jsonStr = JSON.stringify(sample);
+    const enveloped = DjsonCodec.parse(jsonStr);
+    assert.strictEqual(
+      enveloped.pattern,
+      DjsonCodec.DJSON_PATTERN,
+      "Every DJSON value must share the exact singleton pattern"
+    );
+    const wire = SDK.encodeToWire(enveloped, enveloped.pattern);
+    const decoded = SDK.decodeWire(wire);
+    const restored = DjsonCodec.print(decoded.value);
+    assert.deepEqual(
+      JSON.parse(restored),
+      sample,
+      `DJSON round-trip mismatch for: ${jsonStr}`
+    );
+  }
 }
 
 console.log("OK - All codec tests passed.");
