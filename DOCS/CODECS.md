@@ -174,8 +174,9 @@ npm test
 ## Web REPL (VFS) Bundling
 
 When `repl.html` is generated (`npm run build:repl-html`):
-- Codecs (`int.mjs`, `json.mjs`, `utf8.mjs`, `unit.mjs`, `ieee.mjs`) are
-  bundled into 100% self-contained ES modules with zero imports.
+- Codecs (`int.mjs`, `json.mjs`, `djson.mjs`, `utf8.mjs`, `unit.mjs`,
+  `ieee.mjs`) are bundled into 100% self-contained ES modules with zero
+  imports.
 - `runCodecCLI` is shimmed as a no-op, and `Value` helpers are directly
   inlined.
 - In the browser, the VFS serves these self-contained modules directly to

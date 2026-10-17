@@ -207,7 +207,8 @@ To make `codecs/` intuitive and self-contained:
 ```text
 codecs/
 ├── int.mjs                    # Integer & list codec
-├── json.mjs                   # JSON codec
+├── json.mjs                   # JSON codec (schema-specializing)
+├── djson.mjs                  # Dynamic JSON codec (singleton pattern)
 ├── utf8.mjs                   # UTF-8 string codec
 ├── utf16.mjs                  # UTF-16 string codec
 ├── ieee.mjs                   # IEEE 754 float codec
@@ -236,7 +237,8 @@ In the browser REPL (`repl.html`):
   imports**.
 - **No Runtime Files in VFS**: `codecs/runtime/*` is not included in the
   browser VFS. The VFS only contains verified, self-contained user-facing
-  files (`int.mjs`, `json.mjs`, `utf8.mjs`, `unit.mjs`, `ieee.mjs`).
+  files (`int.mjs`, `json.mjs`, `djson.mjs`, `utf8.mjs`, `unit.mjs`,
+  `ieee.mjs`).
 - **Native Browser Loading**: In `repl-codecs.mjs`, the browser reads the
   codec source from VFS, wraps it in a Blob, and invokes native `await
   import(blobUrl)`. No regex manipulation, import stripping, or global
