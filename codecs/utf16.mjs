@@ -10,7 +10,8 @@ import {
 export const doc = `
 UTF-16 text codec (BOM-aware).
 
-Reads UTF-16 text (LE/BE with BOM or LE without BOM), outputs UTF-16LE with BOM.
+Reads UTF-16 text (LE/BE with BOM or LE without BOM),
+outputs UTF-16LE with BOM.
 `;
 
 function decodeUtf16Input(buf) {

@@ -33,10 +33,11 @@ is complete.
 | Command | Meaning |
 | --- | --- |
 | `:help` | Show command summary |
-| `:engine [wasm|js]` | Display or switch evaluation engine (`wasm` or `js`) |
-| `:wasm` / `:js` | Shortcut to switch engine |
+| `:engine [wasm\|pkir\|js]` | Display or switch evaluation engine (`wasm`, `pkir`, or `js`) |
+| `:wasm` / `:pkir` / `:js` | Shortcut to switch engine |
 | `:rel name` | Show relation definition |
 | `:rels` | List relation aliases |
+| `:limit [num\|none]` | Set maximum characters for value output (default: 4096) |
 | `:codec load file` | Load a codec from an ES module file (e.g. `:codec load codecs/int.mjs`) |
 | `:codec unload name` | Unload a registered codec |
 | `:codec list` | List loaded REPL codecs (alias: `:codecs`) |
@@ -231,11 +232,13 @@ The REPL supports two evaluation engines:
 
 ### CLI Options
 
-When starting `k-repl`, choose the engine with:
+When starting `k-repl`, choose the engine or output limit with:
 
 ```bash
 k-repl --engine=js    # or k-repl --js
+k-repl --engine=pkir  # or k-repl --pkir
 k-repl --engine=wasm  # or k-repl --wasm (default)
+k-repl --limit=8192   # set max characters for rendered output
 ```
 
 ## Timing and Profiling
@@ -296,6 +299,11 @@ Evaluated values print in k syntax together with the inferred envelope:
 ```text
 {}|0|+1 ?<<{} 0, ...> +1, ...>
 ```
+
+Large values are rendered iteratively and truncated at `maxChars`
+(default: `4096` characters) so deeply nested or large values print
+instantly without exhausting stack or terminal buffers. Use
+`:limit <num>` or `:limit none` to adjust or disable the limit.
 
 `undefined` prints as:
 

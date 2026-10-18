@@ -14,7 +14,8 @@ export const doc = `
 Decimal integers and integer lists.
 
 Syntax:
-  Decimal integer (e.g. 42, -15) or bracketed integer list (e.g. [0, 1, 2], []).
+  Decimal integer (e.g. 42, -15) or bracketed integer list
+  (e.g. [0, 1, 2], []).
 `;
 
 // Closed pattern for $ int = < bits '+', bits '-' >

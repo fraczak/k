@@ -192,11 +192,16 @@ runCodecCLI(import.meta.url, { parse, print, doc });
    pathToFileURL(process.argv[1]).href`). If imported as a module or
    running in a browser, it is a no-op.
 2. **Flag Parsing**: Handles `--parse`, `--print`, and `-h` / `--help`.
-3. **Stream Piping**:
+3. **Stream Piping & Lazy Wire Decoding**:
    - For `--parse`: reads `stdin` to string, calls `parse(text)`, encodes
      enveloped value `(P, v)` to binary wire format on `stdout`.
-   - For `--print`: decodes wire format from `stdin` into `(P, v)`, calls
-     `print(value)`, writes formatted text to `stdout`.
+   - For `--print`: lazily decodes the wire format from `stdin` into
+     bitstream-backed `Value` proxies (`LazyGeneralProduct`,
+     `LazyGeneralVariant`) with precomputed fixed-width bit sizes and
+     static field offsets, calls `print(value)`, and writes formatted text
+     to `stdout`.
+   - Cleanly exits on `EPIPE` when piped into downstream consumers like
+     `head`.
 
 ---
 
