@@ -226,6 +226,18 @@ output = await evaluateInput(':input json.mjs {"left":true,"right":false}', json
 assert.match(output[0], /json\.mjs: \{"left":true,"right":false\}/);
 assert.equal(promptForState(jsonState), "> ");
 
+// Test djson.mjs in repl
+const djsonState = createState();
+output = await evaluateInput(":codec load ./codecs/djson.mjs", djsonState);
+assert.match(output[0], /^loaded codec djson\.mjs/);
+completions = completeInput(":input dj", djsonState)[0];
+assert(completions.includes(":input djson.mjs"));
+output = await evaluateInput(
+  ':input djson.mjs {"msg":"hello","values":[1,2]}',
+  djsonState
+);
+assert.match(output[0], /djson\.mjs: \{"msg":"hello","values":\[1,2\]\}/);
+
 const replPath = fileURLToPath(new URL("../repl.mjs", import.meta.url));
 try {
   fs.rmSync(symlinkPath, { force: true });
@@ -547,6 +559,27 @@ await evaluateInput(":input int.mjs [3,3,3]", wasmListState);
 output = await evaluateInput("len", wasmListState);
 assert.match(output[0], /int\.mjs:\s*3/);
 assert.match(output[1], /\(wasm\)/);
+
+// Verify :limit command and bounded printing
+const limitState = createState({ engine: "wasm" });
+output = await evaluateInput(":limit", limitState);
+assert.equal(output[0], "Current output limit: none");
+
+output = await evaluateInput(":limit 40", limitState);
+assert.equal(output[0], "output limit set to 40");
+
+output = await evaluateInput(":limit", limitState);
+assert.equal(output[0], "Current output limit: 40");
+
+output = await evaluateInput(":load Examples/arithmetics.k", limitState);
+output = await evaluateInput("{ 10 int x, 5 int y } plus", limitState);
+assert(output[0].includes("..."));
+assert(output[0].length <= 80);
+
+output = await evaluateInput(":limit none", limitState);
+assert.equal(output[0], "output limit disabled");
+output = await evaluateInput(":limit", limitState);
+assert.equal(output[0], "Current output limit: none");
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });

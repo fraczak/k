@@ -50,7 +50,7 @@ const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 const COMMAND_NAMES = [
   "help", "rel",
   "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
-  "engine", "wasm", "pkir", "js",
+  "engine", "wasm", "pkir", "js", "limit",
   "quit", "exit"
 ];
 const CODEC_COMMAND_NAMES = ["load", "unload", "list"];
@@ -95,7 +95,8 @@ function createState(options = {}) {
     lastResult: null,
     lastMain: null,
     lastTiming: null,
-    showTiming: true
+    showTiming: true,
+    printLimit: options.printLimit ?? Infinity
   };
 }
 
@@ -354,7 +355,8 @@ function formatCodecOutput(output) {
 }
 
 function printValue(value, state = null) {
-  const lines = [valueWithEnvelopeToK(value)];
+  const limit = state?.printLimit ?? Infinity;
+  const lines = [valueWithEnvelopeToK(value, limit)];
   if (!state || value === undefined) return lines[0];
 
   const store = state.codecs || {};
@@ -363,7 +365,11 @@ function printValue(value, state = null) {
     try {
       const output = codec.print(value, { state });
       if (output != null) {
-        lines.push(`${codec.name}: ${formatCodecOutput(output)}`);
+        let text = formatCodecOutput(output);
+        if (Number.isFinite(limit) && text.length > limit) {
+          text = text.slice(0, limit) + "...";
+        }
+        lines.push(`${codec.name}: ${text}`);
       }
     } catch {
       // Codec cannot format this value; silently skip
@@ -1265,9 +1271,34 @@ async function evaluateCommand(line, state) {
       state.engine = "js";
       return ["engine set to js"];
     }
+    case "limit": {
+      const mode = (arg || "").trim().toLowerCase();
+      if (!mode) {
+        const current = Number.isFinite(state.printLimit)
+          ? state.printLimit
+          : "none";
+        return [`Current output limit: ${current}`];
+      }
+      if (mode === "none" || mode === "infinity" || mode === "off") {
+        state.printLimit = Infinity;
+        return ["output limit disabled"];
+      }
+      const n = parseInt(mode, 10);
+      if (Number.isNaN(n) || n < 0) {
+        throw new Error(
+          `Invalid limit '${arg.trim()}'. Usage: :limit [num|none]`
+        );
+      }
+      state.printLimit = n;
+      return [`output limit set to ${n}`];
+    }
     case "reset": {
       const currentEngine = state.engine;
-      const fresh = createState({ engine: currentEngine });
+      const currentLimit = state.printLimit;
+      const fresh = createState({
+        engine: currentEngine,
+        printLimit: currentLimit
+      });
       Object.assign(state, fresh);
       return ["reset"];
     }
@@ -1302,6 +1333,7 @@ function helpText() {
     ":engine [wasm|pkir|js]   display or switch evaluation engine",
     ":rel name            show relation definition",
     ":rels                list relation aliases",
+    ":limit [num|none]    set maximum characters for value output",
     ":codec load file     load a codec module from file (e.g. :codec load codecs/int.mjs)",
     ":codec unload name   unload a registered codec",
     ":codec list          list loaded codecs (or simply :codecs)",
@@ -1336,6 +1368,7 @@ function cliUsage() {
   console.log("  --pkir                   Shortcut for --engine=pkir.");
   console.log("  --wasm                   Shortcut for --engine=wasm.");
   console.log("  --js                     Shortcut for --engine=js.");
+  console.log("  --limit=<num>            Set maximum characters for output.");
   console.log("  -h, --help               Show this help.");
 }
 
@@ -1431,6 +1464,7 @@ function startRepl(options = {}) {
 if (isMainEntrypoint()) {
   const args = argv.slice(2);
   let engine = "wasm";
+  let printLimit = Infinity;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "-h" || arg === "--help") {
@@ -1461,13 +1495,30 @@ if (isMainEntrypoint()) {
         exit(1);
       }
       engine = val;
+    } else if (arg.startsWith("--limit=")) {
+      const val = parseInt(arg.slice("--limit=".length), 10);
+      if (Number.isNaN(val) || val < 0) {
+        console.error(
+          `Invalid limit '${arg.slice("--limit=".length)}'.`
+        );
+        exit(1);
+      }
+      printLimit = val;
+    } else if (arg === "--limit") {
+      i++;
+      const val = parseInt(args[i] || "", 10);
+      if (Number.isNaN(val) || val < 0) {
+        console.error(`Invalid limit '${args[i]}'.`);
+        exit(1);
+      }
+      printLimit = val;
     } else {
       console.error(`Unknown option '${arg}'.`);
       cliUsage();
       exit(1);
     }
   }
-  startRepl({ engine });
+  startRepl({ engine, printLimit });
 }
 
 export {

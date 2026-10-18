@@ -3,6 +3,15 @@ import { Value, isProduct, isVariant } from "../../Value.mjs";
 const UNIT = Value.product({});
 const BIT0 = Value.variant("0", UNIT);
 const BIT1 = Value.variant("1", UNIT);
+const BIT_KEYS = [
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"
+];
+
+let lazyStringDecoder = null;
+
+function setLazyStringDecoder(fn) {
+  lazyStringDecoder = fn;
+}
 
 function bitValue(bit) {
   return bit === 0 ? BIT0 : BIT1;
@@ -25,7 +34,8 @@ function requireVariant(value, where) {
 function bitsProduct(width, n) {
   const product = {};
   for (let i = width - 1; i >= 0; i--) {
-    product[String(i)] = bitValue((n >> i) & 1);
+    const key = i < BIT_KEYS.length ? BIT_KEYS[i] : String(i);
+    product[key] = bitValue((n >> i) & 1);
   }
   return Value.product(product);
 }
@@ -34,7 +44,8 @@ function parseBitsProduct(value, maxBit, where) {
   const product = requireProduct(value, where);
   let n = 0;
   for (let i = maxBit; i >= 0; i--) {
-    const entry = requireVariant(product[String(i)], `${where}.bit${i}`);
+    const key = i < BIT_KEYS.length ? BIT_KEYS[i] : String(i);
+    const entry = requireVariant(product[key], `${where}.bit${i}`);
     if (entry.tag !== "0" && entry.tag !== "1") {
       throw new Error(`${where}.bit${i}: expected tag 0 or 1`);
     }
@@ -194,20 +205,31 @@ function textToStringValue(text) {
 }
 
 function stringValueToText(value) {
-  let out = "";
+  if (lazyStringDecoder) {
+    const fast = lazyStringDecoder(value);
+    if (fast !== null) return fast;
+  }
+
+  const chunks = [];
+  let chunk = "";
   let cursor = value;
 
   while (true) {
     const list = requireVariant(cursor, "string");
     if (list.tag === "nil") {
       requireProduct(list.value, "string.nil");
-      return out;
+      if (chunk.length > 0) chunks.push(chunk);
+      return chunks.join("");
     }
     if (list.tag !== "cons") {
       throw new Error(`Unsupported string list tag: ${list.tag}`);
     }
     const pair = requireProduct(list.value, "string.cons");
-    out += String.fromCodePoint(unicodeValueToCodePoint(pair.car));
+    chunk += String.fromCodePoint(unicodeValueToCodePoint(pair.car));
+    if (chunk.length >= 8192) {
+      chunks.push(chunk);
+      chunk = "";
+    }
     cursor = pair.cdr;
   }
 }
@@ -216,5 +238,6 @@ export {
   codePointToUnicodeValue,
   unicodeValueToCodePoint,
   textToStringValue,
-  stringValueToText
+  stringValueToText,
+  setLazyStringDecoder
 };

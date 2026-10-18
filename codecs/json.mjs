@@ -4,9 +4,14 @@ import { withPattern, runCodecCLI } from "./runtime/codec-sdk.mjs";
 import { fromJsonValue, toJsonValue, patternFromJsonValue } from "./json-codec.mjs";
 
 export const doc = `
-JSON codec (RFC 8259).
+Schema-specializing JSON codec (RFC 8259).
 
-Translates JSON data to/from self-describing enveloped k values.
+Translates JSON data to/from self-describing enveloped k values where
+each JSON document derives a document-specific pattern:
+  - objects map to products { field: value, ... }
+  - arrays map to indexed products { "0": a0, "1": a1, ... }
+  - numbers, strings, booleans, and null map to canonical k values
+(See djson.mjs for the universal singleton-pattern dynamic JSON codec.)
 `;
 
 export function parse(text) {

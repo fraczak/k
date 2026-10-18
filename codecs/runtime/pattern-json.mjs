@@ -80,16 +80,95 @@ function propertyListToPattern(propertyList) {
       throw new Error("Pattern node 'any' cannot have outgoing edges");
     }
 
+    const tagIndex = Object.create(null);
+    for (let i = 0; i < edges.length; i++) {
+      tagIndex[edges[i].label] = i;
+    }
+    const choiceBits = edges.length <= 1
+      ? 0
+      : Math.ceil(Math.log2(edges.length));
     return {
       kind,
-      edges: edges.map((edge) => ({ ...edge, symbolId: symbolIds.get(edge.label) }))
+      edges: edges.map((edge) => ({
+        ...edge,
+        symbolId: symbolIds.get(edge.label)
+      })),
+      tagIndex,
+      choiceBits
     };
   });
+
+  computePatternBitWidths(nodes);
 
   return {
     dictionary,
     nodes
   };
+}
+
+function computePatternBitWidths(nodes) {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (node.fixedBitWidth !== undefined) continue;
+
+      if (node.kind === NAME_TO_NODE_KIND["closed-product"]) {
+        if (node.edges.length === 0) {
+          node.fixedBitWidth = 0;
+          node.staticOffsets = [];
+          changed = true;
+        } else {
+          let allKnown = true;
+          let sum = 0;
+          const offsets = new Array(node.edges.length);
+          for (let j = 0; j < node.edges.length; j++) {
+            const target = nodes[node.edges[j].target];
+            if (target.fixedBitWidth === undefined) {
+              allKnown = false;
+              break;
+            }
+            offsets[j] = sum;
+            sum += target.fixedBitWidth;
+          }
+          if (allKnown) {
+            node.fixedBitWidth = sum;
+            node.staticOffsets = offsets;
+            changed = true;
+          }
+        }
+      } else if (node.kind === NAME_TO_NODE_KIND["closed-union"]) {
+        if (node.edges.length > 0) {
+          const firstTarget = nodes[node.edges[0].target];
+          const w = firstTarget.fixedBitWidth;
+          if (w !== undefined) {
+            let allSame = true;
+            for (let j = 1; j < node.edges.length; j++) {
+              if (nodes[node.edges[j].target].fixedBitWidth !== w) {
+                allSame = false;
+                break;
+              }
+            }
+            if (allSame) {
+              node.fixedBitWidth = node.choiceBits + w;
+              changed = true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < nodes.length; i++) {
+    const edges = nodes[i].edges;
+    for (let j = 0; j < edges.length; j++) {
+      const target = nodes[edges[j].target];
+      if (target.fixedBitWidth !== undefined) {
+        edges[j].fixedTargetBitWidth = target.fixedBitWidth;
+      }
+    }
+  }
 }
 
 export { patternToPropertyList, propertyListToPattern, NODE_KIND_TO_NAME, NAME_TO_NODE_KIND };

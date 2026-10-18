@@ -1,7 +1,20 @@
 import { Value, withPattern, isProduct, isVariant } from "../../Value.mjs";
-import { refinePatternForValue, coerceValueForPattern, NODE_KIND } from "./codec.mjs";
-import { patternToPropertyList, propertyListToPattern } from "./pattern-json.mjs";
-import { textToStringValue, stringValueToText } from "./unicode-string.mjs";
+import {
+  refinePatternForValue,
+  coerceValueForPattern,
+  canonicalizePattern,
+  NODE_KIND
+} from "./codec.mjs";
+import {
+  patternToPropertyList,
+  propertyListToPattern
+} from "./pattern-json.mjs";
+import {
+  textToStringValue,
+  stringValueToText,
+  unicodeValueToCodePoint,
+  setLazyStringDecoder
+} from "./unicode-string.mjs";
 
 const CORE_PATTERN_PROPERTY_LIST = [
   ["closed-union", [["cons", 1], ["nil", 3]]],
@@ -34,19 +47,37 @@ const CORE_PATTERN_PROPERTY_LIST = [
 
 const CORE_PATTERN_PATTERN = propertyListToPattern(CORE_PATTERN_PROPERTY_LIST);
 const UNIT = Value.product({});
+const BIT0 = Value.variant("0", UNIT);
+const BIT1 = Value.variant("1", UNIT);
 
 class BitWriter {
-  constructor() {
-    this.bytes = [];
+  constructor(initialCapacity = 4096) {
+    this.buffer = new Uint8Array(initialCapacity);
+    this.byteLength = 0;
     this.current = 0;
     this.bitCount = 0;
+  }
+
+  ensureCapacity(extraBytes) {
+    if (this.byteLength + extraBytes > this.buffer.length) {
+      const newCap = Math.max(
+        this.buffer.length * 2,
+        this.byteLength + extraBytes + 1024
+      );
+      const newBuf = new Uint8Array(newCap);
+      newBuf.set(this.buffer.subarray(0, this.byteLength));
+      this.buffer = newBuf;
+    }
   }
 
   writeBit(bit) {
     this.current = (this.current << 1) | (bit ? 1 : 0);
     this.bitCount += 1;
     if (this.bitCount === 8) {
-      this.bytes.push(this.current);
+      if (this.byteLength >= this.buffer.length) {
+        this.ensureCapacity(1);
+      }
+      this.buffer[this.byteLength++] = this.current;
       this.current = 0;
       this.bitCount = 0;
     }
@@ -67,9 +98,19 @@ class BitWriter {
 
   toBuffer() {
     if (this.bitCount > 0) {
-      this.bytes.push(this.current << (8 - this.bitCount));
+      if (this.byteLength >= this.buffer.length) {
+        this.ensureCapacity(1);
+      }
+      this.buffer[this.byteLength++] =
+        this.current << (8 - this.bitCount);
+      this.current = 0;
+      this.bitCount = 0;
     }
-    return Buffer.from(this.bytes);
+    return Buffer.from(
+      this.buffer.buffer,
+      this.buffer.byteOffset,
+      this.byteLength
+    );
   }
 }
 
@@ -95,6 +136,8 @@ class BitReader {
   }
 
   readBits(width) {
+    if (width === 0) return 0;
+    if (width === 1) return this.readBit();
     let value = 0;
     for (let i = 0; i < width; i++) {
       value = (value << 1) | this.readBit();
@@ -136,16 +179,32 @@ function encodeNode(writer, value, pattern, patternNodeId) {
       case NODE_KIND.OPEN_PRODUCT:
       case NODE_KIND.CLOSED_PRODUCT: {
         if (!isProduct(frame.value)) {
-          throw new Error(`Expected Product for pattern node ${frame.patternNodeId}`);
+          throw new Error(
+            `Expected Product for pattern node ${frame.patternNodeId}`
+          );
         }
-        const actual = Object.keys(frame.value.product).sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
-        const expected = patternNode.edges.map((edge) => edge.label);
-        if (actual.length !== expected.length || actual.some((label, i) => label !== expected[i])) {
-          throw new Error(`Product fields do not match pattern node ${frame.patternNodeId}`);
+        const p = frame.value.product;
+        const edges = patternNode.edges;
+        const edgeCount = edges.length;
+        if (edgeCount === 0) {
+          for (const _ in p) {
+            throw new Error(
+              `Product fields do not match pattern node ` +
+              `${frame.patternNodeId}`
+            );
+          }
+          break;
         }
-        for (let i = patternNode.edges.length - 1; i >= 0; i--) {
-          const edge = patternNode.edges[i];
-          stack.push({ value: frame.value.product[edge.label], patternNodeId: edge.target });
+        for (let i = edgeCount - 1; i >= 0; i--) {
+          const edge = edges[i];
+          const childVal = p[edge.label];
+          if (childVal === undefined) {
+            throw new Error(
+              `Product fields do not match pattern node ` +
+              `${frame.patternNodeId}`
+            );
+          }
+          stack.push({ value: childVal, patternNodeId: edge.target });
         }
         break;
       }
@@ -153,15 +212,34 @@ function encodeNode(writer, value, pattern, patternNodeId) {
       case NODE_KIND.OPEN_UNION:
       case NODE_KIND.CLOSED_UNION: {
         if (!isVariant(frame.value)) {
-          throw new Error(`Expected Variant for pattern node ${frame.patternNodeId}`);
+          throw new Error(
+            `Expected Variant for pattern node ${frame.patternNodeId}`
+          );
         }
-        const tagOrdinal = patternNode.edges.findIndex((edge) => edge.label === frame.value.tag);
-        if (tagOrdinal === -1) {
-          throw new Error(`Variant tag '${frame.value.tag}' is not present in pattern node ${frame.patternNodeId}`);
+        const tag = frame.value.tag;
+        const edges = patternNode.edges;
+        let tagOrdinal = patternNode.tagIndex !== undefined
+          ? patternNode.tagIndex[tag]
+          : undefined;
+        if (tagOrdinal === undefined) {
+          tagOrdinal = edges.findIndex((edge) => edge.label === tag);
+          if (tagOrdinal === -1) {
+            throw new Error(
+              `Variant tag '${tag}' is not present in pattern node ` +
+              `${frame.patternNodeId}`
+            );
+          }
         }
-        const width = choiceWidth(patternNode.edges.length);
-        writer.writeBits(tagOrdinal, width);
-        stack.push({ value: frame.value.value, patternNodeId: patternNode.edges[tagOrdinal].target });
+        const width = patternNode.choiceBits !== undefined
+          ? patternNode.choiceBits
+          : choiceWidth(edges.length);
+        if (width > 0) {
+          writer.writeBits(tagOrdinal, width);
+        }
+        stack.push({
+          value: frame.value.value,
+          patternNodeId: edges[tagOrdinal].target
+        });
         break;
       }
 
@@ -171,20 +249,15 @@ function encodeNode(writer, value, pattern, patternNodeId) {
   }
 }
 
-function decodeNode(reader, pattern, patternNodeId) {
+function decodeNode(reader, pattern, rootPatternNodeId) {
   let result;
-  const stack = [{
-    patternNodeId,
-    assign(value) {
-      result = value;
-    }
-  }];
+  const stack = [[rootPatternNodeId, null, null]];
 
   while (stack.length > 0) {
-    const frame = stack.pop();
-    const patternNode = pattern.nodes[frame.patternNodeId];
+    const [patternNodeId, parent, key] = stack.pop();
+    const patternNode = pattern.nodes[patternNodeId];
     if (!patternNode) {
-      throw new Error(`Unknown pattern node ${frame.patternNodeId}`);
+      throw new Error(`Unknown pattern node ${patternNodeId}`);
     }
 
     switch (patternNode.kind) {
@@ -194,38 +267,46 @@ function decodeNode(reader, pattern, patternNodeId) {
       case NODE_KIND.OPEN_PRODUCT:
       case NODE_KIND.CLOSED_PRODUCT: {
         const product = {};
-        frame.assign(Value.product(product));
-        for (let i = patternNode.edges.length - 1; i >= 0; i--) {
-          const edge = patternNode.edges[i];
-          stack.push({
-            patternNodeId: edge.target,
-            assign(value) {
-              product[edge.label] = value;
-            }
-          });
+        const val = Value.product(product);
+        if (parent) {
+          parent[key] = val;
+        } else {
+          result = val;
+        }
+        const edges = patternNode.edges;
+        for (let i = edges.length - 1; i >= 0; i--) {
+          const edge = edges[i];
+          stack.push([edge.target, product, edge.label]);
         }
         break;
       }
 
       case NODE_KIND.OPEN_UNION:
       case NODE_KIND.CLOSED_UNION: {
-        if (patternNode.edges.length === 0) {
-          throw new Error(`Union pattern node ${frame.patternNodeId} has no tags`);
+        const edges = patternNode.edges;
+        if (edges.length === 0) {
+          throw new Error(
+            `Union pattern node ${patternNodeId} has no tags`
+          );
         }
-        const width = choiceWidth(patternNode.edges.length);
+        const width = patternNode.choiceBits !== undefined
+          ? patternNode.choiceBits
+          : choiceWidth(edges.length);
         const tagOrdinal = reader.readBits(width);
-        if (tagOrdinal >= patternNode.edges.length) {
-          throw new Error(`Choice ${tagOrdinal} is out of range for pattern node ${frame.patternNodeId}`);
+        if (tagOrdinal >= edges.length) {
+          throw new Error(
+            `Choice ${tagOrdinal} is out of range for pattern node ` +
+            `${patternNodeId}`
+          );
         }
-        const edge = patternNode.edges[tagOrdinal];
+        const edge = edges[tagOrdinal];
         const variant = Value.variant(edge.label, undefined);
-        frame.assign(variant);
-        stack.push({
-          patternNodeId: edge.target,
-          assign(value) {
-            variant.value = value;
-          }
-        });
+        if (parent) {
+          parent[key] = variant;
+        } else {
+          result = variant;
+        }
+        stack.push([edge.target, variant, "value"]);
         break;
       }
 
@@ -237,23 +318,57 @@ function decodeNode(reader, pattern, patternNodeId) {
   return result;
 }
 
+function isClosedPropertyList(propertyList) {
+  if (!Array.isArray(propertyList) || propertyList.length === 0) {
+    return false;
+  }
+  for (let i = 0; i < propertyList.length; i++) {
+    const kind = propertyList[i]?.[0];
+    if (kind !== "closed-product" && kind !== "closed-union") {
+      return false;
+    }
+  }
+  return true;
+}
+
 function preparePatternAndValue(value, propertyList) {
   const valuePattern = propertyList || value.pattern;
-  const basePattern = valuePattern ? propertyListToPattern(valuePattern) : deriveClosedPatternFromValue(value);
-  const coercedValue = valuePattern ? coerceValueForPattern(basePattern, value) : value;
+  if (valuePattern && isClosedPropertyList(valuePattern)) {
+    const basePattern = propertyListToPattern(valuePattern);
+    const canonical = canonicalizePattern(basePattern);
+    return {
+      coercedValue: value,
+      refinedPattern: canonical,
+      propertyList: patternToPropertyList(canonical)
+    };
+  }
+  const basePattern = valuePattern
+    ? propertyListToPattern(valuePattern)
+    : deriveClosedPatternFromValue(value);
+  const coercedValue = valuePattern
+    ? coerceValueForPattern(basePattern, value)
+    : value;
   const refinedPattern = refinePatternForValue(basePattern, coercedValue);
-  return { coercedValue, refinedPattern, propertyList: patternToPropertyList(refinedPattern) };
+  return {
+    coercedValue,
+    refinedPattern,
+    propertyList: patternToPropertyList(refinedPattern)
+  };
 }
 
 function deriveClosedPatternFromValue(value) {
   const nodes = [];
+  const labelSet = new Set();
 
   function visit(node) {
     const nodeId = nodes.length;
     if (isProduct(node)) {
       const placeholder = { kind: NODE_KIND.CLOSED_PRODUCT, edges: [] };
       nodes.push(placeholder);
-      const labels = Object.keys(node.product).sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
+      const labels = Object.keys(node.product).sort((a, b) =>
+        Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"))
+      );
+      for (let i = 0; i < labels.length; i++) labelSet.add(labels[i]);
       placeholder.edges = labels.map((label) => ({
         label,
         symbolId: 0,
@@ -264,6 +379,7 @@ function deriveClosedPatternFromValue(value) {
     if (isVariant(node)) {
       const placeholder = { kind: NODE_KIND.OPEN_UNION, edges: [] };
       nodes.push(placeholder);
+      labelSet.add(node.tag);
       placeholder.edges = [{
         label: node.tag,
         symbolId: 0,
@@ -271,12 +387,17 @@ function deriveClosedPatternFromValue(value) {
       }];
       return nodeId;
     }
-    throw new Error(`Unsupported runtime value node: ${node?.constructor?.name || typeof node}`);
+    throw new Error(
+      `Unsupported runtime value node: ${
+        node?.constructor?.name || typeof node
+      }`
+    );
   }
 
   visit(value);
-  const dictionary = [...new Set(nodes.flatMap((node) => node.edges.map((edge) => edge.label)))]
-    .sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
+  const dictionary = Array.from(labelSet).sort((a, b) =>
+    Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"))
+  );
   const symbolIds = new Map(dictionary.map((label, index) => [label, index]));
 
   return {
@@ -429,21 +550,458 @@ function encodeToWire(value, propertyList) {
   return writer.toBuffer();
 }
 
-function decodeWire(buffer) {
+function readBitsAt(buffer, bitOffset, width) {
+  if (width === 0) return 0;
+  if ((bitOffset + width - 1) >> 3 >= buffer.length) {
+    throw new Error("Unexpected end of bitstream");
+  }
+  if (width === 1) {
+    return (buffer[bitOffset >> 3] >> (7 - (bitOffset & 7))) & 1;
+  }
+  let v = 0;
+  for (let i = 0; i < width; i++) {
+    const pos = bitOffset + i;
+    v = (v << 1) | ((buffer[pos >> 3] >> (7 - (pos & 7))) & 1);
+  }
+  return v;
+}
+
+const SKIP_STACK = new Int32Array(2048);
+
+function fastSkipSubtree(
+  buffer,
+  startBitOffset,
+  pattern,
+  rootPatternNodeId
+) {
+  let bitOffset = startBitOffset;
+  let stack = SKIP_STACK;
+  stack[0] = rootPatternNodeId;
+  let stackPtr = 1;
+  const nodes = pattern.nodes;
+
+  while (stackPtr > 0) {
+    const nodeId = stack[--stackPtr];
+    const node = nodes[nodeId];
+    if (node.fixedBitWidth !== undefined) {
+      bitOffset += node.fixedBitWidth;
+      continue;
+    }
+    if (
+      node.kind === NODE_KIND.CLOSED_PRODUCT ||
+      node.kind === NODE_KIND.OPEN_PRODUCT
+    ) {
+      const edges = node.edges;
+      const count = edges.length;
+      if (stackPtr + count > stack.length) {
+        const newStack = new Int32Array(stack.length * 2);
+        newStack.set(stack);
+        stack = newStack;
+      }
+      for (let i = count - 1; i >= 0; i--) {
+        stack[stackPtr++] = edges[i].target;
+      }
+    } else if (
+      node.kind === NODE_KIND.CLOSED_UNION ||
+      node.kind === NODE_KIND.OPEN_UNION
+    ) {
+      const edges = node.edges;
+      const width = node.choiceBits !== undefined
+        ? node.choiceBits
+        : choiceWidth(edges.length);
+      const tagOrdinal = width > 0
+        ? readBitsAt(buffer, bitOffset, width)
+        : 0;
+      bitOffset += width;
+      if (tagOrdinal >= edges.length) {
+        throw new Error(
+          `Choice ${tagOrdinal} is out of range for pattern ` +
+          `node ${nodeId}`
+        );
+      }
+      if (stackPtr >= stack.length) {
+        const newStack = new Int32Array(stack.length * 2);
+        newStack.set(stack);
+        stack = newStack;
+      }
+      stack[stackPtr++] = edges[tagOrdinal].target;
+    }
+  }
+  return bitOffset;
+}
+
+class LazyVariant extends Value {
+  constructor(tag, buffer, bitOffset, pattern, targetId) {
+    super();
+    this.type = "<>";
+    this.tag = tag;
+    this.pattern = null;
+    this._buffer = buffer;
+    this._bitOffset = bitOffset;
+    this._pattern = pattern;
+    this._targetId = targetId;
+    Object.defineProperty(this, "value", {
+      get: this._resolveValue,
+      set: this._setValue,
+      enumerable: true,
+      configurable: true
+    });
+  }
+
+  _resolveValue() {
+    const val = decodeLazyNode(
+      this._buffer,
+      this._bitOffset,
+      this._pattern,
+      this._targetId
+    );
+    Object.defineProperty(this, "value", {
+      value: val,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
+    return val;
+  }
+
+  _setValue(v) {
+    this._buffer = null;
+    Object.defineProperty(this, "value", {
+      value: v,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
+  }
+}
+
+function createLazyVariant(buffer, bitOffset, pattern, patternNodeId) {
+  const node = pattern.nodes[patternNodeId];
+  const edges = node.edges;
+  if (edges.length === 0) {
+    throw new Error(`Union pattern node ${patternNodeId} has no tags`);
+  }
+  const width = node.choiceBits !== undefined
+    ? node.choiceBits
+    : choiceWidth(edges.length);
+  const tagOrdinal = width > 0 ? readBitsAt(buffer, bitOffset, width) : 0;
+  if (tagOrdinal >= edges.length) {
+    throw new Error(
+      `Choice ${tagOrdinal} is out of range for pattern ` +
+      `node ${patternNodeId}`
+    );
+  }
+  const edge = edges[tagOrdinal];
+
+  // Fast-path: terminal variant whose target is empty product {}
+  const targetNode = pattern.nodes[edge.target];
+  if (
+    targetNode &&
+    (targetNode.kind === NODE_KIND.CLOSED_PRODUCT ||
+      targetNode.kind === NODE_KIND.OPEN_PRODUCT) &&
+    targetNode.edges.length === 0
+  ) {
+    if (edge.label === "0") return BIT0;
+    if (edge.label === "1") return BIT1;
+    return Value.variant(edge.label, UNIT);
+  }
+
+  const variant = new LazyVariant(
+    edge.label,
+    buffer,
+    bitOffset + width,
+    pattern,
+    edge.target
+  );
+  if (edge.fixedTargetBitWidth !== undefined) {
+    variant.bitWidth = width + edge.fixedTargetBitWidth;
+  }
+  return variant;
+}
+
+class LazyConsProduct extends Value {
+  constructor(buffer, bitOffset, pattern, carTarget, cdrTarget) {
+    super();
+    this.type = "{}";
+    this.pattern = null;
+    this.buffer = buffer;
+    this.bitOffset = bitOffset;
+    this.pattern = pattern;
+    this.carTarget = carTarget;
+    this.cdrTarget = cdrTarget;
+    let carVal = undefined;
+    let cdrVal = undefined;
+    let cdrOffset = -1;
+
+    this.product = {
+      get car() {
+        if (carVal === undefined) {
+          carVal = decodeLazyNode(buffer, bitOffset, pattern, carTarget);
+        }
+        return carVal;
+      },
+      set car(v) {
+        carVal = v;
+      },
+      get cdr() {
+        if (cdrVal === undefined) {
+          if (cdrOffset === -1) {
+            if (carVal?.bitWidth !== undefined) {
+              cdrOffset = bitOffset + carVal.bitWidth;
+            } else if (pattern.nodes[carTarget].fixedBitWidth !== undefined) {
+              cdrOffset = bitOffset + pattern.nodes[carTarget].fixedBitWidth;
+            } else {
+              cdrOffset = fastSkipSubtree(
+                buffer,
+                bitOffset,
+                pattern,
+                carTarget
+              );
+            }
+          }
+          cdrVal = decodeLazyNode(buffer, cdrOffset, pattern, cdrTarget);
+        }
+        return cdrVal;
+      },
+      set cdr(v) {
+        cdrVal = v;
+      }
+    };
+  }
+}
+
+class LazyGeneralProduct extends Value {
+  constructor(buffer, bitOffset, pattern, patternNodeId) {
+    super();
+    this.type = "{}";
+    this.pattern = null;
+    const node = pattern.nodes[patternNodeId];
+    const edges = node.edges;
+    const edgeCount = edges.length;
+    const product = {};
+    this.product = product;
+
+    if (node.staticOffsets !== undefined) {
+      const staticOffsets = node.staticOffsets;
+      for (let i = 0; i < edgeCount; i++) {
+        const edge = edges[i];
+        const off = bitOffset + staticOffsets[i];
+        let cachedVal = undefined;
+        let resolved = false;
+
+        Object.defineProperty(product, edge.label, {
+          get() {
+            if (!resolved) {
+              cachedVal = decodeLazyNode(buffer, off, pattern, edge.target);
+              resolved = true;
+            }
+            return cachedVal;
+          },
+          set(v) {
+            cachedVal = v;
+            resolved = true;
+          },
+          enumerable: true,
+          configurable: true
+        });
+      }
+      return;
+    }
+
+    const edgeOffsets = new Array(edgeCount);
+    edgeOffsets[0] = bitOffset;
+    let nextKnownOffsetIndex = 1;
+
+    function ensureOffset(targetIndex) {
+      while (nextKnownOffsetIndex <= targetIndex) {
+        const prevIdx = nextKnownOffsetIndex - 1;
+        const prevStart = edgeOffsets[prevIdx];
+        const prevTargetId = edges[prevIdx].target;
+        edgeOffsets[nextKnownOffsetIndex] = fastSkipSubtree(
+          buffer,
+          prevStart,
+          pattern,
+          prevTargetId
+        );
+        nextKnownOffsetIndex++;
+      }
+      return edgeOffsets[targetIndex];
+    }
+
+    for (let i = 0; i < edgeCount; i++) {
+      const edge = edges[i];
+      const edgeIndex = i;
+      let cachedVal = undefined;
+      let resolved = false;
+
+      Object.defineProperty(product, edge.label, {
+        get() {
+          if (!resolved) {
+            const start = ensureOffset(edgeIndex);
+            cachedVal = decodeLazyNode(
+              buffer,
+              start,
+              pattern,
+              edge.target
+            );
+            resolved = true;
+          }
+          return cachedVal;
+        },
+        set(v) {
+          cachedVal = v;
+          resolved = true;
+        },
+        enumerable: true,
+        configurable: true
+      });
+    }
+  }
+}
+
+function decodeLazyNode(buffer, bitOffset, pattern, patternNodeId) {
+  const node = pattern.nodes[patternNodeId];
+  if (!node) {
+    throw new Error(`Unknown pattern node ${patternNodeId}`);
+  }
+  if (
+    node.kind === NODE_KIND.CLOSED_PRODUCT ||
+    node.kind === NODE_KIND.OPEN_PRODUCT
+  ) {
+    if (node.edges.length === 0) return UNIT;
+    if (
+      node.edges.length === 2 &&
+      node.edges[0].label === "car" &&
+      node.edges[1].label === "cdr"
+    ) {
+      return new LazyConsProduct(
+        buffer,
+        bitOffset,
+        pattern,
+        node.edges[0].target,
+        node.edges[1].target
+      );
+    }
+    return new LazyGeneralProduct(
+      buffer,
+      bitOffset,
+      pattern,
+      patternNodeId
+    );
+  }
+  return createLazyVariant(buffer, bitOffset, pattern, patternNodeId);
+}
+
+function decodeWire(buffer, options = {}) {
   if (!Buffer.isBuffer(buffer)) {
     throw new Error("Wire input must be a Buffer");
   }
   const reader = new BitReader(buffer);
-  const patternPropertyList = patternFromKValue(decodeNode(reader, CORE_PATTERN_PATTERN, 0));
+  const patternPropertyList = patternFromKValue(
+    decodeNode(reader, CORE_PATTERN_PATTERN, 0)
+  );
   const pattern = propertyListToPattern(patternPropertyList);
-  const value = decodeNode(reader, pattern, 0);
-  reader.assertZeroPadding();
-  return { pattern: patternPropertyList, value: withPattern(value, patternPropertyList) };
+
+  if (options.eager) {
+    const value = decodeNode(reader, pattern, 0);
+    reader.assertZeroPadding();
+    return {
+      pattern: patternPropertyList,
+      value: withPattern(value, patternPropertyList)
+    };
+  }
+
+  const valBitOffset = reader.byteOffset * 8 + reader.bitOffset;
+  const lazyRoot = decodeLazyNode(buffer, valBitOffset, pattern, 0);
+  lazyRoot.pattern = patternPropertyList;
+  return {
+    pattern: patternPropertyList,
+    value: withPattern(lazyRoot, patternPropertyList)
+  };
 }
+
+function decodeWireLazy(buffer) {
+  return decodeWire(buffer, { eager: false });
+}
+
+function isLazyCanonicalString(val) {
+  if (!val || typeof val !== "object" || !val._buffer || !val._pattern) {
+    return false;
+  }
+  const nodes = val._pattern.nodes;
+  if (!nodes || nodes.length < 4) return false;
+  const n0 = nodes[0];
+  const n1 = nodes[1];
+  const n2 = nodes[2];
+  const n3 = nodes[3];
+  return (
+    n0?.edges?.length === 2 &&
+    n0.edges[0]?.label === "cons" &&
+    n0.edges[1]?.label === "nil" &&
+    n1?.edges?.length === 2 &&
+    n1.edges[0]?.label === "car" &&
+    n1.edges[1]?.label === "cdr" &&
+    n2?.edges?.[0]?.label === "ascii" &&
+    n3?.edges?.length === 7
+  );
+}
+
+function fastDecodeLazyString(lazyVariant) {
+  if (!isLazyCanonicalString(lazyVariant)) return null;
+  if (lazyVariant.tag === "nil") return "";
+  if (lazyVariant.tag !== "cons") return null;
+
+  const buffer = lazyVariant._buffer;
+  const pattern = lazyVariant._pattern;
+  let bitOffset = lazyVariant._bitOffset;
+
+  const chunks = [];
+  let chunk = "";
+
+  while (true) {
+    const carTag = readBitsAt(buffer, bitOffset, 3);
+    if (carTag === 0) {
+      let cp = 0;
+      for (let i = 0; i < 7; i++) {
+        cp |= (readBitsAt(buffer, bitOffset + 3 + i, 1) << i);
+      }
+      chunk += String.fromCharCode(cp);
+      if (chunk.length >= 8192) {
+        chunks.push(chunk);
+        chunk = "";
+      }
+      bitOffset += 10;
+    } else {
+      const charVal = decodeLazyNode(buffer, bitOffset, pattern, 2);
+      const cp = unicodeValueToCodePoint(charVal);
+      chunk += String.fromCodePoint(cp);
+      if (chunk.length >= 8192) {
+        chunks.push(chunk);
+        chunk = "";
+      }
+      bitOffset = fastSkipSubtree(buffer, bitOffset, pattern, 2);
+    }
+
+    const listTag = readBitsAt(buffer, bitOffset, 1);
+    bitOffset += 1;
+    if (listTag !== 0) {
+      break;
+    }
+  }
+
+  if (chunk.length > 0) chunks.push(chunk);
+  return chunks.join("");
+}
+
+setLazyStringDecoder(fastDecodeLazyString);
 
 export {
   encodeToWire,
   decodeWire,
+  decodeWireLazy,
+  decodeLazyNode,
+  fastSkipSubtree,
+  readBitsAt,
   propertyListToPattern,
   patternToPropertyList,
   choiceWidth,
@@ -452,6 +1010,10 @@ export {
 export default {
   encodeToWire,
   decodeWire,
+  decodeWireLazy,
+  decodeLazyNode,
+  fastSkipSubtree,
+  readBitsAt,
   propertyListToPattern,
   patternToPropertyList,
   choiceWidth,

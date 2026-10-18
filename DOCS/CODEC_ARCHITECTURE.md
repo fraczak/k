@@ -192,11 +192,16 @@ runCodecCLI(import.meta.url, { parse, print, doc });
    pathToFileURL(process.argv[1]).href`). If imported as a module or
    running in a browser, it is a no-op.
 2. **Flag Parsing**: Handles `--parse`, `--print`, and `-h` / `--help`.
-3. **Stream Piping**:
+3. **Stream Piping & Lazy Wire Decoding**:
    - For `--parse`: reads `stdin` to string, calls `parse(text)`, encodes
      enveloped value `(P, v)` to binary wire format on `stdout`.
-   - For `--print`: decodes wire format from `stdin` into `(P, v)`, calls
-     `print(value)`, writes formatted text to `stdout`.
+   - For `--print`: lazily decodes the wire format from `stdin` into
+     bitstream-backed `Value` proxies (`LazyGeneralProduct`,
+     `LazyGeneralVariant`) with precomputed fixed-width bit sizes and
+     static field offsets, calls `print(value)`, and writes formatted text
+     to `stdout`.
+   - Cleanly exits on `EPIPE` when piped into downstream consumers like
+     `head`.
 
 ---
 
@@ -207,7 +212,8 @@ To make `codecs/` intuitive and self-contained:
 ```text
 codecs/
 ├── int.mjs                    # Integer & list codec
-├── json.mjs                   # JSON codec
+├── json.mjs                   # JSON codec (schema-specializing)
+├── djson.mjs                  # Dynamic JSON codec (singleton pattern)
 ├── utf8.mjs                   # UTF-8 string codec
 ├── utf16.mjs                  # UTF-16 string codec
 ├── ieee.mjs                   # IEEE 754 float codec
@@ -236,7 +242,8 @@ In the browser REPL (`repl.html`):
   imports**.
 - **No Runtime Files in VFS**: `codecs/runtime/*` is not included in the
   browser VFS. The VFS only contains verified, self-contained user-facing
-  files (`int.mjs`, `json.mjs`, `utf8.mjs`, `unit.mjs`, `ieee.mjs`).
+  files (`int.mjs`, `json.mjs`, `djson.mjs`, `utf8.mjs`, `unit.mjs`,
+  `ieee.mjs`).
 - **Native Browser Loading**: In `repl-codecs.mjs`, the browser reads the
   codec source from VFS, wraps it in a Blob, and invokes native `await
   import(blobUrl)`. No regex manipulation, import stripping, or global

@@ -3,8 +3,17 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { stdin, stdout, stderr, exit } from "node:process";
-import { Value, isProduct, isVariant, withPattern } from "../../Value.mjs";
-import { decodeWire, encodeToWire } from "./prefix-codec.mjs";
+import {
+  Value,
+  isProduct,
+  isVariant,
+  withPattern
+} from "../../Value.mjs";
+import {
+  decodeWire,
+  decodeWireLazy,
+  encodeToWire
+} from "./prefix-codec.mjs";
 import { isMainEntrypoint } from "./cli-entry.mjs";
 import { patternFromFilter } from "./pattern-k.mjs";
 
@@ -53,6 +62,10 @@ function runCodecCLI(metaUrl, codec) {
 
   const mode = args[0];
 
+  stdout.on("error", (err) => {
+    if (err.code === "EPIPE") exit(0);
+  });
+
   (async () => {
     if (mode === "--parse") {
       let parsed;
@@ -92,6 +105,7 @@ export {
   withPattern,
   encodeToWire,
   decodeWire,
+  decodeWireLazy,
   isMainEntrypoint,
   runCodecCLI,
   patternFromFilter

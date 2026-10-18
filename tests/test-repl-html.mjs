@@ -140,6 +140,7 @@ if (chromiumBin) {
     const expectedFiles = [
       "arithmetics.k",
       "core.k",
+      "djson.mjs",
       "ieee.k",
       "ieee.mjs",
       "int.mjs",

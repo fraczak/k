@@ -6,7 +6,11 @@ function pLabel(label) {
   return nameRE.test(label) ? ` ${label}` : ` ${JSON.stringify(label)}`;
 }
 
-function propertyListToFilter(propertyList, varPrefix = "X") {
+function propertyListToFilter(
+  propertyList,
+  varPrefix = "X",
+  limit = Infinity
+) {
   if (!propertyList || propertyList.length === 0) return "(...)";
 
   const refCount = new Array(propertyList.length).fill(0);
@@ -22,9 +26,15 @@ function propertyListToFilter(propertyList, varPrefix = "X") {
   }
 
   const defined = new Set();
+  let curLen = 0;
 
   function fmt(nodeId) {
-    if (varNames.has(nodeId) && defined.has(nodeId)) return varNames.get(nodeId);
+    if (curLen >= limit) return "...";
+    if (varNames.has(nodeId) && defined.has(nodeId)) {
+      const name = varNames.get(nodeId);
+      curLen += name.length;
+      return name;
+    }
 
     const [kind, edges] = propertyList[nodeId];
     const hasVar = varNames.has(nodeId);
@@ -32,16 +42,35 @@ function propertyListToFilter(propertyList, varPrefix = "X") {
 
     const suffix = hasVar ? `=${varNames.get(nodeId)}` : "";
 
-    if (kind === "any") return hasVar ? varNames.get(nodeId) : "(...)";
+    if (kind === "any") {
+      const s = (hasVar ? varNames.get(nodeId) : "(...)") + suffix;
+      curLen += s.length;
+      return s;
+    }
 
     const isOpen = kind.startsWith("open-");
     const isProduct = kind.endsWith("product");
     const open = isProduct ? "{" : "<";
     const close = isProduct ? "}" : ">";
 
-    if (edges.length === 0 && !isOpen) return `${open}${close}${suffix}`;
+    if (edges.length === 0 && !isOpen) {
+      const s = `${open}${close}${suffix}`;
+      curLen += s.length;
+      return s;
+    }
 
-    const fields = edges.map(([label, target]) => `${fmt(target)}${pLabel(label)}`);
+    const fields = [];
+    for (let i = 0; i < edges.length; i++) {
+      if (curLen >= limit) {
+        fields.push("...");
+        break;
+      }
+      const [label, target] = edges[i];
+      const targetStr = fmt(target);
+      const labelStr = pLabel(label);
+      fields.push(`${targetStr}${labelStr}`);
+      curLen += targetStr.length + labelStr.length + 2;
+    }
     if (isOpen) fields.push("...");
     return `${open}${fields.join(", ")}${close}${suffix}`;
   }
@@ -49,81 +78,94 @@ function propertyListToFilter(propertyList, varPrefix = "X") {
   return fmt(0);
 }
 
-function valueToK(root) {
-  let result = "";
-  const stack = [{
-    val: root,
-    assign(s) { result = s; }
-  }];
+function valueToK(root, limit = Infinity) {
+  const out = [];
+  let curLen = 0;
+  const stack = [root];
 
   while (stack.length > 0) {
-    const frame = stack.pop();
-    if (frame.finishProduct) {
-      frame.assign(`{${frame.parts.join(", ")}}`);
-      continue;
+    if (curLen >= limit) {
+      out.push("...");
+      break;
     }
-    if (frame.finishVariant) {
-      const base = frame.base;
-      const tags = frame.tags;
-      frame.assign(tags.length === 0 ? base : `${base}|${tags.reverse().join("|")}`);
+    const item = stack.pop();
+    if (typeof item === "string") {
+      if (curLen + item.length > limit) {
+        out.push(item.slice(0, Math.max(0, limit - curLen)));
+        out.push("...");
+        break;
+      }
+      out.push(item);
+      curLen += item.length;
       continue;
     }
 
-    const v = frame.val;
-    if (isVariant(v)) {
+    if (item == null) {
+      const s = String(item);
+      if (curLen + s.length > limit) {
+        out.push(s.slice(0, Math.max(0, limit - curLen)));
+        out.push("...");
+        break;
+      }
+      out.push(s);
+      curLen += s.length;
+      continue;
+    }
+
+    if (isVariant(item)) {
       const tags = [];
-      let curr = v;
+      let curr = item;
       while (isVariant(curr)) {
         tags.push(pLabel(curr.tag).trimStart());
         curr = curr.value;
+        if (tags.length > limit) break;
       }
-      const finishFrame = {
-        finishVariant: true,
-        tags,
-        base: "",
-        assign: frame.assign
-      };
-      stack.push(finishFrame);
-      stack.push({
-        val: curr,
-        assign(s) { finishFrame.base = s; }
-      });
+      if (tags.length > 0) {
+        stack.push("|" + tags.reverse().join("|"));
+      }
+      stack.push(curr);
       continue;
     }
 
-    if (isProduct(v)) {
-      const keys = Object.keys(v.product);
+    if (isProduct(item)) {
+      const keys = Object.keys(item.product);
       if (keys.length === 0) {
-        frame.assign("{}");
+        out.push("{}");
+        curLen += 2;
         continue;
       }
-      const parts = new Array(keys.length);
-      const finishFrame = {
-        finishProduct: true,
-        parts,
-        assign: frame.assign
-      };
-      stack.push(finishFrame);
+      out.push("{");
+      curLen += 1;
+      stack.push("}");
       for (let i = keys.length - 1; i >= 0; i--) {
         const k = keys[i];
-        const label = pLabel(k);
-        stack.push({
-          val: v.product[k],
-          assign(s) { parts[i] = `${s}${label}`; }
-        });
+        if (i < keys.length - 1) {
+          stack.push(", ");
+        }
+        stack.push(pLabel(k));
+        stack.push(item.product[k]);
       }
       continue;
     }
 
-    frame.assign(String(v));
+    const s = String(item);
+    if (curLen + s.length > limit) {
+      out.push(s.slice(0, Math.max(0, limit - curLen)));
+      out.push("...");
+      break;
+    }
+    out.push(s);
+    curLen += s.length;
   }
 
-  return result;
+  return out.join("");
 }
 
-function valueWithEnvelopeToK(value) {
+function valueWithEnvelopeToK(value, limit = Infinity) {
   if (value === undefined) return "... undefined";
-  return `${valueToK(value)} ?${propertyListToFilter(value.pattern)}`;
+  const valStr = valueToK(value, limit);
+  const patStr = propertyListToFilter(value.pattern, "X", limit);
+  return `${valStr} ?${patStr}`;
 }
 
 export { propertyListToFilter, valueToK, valueWithEnvelopeToK };

@@ -82,7 +82,13 @@ async function main() {
     return exit(1);
   }
 
-  const inputBuffer = valueFile ? fs.readFileSync(valueFile) : await readAll(stdin);
+  stdout.on("error", (err) => {
+    if (err.code === "EPIPE") exit(0);
+  });
+
+  const inputBuffer = valueFile
+    ? fs.readFileSync(valueFile)
+    : await readAll(stdin);
   const inputText = inputBuffer.toString("utf8");
   const value = parseValue(inputText, null, null);
 

@@ -141,6 +141,40 @@ printf 'yes\n' | ./codecs/yesno.mjs --parse | ./codecs/yesno.mjs --print
 # Output: yes
 ```
 
+## Built-in Codecs
+
+The `codecs/` directory provides the following standard codecs:
+
+- **`int.mjs` (`k-int`)**: Decimal integers and bracketed integer lists
+  (e.g. `42`, `-15`, `[1, 2, 3]`) mapped to signed binary bit trees and
+  `cons`/`nil` lists.
+- **`ieee.mjs` (`k-ieee`)**: IEEE 754 64-bit floating-point numbers
+  (`sign`, `exponent`, `fraction`).
+- **`utf8.mjs` (`k-utf8`) & `utf16.mjs` (`k-utf16`)**: Unicode strings
+  encoded as `cons`/`nil` code-point lists (`str` in `core.k`).
+- **`unit.mjs` (`k-unit`)**: The unit value `{}`.
+- **`json.mjs` (`k-json`) — Schema-Specializing JSON**:
+  Derives a document-specific pattern for each JSON value:
+  - JSON objects map directly to products `{ field: val, ... }`.
+  - JSON arrays map to indexed products `{ "0": a0, "1": a1, ... }`.
+  - Ideal for record-oriented projection (e.g. `.user .name`).
+- **`djson.mjs` (`k-djson`) — Universal Dynamic JSON**:
+  Maps every JSON document to a single universal recursive pattern
+  `JSON`:
+  ```k
+  ?<
+    float64 number,
+    str string,
+    < {} true, {} false > bool,
+    {} null,
+    < {} nil, { JSON car, LIST cdr } cons >=LIST list,
+    < {} nil, { { str key, JSON val } car, OBJ cdr } cons >=OBJ object
+  >=JSON
+  ```
+  Because every JSON value shares the exact same static 29-node pattern,
+  a `k` relation can be compiled once against `JSON` and process
+  arbitrary JSON documents of any shape or array/object length.
+
 ## Testing a Codec
 
 For CLI codecs, test both directions in a pipeline:
@@ -174,8 +208,9 @@ npm test
 ## Web REPL (VFS) Bundling
 
 When `repl.html` is generated (`npm run build:repl-html`):
-- Codecs (`int.mjs`, `json.mjs`, `utf8.mjs`, `unit.mjs`, `ieee.mjs`) are
-  bundled into 100% self-contained ES modules with zero imports.
+- Codecs (`int.mjs`, `json.mjs`, `djson.mjs`, `utf8.mjs`, `unit.mjs`,
+  `ieee.mjs`) are bundled into 100% self-contained ES modules with zero
+  imports.
 - `runCodecCLI` is shimmed as a no-op, and `Value` helpers are directly
   inlined.
 - In the browser, the VFS serves these self-contained modules directly to

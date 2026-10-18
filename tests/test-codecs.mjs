@@ -8,10 +8,15 @@ import { fileURLToPath } from "node:url";
 import * as SDK from "../codecs/runtime/codec-sdk.mjs";
 import * as IntCodec from "../codecs/int.mjs";
 import * as JsonCodec from "../codecs/json.mjs";
+import * as DjsonCodec from "../codecs/djson.mjs";
 import * as Utf8Codec from "../codecs/utf8.mjs";
 import * as Utf16Codec from "../codecs/utf16.mjs";
 import * as IeeeCodec from "../codecs/ieee.mjs";
 import * as UnitCodec from "../codecs/unit.mjs";
+import {
+  valueToK,
+  valueWithEnvelopeToK
+} from "../codecs/runtime/show-value.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -49,6 +54,7 @@ console.log("2. Verifying in-memory parse -> enveloped value (P, v)...");
 for (const [name, codec, sampleInput] of [
   ["int.mjs", IntCodec, "42"],
   ["json.mjs", JsonCodec, '{"x": 1}'],
+  ["djson.mjs", DjsonCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
   ["utf8.mjs", Utf8Codec, "hello"],
   ["utf16.mjs", Utf16Codec, "hello"],
   ["ieee.mjs", IeeeCodec, "3.14"],
@@ -68,6 +74,7 @@ console.log("3. Verifying CLI --help flag...");
 for (const relPath of [
   "codecs/int.mjs",
   "codecs/json.mjs",
+  "codecs/djson.mjs",
   "codecs/utf8.mjs",
   "codecs/utf16.mjs",
   "codecs/ieee.mjs",
@@ -109,6 +116,24 @@ console.log("4. Verifying CLI --parse and --print pipelines...");
   const printRes = runCLI("codecs/json.mjs", ["--print"], parseRes.stdout);
   assert.equal(printRes.status, 0);
   assert.deepEqual(JSON.parse(printRes.stdout.toString("utf8")), JSON.parse(jsonInput));
+}
+
+// djson.mjs: dynamic JSON AST with singleton pattern
+{
+  const djsonInput = JSON.stringify({
+    name: "k",
+    count: 42.5,
+    tags: ["fast", "typed"],
+    meta: { active: true, extra: null }
+  });
+  const parseRes = runCLI("codecs/djson.mjs", ["--parse"], djsonInput);
+  assert.equal(parseRes.status, 0);
+  const printRes = runCLI("codecs/djson.mjs", ["--print"], parseRes.stdout);
+  assert.equal(printRes.status, 0);
+  assert.deepEqual(
+    JSON.parse(printRes.stdout.toString("utf8")),
+    JSON.parse(djsonInput)
+  );
 }
 
 // utf8.mjs: unicode text
@@ -181,6 +206,149 @@ console.log("6. Verifying pattern derivation via k type system (patternFromFilte
 
   // Verify error when script is not a filter or type expression
   assert.throws(() => SDK.patternFromFilter(".field"), /Main expression must be a filter or a type name/);
+}
+
+// 7. Lazy Prefix-Free Wire Decoding
+console.log("7. Verifying lazy prefix-free wire decoding...");
+{
+  assert.equal(typeof SDK.decodeWireLazy, "function");
+
+  // Lazy decoding should instantiate root in sub-millisecond time
+  const sampleStr = "a".repeat(20000);
+  const parsedStr = Utf8Codec.parse(sampleStr);
+  const wireStr = SDK.encodeToWire(parsedStr, parsedStr.pattern);
+
+  const t0 = performance.now();
+  const decodedLazy = SDK.decodeWire(wireStr);
+  const constructMs = performance.now() - t0;
+  assert(
+    constructMs < 50,
+    `Lazy decode took ${constructMs}ms (expected <50ms)`
+  );
+  assert.equal(decodedLazy.value.tag, "cons");
+
+  // On-demand traversal through print()
+  const printedStr = Utf8Codec.print(decodedLazy.value);
+  assert.equal(printedStr, sampleStr);
+
+  // Lazy list of integers
+  const ints = Array.from({ length: 5000 }, (_, i) => i).join(",");
+  const sampleList = `[${ints}]`;
+  const parsedList = IntCodec.parse(sampleList);
+  const wireList = SDK.encodeToWire(parsedList, parsedList.pattern);
+  const decodedList = SDK.decodeWireLazy(wireList);
+  assert.equal(IntCodec.print(decodedList.value), sampleList);
+
+  // Verify stack-safe toJSON on deep variant chains
+  let deepVal = SDK.Value.product({});
+  for (let i = 0; i < 15000; i++) {
+    deepVal = SDK.Value.variant("step", deepVal);
+  }
+  const json = deepVal.toJSON();
+  assert(json && typeof json === "object");
+}
+
+// 8. High-Speed Direct Bitstream String Decoding & Bounded Rendering
+console.log("8. Verifying fast string decoding & bounded rendering...");
+{
+  const testStrings = [
+    "hello world",
+    "Zażółć gęślą jaźń",
+    "Unicode: 🚀🎉 𝒦-lang π ≈ 3.14159",
+    "a".repeat(50000),
+    ""
+  ];
+
+  for (const s of testStrings) {
+    const parsed = Utf8Codec.parse(s);
+    const wire = SDK.encodeToWire(parsed, parsed.pattern);
+    const decoded = SDK.decodeWire(wire);
+    const restored = Utf8Codec.print(decoded.value);
+    assert.equal(
+      restored,
+      s,
+      `String round-trip failed for "${s.slice(0, 20)}..."`
+    );
+  }
+
+  // Fast decoding performance: 50,000 ASCII chars in < 500ms
+  const bigAscii = "x".repeat(50000);
+  const bigParsed = Utf8Codec.parse(bigAscii);
+  const bigWire = SDK.encodeToWire(bigParsed, bigParsed.pattern);
+  const tStart = performance.now();
+  const bigDecoded = SDK.decodeWire(bigWire);
+  const bigRestored = Utf8Codec.print(bigDecoded.value);
+  const elapsed = performance.now() - tStart;
+  assert.equal(bigRestored.length, 50000);
+  assert(
+    elapsed < 500,
+    `Fast string decoding took ${elapsed}ms (expected < 500ms)`
+  );
+
+  // Bounded rendering: valueToK with limit
+  let deepVal = SDK.Value.product({});
+  for (let i = 0; i < 1000; i++) {
+    deepVal = SDK.Value.variant("item", deepVal);
+  }
+  const preview = valueToK(deepVal, 30);
+  assert(preview.endsWith("..."), "Output should end with '...'");
+  assert(preview.length <= 35, "Preview length should stay bounded");
+
+  // valueWithEnvelopeToK with limit
+  const enveloped = SDK.withPattern(deepVal, [["any", []]]);
+  const envPreview = valueWithEnvelopeToK(enveloped, 30);
+  assert(envPreview.includes("..."), "Preview should contain '...'");
+
+  // Ensure early termination: evaluating deep chain with limit 20
+  let hugeVal = SDK.Value.product({});
+  for (let i = 0; i < 50000; i++) {
+    hugeVal = SDK.Value.variant("v", hugeVal);
+  }
+  const tEarly0 = performance.now();
+  const earlyPreview = valueToK(hugeVal, 20);
+  const tEarlyElapsed = performance.now() - tEarly0;
+  assert(earlyPreview.endsWith("..."));
+  assert(
+    tEarlyElapsed < 50,
+    `Early termination took ${tEarlyElapsed}ms (expected < 50ms)`
+  );
+}
+
+// 9. DJSON Singleton Pattern Invariant & Round-Trip
+console.log("9. Verifying DJSON singleton pattern invariant...");
+{
+  assert(Array.isArray(DjsonCodec.DJSON_PATTERN));
+  assert.equal(DjsonCodec.DJSON_PATTERN.length, 29);
+
+  const samples = [
+    null,
+    true,
+    false,
+    123.456,
+    "Hello world!",
+    [],
+    [1, "text", false, null],
+    {},
+    { key: "value", nested: [1, 2, { deep: true }] }
+  ];
+
+  for (const sample of samples) {
+    const jsonStr = JSON.stringify(sample);
+    const enveloped = DjsonCodec.parse(jsonStr);
+    assert.strictEqual(
+      enveloped.pattern,
+      DjsonCodec.DJSON_PATTERN,
+      "Every DJSON value must share the exact singleton pattern"
+    );
+    const wire = SDK.encodeToWire(enveloped, enveloped.pattern);
+    const decoded = SDK.decodeWire(wire);
+    const restored = DjsonCodec.print(decoded.value);
+    assert.deepEqual(
+      JSON.parse(restored),
+      sample,
+      `DJSON round-trip mismatch for: ${jsonStr}`
+    );
+  }
 }
 
 console.log("OK - All codec tests passed.");
