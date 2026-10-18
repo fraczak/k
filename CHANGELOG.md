@@ -5,6 +5,39 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.2.0] — 2026-10-17 — Dynamic JSON Codec (djson) & Lazy Wire Decoding
+
+### Features & Performance Improvements
+
+- **Universal Dynamic JSON Codec (`codecs/djson.mjs`, `k-djson`)**:
+  - Added a standalone dynamic JSON codec (`djson.mjs` / `k-djson`)
+    based on a single 29-node recursive pattern `JSON = < number,
+    string, bool, null, list, object >`, where arrays are encoded as
+    arbitrary-length `cons`/`nil` lists and objects as `cons`/`nil`
+    lists of `{ key, val }` pairs.
+  - Kept the existing schema-specializing `json.mjs` (`k-json`) as an
+    alternative record-oriented JSON codec.
+  - Integrated `djson.mjs` into the CLI, REPL, and Web REPL (`repl.html`
+    VFS).
+
+- **Lazy Prefix-Free Wire Decoding & Fast Bitstream I/O**:
+  - Implemented lazy wire decoding (`LazyGeneralProduct` and
+    `LazyGeneralVariant`) with precomputed fixed-width bit sizes and
+    static field offsets on pattern graphs.
+  - Optimized bitstream reading/writing (`BitReader` / `BitWriter`) with
+    word-level operations, pre-encoded closed pattern bytes, and direct
+    bitstream-to-codepoint UTF-8 string decoding without intermediate
+    AST allocations.
+
+- **Stack-Safe & Bounded Value Rendering**:
+  - Converted `valueToK`, `valueWithEnvelopeToK`, and wire serialization
+    to iterative stack-safe algorithms with early character truncation
+    (`maxChars`).
+  - Added `:limit [num|none]` command and `--limit=<num>` CLI flag in
+    `repl.mjs` (default: `4096` chars) and bounded DOM tree previews in
+    `repl.html`.
+  - Handled broken pipe (`EPIPE`) cleanly across codec CLI entrypoints.
+
 ## [7.1.0] — 2026-10-16 — Polymorphic K IR (PKIR) & CLI Standardization
 
 ### Features & Architecture Improvements
