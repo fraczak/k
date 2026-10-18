@@ -455,7 +455,7 @@ export function createOutputEntryElement({
   modeGroup.appendChild(rawBtn);
   toolbar.appendChild(modeGroup);
 
-  // Tree Action buttons group (Expand / Collapse / Copy)
+  // Tree Action buttons group (Expand / Collapse)
   const actionGroup = document.createElement("div");
   actionGroup.className = "k-action-group";
 
@@ -471,23 +471,8 @@ export function createOutputEntryElement({
   collapseAllBtn.innerHTML = `⊟ Collapse`;
   collapseAllBtn.title = "Reset trees to top 3 levels";
 
-  const copyBtn = document.createElement("button");
-  copyBtn.type = "button";
-  copyBtn.className = "k-btn-action";
-  copyBtn.innerHTML = `📋 Copy`;
-  copyBtn.title = "Copy raw output to clipboard";
-  copyBtn.onclick = (e) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(rawText);
-    copyBtn.innerHTML = `✓ Copied`;
-    setTimeout(() => {
-      copyBtn.innerHTML = `📋 Copy`;
-    }, 1500);
-  };
-
   actionGroup.appendChild(expandAllBtn);
   actionGroup.appendChild(collapseAllBtn);
-  actionGroup.appendChild(copyBtn);
   toolbar.appendChild(actionGroup);
 
   container.appendChild(toolbar);
@@ -512,6 +497,23 @@ export function createOutputEntryElement({
     `<span class="k-tree-arrow">▶</span> ` +
     `<span class="k-section-title">🌲 Value</span> ` +
     `<span class="k-section-preview">${valEscaped}</span>`;
+
+  const copyValBtn = document.createElement("button");
+  copyValBtn.type = "button";
+  copyValBtn.className = "k-btn-action k-btn-copy k-btn-copy-value";
+  copyValBtn.innerHTML = `📋 Copy`;
+  copyValBtn.title = "Copy value definition to clipboard";
+  copyValBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const valStr = valueToK(value);
+    navigator.clipboard.writeText(valStr);
+    copyValBtn.innerHTML = `✓ Copied`;
+    setTimeout(() => {
+      copyValBtn.innerHTML = `📋 Copy`;
+    }, 1500);
+  };
+  valSummary.appendChild(copyValBtn);
   valSection.appendChild(valSummary);
 
   const valBody = document.createElement("div");
@@ -538,6 +540,23 @@ export function createOutputEntryElement({
       `<span class="k-tree-arrow">▶</span> ` +
       `<span class="k-section-title">🌿 Pattern</span> ` +
       `<span class="k-section-preview">?${patEscaped}</span>`;
+
+    const copyPatBtn = document.createElement("button");
+    copyPatBtn.type = "button";
+    copyPatBtn.className = "k-btn-action k-btn-copy k-btn-copy-pattern";
+    copyPatBtn.innerHTML = `📋 Copy`;
+    copyPatBtn.title = "Copy pattern definition to clipboard";
+    copyPatBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const patStr = `?${propertyListToFilter(value.pattern, "X")}`;
+      navigator.clipboard.writeText(patStr);
+      copyPatBtn.innerHTML = `✓ Copied`;
+      setTimeout(() => {
+        copyPatBtn.innerHTML = `📋 Copy`;
+      }, 1500);
+    };
+    patSummary.appendChild(copyPatBtn);
     patSection.appendChild(patSummary);
 
     patBody = document.createElement("div");

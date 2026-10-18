@@ -581,6 +581,31 @@ assert.equal(output[0], "output limit disabled");
 output = await evaluateInput(":limit", limitState);
 assert.equal(output[0], "Current output limit: none");
 
+// Verify Examples/djson.k (json?, dot, has_key?, keys, values, remove, put)
+const jsonKState = createState({ engine: "wasm" });
+output = await evaluateInput(":load Examples/djson.k", jsonKState);
+assert.equal(output[0], "loaded Examples/djson.k");
+await evaluateInput(":codec load codecs/djson.mjs", jsonKState);
+await evaluateInput(
+  ':input djson.mjs {"name":"Alice","age":30,"active":true}',
+  jsonKState
+);
+output = await evaluateInput(
+  "{/object cdr car .key key, /object object} dot",
+  jsonKState
+);
+assert.match(output[0], /djson\.mjs: 30/);
+
+await evaluateInput(
+  ':input djson.mjs {"name":"Alice","age":30}',
+  jsonKState
+);
+output = await evaluateInput(
+  "{/object car .key key, /object object} remove object",
+  jsonKState
+);
+assert.match(output[0], /djson\.mjs: \{"name":"Alice"\}/);
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");

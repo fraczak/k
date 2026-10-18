@@ -140,6 +140,7 @@ if (chromiumBin) {
     const expectedFiles = [
       "arithmetics.k",
       "core.k",
+      "djson.k",
       "djson.mjs",
       "ieee.k",
       "ieee.mjs",
@@ -522,9 +523,9 @@ if (chromiumBin) {
       const v4Collapsed = v4 ? !v4.open : false;
 
       // Click Expand All
-      const actionBtns = lastEntry.querySelectorAll(".k-btn-action");
-      const expandBtn = actionBtns[0];
-      const collapseBtn = actionBtns[1];
+      const toolbarActionBtns = lastEntry.querySelectorAll(".k-output-toolbar .k-btn-action");
+      const expandBtn = toolbarActionBtns[0];
+      const collapseBtn = toolbarActionBtns[1];
 
       expandBtn.click();
       const allOpenAfterExpand = v4.open;
@@ -536,13 +537,48 @@ if (chromiumBin) {
       );
       const v4CollapsedAgain = newV4 ? !newV4.open : false;
 
+      // Verify Copy buttons on Value and Pattern section headers
+      const patSection = lastEntry.querySelector(".k-tree-pat-section");
+      const copyValBtn = valSection?.querySelector("summary.k-tree-section-summary > .k-btn-copy-value");
+      const copyPatBtn = patSection?.querySelector("summary.k-tree-section-summary > .k-btn-copy-pattern");
+
+      const copiedTexts = [];
+      const origWriteText = navigator.clipboard?.writeText;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText = async (txt) => { copiedTexts.push(txt); };
+      } else {
+        Object.defineProperty(navigator, "clipboard", {
+          value: { writeText: async (txt) => { copiedTexts.push(txt); } },
+          configurable: true
+        });
+      }
+
+      const valOpenBefore = valSection?.open;
+      copyValBtn?.click();
+      const valOpenAfter = valSection?.open;
+
+      const patOpenBefore = patSection?.open;
+      copyPatBtn?.click();
+      const patOpenAfter = patSection?.open;
+
+      if (origWriteText && navigator.clipboard) {
+        navigator.clipboard.writeText = origWriteText;
+      }
+
       return {
         v1Open,
         v2Open,
         v3Open,
         v4Collapsed,
         allOpenAfterExpand,
-        v4CollapsedAgain
+        v4CollapsedAgain,
+        toolbarBtnCount: toolbarActionBtns.length,
+        hasCopyValBtn: !!copyValBtn,
+        hasCopyPatBtn: !!copyPatBtn,
+        valDidNotToggle: valOpenBefore === valOpenAfter,
+        patDidNotToggle: patOpenBefore === patOpenAfter,
+        copiedValText: copiedTexts[0] || "",
+        copiedPatText: copiedTexts[1] || ""
       };
     })()`);
 
@@ -552,6 +588,13 @@ if (chromiumBin) {
     assert.strictEqual(variantDepthAndActionsCheck.v4Collapsed, true, "Variant level 4 must be collapsed by default");
     assert.strictEqual(variantDepthAndActionsCheck.allOpenAfterExpand, true, "Expand button should expand collapsed nodes");
     assert.strictEqual(variantDepthAndActionsCheck.v4CollapsedAgain, true, "Collapse button should reset deeper nodes to collapsed");
+    assert.strictEqual(variantDepthAndActionsCheck.toolbarBtnCount, 2, "Toolbar action group should only have Expand and Collapse buttons");
+    assert.strictEqual(variantDepthAndActionsCheck.hasCopyValBtn, true, "Value section summary should have Copy button");
+    assert.strictEqual(variantDepthAndActionsCheck.hasCopyPatBtn, true, "Pattern section summary should have Copy button");
+    assert.strictEqual(variantDepthAndActionsCheck.valDidNotToggle, true, "Clicking Value Copy button should not toggle Value details");
+    assert.strictEqual(variantDepthAndActionsCheck.patDidNotToggle, true, "Clicking Pattern Copy button should not toggle Pattern details");
+    assert.strictEqual(variantDepthAndActionsCheck.copiedValText, "{}|_|0|1|0|1", "Value Copy button should copy K value definition");
+    assert(variantDepthAndActionsCheck.copiedPatText.startsWith("?<"), `Pattern Copy button should copy K pattern filter definition, got: ${variantDepthAndActionsCheck.copiedPatText}`);
 
     // 4. Verify shortened welcome banner
     const bannerCheck = await evaluateAsync(`(() => {
