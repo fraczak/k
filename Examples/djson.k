@@ -336,19 +336,44 @@ bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
 0 = 0b | 0;
 1 = 0b | 1;
 
-_inv = ?{ bits? x, bits? r } <
+_inv = ?{ < {} _, B 0, B 1 >=B x, B r } <
   { .x /_ if, .r then } .then,
   { .x /0 x, .r |0 r } _inv,
   { .x /1 x, .r |1 r } _inv
->;
-_dec = ?{ bits? x, bits? y } <
+> bits?;
+_dec = ?{ < {} _, B 0, B 1 >=B x, B y } <
   { .x /1 x, .y |0 r } _inv,
   { .x /0 x, .y |1 y } _dec
->;
+> bits?;
+_inc = ?{ < {} _, B 0, B 1 >=B x, B y } <
+  { .x /_ if, .y |1 then } .then,
+  { .x /0 x, .y |1 r } _inv,
+  { .x /1 x, .y |0 y } _inc
+> bits?;
 _trim0 = bits? < /0 _trim0, /_ 0, () >;
 dec_nat = { { () x, 0b r } _inv x, 0b y } _dec _trim0;
+inc_nat = { { () x, 0b r } _inv x, 0b y } _inc;
 
 nth = ?{ I index, L list } { .index bits? index, .list list? list } <
   { .index /0 /_ if, .list /cons .car then } .then,
   { .index dec_nat index, .list /cons .cdr list } nth
 >;
+
+-- Count elements in list or object: list -> bits?, object -> bits?
+_list_size = ?{
+  < {} nil, { X car, L cdr } cons >=L list,
+  < {} _, B 0, B 1 >=B acc
+} <
+  { .list /nil if, .acc then } .then,
+  { .list /cons .cdr list, .acc inc_nat acc } _list_size
+> bits?;
+list_size = { list? list, 0 acc } _list_size;
+
+_obj_size = ?{
+  < {} nil, { { K key, V val } car, O cdr } cons >=O object,
+  < {} _, B 0, B 1 >=B acc
+} <
+  { .object /nil if, .acc then } .then,
+  { .object /cons .cdr object, .acc inc_nat acc } _obj_size
+> bits?;
+obj_size = { object? object, 0 acc } _obj_size;

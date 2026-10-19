@@ -362,4 +362,39 @@ remove = ?{ K key, O object } {
   .object list
 } remove_nth;
 
+-- Count elements in list or object trie: trie -> bits?
+_inv = ?{ < {} _, B 0, B 1 >=B x, B r } <
+  { .x /_ if, .r then } .then,
+  { .x /0 x, .r |0 r } _inv,
+  { .x /1 x, .r |1 r } _inv
+> bits?;
+_inc = ?{ < {} _, B 0, B 1 >=B x, B y } <
+  { .x /_ if, .y |1 then } .then,
+  { .x /0 x, .y |1 r } _inv,
+  { .x /1 x, .y |0 y } _inc
+> bits?;
+inc_nat = { { () x, 0b r } _inv x, 0b y } _inc;
 
+_trie_size = ?{
+  < {} nil, { < {} nil, V val > val, T 0, T 1 } trie >=T t,
+  < {} _, B 0, B 1 >=B acc
+} <
+  { .t /nil if, .acc then } .then,
+  {
+    .t /trie .val /nil if,
+    {
+      .t /trie .1 t,
+      { .t /trie .0 t, .acc acc } _trie_size acc
+    } _trie_size then
+  } .then,
+  {
+    .t /trie .val /val if,
+    {
+      .t /trie .1 t,
+      { .t /trie .0 t, .acc inc_nat acc } _trie_size acc
+    } _trie_size then
+  } .then
+> bits?;
+
+list_size = { trie? t, 0 acc } _trie_size;
+obj_size = { trie? t, 0 acc } _trie_size;

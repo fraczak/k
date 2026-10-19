@@ -295,3 +295,354 @@ nth = ?{ K index, T list } {
   { .rem /0 index, .t .0 list } nth,
   { .rem /1 index, .t .1 list } nth
 >;
+
+-- Binary natural number helpers for size maintenance
+_inv = ?{ < {} _, B 0, B 1 >=B x, B r } <
+  { .x /_ if, .r then } .then,
+  { .x /0 x, .r |0 r } _inv,
+  { .x /1 x, .r |1 r } _inv
+> bits?;
+_dec = ?{ < {} _, B 0, B 1 >=B x, B y } <
+  { .x /1 x, .y |0 r } _inv,
+  { .x /0 x, .y |1 y } _dec
+> bits?;
+_inc = ?{ < {} _, B 0, B 1 >=B x, B y } <
+  { .x /_ if, .y |1 then } .then,
+  { .x /0 x, .y |1 r } _inv,
+  { .x /1 x, .y |0 y } _inc
+> bits?;
+_trim0 = bits? < /0 _trim0, /_ 0, () >;
+dec_nat = { { () x, 0b r } _inv x, 0b y } _dec _trim0;
+inc_nat = { { () x, 0b r } _inv x, 0b y } _inc;
+
+-- Remove key from radix object trie: { key, object } -> object
+_remove_step = ?<
+  {
+    < {} nil, { C car, S cdr } cons >=S key,
+    <
+      {} nil,
+      {
+        S prefix,
+        < {} _, B 0, B 1 >=B size,
+        < {} nil, V val > val,
+        < {} nil, { { C char, T trie } car, D cdr } cons >=D dict
+      } trie
+    >=T object
+  } node,
+  { C char, S key, D dict } dict
+> <
+  /node {
+    { .object /trie .prefix prefix, .key key } match_str_prefix rem,
+    .object /trie t
+  } <
+    {
+      .rem /nil if,
+      {
+        .t .prefix prefix,
+        .t .size dec_nat size,
+        nil val,
+        .t .dict dict
+      } |trie then
+    } .then,
+    {
+      .t .prefix prefix,
+      .t .size dec_nat size,
+      .t .val val,
+      {
+        .rem /cons .car char,
+        .rem /cons .cdr key,
+        .t .dict dict
+      } |dict _remove_step /dict dict
+    } |trie
+  > |node,
+  /dict <
+    {
+      { .char x, .dict /cons .car .char y } eq_char? if,
+      {
+        {
+          .char char,
+          {
+            .key key,
+            .dict /cons .car .trie object
+          } |node _remove_step /node trie
+        } car,
+        .dict /cons .cdr cdr
+      } |cons then
+    } .then,
+    {
+      .dict /cons .car car,
+      {
+        .char char,
+        .key key,
+        .dict /cons .cdr dict
+      } |dict _remove_step /dict cdr
+    } |cons
+  > |dict
+>;
+
+remove = ?{ K key, O object } {
+  .key str_list? key,
+  .object ptrie_obj? object
+} <
+  {
+    { .key key, .object object } has_key? if,
+    { .key key, .object object } |node _remove_step /node then
+  } .then,
+  .object
+> ptrie_obj?;
+
+-- Split two strings into { common, rem_prefix, rem_key }
+split_str_prefix = ?{
+  < {} nil, { C car, S cdr } cons >=S prefix,
+  S key
+} <
+  {
+    .prefix /nil if,
+    { nil common, nil rem_prefix, .key rem_key } then
+  } .then,
+  {
+    .key /nil if,
+    { nil common, .prefix rem_prefix, nil rem_key } then
+  } .then,
+  {
+    { .prefix /cons .car x, .key /cons .car y } eq_char? if,
+    {
+      .prefix /cons .car c,
+      {
+        .prefix /cons .cdr prefix,
+        .key /cons .cdr key
+      } split_str_prefix sub
+    } {
+      { .c car, .sub .common cdr } |cons common,
+      .sub .rem_prefix rem_prefix,
+      .sub .rem_key rem_key
+    } then
+  } .then,
+  { nil common, .prefix rem_prefix, .key rem_key }
+> ?{ S1 common, S2 rem_prefix, S3 rem_key } {
+  .common str_list? common,
+  .rem_prefix str_list? rem_prefix,
+  .rem_key str_list? rem_key
+};
+
+-- Replace value of an existing key in radix object trie
+_put_replace = ?<
+  {
+    < {} nil, { C car, S cdr } cons >=S key,
+    V val,
+    <
+      {} nil,
+      {
+        S prefix,
+        < {} _, B 0, B 1 >=B size,
+        < {} nil, V val > val,
+        < {} nil, { { C char, T trie } car, D cdr } cons >=D dict
+      } trie
+    >=T object
+  } node,
+  { C char, S key, V val, D dict } dict
+> <
+  /node {
+    { .object /trie .prefix prefix, .key key } match_str_prefix rem,
+    .val val,
+    .object /trie t
+  } <
+    {
+      .rem /nil if,
+      {
+        .t .prefix prefix,
+        .t .size size,
+        .val |val val,
+        .t .dict dict
+      } |trie then
+    } .then,
+    {
+      .t .prefix prefix,
+      .t .size size,
+      .t .val val,
+      {
+        .rem /cons .car char,
+        .rem /cons .cdr key,
+        .val val,
+        .t .dict dict
+      } |dict _put_replace /dict dict
+    } |trie
+  > |node,
+  /dict <
+    {
+      { .char x, .dict /cons .car .char y } eq_char? if,
+      {
+        {
+          .char char,
+          {
+            .key key,
+            .val val,
+            .dict /cons .car .trie object
+          } |node _put_replace /node trie
+        } car,
+        .dict /cons .cdr cdr
+      } |cons then
+    } .then,
+    {
+      .dict /cons .car car,
+      {
+        .char char,
+        .key key,
+        .val val,
+        .dict /cons .cdr dict
+      } |dict _put_replace /dict cdr
+    } |cons
+  > |dict
+>;
+
+-- Insert a new key into radix object trie (splitting prefixes as needed)
+_put_insert = ?<
+  {
+    < {} nil, { C car, S cdr } cons >=S key,
+    V val,
+    <
+      {} nil,
+      {
+        S prefix,
+        < {} _, B 0, B 1 >=B size,
+        < {} nil, V val > val,
+        < {} nil, { { C char, T trie } car, D cdr } cons >=D dict
+      } trie
+    >=T object
+  } node,
+  { C char, S key, V val, D dict } dict
+> <
+  /node <
+    {
+      .object /nil if,
+      { .key prefix, 1 size, .val |val val, nil dict } |trie then
+    } .then,
+    {
+      { .object /trie .prefix prefix, .key key } split_str_prefix sp,
+      .val val,
+      .object /trie t
+    } <
+      {
+        { .sp .rem_prefix /nil p, .sp .rem_key /nil k } if,
+        {
+          .t .prefix prefix,
+          .t .size inc_nat size,
+          .val |val val,
+          .t .dict dict
+        } |trie then
+      } .then,
+      {
+        { .sp .rem_prefix /nil p, .sp .rem_key /cons k } if,
+        {
+          .t .prefix prefix,
+          .t .size inc_nat size,
+          .t .val val,
+          {
+            .sp .rem_key /cons .car char,
+            .sp .rem_key /cons .cdr key,
+            .val val,
+            .t .dict dict
+          } |dict _put_insert /dict dict
+        } |trie then
+      } .then,
+      {
+        { .sp .rem_prefix /cons p, .sp .rem_key /nil k } if,
+        {
+          .sp .common prefix,
+          .t .size inc_nat size,
+          .val |val val,
+          {
+            {
+              .sp .rem_prefix /cons .car char,
+              {
+                .sp .rem_prefix /cons .cdr prefix,
+                .t .size size,
+                .t .val val,
+                .t .dict dict
+              } |trie trie
+            } car,
+            nil cdr
+          } |cons dict
+        } |trie then
+      } .then,
+      {
+        .sp .common prefix,
+        .t .size inc_nat size,
+        nil val,
+        {
+          {
+            .sp .rem_prefix /cons .car char,
+            {
+              .sp .rem_prefix /cons .cdr prefix,
+              .t .size size,
+              .t .val val,
+              .t .dict dict
+            } |trie trie
+          } car,
+          {
+            {
+              .sp .rem_key /cons .car char,
+              {
+                .sp .rem_key /cons .cdr prefix,
+                1 size,
+                .val |val val,
+                nil dict
+              } |trie trie
+            } car,
+            nil cdr
+          } |cons cdr
+        } |cons dict
+      } |trie
+    >
+  > |node,
+  /dict <
+    {
+      .dict /nil if,
+      {
+        {
+          .char char,
+          { .key prefix, 1 size, .val |val val, nil dict } |trie trie
+        } car,
+        nil cdr
+      } |cons then
+    } .then,
+    {
+      { .char x, .dict /cons .car .char y } eq_char? if,
+      {
+        {
+          .char char,
+          {
+            .key key,
+            .val val,
+            .dict /cons .car .trie object
+          } |node _put_insert /node trie
+        } car,
+        .dict /cons .cdr cdr
+      } |cons then
+    } .then,
+    {
+      .dict /cons .car car,
+      {
+        .char char,
+        .key key,
+        .val val,
+        .dict /cons .cdr dict
+      } |dict _put_insert /dict cdr
+    } |cons
+  > |dict
+>;
+
+-- Insert or replace { key, val, object } -> object
+put = ?{ K key, V val, O object } {
+  .key str_list? key,
+  .val json? val,
+  .object ptrie_obj? object
+} <
+  {
+    { .key key, .object object } has_key? if,
+    { .key key, .val val, .object object } |node _put_replace /node then
+  } .then,
+  { .key key, .val val, .object object } |node _put_insert /node
+> ptrie_obj?;
+
+

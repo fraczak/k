@@ -33,6 +33,7 @@
         "perf:poly:pkir": "BACKENDS=pkir node scripts/perf-poly.mjs",
         "perf:poly:llvm-pkir": "BACKENDS=llvm-pkir node scripts/perf-poly.mjs",
         "perf:poly:trace": "node scripts/perf-poly.mjs --trace",
+        "perf:djson": "node scripts/perf-djson.mjs",
         "perf:idempotency": "node scripts/benchmark-idempotency.mjs",
         "deps:graph": "node scripts/generate-dependency-graph.mjs",
         "compare": "node harness/cli.mjs",
