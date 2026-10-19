@@ -606,6 +606,46 @@ output = await evaluateInput(
 );
 assert.match(output[0], /djson\.mjs: \{"name":"Alice"\}/);
 
+// Verify Examples/djson-btrie.k (json?, dot, nth, put, remove)
+const btrieState = createState({ engine: "wasm" });
+output = await evaluateInput(":load Examples/djson-btrie.k", btrieState);
+assert.equal(output[0], "loaded Examples/djson-btrie.k");
+await evaluateInput(":codec load codecs/djson-btrie.mjs", btrieState);
+await evaluateInput(
+  ':input djson-btrie.mjs ["age", {"name":"Alice","age":30}]',
+  btrieState
+);
+output = await evaluateInput(
+  "{{0 index, /list list} nth /string key, {1 index, /list list} nth /object object} dot",
+  btrieState
+);
+assert.match(output[0], /djson-btrie\.mjs: 30/);
+
+await evaluateInput(
+  ':input djson-btrie.mjs ["age", {"name":"Alice","age":30}]',
+  btrieState
+);
+output = await evaluateInput(
+  "{{0 index, /list list} nth /string key, {1 index, /list list} nth /object object} remove object",
+  btrieState
+);
+assert.match(output[0], /djson-btrie\.mjs: \{"name":"Alice"\}/);
+
+// Verify Examples/djson-ptrie.k (json?, dot, nth, list_size, obj_size)
+const ptrieState = createState({ engine: "wasm" });
+output = await evaluateInput(":load Examples/djson-ptrie.k", ptrieState);
+assert.equal(output[0], "loaded Examples/djson-ptrie.k");
+await evaluateInput(":codec load codecs/djson-ptrie.mjs", ptrieState);
+await evaluateInput(
+  ':input djson-ptrie.mjs ["age", {"name":"Alice","age":30}]',
+  ptrieState
+);
+output = await evaluateInput(
+  "{{0 index, /list list} nth /string key, {1 index, /list list} nth /object object} dot",
+  ptrieState
+);
+assert.match(output[0], /djson-ptrie\.mjs: 30/);
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");

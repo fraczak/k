@@ -632,6 +632,12 @@ function renderCodecsModal() {
       targetDesc = "{}";
     } else if (entry.name === "json.mjs") {
       targetDesc = "Self-describing JSON";
+    } else if (entry.name === "djson.mjs") {
+      targetDesc = "$ json (cons-list)";
+    } else if (entry.name === "djson-btrie.mjs") {
+      targetDesc = "$ json (binary bit-trie)";
+    } else if (entry.name === "djson-ptrie.mjs") {
+      targetDesc = "$ json (radix/Patricia trie)";
     } else if (Array.isArray(entry.patterns) && entry.patterns.length > 0) {
       targetDesc = `Pattern Family (${entry.patterns.length})`;
     } else if (entry.pattern) {

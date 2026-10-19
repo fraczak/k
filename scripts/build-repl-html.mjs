@@ -84,7 +84,9 @@ const verifiedExamples = [
   "ieee.k",
   "poly.k",
   "karatsuba-mult.k",
-  "djson.k"
+  "djson.k",
+  "djson-btrie.k",
+  "djson-ptrie.k"
 ];
 const examplesDir = path.join(projectRoot, "Examples");
 for (const filename of verifiedExamples) {
@@ -100,6 +102,8 @@ for (const filename of verifiedExamples) {
 const verifiedCodecs = [
   "json.mjs",
   "djson.mjs",
+  "djson-btrie.mjs",
+  "djson-ptrie.mjs",
   "utf8.mjs",
   "int.mjs",
   "unit.mjs",
@@ -1694,6 +1698,8 @@ const htmlContent = `<!DOCTYPE html>
               <option value="poly.k">poly.k</option>
               <option value="karatsuba-mult.k">karatsuba-mult.k</option>
               <option value="djson.k">djson.k</option>
+              <option value="djson-btrie.k">djson-btrie.k</option>
+              <option value="djson-ptrie.k">djson-ptrie.k</option>
             </optgroup>
             <optgroup label="Quick Expressions">
               <option value="expr:{} | ok">{} | ok</option>
@@ -1714,10 +1720,14 @@ const htmlContent = `<!DOCTYPE html>
               <option value="expr::codec load utf8.mjs">:codec load utf8.mjs</option>
               <option value="expr::codec load json.mjs">:codec load json.mjs</option>
               <option value="expr::codec load djson.mjs">:codec load djson.mjs</option>
+              <option value="expr::codec load djson-btrie.mjs">:codec load djson-btrie.mjs</option>
+              <option value="expr::codec load djson-ptrie.mjs">:codec load djson-ptrie.mjs</option>
               <option value="expr::codec load ieee.mjs">:codec load ieee.mjs</option>
               <option value="expr::codec load unit.mjs">:codec load unit.mjs</option>
               <option value="expr::input json.mjs {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input json.mjs {"a":12,"b":"hello"}</option>
               <option value="expr::input djson.mjs {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input djson.mjs {"a":12,"b":"hello"}</option>
+              <option value="expr::input djson-btrie.mjs {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input djson-btrie.mjs {"a":12,"b":"hello"}</option>
+              <option value="expr::input djson-ptrie.mjs {&quot;a&quot;:12,&quot;b&quot;:&quot;hello&quot;}">:input djson-ptrie.mjs {"a":12,"b":"hello"}</option>
               <option value="expr::input int.mjs [0,1,2]">:input int.mjs [0,1,2]</option>
             </optgroup>
           </select>

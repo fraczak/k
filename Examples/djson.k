@@ -329,3 +329,26 @@ put = ?{ K key, V val, O object } {
   {.key string? key, .val val} car,
   {.key key, .object object} remove cdr
 } cons;
+
+-- Lookup bits? index in cons-list: {index, list} -> value
+bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
+0b = {} | _;
+0 = 0b | 0;
+1 = 0b | 1;
+
+_inv = ?{ bits? x, bits? r } <
+  { .x /_ if, .r then } .then,
+  { .x /0 x, .r |0 r } _inv,
+  { .x /1 x, .r |1 r } _inv
+>;
+_dec = ?{ bits? x, bits? y } <
+  { .x /1 x, .y |0 r } _inv,
+  { .x /0 x, .y |1 y } _dec
+>;
+_trim0 = bits? < /0 _trim0, /_ 0, () >;
+dec_nat = { { () x, 0b r } _inv x, 0b y } _dec _trim0;
+
+nth = ?{ I index, L list } { .index bits? index, .list list? list } <
+  { .index /0 /_ if, .list /cons .car then } .then,
+  { .index dec_nat index, .list /cons .cdr list } nth
+>;
