@@ -32,6 +32,11 @@ const derivationTests = fs.readdirSync(path.join(root, "tests/code-derivation"))
 
 const tests = [
   ["tests/test.mjs", node, ["tests/test.mjs"]],
+  [
+    "tests/test-named-patterns.mjs",
+    node,
+    ["tests/test-named-patterns.mjs"]
+  ],
   ...derivationTests,
   ["tests/test-fingerprint.mjs", node, ["tests/test-fingerprint.mjs"]],
   ["tests/test-hash-fuzz.mjs", node, ["tests/test-hash-fuzz.mjs"]],

@@ -49,6 +49,11 @@ function prettyFilter ( filter ) {
   } 
   switch (filter.type) {
     
+    case "pattern_apply": {
+      const argsStr = (filter.args || []).map(prettyFilter).join(", ");
+      const knot = filter.name ? `=${filter.name}` : "";
+      return `${filter.pattern}[${argsStr}]${knot}`;
+    }
     case "code":
       return `$${filter.code}`;
     case "name":

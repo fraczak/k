@@ -93,6 +93,7 @@ function union(rels) {
 class SymbolTable {
   constructor() {
     this.rels = {}; // name -> {def: rel_exp}
+    this.patterns = {}; // name -> {params: string[], filter: filter_ast}
     this.codes = {
       [unitCode]: {
         code: "product",
@@ -109,10 +110,27 @@ class SymbolTable {
   }
 
   add_rel(name, rel) {
-    if (this.rels[name] != undefined)
-      console.error(`SymbolTable: rel '${name}' is redefined (lines ${rel.start?.line}:${rel.start?.column}...${rel.end?.line}:${rel.end?.column})`);
+    if (this.rels[name] != undefined) {
+      console.error(
+        `SymbolTable: rel '${name}' is redefined ` +
+        `(lines ${rel.start?.line}:${rel.start?.column}...` +
+        `${rel.end?.line}:${rel.end?.column})`
+      );
+    }
 
     this.rels[name] = {def: rel};
+  }
+
+  add_pattern(name, params, filter) {
+    if (this.patterns[name] != undefined) {
+      console.error(
+        `SymbolTable: pattern '${name}' is redefined ` +
+        `(lines ${filter.start?.line}:${filter.start?.column}...` +
+        `${filter.end?.line}:${filter.end?.column})`
+      );
+    }
+
+    this.patterns[name] = { params, filter };
   }
 
   add_code(name, code) {

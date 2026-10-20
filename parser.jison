@@ -49,9 +49,11 @@ function fromEscString(escString) {
 "<"                                            return 'LA';
 "{"                                            return 'LC';
 "("                                            return 'LP';
+"["                                            return 'LB';
 ">"                                            return 'RA';
 "}"                                            return 'RC';
 ")"                                            return 'RP';
+"]"                                            return 'RB';
 "="                                            return 'EQ'; 
 "..."                                          return 'DOTS';
 "."                                            return 'DOT';
@@ -71,7 +73,7 @@ function fromEscString(escString) {
 /lex
 
 %token NAME STRING
-%token LA LC LP RA RP RC EQ DOT COMMA SC COL AT QMARK DOTS DIV VID
+%token LA LC LP LB RA RC RP RB EQ DOT COMMA SC COL AT QMARK DOTS DIV VID
 %token INCREMENTAL
 %token EOF
 
@@ -85,9 +87,11 @@ at: AT                                  { $$ = getToken(yytext,yy,_$); };
 la: LA                                  { $$ = getToken(yytext,yy,_$); };
 lc: LC                                  { $$ = getToken(yytext,yy,_$); };
 lp: LP                                  { $$ = getToken(yytext,yy,_$); };
+lb: LB                                  { $$ = getToken(yytext,yy,_$); };
 ra: RA                                  { $$ = getToken(yytext,yy,_$); };
 rc: RC                                  { $$ = getToken(yytext,yy,_$); };
 rp: RP                                  { $$ = getToken(yytext,yy,_$); };
+rb: RB                                  { $$ = getToken(yytext,yy,_$); };
 eq: EQ                                  { $$ = getToken(yytext,yy,_$); };
 dots: DOTS                              { $$ = getToken(yytext,yy,_$); };
 dot: DOT                                { $$ = getToken(yytext,yy,_$); };
@@ -100,9 +104,14 @@ qmark: QMARK                            { $$ = getToken(yytext,yy,_$); };
 incremental: INCREMENTAL                { $$ = getToken(yytext,yy,_$); };
 
 input_with_eof: initialize_symbol_table defs comp EOF               {
-    const result = {defs: {rels: s.rels, codes: s.codes}, exp: $3};
-    // console.log(JSON.stringify(result, "", 2));
-    // process.exit(0);
+    const result = {
+        defs: {
+            rels: s.rels,
+            codes: s.codes,
+            patterns: s.patterns
+        },
+        exp: $3
+    };
     return result;
 };
 
@@ -113,17 +122,53 @@ initialize_symbol_table
 
 defs:                                   {  }
     | defs name eq comp sc              { s.add_rel($2.value,$4); }
+    | defs name lb pattern_params rb eq filter sc
+                                        {
+                                            const seen = new Set();
+                                            for (const p of $4) {
+                                                if (seen.has(p)) {
+                                                    anError(@4,
+                                                        `Duplicate parameter '${p}' in pattern '${$2.value}'.`
+                                                    );
+                                                }
+                                                seen.add(p);
+                                            }
+                                            s.add_pattern($2.value, $4, $7);
+                                        }
+    ;
+
+pattern_params
+    : /* empty */                       { $$ = []; }
+    | non_empty_pattern_params          { $$ = $1; }
+    ;
+
+non_empty_pattern_params
+    : name                              { $$ = [$1.value]; }
+    | non_empty_pattern_params comma name
+                                        { $$ = [].concat($1, $3.value); }
     ;
 
 filter_
     : lp dots                 rp  { $$ = { type: null, open: true, fields: {}, start: $1.start, end: $3.end}; }
     | la labelled_filters      ra { $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | lc labelled_filters      rc { $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
+    | name lb pattern_args rb     { $$ = { type: "pattern_apply", pattern: $1.value, args: $3, start: $1.start, end: $4.end }; }
+    ;
+
+pattern_args
+    : /* empty */                       { $$ = []; }
+    | non_empty_pattern_args            { $$ = $1; }
+    ;
+
+non_empty_pattern_args
+    : filter                            { $$ = [$1]; }
+    | non_empty_pattern_args comma filter
+                                        { $$ = [].concat($1, $3); }
     ;
 
 filter
     : filter_                      { $$ = $1; }
-    | filter_ EQ name              { $$ = { name: $3.value, ...$1, start: $1.start, end: $3.end }; }
+    | filter_ EQ name              { $$ = { ...$1, name: $3.value, start: $1.start, end: $3.end }; }
     | name                         { $$ = { type: 'name', name: $1.value, open: true, start: $1.start, end: $1.end}; }
     ;
 labelled_filters
