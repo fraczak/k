@@ -606,7 +606,7 @@ output = await evaluateInput(
 );
 assert.match(output[0], /djson\.mjs: \{"name":"Alice"\}/);
 
-// Verify Examples/djson-btrie.k (json?, dot, nth, put, remove)
+// Verify Examples/djson-btrie.k (json?, get, nth, set, del)
 const btrieState = createState({ engine: "wasm" });
 output = await evaluateInput(":load Examples/djson-btrie.k", btrieState);
 assert.equal(output[0], "loaded Examples/djson-btrie.k");
@@ -616,8 +616,8 @@ await evaluateInput(
   btrieState
 );
 output = await evaluateInput(
-  "{{0 index, /list list} nth /string key, " +
-    "{1 index, /list list} nth /object object} dot",
+  "{{0 index, () json} nth /string key, " +
+    "{1 index, () json} nth json} get",
   btrieState
 );
 assert.match(output[0], /djson-btrie\.mjs: 30/);
@@ -627,8 +627,8 @@ await evaluateInput(
   btrieState
 );
 output = await evaluateInput(
-  "{{0 index, /list list} nth /string key, " +
-    "{1 index, /list list} nth /object object} remove object",
+  "{{0 index, () json} nth /string key, " +
+    "{1 index, () json} nth json} del",
   btrieState
 );
 assert.match(output[0], /djson-btrie\.mjs: \{"name":"Alice"\}/);

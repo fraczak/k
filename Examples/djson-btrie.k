@@ -84,6 +84,10 @@ string[] = < {} nil, { unicode[] car, S cdr } cons > = S;
 
 bool[] = < {} true, {} false >;
 
+bits[] = < {} _, B 0, B 1 > = B;
+
+list[X] = < {} nil, { X car, L cdr } cons > = L;
+
 opt[V] = < {} nil, V val >;
 
 btrie[V] = <
@@ -110,8 +114,8 @@ json? = ? djson_btrie[];
 -- §2. Constructors and Projections
 ---------------------------------------------------------------
 
-bits? = ?< {} _, B 0, B 1 > = B;
-str_list? = ?< {} nil, { C car, S cdr } cons > = S;
+bits? = ? bits[];
+str_list? = ? string[];
 trie? = ? btrie[V];
 
 0b = {} | _;
@@ -127,6 +131,8 @@ string = | string json?;
 bool = | bool json?;
 list = | list json?;
 object = | object json?;
+empty_list = nil | list json?;
+empty_object = nil | object json?;
 
 ---------------------------------------------------------------
 -- §3. Direct Binary Bit-Trie Traversal (Zero Equality Checks)
@@ -215,7 +221,7 @@ step_char = <
 -- §4. Object & List Lookup Relations (dot, nth, has_key?)
 ---------------------------------------------------------------
 
--- Lookup string key in object trie: { key, object } -> value
+-- Low-level lookup string key in object trie: { key, object } -> val
 dot = ?{ K key, T object } { .key str_list? key, .object trie? t } <
   { .key /nil if, .t /trie .val /val then } .then,
   {
@@ -224,15 +230,32 @@ dot = ?{ K key, T object } { .key str_list? key, .object trie? t } <
   } dot
 >;
 
--- Filter: succeeds as identity if object contains key
-has_key? = ?{ K key, O object } { dot if, () then } .then;
-
--- Lookup bits? index in list trie: { index, list } -> value
-nth = ?{ K index, T list } { .index bits? index, .list trie? t } <
+-- Low-level lookup bits? index in list trie: { index, list } -> val
+_nth = ?{ K index, T list } { .index bits? index, .list trie? t } <
   { .index /_ if, .t /trie .val /val then } .then,
-  { .index /0 index, .t /trie .0 list } nth,
-  { .index /1 index, .t /trie .1 list } nth
+  { .index /0 index, .t /trie .0 list } _nth,
+  { .index /1 index, .t /trie .1 list } _nth
 >;
+
+-- Primary accessor: lookup string key in json? object -> json? val
+get = ?{ K key, json? json } {
+  .key str_list? key,
+  .json /object object
+} dot;
+
+-- Primary accessor: lookup bits? index in json? list -> json? elem
+nth = ?{ K index, json? json } {
+  .index bits? index,
+  .json /list list
+} _nth;
+
+-- Filter: succeeds as identity if json? object contains string key
+has_key? = ?{ K key, json? json } { get if, () then } .then;
+has? = has_key?;
+
+-- Filter: succeeds as identity if json? list contains index
+has_index? = ?{ K index, json? json } { nth if, () then } .then;
+has_nth? = has_index?;
 
 ---------------------------------------------------------------
 -- §5. Trie Update & Removal (put, remove, put_nth, remove_nth)
@@ -376,7 +399,36 @@ remove = ?{ K key, O object } {
   .object list
 } remove_nth;
 
--- Count elements in list or object trie: trie -> bits?
+-- Set string key in json? object: { key, val, json } -> json
+set = ?{ K key, json? val, json? json } {
+  .key str_list? key,
+  .val val,
+  .json /object object
+} put |object json?;
+
+-- Remove string key from json? object: { key, json } -> json
+del = ?{ K key, json? json } {
+  .key str_list? key,
+  .json /object object
+} remove |object json?;
+
+-- Set element at bits? index in json? list: { index, val, json } -> json
+set_nth = ?{ K index, json? val, json? json } {
+  .index bits? index,
+  .val val,
+  .json /list list
+} put_nth |list json?;
+
+-- Remove element at bits? index from json? list: { index, json } -> json
+del_nth = ?{ K index, json? json } {
+  .index bits? index,
+  .json /list list
+} remove_nth |list json?;
+
+---------------------------------------------------------------
+-- §6. Cardinality & Length Relations
+---------------------------------------------------------------
+
 _inv = ?{ < {} _, B 0, B 1 >=B x, B r } <
   { .x /_ if, .r then } .then,
   { .x /0 x, .r |0 r } _inv,
@@ -412,3 +464,324 @@ _trie_size = ?{
 
 list_size = { trie? t, 0 acc } _trie_size;
 obj_size = { trie? t, 0 acc } _trie_size;
+
+_str_len = ?{ string[] str, bits[] acc } <
+  { .str /nil if, .acc then } .then,
+  { .str /cons .cdr str, .acc inc_nat acc } _str_len
+> ? bits[];
+str_len = { str_list? str, 0 acc } _str_len;
+
+-- Count items in json? (object entries, list elements, or string chars)
+length_nat = json? <
+  /object obj_size,
+  /list list_size,
+  /string str_len
+>;
+
+pos_sign = {} |"+";
+bit0 = {} |0;
+bit1 = {} |1;
+
+pos_zero = {
+  pos_sign sign,
+  {
+    bit0 0, bit0 1, bit0 2, bit0 3, bit0 4,
+    bit0 5, bit0 6, bit0 7, bit0 8, bit0 9, bit0 10
+  } exponent,
+  {
+    bit0 0, bit0 1, bit0 2, bit0 3, bit0 4,
+    bit0 5, bit0 6, bit0 7, bit0 8, bit0 9,
+    bit0 10, bit0 11, bit0 12, bit0 13, bit0 14,
+    bit0 15, bit0 16, bit0 17, bit0 18, bit0 19,
+    bit0 20, bit0 21, bit0 22, bit0 23, bit0 24,
+    bit0 25, bit0 26, bit0 27, bit0 28, bit0 29,
+    bit0 30, bit0 31, bit0 32, bit0 33, bit0 34,
+    bit0 35, bit0 36, bit0 37, bit0 38, bit0 39,
+    bit0 40, bit0 41, bit0 42, bit0 43, bit0 44,
+    bit0 45, bit0 46, bit0 47, bit0 48, bit0 49,
+    bit0 50, bit0 51
+  } fraction
+};
+
+exp_bias = {
+  bit1 0, bit1 1, bit1 2, bit1 3, bit1 4,
+  bit1 5, bit1 6, bit1 7, bit1 8, bit1 9, bit0 10
+};
+
+exp_half_adder = <
+  { .a /0 a, .c_in /0 c_in } { bit0 sum, bit0 carry },
+  { .a /0 a, .c_in /1 c_in } { bit1 sum, bit0 carry },
+  { .a /1 a, .c_in /0 c_in } { bit1 sum, bit0 carry },
+  { .a /1 a, .c_in /1 c_in } { bit0 sum, bit1 carry }
+>;
+
+inc_exp = {
+  { .0 a, bit1 c_in } exp_half_adder e0,
+  .1 b1, .2 b2, .3 b3, .4 b4, .5 b5, .6 b6, .7 b7, .8 b8, .9 b9, .10 b10
+} {
+  .e0.sum 0,
+  { .b1 a, .e0.carry c_in } exp_half_adder e1,
+  .b2 b2, .b3 b3, .b4 b4, .b5 b5, .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
+} {
+  .0 0, .e1.sum 1,
+  { .b2 a, .e1.carry c_in } exp_half_adder e2,
+  .b3 b3, .b4 b4, .b5 b5, .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
+} {
+  .0 0, .1 1, .e2.sum 2,
+  { .b3 a, .e2.carry c_in } exp_half_adder e3,
+  .b4 b4, .b5 b5, .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
+} {
+  .0 0, .1 1, .2 2, .e3.sum 3,
+  { .b4 a, .e3.carry c_in } exp_half_adder e4,
+  .b5 b5, .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
+} {
+  .0 0, .1 1, .2 2, .3 3, .e4.sum 4,
+  { .b5 a, .e4.carry c_in } exp_half_adder e5,
+  .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
+} {
+  .0 0, .1 1, .2 2, .3 3, .4 4, .e5.sum 5,
+  { .b6 a, .e5.carry c_in } exp_half_adder e6,
+  .b7 b7, .b8 b8, .b9 b9, .b10 b10
+} {
+  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .e6.sum 6,
+  { .b7 a, .e6.carry c_in } exp_half_adder e7,
+  .b8 b8, .b9 b9, .b10 b10
+} {
+  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6, .e7.sum 7,
+  { .b8 a, .e7.carry c_in } exp_half_adder e8,
+  .b9 b9, .b10 b10
+} {
+  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6, .7 7, .e8.sum 8,
+  { .b9 a, .e8.carry c_in } exp_half_adder e9,
+  .b10 b10
+} {
+  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6, .7 7, .8 8, .e9.sum 9,
+  { .b10 a, .e9.carry c_in } exp_half_adder e10
+} {
+  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6, .7 7, .8 8, .9 9, .e10.sum 10
+};
+
+shift_frac = ?{ bit[] b, fraction[] f } {
+  .f.1 0,  .f.2 1,  .f.3 2,  .f.4 3,  .f.5 4,
+  .f.6 5,  .f.7 6,  .f.8 7,  .f.9 8,  .f.10 9,
+  .f.11 10, .f.12 11, .f.13 12, .f.14 13, .f.15 14,
+  .f.16 15, .f.17 16, .f.18 17, .f.19 18, .f.20 19,
+  .f.21 20, .f.22 21, .f.23 22, .f.24 23, .f.25 24,
+  .f.26 25, .f.27 26, .f.28 27, .f.29 28, .f.30 29,
+  .f.31 30, .f.32 31, .f.33 32, .f.34 33, .f.35 34,
+  .f.36 35, .f.37 36, .f.38 37, .f.39 38, .f.40 39,
+  .f.41 40, .f.42 41, .f.43 42, .f.44 43, .f.45 44,
+  .f.46 45, .f.47 46, .f.48 47, .f.49 48, .f.50 49,
+  .f.51 50, .b 51
+};
+
+_nat_step = ?{ bits[] bits, exponent[] exp, fraction[] frac } <
+  {
+    .bits /_ if,
+    { pos_sign sign, .exp exponent, .frac fraction } then
+  } .then,
+  {
+    .bits /0 bits,
+    .exp inc_exp exp,
+    { bit0 b, .frac f } shift_frac frac
+  } _nat_step,
+  {
+    .bits /1 bits,
+    .exp inc_exp exp,
+    { bit1 b, .frac f } shift_frac frac
+  } _nat_step
+>;
+
+inv_bits = { () x, 0b r } _inv;
+
+nat_to_float64 = bits? <
+  /_ { pos_zero then } .then,
+  /0 { pos_zero then } .then,
+  /1 { () inv_bits bits, exp_bias exp, pos_zero .fraction frac } _nat_step
+>;
+
+-- Count items in json? -> json? number
+length = length_nat nat_to_float64 |number json?;
+
+-- Append element to json? list: { val, json } -> json
+push = ?{ json? val, json? json } {
+  (.json /list list_size) index,
+  .val val,
+  .json json
+} set_nth;
+
+---------------------------------------------------------------
+-- §7. Keys & Values Extraction
+---------------------------------------------------------------
+
+read_bit = bits? <
+  /0 { {} |0 bit, () rest },
+  /1 { {} |1 bit, () rest }
+>;
+
+read_bits7 =
+  read_bit
+  { .bit b6, (.rest read_bit) r5 }
+  { .b6 b6, .r5 .bit b5, (.r5 .rest read_bit) r4 }
+  { .b6 b6, .b5 b5, .r4 .bit b4, (.r4 .rest read_bit) r3 }
+  { .b6 b6, .b5 b5, .b4 b4, .r3 .bit b3, (.r3 .rest read_bit) r2 }
+  { .b6 b6, .b5 b5, .b4 b4, .b3 b3, .r2 .bit b2, (.r2 .rest read_bit) r1 }
+  {
+    .b6 b6, .b5 b5, .b4 b4, .b3 b3, .b2 b2,
+    .r1 .bit b1, (.r1 .rest read_bit) r0
+  }
+  {
+    { .r0 .bit 0, .b1 1, .b2 2, .b3 3, .b4 4, .b5 5, .b6 6 } |ascii val,
+    .r0 .rest rest
+  };
+
+read_char = bits? <
+  /0 read_bits7
+>;
+
+bits_to_str = bits? <
+  /_ {} |nil,
+  read_char { .val car, (.rest bits_to_str) cdr } |cons
+> str_list?;
+
+_collect_keys = ?{
+  btrie[V] tree,
+  bits[] rev_path,
+  list[string[]] acc
+} <
+  { .tree /nil if, .acc then } .then,
+  {
+    .tree /trie .val /nil if,
+    {
+      .tree /trie .0 tree,
+      .rev_path |0 rev_path,
+      {
+        .tree /trie .1 tree,
+        .rev_path |1 rev_path,
+        .acc acc
+      } _collect_keys acc
+    } _collect_keys then
+  } .then,
+  {
+    .tree /trie .val /val if,
+    {
+      .tree /trie .0 tree,
+      .rev_path |0 rev_path,
+      {
+        .tree /trie .1 tree,
+        .rev_path |1 rev_path,
+        {
+          (.rev_path inv_bits bits_to_str) car,
+          .acc cdr
+        } |cons acc
+      } _collect_keys acc
+    } _collect_keys then
+  } .then
+> ? list[string[]];
+
+_obj_keys_raw = { () tree, 0b rev_path, {} |nil acc } _collect_keys;
+
+-- Extract all keys from json? object as raw list: json? -> list[string[]]
+keys_raw = json? /object _obj_keys_raw;
+
+_keys_to_trie = ?{
+  list[string[]] klist,
+  bits[] index,
+  btrie[djson_btrie[]] acc
+} <
+  { .klist /nil if, .acc then } .then,
+  {
+    .klist /cons .cdr klist,
+    .index inc_nat index,
+    {
+      .index index,
+      .klist /cons .car |string val,
+      .acc list
+    } put_nth acc
+  } _keys_to_trie
+>;
+
+-- Extract all keys from json? object as a json? list: json? -> json?
+keys = json? /object _obj_keys_raw
+  { () klist, 0 index, {} |nil acc } _keys_to_trie
+  |list json?;
+
+_collect_values = ?{
+  btrie[V] tree,
+  list[V] acc
+} <
+  { .tree /nil if, .acc then } .then,
+  {
+    .tree /trie .val /nil if,
+    {
+      .tree /trie .0 tree,
+      { .tree /trie .1 tree, .acc acc } _collect_values acc
+    } _collect_values then
+  } .then,
+  {
+    .tree /trie .val /val if,
+    {
+      .tree /trie .0 tree,
+      {
+        .tree /trie .1 tree,
+        { .tree /trie .val /val car, .acc cdr } |cons acc
+      } _collect_values acc
+    } _collect_values then
+  } .then
+> ? list[V];
+
+_obj_values_raw = { () tree, {} |nil acc } _collect_values;
+
+-- Extract all values from json? object or list as raw list
+values_raw = json? <
+  /object _obj_values_raw,
+  /list _obj_values_raw
+>;
+
+_values_to_trie = ?{
+  list[djson_btrie[]] klist,
+  bits[] index,
+  btrie[djson_btrie[]] acc
+} <
+  { .klist /nil if, .acc then } .then,
+  {
+    .klist /cons .cdr klist,
+    .index inc_nat index,
+    {
+      .index index,
+      .klist /cons .car val,
+      .acc list
+    } put_nth acc
+  } _values_to_trie
+>;
+
+-- Extract all values from json? as a json? list: json? -> json?
+values = <
+  json? /object _obj_values_raw
+    { () klist, 0 index, {} |nil acc } _values_to_trie
+    |list json?,
+  json? /list |list json?
+>;
+
+---------------------------------------------------------------
+-- §8. Type Predicates
+---------------------------------------------------------------
+
+is_null? = json? /null ();
+is_bool? = json? /bool ();
+is_number? = json? /number ();
+is_string? = json? /string ();
+is_list? = json? /list ();
+is_object? = json? /object ();
+
+json_type[] = <
+  {} null, {} bool, {} number, {} string, {} list, {} object
+>;
+type_of = json? <
+  /null {} |null,
+  /bool {} |bool,
+  /number {} |number,
+  /string {} |string,
+  /list {} |list,
+  /object {} |object
+> ? json_type[];

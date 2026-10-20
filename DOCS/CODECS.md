@@ -178,8 +178,10 @@ The `codecs/` directory provides the following standard codecs:
   Replaces the linear `list` and `object` cons-lists with a unified
   27-node binary bit-trie (`TRIE`). Array indices (`bits?`) and string
   keys are stored along MSB-to-LSB bit paths, enabling $O(|K|)$ lookup
-  (`dot` and `nth` in `Examples/djson-btrie.k`) via direct `.0`/`.1`
-  projections with zero character-equality checks.
+  (`get` and `nth` in `Examples/djson-btrie.k`) via direct `.0`/`.1`
+  projections with zero character-equality checks, accompanied by a
+  complete standard library on `json?` (`get`, `nth`, `has?`, `set`,
+  `del`, `push`, `keys`, `values`, `length`, `type_of`).
 - **`djson-ptrie.mjs` (`k-djson-ptrie`) — Patricia/Radix Dynamic JSON**:
   Models `list` and `object` as path-compressed radix tries (`trie-array`
   style) with `prefix` and $O(1)$ subtree `size` (`list_size` and
