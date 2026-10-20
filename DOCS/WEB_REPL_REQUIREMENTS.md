@@ -112,8 +112,8 @@ The bundled VFS and UI examples must include only verified useful files:
 
 #### 1. Curated Files Explorer
 In the Web REPL "Files" (VFS) explorer, the visible files are strictly curated to verified examples and codecs:
-- **k-codes**: `core.k`, `arithmetics.k`, `ieee.k`
-- **codecs**: `json.mjs`, `djson.mjs`, `utf8.mjs`, `int.mjs`, `unit.mjs`, `ieee.mjs`
+- **k-codes**: `core.k`, `arithmetics.k`, `ieee.k`, `djson.k`, `djson-btrie.k`, `djson-ptrie.k`
+- **codecs**: `json.mjs`, `djson.mjs`, `djson-btrie.mjs`, `djson-ptrie.mjs`, `utf8.mjs`, `int.mjs`, `unit.mjs`, `ieee.mjs`
 - User-created or uploaded files remain visible.
 - Internal runtime artifacts (`backends/wasm/runtime.wat`) and redundant directory prefixes (`Examples/`, `codecs/`) are kept accessible internally but hidden from the default file listing.
 - Clicking "Load" on a `.mjs` file automatically executes `:codec load <filename>`.

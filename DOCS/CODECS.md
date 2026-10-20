@@ -158,7 +158,7 @@ The `codecs/` directory provides the following standard codecs:
   - JSON objects map directly to products `{ field: val, ... }`.
   - JSON arrays map to indexed products `{ "0": a0, "1": a1, ... }`.
   - Ideal for record-oriented projection (e.g. `.user .name`).
-- **`djson.mjs` (`k-djson`) — Universal Dynamic JSON**:
+- **`djson.mjs` (`k-djson`) — Universal Dynamic JSON (Cons-List)**:
   Maps every JSON document to a single universal recursive pattern
   `JSON`:
   ```k
@@ -174,6 +174,16 @@ The `codecs/` directory provides the following standard codecs:
   Because every JSON value shares the exact same static 29-node pattern,
   a `k` relation can be compiled once against `JSON` and process
   arbitrary JSON documents of any shape or array/object length.
+- **`djson-btrie.mjs` (`k-djson-btrie`) — Binary Bit-Trie Dynamic JSON**:
+  Replaces the linear `list` and `object` cons-lists with a unified
+  27-node binary bit-trie (`TRIE`). Array indices (`bits?`) and string
+  keys are stored along MSB-to-LSB bit paths, enabling $O(|K|)$ lookup
+  (`dot` and `nth` in `Examples/djson-btrie.k`) via direct `.0`/`.1`
+  projections with zero character-equality checks.
+- **`djson-ptrie.mjs` (`k-djson-ptrie`) — Patricia/Radix Dynamic JSON**:
+  Models `list` and `object` as path-compressed radix tries (`trie-array`
+  style) with `prefix` and $O(1)$ subtree `size` (`list_size` and
+  `obj_size` in `Examples/djson-ptrie.k`).
 
 ## Testing a Codec
 
@@ -208,9 +218,9 @@ npm test
 ## Web REPL (VFS) Bundling
 
 When `repl.html` is generated (`npm run build:repl-html`):
-- Codecs (`int.mjs`, `json.mjs`, `djson.mjs`, `utf8.mjs`, `unit.mjs`,
-  `ieee.mjs`) are bundled into 100% self-contained ES modules with zero
-  imports.
+- Codecs (`int.mjs`, `json.mjs`, `djson.mjs`, `djson-btrie.mjs`,
+  `djson-ptrie.mjs`, `utf8.mjs`, `unit.mjs`, `ieee.mjs`) are bundled into
+  100% self-contained ES modules with zero imports.
 - `runCodecCLI` is shimmed as a no-op, and `Value` helpers are directly
   inlined.
 - In the browser, the VFS serves these self-contained modules directly to

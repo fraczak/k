@@ -9,6 +9,8 @@ import * as SDK from "../codecs/runtime/codec-sdk.mjs";
 import * as IntCodec from "../codecs/int.mjs";
 import * as JsonCodec from "../codecs/json.mjs";
 import * as DjsonCodec from "../codecs/djson.mjs";
+import * as DjsonBtrieCodec from "../codecs/djson-btrie.mjs";
+import * as DjsonPtrieCodec from "../codecs/djson-ptrie.mjs";
 import * as Utf8Codec from "../codecs/utf8.mjs";
 import * as Utf16Codec from "../codecs/utf16.mjs";
 import * as IeeeCodec from "../codecs/ieee.mjs";
@@ -55,6 +57,8 @@ for (const [name, codec, sampleInput] of [
   ["int.mjs", IntCodec, "42"],
   ["json.mjs", JsonCodec, '{"x": 1}'],
   ["djson.mjs", DjsonCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
+  ["djson-btrie.mjs", DjsonBtrieCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
+  ["djson-ptrie.mjs", DjsonPtrieCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
   ["utf8.mjs", Utf8Codec, "hello"],
   ["utf16.mjs", Utf16Codec, "hello"],
   ["ieee.mjs", IeeeCodec, "3.14"],
@@ -75,6 +79,8 @@ for (const relPath of [
   "codecs/int.mjs",
   "codecs/json.mjs",
   "codecs/djson.mjs",
+  "codecs/djson-btrie.mjs",
+  "codecs/djson-ptrie.mjs",
   "codecs/utf8.mjs",
   "codecs/utf16.mjs",
   "codecs/ieee.mjs",
@@ -314,11 +320,15 @@ console.log("8. Verifying fast string decoding & bounded rendering...");
   );
 }
 
-// 9. DJSON Singleton Pattern Invariant & Round-Trip
-console.log("9. Verifying DJSON singleton pattern invariant...");
+// 9. DJSON Family Singleton Pattern Invariants & Round-Trip
+console.log("9. Verifying DJSON family singleton pattern invariants...");
 {
   assert(Array.isArray(DjsonCodec.DJSON_PATTERN));
   assert.equal(DjsonCodec.DJSON_PATTERN.length, 29);
+  assert(Array.isArray(DjsonBtrieCodec.DJSON_BTRIE_PATTERN));
+  assert.equal(DjsonBtrieCodec.DJSON_BTRIE_PATTERN.length, 27);
+  assert(Array.isArray(DjsonPtrieCodec.DJSON_PTRIE_PATTERN));
+  assert.equal(DjsonPtrieCodec.DJSON_PTRIE_PATTERN.length, 33);
 
   const samples = [
     null,
@@ -332,21 +342,46 @@ console.log("9. Verifying DJSON singleton pattern invariant...");
     { key: "value", nested: [1, 2, { deep: true }] }
   ];
 
-  for (const sample of samples) {
-    const jsonStr = JSON.stringify(sample);
-    const enveloped = DjsonCodec.parse(jsonStr);
-    assert.strictEqual(
-      enveloped.pattern,
-      DjsonCodec.DJSON_PATTERN,
-      "Every DJSON value must share the exact singleton pattern"
-    );
-    const wire = SDK.encodeToWire(enveloped, enveloped.pattern);
-    const decoded = SDK.decodeWire(wire);
-    const restored = DjsonCodec.print(decoded.value);
+  for (const [label, codec, pat, relPath] of [
+    ["djson", DjsonCodec, DjsonCodec.DJSON_PATTERN, "codecs/djson.mjs"],
+    [
+      "djson-btrie",
+      DjsonBtrieCodec,
+      DjsonBtrieCodec.DJSON_BTRIE_PATTERN,
+      "codecs/djson-btrie.mjs"
+    ],
+    [
+      "djson-ptrie",
+      DjsonPtrieCodec,
+      DjsonPtrieCodec.DJSON_PTRIE_PATTERN,
+      "codecs/djson-ptrie.mjs"
+    ]
+  ]) {
+    for (const sample of samples) {
+      const jsonStr = JSON.stringify(sample);
+      const enveloped = codec.parse(jsonStr);
+      assert.strictEqual(
+        enveloped.pattern,
+        pat,
+        `Every ${label} value must share the exact singleton pattern`
+      );
+      const wire = SDK.encodeToWire(enveloped, enveloped.pattern);
+      const decoded = SDK.decodeWire(wire);
+      const restored = codec.print(decoded.value);
+      assert.deepEqual(
+        JSON.parse(restored),
+        sample,
+        `${label} round-trip mismatch for: ${jsonStr}`
+      );
+    }
+    const cliSample = JSON.stringify({ a: 1, b: [true, "ok"] });
+    const parseRes = runCLI(relPath, ["--parse"], cliSample);
+    assert.equal(parseRes.status, 0);
+    const printRes = runCLI(relPath, ["--print"], parseRes.stdout);
+    assert.equal(printRes.status, 0);
     assert.deepEqual(
-      JSON.parse(restored),
-      sample,
-      `DJSON round-trip mismatch for: ${jsonStr}`
+      JSON.parse(printRes.stdout.toString("utf8")),
+      JSON.parse(cliSample)
     );
   }
 }
