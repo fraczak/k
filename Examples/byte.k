@@ -11,7 +11,9 @@ map = <
   _
 > | ascii;
 
-filter = ?< {} nil, { (...) car, S cdr } cons > = S <
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+
+filter = ? list[(...)] <
   /cons {.car map car, .cdr filter cdr} | cons,
   () 
 >;

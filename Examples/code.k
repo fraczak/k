@@ -1,44 +1,43 @@
-$ code = < fields product, fields union, chars ref >;
-$ fields = < {} nil, { chars car, fields cdr } cons >;
-$ chars = < 
-    chars" ", chars"!", chars'"', chars"#", chars"$", chars"%", chars"&", chars"'", 
-    chars"(", chars")", chars"*", chars"+", chars",", chars"-", chars".", chars"/", 
-    chars"0", chars"1", chars"2", chars"3", chars"4", chars"5", chars"6", chars"7", 
-    chars"8", chars"9", chars":", chars";", chars"<", chars"=", chars">", chars"?", 
-    chars"@", chars"A", chars"B", chars"C", chars"D", chars"E", chars"F", chars"G", 
-    chars"H", chars"I", chars"J", chars"K", chars"L", chars"M", chars"N", chars"O", 
-    chars"P", chars"Q", chars"R", chars"S", chars"T", chars"U", chars"V", chars"W", 
-    chars"X", chars"Y", chars"Z", chars"[", chars"\\", chars"]", chars"^", chars"_", 
-    chars"`", chars"a", chars"b", chars"c", chars"d", chars"e", chars"f", chars"g", 
-    chars"h", chars"i", chars"j", chars"k", chars"l", chars"m", chars"n", chars"o", 
-    chars"p", chars"q", chars"r", chars"s", chars"t", chars"u", chars"v", chars"w", 
-    chars"x", chars"y", chars"z", chars"{", chars"|", chars"}", chars"~",
-    {} end
- >;
- 
- $ char = <
-    {}" ", {}"!", {}'"', {}"#", {}"$", {}"%", {}"&", {}"'", 
-    {}"(", {}")", {}"*", {}"+", {}",", {}"-", {}".", {}"/", 
-    {}"0", {}"1", {}"2", {}"3", {}"4", {}"5", {}"6", {}"7", 
-    {}"8", {}"9", {}":", {}";", {}"<", {}"=", {}">", {}"?", 
-    {}"@", {}"A", {}"B", {}"C", {}"D", {}"E", {}"F", {}"G", 
-    {}"H", {}"I", {}"J", {}"K", {}"L", {}"M", {}"N", {}"O", 
-    {}"P", {}"Q", {}"R", {}"S", {}"T", {}"U", {}"V", {}"W", 
-    {}"X", {}"Y", {}"Z", {}"[", {}"\\", {}"]", {}"^", {}"_", 
-    {}"`", {}"a", {}"b", {}"c", {}"d", {}"e", {}"f", {}"g", 
-    {}"h", {}"i", {}"j", {}"k", {}"l", {}"m", {}"n", {}"o", 
-    {}"p", {}"q", {}"r", {}"s", {}"t", {}"u", {}"v", {}"w", 
-    {}"x", {}"y", {}"z", {}"{", {}"|", {}"}", {}"~"
- >;
+-- Examples/code.k: Pattern representation and encoding
 
+chars[] = < 
+  C " ", C "!", C '"', C "#", C "$", C "%", C "&", C "'", 
+  C "(", C ")", C "*", C "+", C ",", C "-", C ".", C "/", 
+  C "0", C "1", C "2", C "3", C "4", C "5", C "6", C "7", 
+  C "8", C "9", C ":", C ";", C "<", C "=", C ">", C "?", 
+  C "@", C "A", C "B", C "C", C "D", C "E", C "F", C "G", 
+  C "H", C "I", C "J", C "K", C "L", C "M", C "N", C "O", 
+  C "P", C "Q", C "R", C "S", C "T", C "U", C "V", C "W", 
+  C "X", C "Y", C "Z", C "[", C "\\", C "]", C "^", C "_", 
+  C "`", C "a", C "b", C "c", C "d", C "e", C "f", C "g", 
+  C "h", C "i", C "j", C "k", C "l", C "m", C "n", C "o", 
+  C "p", C "q", C "r", C "s", C "t", C "u", C "v", C "w", 
+  C "x", C "y", C "z", C "{", C "|", C "}", C "~",
+  {} end
+> = C;
 
-nil = {}|nil;
-_ = {}|end $chars;
+char[] = <
+  {} " ", {} "!", {} '"', {} "#", {} "$", {} "%", {} "&", {} "'", 
+  {} "(", {} ")", {} "*", {} "+", {} ",", {} "-", {} ".", {} "/", 
+  {} "0", {} "1", {} "2", {} "3", {} "4", {} "5", {} "6", {} "7", 
+  {} "8", {} "9", {} ":", {} ";", {} "<", {} "=", {} ">", {} "?", 
+  {} "@", {} "A", {} "B", {} "C", {} "D", {} "E", {} "F", {} "G", 
+  {} "H", {} "I", {} "J", {} "K", {} "L", {} "M", {} "N", {} "O", 
+  {} "P", {} "Q", {} "R", {} "S", {} "T", {} "U", {} "V", {} "W", 
+  {} "X", {} "Y", {} "Z", {} "[", {} "\\", {} "]", {} "^", {} "_", 
+  {} "`", {} "a", {} "b", {} "c", {} "d", {} "e", {} "f", {} "g", 
+  {} "h", {} "i", {} "j", {} "k", {} "l", {} "m", {} "n", {} "o", 
+  {} "p", {} "q", {} "r", {} "s", {} "t", {} "u", {} "v", {} "w", 
+  {} "x", {} "y", {} "z", {} "{", {} "|", {} "}", {} "~"
+>;
 
-KL = _|L|K $chars;
- 
-bool =  
-    { KL car, { KL car, nil cdr } | cons cdr } | cons | union
-$code;
+fields[] = < {} nil, { chars[] car, F cdr } cons > = F;
 
+code[] = < fields[] product, fields[] union, chars[] ref >;
+
+nil = {} | nil;
+_ = ({} | end) ? chars[];
+KL = (_ | L | K) ? chars[];
+
+bool = { KL car, { KL car, nil cdr } | cons cdr } | cons | union ? code[];
 bool

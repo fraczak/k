@@ -1,6 +1,7 @@
 -- Standard binary encoding of natural numbers
 
-bnat? = ?< {} _, bnat? 0, bnat? 1 > = bnat?;
+bnat[] = < {} _, B 0, B 1 > = B;
+bnat? = ? bnat[];
 
 _ = {}|_;
 _1 = |1;
@@ -23,7 +24,7 @@ remove_leading_zeros = < /0 remove_leading_zeros, () >;
 reverse = {() x, _ result} _reverse;
 
 _reverse =
-  ?{ <X 0, X 1, {} _>=X x, ... }
+  ?{ bnat[] = X x, ... }
   <
     {.x/_ if, .result then} .then,
     {.x/0 x, .result _0 result} _reverse,
@@ -52,7 +53,7 @@ plus =
 
 _plus =
   -- least significant bit first addition with carry
-  ?{ <X 0, X 1, {} _>=X x, ... }
+  ?{ bnat[] = X x, ... }
   <
     {.x/_ if1, .y/_ if2, <.c/0 bnat_0, bnat_1> then} .then,
     {.x/_ if1, .c/0 if2, .y                    then} .then,
@@ -88,7 +89,7 @@ minus =
 
 _minus =
   -- least significat bit first substraction with carry
-  ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
+  ?{ bnat[] = X x, bnat[] = Y y, ... }
   <
     {.x   x, .y/_   y, .c/0   if} .x,
     {.x/1 x, .y/_   y, .c/1   if} .x _0,
@@ -116,10 +117,10 @@ times =
 ;
 
 _times =
-  ?{ <Y 0, Y 1, {} _>=Y y, ... }
+  ?{ bnat[] = Y y, ... }
   <
     { .y/_ if, .result then } .then,
-    { .result _0                           result, ._x _x, .y/0 y } _times,
+    { .result _0 result, ._x _x, .y/0 y } _times,
     { { ._x x, .result _0 y, c0 c } _plus  result, ._x _x, .y/1 y } _times
   >
 ;
@@ -149,7 +150,7 @@ align =
 ;
 
 _align = 
-  ?{ <X 0, X 1, {} _>=X _x, <Y 0, Y 1, {} _>=Y _y, ... }
+  ?{ bnat[] = X _x, bnat[] = Y _y, ... }
   <
     {._x/_ if1, ._y/_ if2, {.x x, .y y} then} .then,
     {._x </0, /_ _> _x, ._y </0, /_ _> _y, .x _0 x, .y _0 y} _align,
@@ -166,7 +167,7 @@ gt = {} |gt;
 
 compare = align _compare;
 _compare = 
-  ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
+  ?{ bnat[] = X x, bnat[] = Y y, ... }
   <
     {.x/_ if1, .y/_ if2 } eq,
     {.x/0 x, .y/0 y} _compare,
@@ -201,7 +202,11 @@ log2_floor =
 _log2_floor =
   <
     {{.step x, .x y} gt? if, .log then} .then,
-    {.x x, {.step x, bnat_0 y} gt? .x append_0 step, .log inc log} _log2_floor
+    {
+      .x x,
+      {.step x, bnat_0 y} gt? .x append_0 step,
+      .log inc log
+    } _log2_floor
   >
 ;
 
@@ -260,7 +265,11 @@ pow =
   <
     .exponent zero? bnat_1,
     {.base base, .exponent half half}
-    {.base base, .half.rem extra, {.base base, .half.div exponent} pow {()x,()y} times pow}
+    {
+      .base base,
+      .half.rem extra,
+      {.base base, .half.div exponent} pow {()x, ()y} times pow
+    }
     <
       {.extra zero? if, .pow then} .then,
       {.base x, .pow y} times
@@ -281,7 +290,8 @@ _sqrt =
     { () aux, {.input.x x, .middle y} div .div middle }
     { 
       .aux.input.x x, 
-      { .aux.middle x, .middle y } < gt?, {.x y, .y x} > {.y min, .x max} range
+      { .aux.middle x, .middle y }
+        < gt?, {.x y, .y x} > {.y min, .x max} range
     } _sqrt
   >
 ;

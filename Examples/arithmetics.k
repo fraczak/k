@@ -3,7 +3,8 @@ swap_yes_no = < /yes |no, /no |yes >;
 yes = {}|yes;
 no = yes swap_yes_no;
 
-bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
+bits[] = < {} _, B 0, B 1 > = B;
+bits? = ? bits[];
 
 0b = {} | _;
 -- |1 = | 1;
@@ -28,7 +29,7 @@ empty = < /_ yes, no >;
 empty? = {empty /yes if, () then} .then;
 
 concat = {.x inv x, .y y} concat_; 
-concat_ = ?{ <X 0, X 1, {} _>=X x, ... }
+concat_ = ?{ bits[] = X x, ... }
   < 
     {.x empty? if, .y then} .then,
     < 
@@ -37,7 +38,7 @@ concat_ = ?{ <X 0, X 1, {} _>=X x, ... }
     > concat_ 
   >;
 inv = {()x, 0b r} _inv; 
-_inv = ?{ <X 0, X 1, {} _>=X x, ... }
+_inv = ?{ bits[] = X x, ... }
   < 
     {.x empty? if, .r then} .then,
     < 
@@ -47,7 +48,7 @@ _inv = ?{ <X 0, X 1, {} _>=X x, ... }
   >;
 
 inOrder = {.x inv x, .y inv y, yes inOrder} inOrder_;
-inOrder_ = ?{ <X 0, X 1, {} _>=X x, ... }
+inOrder_ = ?{ bits[] = X x, ... }
   < 
     {.x </0,/1> if1, .y /_ if2, .inOrder swap_yes_no then} .then,
     {.x /_ if, .inOrder then} .then,
@@ -64,7 +65,8 @@ GT = {inOrder /no if, () then} . then;
 EQ = {inOrder /yes if, {.x y, .y x} inOrder /yes and, () then} .then;
 
 --------------------------------------
-int? = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" >;
+int[] = < bits[] "+", bits[] "-" >;
+int? = ? int[];
 
 remove_leading_zeros = <
   /0 remove_leading_zeros, 
@@ -85,7 +87,7 @@ inc = <
   /'-' {inv x, 0b y} _dec nat |'-'
 >;
 
-_inc = ?{ <X 0, X 1, {} _>=X x, ... } <
+_inc = ?{ bits[] = X x, ... } <
     {.x empty? if, .y |1 then} .then,
     {.x /0 x, .y |1 y} concat_, 
     {.x /1 x, .y |0  y} _inc
@@ -97,7 +99,7 @@ dec = <
   /'-' {inv x, 0b y} _inc nat |'-'
 >;
 
-_dec = ?{ <X 0, X 1, {} _>=X x, ... } <
+_dec = ?{ bits[] = X x, ... } <
     {.x /1 x, .y |0  y} concat_, 
     {.x /0 x, .y |1 y} _dec
 >;
@@ -128,7 +130,7 @@ _plus = {.x x, .y y, .c c, 0b r} _plus_;
 
 _plus_ =
   -- least significant bit first addition with carry
-  ?{ <X 0, X 1, {} _>=X x, ... }
+  ?{ bits[] = X x, ... }
   <
     {.x empty? if, .y empty? and, .c/0 c, .r inv then} .then,
     {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
@@ -156,7 +158,7 @@ _minus = {.x x, .y y, .c c, 0b r} _minus_;
 
 _minus_ =
   -- least significant bit first substraction with carry
-  ?{ <X 0, X 1, {} _>=X x, ... }
+  ?{ bits[] = X x, ... }
   <
     {.y empty? if, .c/0 and, {.r x, .x r} _inv then} .then,
     <
@@ -199,7 +201,7 @@ times =
 ;
 
 _times =
-  ?{ <Y 0, Y 1, {} _>=Y y, ... }
+  ?{ bits[] = Y y, ... }
   <
     { .y empty? if, .result then } .then,
     <
@@ -226,7 +228,7 @@ shift_in_1 = inv |1 inv nat;
 sub_bits = {.x inv x, .y inv y, c0 c} _minus inv nat;
 
 _div_restoring =
-  ?{ <X 0, X 1, {} _>=X x, ... }
+  ?{ bits[] = X x, ... }
   <
     {.x empty? if, {.q inv int div, .r rem} then} .then,
     <
@@ -241,13 +243,16 @@ _div_restoring =
       {.y x, .r y} inOrder test
     }
     <
-      {.test /yes if, {.x x, .y y, .q |1 q, {.r x, .y y} sub_bits r} then} .then,
+      {
+        .test /yes if,
+        {.x x, .y y, .q |1 q, {.r x, .y y} sub_bits r} then
+      } .then,
       {.test /no  if, {.x x, .y y, .q |0 q, .r r} then} .then
     >
     _div_restoring
   >;
 
-_pad_down = ?{ <X 0, X 1, {} _>=X x, <S 0, S 1, {} _>=S steps, ... }
+_pad_down = ?{ bits[] = X x, bits[] = S steps, ... }
   <
     {.x empty? if, {._y _y, .steps steps} then} .then,
     {
@@ -257,7 +262,7 @@ _pad_down = ?{ <X 0, X 1, {} _>=X x, <S 0, S 1, {} _>=S steps, ... }
     } _pad_down
   >;
 
-_align_down = ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
+_align_down = ?{ bits[] = X x, bits[] = Y y, ... }
   <
     {
       .x </0, /1> x,
@@ -277,7 +282,7 @@ _align_down = ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
     } .then
   >;
 
-_div_down = ?{ <X 0, X 1, {} _>=X steps, ... }
+_div_down = ?{ bits[] = X steps, ... }
   {
     .x x,
     ._y _y,
@@ -321,7 +326,7 @@ _div_down = ?{ <X 0, X 1, {} _>=X steps, ... }
     } _div_down
   >;
 
-_check_2y = ?{ <X 0, X 1, {} _>=X x, <Y 0, Y 1, {} _>=Y y, ... }
+_check_2y = ?{ bits[] = X x, bits[] = Y y, ... }
   <
     {.x empty? if, {} | down_shift then} .then,
     {.y empty? if, {} | restore then} .then,
@@ -393,7 +398,7 @@ gcd =
   > _gcd
 ;
 
-_gcd = ?{ <X 0, X 1, {} _>=X x, ... } <
+_gcd = ?{ bits[] = X x, ... } <
   { .y remove_leading_zeros empty? if, .x nat then } .then,
   { .y x, mod y } _gcd
 >;

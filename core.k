@@ -9,9 +9,11 @@
 -- §1. Bits
 ---------------------------------------------------------------
 
-bit? = ?< {} 0, {} 1 >;
+bit[] = < {} 0, {} 1 >;
+bits[] = < {} _, B 0, B 1 > = B;
 
-bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
+bit? = ? bit[];
+bits? = ? bits[];
 
 _ = {}|_;
 
@@ -22,52 +24,66 @@ _ = {}|_;
 -- §2. Unicode and String
 ---------------------------------------------------------------
 
-string? = ? <
-  {} nil,
-  {
-    <
-      {
-        < {} 0, {} 1 >=Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6
-      }=Bits7 ascii,
-      {
-        <
-          { Bit 0, Bit 1, Bit 2 }=Bits3 h08_0F,
-          Bits7 h10_7F,
-          Bits7 h80_CF,
-          Bits3 hD0_D7,
-          {} hF9,
-          { Bit 0 }=Bits1 hFA_FB,
-          Bits1 hFC_FD,
-          Bits1 hFE_FF
-        > hi,
-        { Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7 }=Bits8 lo
-      } bmp_common,
-      {
-        <
-          { Bit 0, Bit 1, Bit 2, Bit 3 } hE0_EF,
-          Bits3 hF0_F7,
-          {} hF8
-        > hi,
-        Bits8 lo
-      } bmp_private_use,
-      {
-        Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
-      } plane0,
-      { Bits8 mid, Bits8 lo } supplementary_plane1,
-      {
-        <
-          Bits1 p02_03,
-          { Bit 0, Bit 1 } p04_07,
-          Bits3 p08_0F,
-          {} p10
-        > plane,
-        Bits8 mid,
-        Bits8 lo
-      } supplementary_planes2_16
-    > car,
-    String cdr
-  } cons
-> = String;
+-- 8-bit octet used as a building block for UTF-8 payload pieces.
+byte[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
+  bit[] 4, bit[] 5, bit[] 6, bit[] 7
+};
+
+-- 7-bit ASCII code point payload (U+0000..U+007F).
+ascii[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
+  bit[] 4, bit[] 5, bit[] 6
+};
+
+-- High-byte classes for common BMP ranges, excluding surrogate
+-- and private-use partitions.
+bmp_hi_common[] = <
+  { bit[] 0, bit[] 1, bit[] 2 } h08_0F,
+  ascii[] h10_7F,
+  ascii[] h80_CF,
+  { bit[] 0, bit[] 1, bit[] 2 } hD0_D7,
+  {} hF9,
+  { bit[] 0 } hFA_FB,
+  { bit[] 0 } hFC_FD,
+  { bit[] 0 } hFE_FF
+>;
+
+-- High-byte classes for BMP private-use/high-reserved slices.
+bmp_hi_private_use[] = <
+  { bit[] 0, bit[] 1, bit[] 2, bit[] 3 } hE0_EF,
+  { bit[] 0, bit[] 1, bit[] 2 } hF0_F7,
+  {} hF8
+>;
+
+-- 11-bit payload used for Plane 0 code points U+0080..U+07FF.
+plane0[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4,
+  bit[] 5, bit[] 6, bit[] 7, bit[] 8, bit[] 9, bit[] 10
+};
+
+-- Plane selector for supplementary code points in Planes 2..16.
+plane_02_10[] = <
+  { bit[] 0 } p02_03,
+  { bit[] 0, bit[] 1 } p04_07,
+  { bit[] 0, bit[] 1, bit[] 2 } p08_0F,
+  {} p10
+>;
+
+-- Canonical Unicode scalar-value partition used by string encoding.
+unicode[] = <
+  ascii[] ascii,
+  { bmp_hi_common[] hi, byte[] lo } bmp_common,
+  { bmp_hi_private_use[] hi, byte[] lo } bmp_private_use,
+  plane0[] plane0,
+  { byte[] mid, byte[] lo } supplementary_plane1,
+  { plane_02_10[] plane, byte[] mid, byte[] lo } supplementary_planes2_16
+>;
+
+-- Linked-list string: nil or (unicode car, string cdr).
+string[] = < {} nil, { unicode[] car, S cdr } cons > = S;
+
+string? = ? string[];
 
 ---------------------------------------------------------------
 -- §3. Pattern
@@ -82,72 +98,20 @@ string? = ? <
 -- to decode any value, first decode a pattern under that constant,
 -- then decode the value under the pattern just obtained.
 
-pattern? = ? <
-  {} nil,
-  {
-    <
-      {} any,
-      <
-        {} nil,
-        {
-          {
-            <
-              {} nil,
-              {
-                <
-                  {
-                    < {} 0, {} 1 >=Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6
-                  }=Bits7 ascii,
-                  {
-                    <
-                      { Bit 0, Bit 1, Bit 2 }=Bits3 h08_0F,
-                      Bits7 h10_7F,
-                      Bits7 h80_CF,
-                      Bits3 hD0_D7,
-                      {} hF9,
-                      { Bit 0 }=Bits1 hFA_FB,
-                      Bits1 hFC_FD,
-                      Bits1 hFE_FF
-                    > hi,
-                    { Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7 }=Bits8 lo
-                  } bmp_common,
-                  {
-                    <
-                      { Bit 0, Bit 1, Bit 2, Bit 3 } hE0_EF,
-                      Bits3 hF0_F7,
-                      {} hF8
-                    > hi,
-                    Bits8 lo
-                  } bmp_private_use,
-                  {
-                    Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
-                  } plane0,
-                  { Bits8 mid, Bits8 lo } supplementary_plane1,
-                  {
-                    <
-                      Bits1 p02_03,
-                      { Bit 0, Bit 1 } p04_07,
-                      Bits3 p08_0F,
-                      {} p10
-                    > plane,
-                    Bits8 mid,
-                    Bits8 lo
-                  } supplementary_planes2_16
-                > car,
-                String cdr
-              } cons
-            > = String label,
-            < Bits 0, Bits 1, {} _ > = Bits target
-          } car,
-          Edges cdr
-        } cons
-      > = Edges open-product,
-      Edges open-union,
-      Edges closed-product,
-      Edges closed-union
-    > car,
-    Pattern cdr
-  } cons
-> = Pattern;
+edge[] = { string[] label, bits[] target };
+
+edges[] = < {} nil, { edge[] car, E cdr } cons > = E;
+
+node[] = <
+  {} any,
+  edges[] open-product,
+  edges[] open-union,
+  edges[] closed-product,
+  edges[] closed-union
+>;
+
+pattern[] = < {} nil, { node[] car, P cdr } cons > = P;
+
+pattern? = ? pattern[];
 
 pattern?

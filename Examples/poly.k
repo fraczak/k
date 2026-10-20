@@ -2,7 +2,8 @@
 -- Uses arbitrary-precision integers from Examples/arithmetics.k.
 
 -- List constructors and destructors
-list? = ?< {} nil, {X car, Y cdr} cons > = Y;
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+list? = ? list[X];
 nil = {} | nil list?;
 singleton = {() car, nil cdr} | cons list?;
 cons = {.car car, .cdr cdr} | cons list?;
@@ -95,8 +96,15 @@ gt? =
 split = {() xs, nil first, nil second} _split;
 _split = <
   {.xs /nil if, {.first first, .second second} then} .then,
-  {.xs cdr /nil if, {{.xs car car, .first cdr} cons first, .second second} then} .then,
-  {.xs cdr cdr xs, {.xs car car, .first cdr} cons first, {.xs cdr car car, .second cdr} cons second} _split
+  {
+    .xs cdr /nil if,
+    {{.xs car car, .first cdr} cons first, .second second} then
+  } .then,
+  {
+    .xs cdr cdr xs,
+    {.xs car car, .first cdr} cons first,
+    {.xs cdr car car, .second cdr} cons second
+  } _split
 >;
 
 -- Merge two sorted lists: {xs, ys} -> list
