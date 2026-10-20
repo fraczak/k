@@ -45,18 +45,19 @@ k can define recursive data and transformations in the same file. Peano
 natural numbers are either `0` or one more than another natural number:
 
 ```k
+nat[] = < {} 0, N +1 > = N;
 0 = {} | 0;
 inc = | +1;
 dec = / +1;       # undefined for '0'
-add = ?{ < {} 0, N +1 > = N x, ... } <
-  { . x dec x, . y inc y } add,    # defined if 'x > 0'
-  . y                              # else, return 'y'
+add = ?{ nat[] = N x, ... } <
+  { .x dec x, .y inc y } add,    # defined if 'x > 0'
+  .y                             # else, return 'y'
 >;
 ```
 
 `add` takes a product `{ x, y }`. If `x` has a `+1`, it moves that
 successor from `x` to `y` and recurses. When that no longer applies, it
-returns `y`. The inductive filter `?{ < {} 0, N +1 > = N x, ... }`
+returns `y`. The inductive filter `?{ nat[] = N x, ... }`
 explicitly witnesses that recursive calls shrink `x`.
 
 In the REPL:
@@ -122,19 +123,41 @@ Every installed command supports `-h` and `--help`.
 
 ## What k Gives You
 
-**Algebraic data shapes**
+**Algebraic data shapes and named patterns**
 
-All data structures in k are built from products and tagged unions (variants).
-Relations and pattern filters describe their domains:
+All data structures in k are built from products and tagged unions
+(variants). Reusable named patterns describe structural type schemas
+using square brackets `name[...]`:
 
 ```k
-bit?  = ?< {} 0, {} 1 >;
-byte? = ?{ Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6, Bit 7 };
-bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
+bit[]  = < {} 0, {} 1 >;
+bits[] = < {} _, B 0, B 1 > = B;
+byte[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
+  bit[] 4, bit[] 5, bit[] 6, bit[] 7
+};
+
+-- Parameterized type templates:
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+pair[A, B] = { A first, B second };
 ```
 
-There are no built-in primitive values. The empty product `{}` is the
-only leaf in a non-recursive definition.
+Callers instantiate patterns using `? name[...]` as standalone filters
+or inside relation parameter guards (`?{ nat[] = N x, ... }`). There are
+no built-in primitive values: the empty product `{}` is the only leaf
+in a non-recursive definition.
+
+**The four-bracket architecture**
+
+k uses an orthogonal four-bracket convention with non-overlapping
+semantic domains:
+
+| Brackets | Domain | Purpose & Concrete Example |
+| :--- | :--- | :--- |
+| `{ ... }` | Products | Record construction: `{ f a, g b }`, `{}` |
+| `< ... >` | Unions | Variant choice: `< f, g >`, `<>` |
+| `( ... )` | Relations | Composition & identity: `(f g)`, `()` |
+| `[ ... ]` | Patterns | Reusable templates: `list[X]`, `bit[]` |
 
 **Composable partial functions**
 
@@ -149,6 +172,7 @@ Core expressions are deliberately small:
 | `<f, g>` | try `f`, then `g` if `f` is undefined |
 | `{f a, g b}` | build a product from parallel transformations |
 | `?filter` | schema filter / inductive termination witness |
+| `name[...]` | instantiate named pattern template |
 | `()` | identity |
 | `<>` | always undefined |
 | `{}` | constant empty product |

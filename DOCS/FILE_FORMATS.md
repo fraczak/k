@@ -97,8 +97,9 @@ flowchart TD
 ### What It Is
 `.k` files contain the high-level, human-readable source code of the
 `k` language. A `.k` file defines:
-- **Algebraic Data Types:** Products (`{ field1 label1, field2 label2 }`)
-  and tagged unions (`< tag1 arm1, tag2 arm2 >`).
+- **Algebraic Schemas & Named Patterns:** Products (`{ ... }`),
+  tagged unions (`< ... >`), and reusable parameterized pattern
+  templates (`name[...] = filter;`).
 - **Relations:** First-order partial functions composed via sequence,
   union, projection, or product construction.
 - **Top-level Expressions:** Computations evaluated when the file is run

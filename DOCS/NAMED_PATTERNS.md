@@ -217,7 +217,7 @@ To guarantee decidability and termination:
 ```k
 -- Canonical bit and bit-path numbers:
 bit[]  = < {}0, {}1 >;
-bits[] = < {}_, bits[] 0, bits[] 1 > = bits;
+bits[] = < {} _, B 0, B 1 > = B;
 
 -- Byte as an 8-bit octet product:
 byte[] = {

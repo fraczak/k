@@ -67,11 +67,20 @@ schema registry; its `@hash` is a fixed-width indexing digest.
 
 ### Filter
 
-A `filter` is an expression `?schema` that constrains the input payload to a
-schema and otherwise behaves like identity.
+A `filter` is an expression `?schema` that constrains the input payload
+to a schema and otherwise behaves like identity.
 
-In recursive relations, filters also serve as **inductive termination witnesses**,
-ensuring contract derivation converges.
+In recursive relations, filters also serve as **inductive termination
+witnesses**, ensuring contract derivation converges.
+
+### Named Pattern
+
+A `named pattern` is a parameterized regular tree grammar template
+defined using square-bracket syntax (`name[P1, ..., Pn] = filter;`).
+Named patterns declare external input ports in their parameter list
+and may contain internal unification variables and cycle knots
+(`= KnotName`). They are expanded statically without recursive
+divergence, compiling into canonical schema automata nodes.
 
 ### Canonical Content-Addressed Hash (`@hash`)
 

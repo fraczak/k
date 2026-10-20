@@ -159,20 +159,20 @@ The `codecs/` directory provides the following standard codecs:
   - JSON arrays map to indexed products `{ "0": a0, "1": a1, ... }`.
   - Ideal for record-oriented projection (e.g. `.user .name`).
 - **`djson.mjs` (`k-djson`) — Universal Dynamic JSON (Cons-List)**:
-  Maps every JSON document to a single universal recursive pattern
-  `JSON`:
+  Maps every JSON document to a single universal recursive named pattern
+  `djson[]`:
   ```k
-  ?<
+  djson[] = <
     float64 number,
     str string,
     < {} true, {} false > bool,
     {} null,
-    < {} nil, { JSON car, LIST cdr } cons >=LIST list,
-    < {} nil, { { str key, JSON val } car, OBJ cdr } cons >=OBJ object
-  >=JSON
+    < {} nil, { J car, L cdr } cons > = L list,
+    < {} nil, { { str key, J val } car, O cdr } cons > = O object
+  > = J;
   ```
   Because every JSON value shares the exact same static 29-node pattern,
-  a `k` relation can be compiled once against `JSON` and process
+  a `k` relation can be compiled once against `djson[]` and process
   arbitrary JSON documents of any shape or array/object length.
 - **`djson-btrie.mjs` (`k-djson-btrie`) — Binary Bit-Trie Dynamic JSON**:
   Replaces the linear `list` and `object` cons-lists with a unified

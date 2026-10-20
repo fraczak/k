@@ -1862,6 +1862,16 @@ const htmlContent = `<!DOCTYPE html>
                   <td><code>name = relExpr;</code></td>
                   <td><b>Relation Alias:</b> Defines a local alias for a relation expression.<br><i>e.g.</i> <code>swap = { . y x, . x y };</code></td>
                 </tr>
+                <tr>
+                  <td><code>name[P1, ..., Pn] = filter;</code></td>
+                  <td>
+                    <b>Named Pattern Template:</b> Defines a reusable
+                    pattern template.<br>
+                    <i>e.g.</i><br>
+                    <code>bit[] = &lt; {} 0, {} 1 &gt;;</code> or<br>
+                    <code>list[X] = &lt; {} nil, ... &gt; = Y;</code>
+                  </td>
+                </tr>
               </tbody>
             </table>
 
@@ -1897,8 +1907,15 @@ const htmlContent = `<!DOCTYPE html>
                   <td><b>Variant Constructor:</b> Wraps document into variant <code>tag</code></td>
                 </tr>
                 <tr>
-                  <td><code>? filterExpr</code></td>
-                  <td><b>Pattern Filter:</b> Asserts input matches pattern; acts as partial identity and inductive termination witness (<i>e.g.</i> <code>?&lt; {} true, {} false &gt;</code>)</td>
+                  <td>
+                    <code>? filterExpr</code> /
+                    <code>? name[...]</code>
+                  </td>
+                  <td>
+                    <b>Pattern Filter:</b> Asserts input matches pattern;
+                    acts as partial identity and inductive witness
+                    (<i>e.g.</i> <code>? list[X]</code>)
+                  </td>
                 </tr>
                 <tr>
                   <td><code>name</code> / <code>@hash</code></td>
@@ -1933,6 +1950,14 @@ const htmlContent = `<!DOCTYPE html>
               <li><code>not = &lt; / true | false, / false | true &gt;;</code> &mdash; Polymorphic negation via branch projections and ordered choice</li>
               <li><code>{} | true not</code> &mdash; Compose constant relation <code>{} | true</code> with <code>not</code> (evaluates to <code>{} | false</code>)</li>
               <li><code>bool? = ?&lt; {} true, {} false &gt;;</code> &mdash; Define a boolean pattern filter relation</li>
+              <li>
+                <code>bit[] = &lt; {} 0, {} 1 &gt;;</code>
+                &mdash; Define a 0-arity bit pattern
+              </li>
+              <li>
+                <code>? list[bool[]]</code>
+                &mdash; Instantiated pattern filter matching booleans
+              </li>
               <li><code>not = bool? ?X &lt; / true | false, {} | true &gt; ?X;</code> &mdash; Filtered boolean negation: guarded by <code>bool?</code>, defaulting to <code>{} | true</code></li>
               <li><code>swap = { . y x, . x y };</code> &mdash; Define a product field-swapping relation</li>
               <li><code>{ {} | ok x, {} | nil y } swap</code> &mdash; Construct a product and pass it through <code>swap</code></li>

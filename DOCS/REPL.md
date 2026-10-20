@@ -51,6 +51,8 @@ is complete.
 ## Raw Snippets
 
 Raw input is compiled as k source on top of the current state.
+Both relation definitions (`name = expr;`) and named pattern templates
+(`name[...] = filter;`) can be introduced incrementally.
 
 Examples:
 
@@ -59,11 +61,17 @@ Examples:
 ```
 
 ```k
-> bool? = ?<{} true, {} false>;
+> bool[] = < {} true, {} false >;
+> bool? = ? bool[];
 ```
 
 ```k
-> not = ?<{} true, {} false> < /true | false, /false | true >;
+> list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+> ? list[bool[]]
+```
+
+```k
+> not = ? bool[] < /true | false, /false | true >;
   {} |true not
 ```
 

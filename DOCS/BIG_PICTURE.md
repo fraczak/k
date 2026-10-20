@@ -69,21 +69,24 @@ states, so any two structurally equivalent schemas yield identical canonical tex
 
 ### Filters
 
-A _filter_ is a syntactic expression `?schema` that acts as a partial identity
-relation on values conforming to `schema`. If the input value matches the
-schema, it passes through unchanged; otherwise, the relation is undefined.
+A _filter_ is a syntactic expression `?schema` that acts as a partial
+identity relation on values conforming to `schema`. If the input value
+matches the schema, it passes through unchanged; otherwise, the
+relation is undefined.
 
-In recursive relations, filters also serve as **inductive termination witnesses**,
-ensuring type and contract derivation converges.
+In recursive relations, filters also serve as **inductive termination
+witnesses**, ensuring type and contract derivation converges.
 
 In general, a filter schema is defined by:
 
 ```bnf
 filter ::= name | '{' filter_label_list '}'
    | '<' filter_label_list '>' | '(' filter_label_list ')'
+   | name '[' filter_args ']'
    | filter '=' name
 filter_label_list ::= /* empty */ | '...'
    | ( filter label ',' ) * filter label
+filter_args ::= /* empty */ | ( filter ',' ) * filter
 ```
 
 Examples:
@@ -92,9 +95,53 @@ Examples:
   X                 -- unconstrained schema variable
   ( ... )           -- unconstrained schema
   { ... }           -- any product schema
-  ( X x, X y )      -- any product schema with two fields of the same schema X
-  < X x, ... > = X  -- a recursive variant schema X with variant x of schema X
+  { X x, X y }      -- product with two fields of the same schema X
+  < X x, ... > = X  -- recursive variant X with variant x of schema X
+  list[int[]]       -- instantiated named pattern
 ```
+
+### Named Patterns and Parameterized Schemas
+
+k supports reusable, parameterized regular tree grammar templates via
+square-bracket syntax `name[...]`:
+
+```k
+name[ P1, P2, ... Pn ] = filter;
+```
+
+For 0-arity templates, empty brackets `[]` are used:
+
+```k
+bit[]  = < {} 0, {} 1 >;
+bits[] = < {} _, B 0, B 1 > = B;
+byte[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
+  bit[] 4, bit[] 5, bit[] 6, bit[] 7
+};
+```
+
+Parameterized templates introduce external ports:
+
+```k
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+pair[A, B] = { A first, B second };
+```
+
+Callers instantiate templates using `? name[...]`:
+
+```k
+list? = ? list[bits[]];
+```
+
+Or directly inside relation parameter guards:
+
+```k
+add = ?{ nat[] = N x, ... } < ... >;
+```
+
+Template expansion is purely structural and static: internal knots
+(`= Y`) are scoped locally and alpha-renamed, and template calls form an
+acyclic dependency DAG, preventing non-regular divergence.
 
 ### Partial functions
 

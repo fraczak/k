@@ -1,13 +1,14 @@
 # Schemas and Pattern Graphs
 
-In `k`, an algebraic **schema** describes the shape of payload trees that may flow
-through a relation. In compiler artifacts and serialization, schemas are represented
-as property-list arrays of automata nodes. Schemas are used by:
+In `k`, an algebraic **schema** describes the shape of payload trees
+that may flow through a relation. In compiler artifacts and
+serialization, schemas are represented as property-list arrays of
+automata nodes. Schemas are used by:
 
 - the contract-derivation engine
 - the binary codec
 - runtime framed values `(schema, payload)`
-- filter expressions (`?schema`)
+- filter expressions (`?schema` or `?name[...]`)
 
 ## Pattern Kinds
 
@@ -46,26 +47,68 @@ Example:
 
 This is not the wire format. It is the canonical readable export form.
 
-## Filters and Type Names
+## Named Patterns and Templates
+
+Named patterns define reusable, modular regular tree grammars using
+square brackets `[...]`:
+
+```k
+name[ P1, P2, ... Pn ] = filter;
+```
+
+For 0-arity patterns (no parameters), empty brackets `[]` are used:
+
+```k
+bit[]  = < {} 0, {} 1 >;
+bits[] = < {} _, B 0, B 1 > = B;
+byte[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
+  bit[] 4, bit[] 5, bit[] 6, bit[] 7
+};
+```
+
+Parameterized patterns declare external ports in the bracket list:
+
+```k
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+pair[A, B] = { A first, B second };
+```
+
+Callers instantiate a named pattern:
+- As a standalone filter: `? list[X]` or `? bits[]`
+- Within relation guards: `?{ nat[] = N x, ... }`
+- As template arguments: `list[byte[]]` or `pair[A, B]`
+
+Inside a definition, knot identifiers (`= Y`) close internal recursive
+loops. Recursive loops are private and alpha-renamed during expansion.
+Direct or mutual recursion among templates (`bits[]` calling `bits[]`)
+is disallowed to ensure every template dependency graph is an acyclic
+DAG, guaranteeing finite regular tree automaton compilation.
+
+## Filters and Terminal Positions
 
 A k script can describe a pattern through:
 
 - a relation in terminal position
 - a filter expression in terminal position
+- a named pattern invocation (`? name[...]`)
 
 Examples:
 
 ```k
-bits? = ?< {} _, bits? 0, bits? 1 > = bits?;
-list? = ?< {} nil, { < {} _, B 0, B 1 >=B car, L cdr } cons > = L;
+bits[] = < {} _, B 0, B 1 > = B;
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+list? = ? list[bits[]];
 list?
 ```
 
+Or anonymously:
+
 ```k
-?< {} nil, { < {} _, B 0, B 1 >=B car, X cdr } cons > = X
+? list[bits[]]
 ```
 
-In both cases, the compiler derives a root pattern from `__main__`.
+In all cases, the compiler derives a root pattern from `__main__`.
 
 ## Pattern Export Helper
 
@@ -86,13 +129,18 @@ It:
 Example:
 
 ```bash
-echo '?< {} nil, { < {} _, B 0, B 1 >=B car, X cdr } cons > = X' | node ./patterns/from-k.mjs
+echo '?< {} nil, { {} car, X cdr } cons > = X' | \
+  node ./patterns/from-k.mjs
 ```
 
 Typical output:
 
 ```json
-[["closed-union",[["nil",1],["cons",2]]],["closed-product",[]],["closed-product",[["car",3],["cdr",0]]],["closed-union",[["_",1],["0",3],["1",3]]]]
+[
+  ["closed-union", [["nil", 1], ["cons", 2]]],
+  ["closed-product", []],
+  ["closed-product", [["car", 1], ["cdr", 0]]]
+]
 ```
 
 ## Schemas in the Codec
