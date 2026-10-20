@@ -123,18 +123,19 @@ initialize_symbol_table
 defs:                                   {  }
     | defs name eq comp sc              { s.add_rel($2.value,$4); }
     | defs name lb pattern_params rb eq filter sc
-                                        {
-                                            const seen = new Set();
-                                            for (const p of $4) {
-                                                if (seen.has(p)) {
-                                                    anError(@4,
-                                                        `Duplicate parameter '${p}' in pattern '${$2.value}'.`
-                                                    );
-                                                }
-                                                seen.add(p);
-                                            }
-                                            s.add_pattern($2.value, $4, $7);
-                                        }
+        {
+            const seen = new Set();
+            for (const p of $4) {
+                if (seen.has(p)) {
+                    const msg =
+                        `Duplicate parameter '${p}' ` +
+                        `in pattern '${$2.value}'.`;
+                    anError(@4, msg);
+                }
+                seen.add(p);
+            }
+            s.add_pattern($2.value, $4, $7);
+        }
     ;
 
 pattern_params
@@ -152,7 +153,16 @@ filter_
     : lp dots                 rp  { $$ = { type: null, open: true, fields: {}, start: $1.start, end: $3.end}; }
     | la labelled_filters      ra { $$ = { type: "union", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
     | lc labelled_filters      rc { $$ = { type: "product", open: $2.open, fields: $2.fields, start: $1.start, end: $3.end}; }
-    | name lb pattern_args rb     { $$ = { type: "pattern_apply", pattern: $1.value, args: $3, start: $1.start, end: $4.end }; }
+    | name lb pattern_args rb
+                                  {
+                                      $$ = {
+                                          type: "pattern_apply",
+                                          pattern: $1.value,
+                                          args: $3,
+                                          start: $1.start,
+                                          end: $4.end
+                                      };
+                                  }
     ;
 
 pattern_args
@@ -168,7 +178,15 @@ non_empty_pattern_args
 
 filter
     : filter_                      { $$ = $1; }
-    | filter_ EQ name              { $$ = { ...$1, name: $3.value, start: $1.start, end: $3.end }; }
+    | filter_ EQ name
+                                   {
+                                       $$ = {
+                                           ...$1,
+                                           name: $3.value,
+                                           start: $1.start,
+                                           end: $3.end
+                                       };
+                                   }
     | name                         { $$ = { type: 'name', name: $1.value, open: true, start: $1.start, end: $1.end}; }
     ;
 labelled_filters

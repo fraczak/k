@@ -19,7 +19,9 @@ import {
   wireInput
 } from "../backends/llvm/tests/perf-support.mjs";
 
-const llvmCacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-djson-bench-"));
+const llvmCacheDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "k-djson-bench-")
+);
 
 console.log("=== 1. Codec Round-Trip Verification ===");
 const sampleJson = {
@@ -39,7 +41,11 @@ for (const [label, c, pat] of [
 ]) {
   const kVal = c.parse(sampleStr);
   const roundTrip = JSON.parse(c.print(kVal));
-  assert.deepStrictEqual(roundTrip, sampleJson, `${label} round-trip failed`);
+  assert.deepStrictEqual(
+    roundTrip,
+    sampleJson,
+    `${label} round-trip failed`
+  );
   console.log(
     `  [OK] ${label.padEnd(26)} pattern nodes: ${pat.length}`
   );
@@ -113,7 +119,8 @@ async function benchRelationOnInput({
     runner.exports.arena_reset(mark);
     entryFn(ptrIn);
   }
-  const wasmExecNsPerCall = ((performance.now() - tWasmExec0) * 1e6) / calls;
+  const wasmExecNsPerCall =
+    ((performance.now() - tWasmExec0) * 1e6) / calls;
 
   // 2. LLVM Compilation & Execution (-O3)
   const tLlvmComp0 = performance.now();
@@ -129,7 +136,11 @@ async function benchRelationOnInput({
     usePKIR: false
   });
   const llvmCompileMs = performance.now() - tLlvmComp0;
-  const llvmRes = await runExecutableMainBench(exePath, wire.inputWire, calls);
+  const llvmRes = await runExecutableMainBench(
+    exePath,
+    wire.inputWire,
+    calls
+  );
 
   return {
     wireBytes,
@@ -147,41 +158,56 @@ const SCHEMAS = [
     kFile: "Examples/djson.k",
     codec: { ...djsonCodec, pattern: djsonCodec.DJSON_PATTERN },
     dotExpr:
-      "bench_dot = json? { /list /cons .car /string key, /list /cons .cdr /cons .car /object object } dot json?;"
+      "bench_dot = json? { " +
+      "/list /cons .car /string key, " +
+      "/list /cons .cdr /cons .car /object object } dot json?;"
   },
   {
     name: "djson-btrie",
     kFile: "Examples/djson-btrie.k",
     codec: btrieCodec,
     dotExpr:
-      "bench_dot = json? { { 0 index, /list list } nth /string key, { 1 index, /list list } nth /object object } dot json?;"
+      "bench_dot = json? { " +
+      "{ 0 index, /list list } nth /string key, " +
+      "{ 1 index, /list list } nth /object object } dot json?;"
   },
   {
     name: "djson-ptrie",
     kFile: "Examples/djson-ptrie.k",
     codec: ptrieCodec,
     dotExpr:
-      "bench_dot = json? { { 0 index, /list list } nth /string key, { 1 index, /list list } nth /object object } dot json?;"
+      "bench_dot = json? { " +
+      "{ 0 index, /list list } nth /string key, " +
+      "{ 1 index, /list list } nth /object object } dot json?;"
   }
 ];
 
-console.log("\n=== 2A. Object Lookup (`dot`) — Shared-Prefix Keys (Wasm vs LLVM -O3) ===");
+console.log(
+  "\n=== 2A. Object Lookup (`dot`) — " +
+  "Shared-Prefix Keys (Wasm vs LLVM -O3) ==="
+);
 for (const numKeys of [10, 100, 500]) {
   const obj = {};
   for (let i = 0; i < numKeys; i++) {
     const k = `field_prefix_${String(i).padStart(4, "0")}`;
     obj[k] = i * 10;
   }
-  const targetKey = `field_prefix_${String(numKeys - 1).padStart(4, "0")}`;
+  const targetKey =
+    `field_prefix_${String(numKeys - 1).padStart(4, "0")}`;
   const expectedVal = (numKeys - 1) * 10;
   const inputJsonStr = JSON.stringify([targetKey, obj]);
 
-  console.log(`\n--- Object with ${numKeys} shared-prefix keys (querying '${targetKey}') ---`);
   console.log(
-    "Schema          | Wire (B) | Wasm (B) | Wasm Comp | LLVM Comp | Wasm (ns/call) | LLVM (ns/call)"
+    `\n--- Object with ${numKeys} shared-prefix keys ` +
+    `(querying '${targetKey}') ---`
   );
   console.log(
-    "----------------+----------+----------+-----------+-----------+----------------+---------------"
+    "Schema          | Wire (B) | Wasm (B) | " +
+    "Wasm Comp | LLVM Comp | Wasm (ns/call) | LLVM (ns/call)"
+  );
+  console.log(
+    "----------------+----------+----------+-" +
+    "----------+-----------+----------------+---------------"
   );
 
   for (const s of SCHEMAS) {
@@ -206,7 +232,10 @@ for (const numKeys of [10, 100, 500]) {
   }
 }
 
-console.log("\n=== 2B. Object Lookup (`dot`) — Distinct/Varied Keys (Wasm vs LLVM -O3) ===");
+console.log(
+  "\n=== 2B. Object Lookup (`dot`) — " +
+  "Distinct/Varied Keys (Wasm vs LLVM -O3) ==="
+);
 const WORDS = [
   "account", "balance", "category", "database", "endpoint",
   "filename", "geometry", "hostname", "identity", "journal",
@@ -226,12 +255,17 @@ for (const numKeys of [10, 100, 500]) {
   const expectedVal = obj[targetKey];
   const inputJsonStr = JSON.stringify([targetKey, obj]);
 
-  console.log(`\n--- Object with ${numKeys} varied keys (querying '${targetKey}') ---`);
   console.log(
-    "Schema          | Wire (B) | Wasm (B) | Wasm Comp | LLVM Comp | Wasm (ns/call) | LLVM (ns/call)"
+    `\n--- Object with ${numKeys} varied keys ` +
+    `(querying '${targetKey}') ---`
   );
   console.log(
-    "----------------+----------+----------+-----------+-----------+----------------+---------------"
+    "Schema          | Wire (B) | Wasm (B) | " +
+    "Wasm Comp | LLVM Comp | Wasm (ns/call) | LLVM (ns/call)"
+  );
+  console.log(
+    "----------------+----------+----------+-" +
+    "----------+-----------+----------------+---------------"
   );
 
   for (const s of SCHEMAS) {
@@ -256,21 +290,29 @@ for (const numKeys of [10, 100, 500]) {
   }
 }
 
-console.log("\n=== 3. List Element Lookup (`nth`) Benchmark (Wasm vs LLVM -O3) ===");
+console.log(
+  "\n=== 3. List Element Lookup (`nth`) Benchmark (Wasm vs LLVM -O3) ==="
+);
 for (const len of [10, 100, 500]) {
   const arr = Array.from({ length: len }, (_, i) => i * 3);
   const targetIdx = len - 1;
   const expectedVal = targetIdx * 3;
   const inputJsonStr = JSON.stringify(arr);
   const idxLit = indexToKLiteral(targetIdx);
-  const nthExpr = `bench_nth = json? { ${idxLit} index, /list list } nth json?;`;
+  const nthExpr =
+    `bench_nth = json? { ${idxLit} index, /list list } nth json?;`;
 
-  console.log(`\n--- Array with ${len} elements (querying index ${targetIdx}) ---`);
   console.log(
-    "Schema          | Wire (B) | Wasm (B) | Wasm Comp | LLVM Comp | Wasm (ns/call) | LLVM (ns/call)"
+    `\n--- Array with ${len} elements ` +
+    `(querying index ${targetIdx}) ---`
   );
   console.log(
-    "----------------+----------+----------+-----------+-----------+----------------+---------------"
+    "Schema          | Wire (B) | Wasm (B) | " +
+    "Wasm Comp | LLVM Comp | Wasm (ns/call) | LLVM (ns/call)"
+  );
+  console.log(
+    "----------------+----------+----------+-" +
+    "----------+-----------+----------------+---------------"
   );
 
   for (const s of SCHEMAS) {

@@ -57,8 +57,16 @@ for (const [name, codec, sampleInput] of [
   ["int.mjs", IntCodec, "42"],
   ["json.mjs", JsonCodec, '{"x": 1}'],
   ["djson.mjs", DjsonCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
-  ["djson-btrie.mjs", DjsonBtrieCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
-  ["djson-ptrie.mjs", DjsonPtrieCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
+  [
+    "djson-btrie.mjs",
+    DjsonBtrieCodec,
+    '{"x": 1, "arr": [true, null, "hi"]}'
+  ],
+  [
+    "djson-ptrie.mjs",
+    DjsonPtrieCodec,
+    '{"x": 1, "arr": [true, null, "hi"]}'
+  ],
   ["utf8.mjs", Utf8Codec, "hello"],
   ["utf16.mjs", Utf16Codec, "hello"],
   ["ieee.mjs", IeeeCodec, "3.14"],

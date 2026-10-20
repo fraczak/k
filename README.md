@@ -247,12 +247,12 @@ For a detailed guide to all four formats, commands, and workflows, see
 
 | Command | Purpose |
 | --- | --- |
-| `k-json` | Convert JSON to/from the binary stream (schema-specializing) |
-| `k-djson` | Convert JSON to/from a universal dynamic JSON singleton pattern (cons-list) |
-| `k-djson-btrie` | Convert JSON to/from a binary bit-trie dynamic JSON singleton pattern |
-| `k-djson-ptrie` | Convert JSON to/from a Patricia/radix trie dynamic JSON singleton pattern |
-| `k-int` | Convert decimal integers to/from the binary stream |
-| `k-ieee` | Convert float literals to/from the binary stream |
+| `k-json` | Convert JSON to/from binary stream (specializing) |
+| `k-djson` | Convert JSON to/from dynamic JSON (cons-list) |
+| `k-djson-btrie` | Convert JSON to/from binary bit-trie dynamic JSON |
+| `k-djson-ptrie` | Convert JSON to/from radix trie dynamic JSON |
+| `k-int` | Convert decimal integers to/from binary stream |
+| `k-ieee` | Convert float literals to/from binary stream |
 | `k-unit` | Produce or validate the unit value |
 | `k-utf8` / `k-utf16` | Convert text to/from k string streams |
 

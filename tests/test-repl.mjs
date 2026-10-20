@@ -616,7 +616,8 @@ await evaluateInput(
   btrieState
 );
 output = await evaluateInput(
-  "{{0 index, /list list} nth /string key, {1 index, /list list} nth /object object} dot",
+  "{{0 index, /list list} nth /string key, " +
+    "{1 index, /list list} nth /object object} dot",
   btrieState
 );
 assert.match(output[0], /djson-btrie\.mjs: 30/);
@@ -626,7 +627,8 @@ await evaluateInput(
   btrieState
 );
 output = await evaluateInput(
-  "{{0 index, /list list} nth /string key, {1 index, /list list} nth /object object} remove object",
+  "{{0 index, /list list} nth /string key, " +
+    "{1 index, /list list} nth /object object} remove object",
   btrieState
 );
 assert.match(output[0], /djson-btrie\.mjs: \{"name":"Alice"\}/);
@@ -641,7 +643,8 @@ await evaluateInput(
   ptrieState
 );
 output = await evaluateInput(
-  "{{0 index, /list list} nth /string key, {1 index, /list list} nth /object object} dot",
+  "{{0 index, /list list} nth /string key, " +
+    "{1 index, /list list} nth /object object} dot",
   ptrieState
 );
 assert.match(output[0], /djson-ptrie\.mjs: 30/);

@@ -433,7 +433,9 @@ function collectTrieEntries(kNode, pathBits = [], entries = []) {
   if (prod.val.tag === "val") {
     entries.push({ bits: pathBits.slice(), val: prod.val.value });
   } else if (prod.val.tag !== "nil") {
-    throw new Error(`djson-btrie.trie.val: unexpected tag ${prod.val.tag}`);
+    throw new Error(
+      `djson-btrie.trie.val: unexpected tag ${prod.val.tag}`
+    );
   }
   pathBits.push(0);
   collectTrieEntries(prod[0], pathBits, entries);
@@ -480,7 +482,11 @@ export function fromJsonValue(value) {
     }
     const root = makeMutableNode();
     for (const k of keys) {
-      insertMutableTrie(root, stringToBitPath(k), fromJsonValue(value[k]));
+      insertMutableTrie(
+        root,
+        stringToBitPath(k),
+        fromJsonValue(value[k])
+      );
     }
     return Value.variant("object", mutableNodeToK(root));
   }
@@ -511,7 +517,9 @@ export function toJsonValue(value) {
   }
   if (value.tag === "list") {
     const entries = collectTrieEntries(value.value);
-    entries.sort((a, b) => bitPathToIndex(a.bits) - bitPathToIndex(b.bits));
+    entries.sort((a, b) =>
+      bitPathToIndex(a.bits) - bitPathToIndex(b.bits)
+    );
     return entries.map((e) => toJsonValue(e.val));
   }
   if (value.tag === "object") {

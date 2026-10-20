@@ -28,7 +28,10 @@
  *         Str prefix,
  *         BITS size,
  *         < {} nil, JSON val > val,
- *         < {} nil, { { CHAR char, OBJ trie } car, DICT cdr } cons >=DICT dict
+ *         <
+ *           {} nil,
+ *           { { CHAR char, OBJ trie } car, DICT cdr } cons
+ *         >=DICT dict
  *       } trie
  *     >
  */
@@ -211,9 +214,9 @@ function natToBitsK(n) {
   return bitArrayToBitsK(indexToBitPath(n));
 }
 
-// ============================================================================
+// ----------------------------------------------------------------------
 // 1. Patricia Bit-Trie for `list` (trie-array over bits)
-// ============================================================================
+// ----------------------------------------------------------------------
 
 function commonBitPrefixLen(a, b) {
   const len = Math.min(a.length, b.length);
@@ -315,9 +318,9 @@ function collectBitTrieEntries(kNode, pathBits = [], entries = []) {
   return entries;
 }
 
-// ============================================================================
-// 2. Character-Level Radix Trie for `object` (trie-array over Unicode chars)
-// ============================================================================
+// ----------------------------------------------------------------------
+// 2. Character-Level Radix Trie for `object` (Unicode radix-tree)
+// ----------------------------------------------------------------------
 
 function commonCharPrefixLen(a, b) {
   const len = Math.min(a.length, b.length);
@@ -443,9 +446,14 @@ function collectCharTrieEntries(kNode, prefixStr = "", entries = []) {
     }
     if (curDict.tag === "nil") break;
     if (curDict.tag !== "cons") {
-      throw new Error(`djson-ptrie.object.dict: unexpected tag ${curDict.tag}`);
+      throw new Error(
+        `djson-ptrie.object.dict: unexpected tag ${curDict.tag}`
+      );
     }
-    const pair = requireProduct(curDict.value, "djson-ptrie.object.dict.cons");
+    const pair = requireProduct(
+      curDict.value,
+      "djson-ptrie.object.dict.cons"
+    );
     const entry = requireProduct(pair.car, "djson-ptrie.object.dict.car");
     const ch = String.fromCodePoint(unicodeValueToCodePoint(entry.char));
     collectCharTrieEntries(entry.trie, fullPrefix + ch, entries);
@@ -536,7 +544,9 @@ export function toJsonValue(value) {
   }
   if (value.tag === "list") {
     const entries = collectBitTrieEntries(value.value);
-    entries.sort((a, b) => bitPathToIndex(a.bits) - bitPathToIndex(b.bits));
+    entries.sort((a, b) =>
+      bitPathToIndex(a.bits) - bitPathToIndex(b.bits)
+    );
     return entries.map((e) => toJsonValue(e.val));
   }
   if (value.tag === "object") {
