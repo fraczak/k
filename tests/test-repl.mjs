@@ -646,6 +646,86 @@ output = await evaluateInput(
 );
 assert.match(output[0], /djson-ptrie\.mjs: 30/);
 
+// Verify named pattern persistence, listing, display, and tab completion
+const patState = createState({ engine: "wasm" });
+
+output = await evaluateInput(":patterns", patState);
+assert.equal(output[0], "(none)");
+output = await evaluateInput(":pats", patState);
+assert.equal(output[0], "(none)");
+
+output = await evaluateInput("bit[] = < {} 0, {} 1 >;", patState);
+assert.match(output[0], /\/\* comp:/);
+
+output = await evaluateInput(":patterns", patState);
+assert.equal(output[0], "bit[]");
+output = await evaluateInput(":pats", patState);
+assert.equal(output[0], "bit[]");
+
+output = await evaluateInput(":pattern bit", patState);
+assert.equal(output[0], "bit[] = <{} 0, {} 1>;");
+output = await evaluateInput(":pattern bit[]", patState);
+assert.equal(output[0], "bit[] = <{} 0, {} 1>;");
+output = await evaluateInput(":pat bit", patState);
+assert.equal(output[0], "bit[] = <{} 0, {} 1>;");
+
+await assert.rejects(
+  () => evaluateInput(":pattern unknown", patState),
+  /Unknown pattern 'unknown'/
+);
+await assert.rejects(
+  () => evaluateInput(":pattern", patState),
+  /:pattern requires a pattern name/
+);
+
+completions = completeInput(":pat", patState)[0];
+assert(completions.includes(":pattern"));
+assert(completions.includes(":patterns"));
+assert(completions.includes(":pat"));
+assert(completions.includes(":pats"));
+
+completions = completeInput(":pattern b", patState)[0];
+assert(completions.includes(":pattern bit"));
+completions = completeInput(":pat b", patState)[0];
+assert(completions.includes(":pat bit"));
+
+output = await evaluateInput("{} | 0 ? bit[]", patState);
+assert.match(output[0], /\{\}\|0/);
+
+output = await evaluateInput(
+  "pair[A, B] = { A first, B second };",
+  patState
+);
+output = await evaluateInput(":pattern pair", patState);
+assert.equal(output[0], "pair[A, B] = {A first, B second};");
+
+output = await evaluateInput(":load Examples/list.k", patState);
+assert.equal(output[0], "loaded Examples/list.k");
+output = await evaluateInput(":patterns", patState);
+assert(output[0].includes("bit[]"));
+assert(output[0].includes("list[X]"));
+assert(output[0].includes("pair[A, B]"));
+
+output = await evaluateInput("{} | nil ? list[bit[]]", patState);
+assert.match(output[0], /\{\}\|nil/);
+
+const testKlibPath = path.join(tmpDir, "patterns-test.klib");
+output = await evaluateInput(`:klib ${testKlibPath}`, patState);
+assert.equal(output[0], `saved ${testKlibPath}`);
+
+const freshState = createState({ engine: "wasm" });
+output = await evaluateInput(`:load ${testKlibPath}`, freshState);
+assert.equal(output[0], `loaded ${testKlibPath}`);
+output = await evaluateInput(":patterns", freshState);
+assert(output[0].includes("bit[]"));
+assert(output[0].includes("pair[A, B]"));
+assert(output[0].includes("list[X]"));
+
+output = await evaluateInput(":pattern bit", freshState);
+assert.equal(output[0], "bit[] = <{} 0, {} 1>;");
+output = await evaluateInput("{} | nil ? list[bit[]]", freshState);
+assert.match(output[0], /\{\}\|nil/);
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");

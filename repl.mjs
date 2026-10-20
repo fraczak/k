@@ -21,7 +21,7 @@ if (typeof globalThis !== "undefined") {
   globalThis.isVariant = isVariant;
   globalThis.patternFromFilter = patternFromFilter;
 }
-import { prettyCode } from "./pretty.mjs";
+import { prettyCode, prettyFilter } from "./pretty.mjs";
 import {
   compileObject,
   compileLibrary,
@@ -32,7 +32,11 @@ import {
   loadLibrary,
   prettyRelation
 } from "./object.mjs";
-import { propertyListToFilter, valueToK, valueWithEnvelopeToK } from "./codecs/runtime/show-value.mjs";
+import {
+  propertyListToFilter,
+  valueToK,
+  valueWithEnvelopeToK
+} from "./codecs/runtime/show-value.mjs";
 import {
   codecNames,
   codeHashToPattern,
@@ -48,7 +52,7 @@ import {
 
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
 const COMMAND_NAMES = [
-  "help", "rel",
+  "help", "rel", "pattern", "pat", "patterns", "pats",
   "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
   "engine", "wasm", "pkir", "js", "limit",
   "quit", "exit"
@@ -87,6 +91,7 @@ function createState(options = {}) {
     rels: {},
     relAliases: {},
     typeAliases: {},
+    patterns: {},
     codecs: {},
     loadedFiles: new Set(),
     pendingInput: null,
@@ -106,6 +111,7 @@ function stateLibrary(state) {
     codes: state.codes,
     rels: state.rels,
     relAlias: state.relAliases,
+    patterns: state.patterns,
     meta: state.meta,
     main: null
   };
@@ -227,6 +233,11 @@ function mergeLibrary(state, lib, source = "<load>", options = {}) {
   const loadAliases = options.loadAliases ?? true;
   state.codes = { ...state.codes, ...(lib.codes || {}) };
   state.rels = { ...state.rels, ...(lib.rels || {}) };
+  state.patterns = {
+    ...state.patterns,
+    ...(lib.patterns || lib.sourceDefs?.patterns ||
+      lib.defs?.patterns || {})
+  };
   mergeMeta(state, lib.meta);
 
   if (loadAliases) {
@@ -310,6 +321,7 @@ function savedLibrary(state) {
     rels,
     relAlias: state.relAliases,
     compileStats: { sccs: [], sccCount: 0 },
+    patterns: state.patterns || {},
     meta: Object.fromEntries(
       Object.entries(meta).filter(([hash]) => storedHashes.has(hash))
     ),
@@ -320,7 +332,10 @@ function savedLibrary(state) {
 function executableObject(state, mainExpression) {
   const main = (mainExpression || state.lastMain || "").trim();
   if (!main) {
-    throw new Error(":ko file expr requires a main expression unless one has already been evaluated or defined");
+    throw new Error(
+      ":ko file expr requires a main expression unless one has " +
+      "already been evaluated or defined"
+    );
   }
 
   restoreCodes(state);
@@ -328,7 +343,8 @@ function executableObject(state, mainExpression) {
   try {
     return compileObject([preamble, main].filter(Boolean).join("\n"), {
       source: "<repl>",
-      libraries: [stateLibrary(state)]
+      libraries: [stateLibrary(state)],
+      patterns: state.patterns
     });
   } catch (error) {
     throw remapError(error, preambleLineCount(preamble));
@@ -343,9 +359,27 @@ function resolveRel(state, name) {
 }
 
 function listAliases(aliases) {
-  const entries = Object.entries(aliases).sort(([a], [b]) => a.localeCompare(b));
+  const entries = Object.entries(aliases).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
   if (entries.length === 0) return "(none)";
   return entries.map(([name, hash]) => `${name} = ${hash}`).join("\n");
+}
+
+function prettyPattern(name, pat) {
+  const params = (pat?.params || []).join(", ");
+  const filterStr = pat?.filter ? prettyFilter(pat.filter) : "()";
+  return `${name}[${params}] = ${filterStr};`;
+}
+
+function listPatterns(patterns) {
+  const entries = Object.entries(patterns || {}).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
+  if (entries.length === 0) return "(none)";
+  return entries
+    .map(([name, pat]) => `${name}[${(pat?.params || []).join(", ")}]`)
+    .join("\n");
 }
 
 function formatCodecOutput(output) {
@@ -644,9 +678,16 @@ function resolveTypeExpressionHash(state, rawType) {
   ].filter(Boolean).join("\n");
 
   try {
-    const annotated = annotate(source, { libraries: [stateLibrary(state)] });
+    const annotated = annotate(source, {
+      libraries: [stateLibrary(state)],
+      patterns: state.patterns
+    });
     const hash = annotated.representatives[INPUT_TYPE_NAME];
-    if (!hash) throw new Error(":input type expression did not produce a code hash");
+    if (!hash) {
+      throw new Error(
+        ":input type expression did not produce a code hash"
+      );
+    }
     state.codes = codes.dump();
     return hash;
   } catch (error) {
@@ -672,7 +713,10 @@ function resolvePatternExpression(state, patternExpr) {
     patternExpr
   ].filter(Boolean).join("\n");
   try {
-    const annotated = annotate(source, { libraries: [stateLibrary(state)] });
+    const annotated = annotate(source, {
+      libraries: [stateLibrary(state)],
+      patterns: state.patterns
+    });
     const mainRel = annotated.rels.__main__;
     if (!mainRel || !mainRel.typePatternGraph) {
       throw new Error(`Invalid pattern expression '${patternExpr}'`);
@@ -770,6 +814,17 @@ function completeCommandArgument(line, state) {
   const command = body.slice(0, firstSpace);
   const argStart = 1 + firstSpace + 1;
   const arg = line.slice(argStart);
+
+  if (command === "pattern" || command === "pat") {
+    const trimmed = arg.trimStart();
+    const leadingWhitespace = arg.length - trimmed.length;
+    const prefix = line.slice(0, argStart + leadingWhitespace);
+    const names = Object.keys(state.patterns || {}).sort();
+    const matches = names
+      .filter((name) => name.startsWith(trimmed))
+      .map((name) => `${prefix}${name}`);
+    return [matches, line];
+  }
 
   if (command === "codec" || command === "codecs") {
     return completeCodecCommand(line, argStart, arg, state);
@@ -877,7 +932,10 @@ function resolveKFilePath(filePath) {
     if (fs.existsSync(strippedEx)) return strippedEx;
   } catch {}
   try {
-    const fromRepoStripped = path.resolve(path.dirname(fileURLToPath(import.meta.url)), strippedEx);
+    const fromRepoStripped = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      strippedEx
+    );
     if (fs.existsSync(fromRepoStripped)) return fromRepoStripped;
   } catch {}
   return filePath;
@@ -908,7 +966,8 @@ function loadSourceOrKlib(state, targetPath, options = {}) {
     const fullSource = [preamble, source].filter(Boolean).join("\n");
     const compileOptions = {
       source: targetPath,
-      libraries: [stateLibrary(state)]
+      libraries: [stateLibrary(state)],
+      patterns: state.patterns
     };
     try {
       const lib = compileWithOptionalIdentity(fullSource, compileOptions);
@@ -972,15 +1031,29 @@ function compileSnippetArtifacts(source, state, sourceName = "<repl>") {
   const fullSource = [preamble, source].filter(Boolean).join("\n");
   const options = {
     source: sourceName,
-    libraries: [stateLibrary(state)]
+    libraries: [stateLibrary(state)],
+    patterns: state.patterns
   };
   try {
     const lib = compileWithOptionalIdentity(fullSource, options);
-    const { relAlias, meta } = libraryOriginsFromSource(source, fullSource, lib, options);
+    const { relAlias, meta } = libraryOriginsFromSource(
+      source,
+      fullSource,
+      lib,
+      options
+    );
     const annotated = annotateWithOptionalIdentity(fullSource, options);
     return {
       annotated,
-      lib: { ...lib, relAlias, meta },
+      lib: {
+        ...lib,
+        relAlias,
+        meta,
+        patterns: {
+          ...(state.patterns || {}),
+          ...(annotated.sourceDefs?.patterns || {})
+        }
+      },
       lineOffset: preambleLineCount(preamble)
     };
   } catch (error) {
@@ -1233,14 +1306,38 @@ async function evaluateCommand(line, state) {
     case "rel": {
       if (!arg) throw new Error(`${usagePrefix}rel requires a relation name`);
       if (arg.includes("=")) {
-        throw new Error("Relation definitions use syntax: name = relExpr; Use :rel <name> to show a relation definition");
+        throw new Error(
+          "Relation definitions use syntax: name = relExpr; " +
+          "Use :rel <name> to show a relation definition"
+        );
       }
       const { hash, rel } = resolveRel(state, arg);
       if (!rel) throw new Error(`Unknown relation '${arg}'`);
-      return [`${arg} = ${prettyRelation(rel, displayAliases(state), state.relAliases)};  -- ${hash}`];
+      const prettyRelStr = prettyRelation(
+        rel,
+        displayAliases(state),
+        state.relAliases
+      );
+      return [`${arg} = ${prettyRelStr};  -- ${hash}`];
     }
     case "rels":
       return [listAliases(state.relAliases)];
+    case "pattern":
+    case "pat": {
+      if (!arg) {
+        throw new Error(`${usagePrefix}pattern requires a pattern name`);
+      }
+      const rawName = arg.trim();
+      const patternName = rawName.replace(/\[.*\]$/, "").trim();
+      const pat = state.patterns?.[patternName];
+      if (!pat) {
+        throw new Error(`Unknown pattern '${rawName}'`);
+      }
+      return [prettyPattern(patternName, pat)];
+    }
+    case "patterns":
+    case "pats":
+      return [listPatterns(state.patterns)];
     case "codec":
     case "codecs":
       return loadCodec(arg, state);
@@ -1333,6 +1430,8 @@ function helpText() {
     ":engine [wasm|pkir|js]   display or switch evaluation engine",
     ":rel name            show relation definition",
     ":rels                list relation aliases",
+    ":pattern name        show named pattern definition (alias :pat)",
+    ":patterns            list defined named patterns (alias :pats)",
     ":limit [num|none]    set maximum characters for value output",
     ":codec load file     load a codec module from file",
     ":codec unload name   unload a registered codec",
@@ -1555,5 +1654,7 @@ export {
   formatDuration,
   codecNames,
   ensureEnveloped,
-  patternFromFilter
+  patternFromFilter,
+  prettyPattern,
+  listPatterns
 };

@@ -489,6 +489,24 @@ function compileLibrary(script, options = {}) {
     Object.entries(meta).filter(([hash]) => libraryMetaHashes.has(hash))
   );
 
+  const libPatterns = {};
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      const lp =
+        lib.patterns ||
+        lib.defs?.patterns ||
+        lib.sourceDefs?.patterns ||
+        {};
+      Object.assign(libPatterns, lp);
+    }
+  }
+  if (options.patterns) {
+    Object.assign(libPatterns, options.patterns);
+  }
+  if (annotated.sourceDefs?.patterns) {
+    Object.assign(libPatterns, annotated.sourceDefs.patterns);
+  }
+
   return {
     format: "k-object",
     codes: allCodes,
@@ -496,6 +514,7 @@ function compileLibrary(script, options = {}) {
     relAlias: serialized.relAlias,
     compileStats: serialized.compileStats,
     meta: libMeta,
+    patterns: libPatterns,
     main: null
   };
 }
@@ -506,13 +525,22 @@ function hydrateObject(object) {
   }
   codes.load(object.codes);
   const hydratedRels = Object.fromEntries(
-    Object.entries(object.rels).map(([name, rel]) => [name, hydrateRelation(rel)])
+    Object.entries(object.rels).map(([name, rel]) => [
+      name,
+      hydrateRelation(rel)
+    ])
   );
-  return { ...object, rels: hydratedRels };
+  return {
+    ...object,
+    rels: hydratedRels,
+    patterns: object.patterns || {}
+  };
 }
 
 function loadLibrary(object) {
-  const hydrated = isHydratedObject(object) ? object : hydrateObject(object);
+  const hydrated = isHydratedObject(object)
+    ? object
+    : hydrateObject(object);
   if (hydrated.main != null) {
     throw new Error("Expected a library (main: null), got an executable");
   }

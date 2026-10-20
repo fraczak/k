@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#comment-block" },
     { "include": "#comment-line" },
+    { "include": "#pattern-definition" },
     { "include": "#type-definition" },
     { "include": "#relation-definition" },
     { "include": "#main-relation-expression" }
@@ -24,6 +25,31 @@
     "comment-line": {
       "name": "comment.line.k",
       "match": "(?://|--|%|#|\\\\\\\\).*$"
+    },
+    "pattern-definition": {
+      "comment": "name[P1, ...] = filter; defines a named pattern",
+      "name": "meta.definition.pattern.k",
+      "contentName": "meta.expression.pattern.k",
+      "begin": "([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)([^\\]]*)(\\])\\s*(=)",
+      "end": "(;)",
+      "beginCaptures": {
+        "1": { "name": "entity.name.function.pattern.k" },
+        "2": { "name": "punctuation.section.brackets.begin.k" },
+        "3": { "name": "variable.parameter.pattern.k" },
+        "4": { "name": "punctuation.section.brackets.end.k" },
+        "5": { "name": "keyword.operator.assignment.k" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.terminator.definition.k" }
+      },
+      "patterns": [
+        { "include": "#filter-union" },
+        { "include": "#filter-product" },
+        { "include": "#filter-any" },
+        { "include": "#filter-pattern-apply" },
+        { "include": "#comment-block" },
+        { "include": "#comment-line" }
+      ]
     },
     "type-definition": {
       "comment": "$ name = code; defines a named code (type)",
@@ -357,6 +383,18 @@
         },
         {
           "name": "meta.expression.filter.k",
+          "match":
+            "(\\?)\\s*([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)([^\\]]*)(\\])",
+          "captures": {
+            "1": { "name": "keyword.operator.filter.k" },
+            "2": { "name": "entity.name.function.pattern.k" },
+            "3": { "name": "punctuation.section.brackets.begin.k" },
+            "4": { "name": "meta.arguments.pattern.k" },
+            "5": { "name": "punctuation.section.brackets.end.k" }
+          }
+        },
+        {
+          "name": "meta.expression.filter.k",
           "match": "(\\?)\\s*([a-zA-Z0-9_+\\-][a-zA-Z0-9_?!+\\-]*)",
           "captures": {
             "1": { "name": "keyword.operator.filter.k" },
@@ -417,6 +455,7 @@
       "patterns": [
         { "include": "#comment-block" },
         { "include": "#comment-line" },
+        { "include": "#filter-pattern-apply" },
         { "include": "#filter-tag" },
         { "include": "#filter-product" },
         { "include": "#filter-union" },
@@ -431,6 +470,7 @@
       "patterns": [
         { "include": "#comment-block" },
         { "include": "#comment-line" },
+        { "include": "#filter-pattern-apply" },
         { "include": "#filter-label" },
         { "include": "#filter-product" },
         { "include": "#filter-union" },
@@ -491,6 +531,17 @@
           }
         }
       ]
+    },
+    "filter-pattern-apply": {
+      "name": "meta.expression.filter.apply.k",
+      "match":
+        "([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)([^\\]]*)(\\])",
+      "captures": {
+        "1": { "name": "entity.name.function.pattern.k" },
+        "2": { "name": "punctuation.section.brackets.begin.k" },
+        "3": { "name": "meta.arguments.pattern.k" },
+        "4": { "name": "punctuation.section.brackets.end.k" }
+      }
     },
     "pattern-variable": {
       "name": "variable.other.pattern.k",

@@ -233,7 +233,7 @@ export function expandExp(
 }
 
 export function expandPatternsInRels(rels, patterns = {}, options = {}) {
-  const allPatterns = { ...patterns };
+  const allPatterns = { ...(options.patterns || {}), ...patterns };
   if (options.libraries) {
     for (const lib of options.libraries) {
       const libPatterns =

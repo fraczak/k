@@ -1930,6 +1930,20 @@ const htmlContent = `<!DOCTYPE html>
             <table class="help-table">
               <tr><td><code>:engine [wasm|pkir|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code>, <code>pkir</code>, or <code>js</code>)</td></tr>
               <tr><td><code>:load &lt;file&gt;</code></td><td>Load a <code>.k</code> source or <code>.klib</code> library into current state</td></tr>
+              <tr>
+                <td><code>:pattern &lt;name&gt;</code></td>
+                <td>
+                  Display definition of named pattern
+                  <code>&lt;name&gt;</code> (alias <code>:pat</code>)
+                </td>
+              </tr>
+              <tr>
+                <td><code>:patterns</code></td>
+                <td>
+                  List defined named pattern templates
+                  (alias <code>:pats</code>)
+                </td>
+              </tr>
               <tr><td><code>:rel &lt;name&gt;</code></td><td>Display definition of relation <code>&lt;name&gt;</code></td></tr>
               <tr><td><code>:rels</code></td><td>List all relation aliases</td></tr>
               <tr><td><code>:codecs</code></td><td>List all loaded format codecs</td></tr>

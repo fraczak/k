@@ -37,6 +37,8 @@ is complete.
 | `:wasm` / `:pkir` / `:js` | Shortcut to switch engine |
 | `:rel name` | Show relation definition |
 | `:rels` | List relation aliases |
+| `:pattern name` | Show named pattern definition (alias: `:pat`) |
+| `:patterns` | List defined named pattern templates (alias: `:pats`) |
 | `:limit [num\|none]` | Set maximum characters for value output (default: 4096) |
 | `:codec load file` | Load a codec from an ES module file (e.g. `:codec load codecs/int.mjs`) |
 | `:codec unload name` | Unload a registered codec |
@@ -101,6 +103,7 @@ The interpreter keeps:
 
 - `rels`: canonical compiled relations
 - `relAliases`: human relation names to canonical hashes
+- `patterns`: defined named pattern templates
 - `value`: current value, initially `{}`
 
 Definitions are content-addressed. Rebinding an alias changes the
