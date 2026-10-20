@@ -2,168 +2,112 @@
 -- Works with codecs/djson.mjs (k-djson) and codecs/utf8.mjs (k-utf8).
 
 ---------------------------------------------------------------
--- §1. Universal JSON Filter (json?) and Component Schemas
+-- §1. Named Pattern Definitions & Component Schemas
 ---------------------------------------------------------------
 
-json? = ?<
-  {
-    < {} "+", {} "-" > sign,
-    {
-      < {} 0, {} 1 >=Bit 0,
-      Bit 1, Bit 2, Bit 3, Bit 4, Bit 5,
-      Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
-    } exponent,
-    {
-      Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5,
-      Bit 6, Bit 7, Bit 8, Bit 9, Bit 10, Bit 11,
-      Bit 12, Bit 13, Bit 14, Bit 15, Bit 16, Bit 17,
-      Bit 18, Bit 19, Bit 20, Bit 21, Bit 22, Bit 23,
-      Bit 24, Bit 25, Bit 26, Bit 27, Bit 28, Bit 29,
-      Bit 30, Bit 31, Bit 32, Bit 33, Bit 34, Bit 35,
-      Bit 36, Bit 37, Bit 38, Bit 39, Bit 40, Bit 41,
-      Bit 42, Bit 43, Bit 44, Bit 45, Bit 46, Bit 47,
-      Bit 48, Bit 49, Bit 50, Bit 51
-    } fraction
-  } number,
+bit[] = < {} 0, {} 1 >;
 
-  <
-    {} nil,
-    {
-      <
-        {
-          Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6
-        }=Bits7 ascii,
-        {
-          <
-            { Bit 0, Bit 1, Bit 2 }=Bits3 h08_0F,
-            Bits7 h10_7F,
-            Bits7 h80_CF,
-            Bits3 hD0_D7,
-            {} hF9,
-            { Bit 0 }=Bits1 hFA_FB,
-            Bits1 hFC_FD,
-            Bits1 hFE_FF
-          > hi,
-          {
-            Bit 0, Bit 1, Bit 2, Bit 3,
-            Bit 4, Bit 5, Bit 6, Bit 7
-          }=Bits8 lo
-        } bmp_common,
-        {
-          <
-            { Bit 0, Bit 1, Bit 2, Bit 3 } hE0_EF,
-            Bits3 hF0_F7,
-            {} hF8
-          > hi,
-          Bits8 lo
-        } bmp_private_use,
-        {
-          Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5,
-          Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
-        } plane0,
-        { Bits8 mid, Bits8 lo } supplementary_plane1,
-        {
-          <
-            Bits1 p02_03,
-            { Bit 0, Bit 1 } p04_07,
-            Bits3 p08_0F,
-            {} p10
-          > plane,
-          Bits8 mid,
-          Bits8 lo
-        } supplementary_planes2_16
-      > car,
-      Str cdr
-    } cons
-  >=Str string,
+sign[] = < {} "+", {} "-" >;
 
-  < {} true, {} false > bool,
-
-  {} null,
-
-  < {} nil, { JSON car, LIST cdr } cons >=LIST list,
-
-  < {} nil, { { Str key, JSON val } car, OBJ cdr } cons >=OBJ object
->=JSON;
-
-bit? = ?< {} 0, {} 1 >;
-
-string? = ?<
-  {} nil,
-  {
-    <
-      {
-        < {} 0, {} 1 >=Bit 0,
-        Bit 1, Bit 2, Bit 3, Bit 4, Bit 5, Bit 6
-      }=Bits7 ascii,
-      {
-        <
-          { Bit 0, Bit 1, Bit 2 }=Bits3 h08_0F,
-          Bits7 h10_7F,
-          Bits7 h80_CF,
-          Bits3 hD0_D7,
-          {} hF9,
-          { Bit 0 }=Bits1 hFA_FB,
-          Bits1 hFC_FD,
-          Bits1 hFE_FF
-        > hi,
-        {
-          Bit 0, Bit 1, Bit 2, Bit 3,
-          Bit 4, Bit 5, Bit 6, Bit 7
-        }=Bits8 lo
-      } bmp_common,
-      {
-        <
-          { Bit 0, Bit 1, Bit 2, Bit 3 } hE0_EF,
-          Bits3 hF0_F7,
-          {} hF8
-        > hi,
-        Bits8 lo
-      } bmp_private_use,
-      {
-        Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5,
-        Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
-      } plane0,
-      { Bits8 mid, Bits8 lo } supplementary_plane1,
-      {
-        <
-          Bits1 p02_03,
-          { Bit 0, Bit 1 } p04_07,
-          Bits3 p08_0F,
-          {} p10
-        > plane,
-        Bits8 mid,
-        Bits8 lo
-      } supplementary_planes2_16
-    > car,
-    String cdr
-  } cons
-> = String;
-
-float64? = ?{
-  < {} "+", {} "-" > sign,
-  {
-    < {} 0, {} 1 >=Bit 0,
-    Bit 1, Bit 2, Bit 3, Bit 4, Bit 5,
-    Bit 6, Bit 7, Bit 8, Bit 9, Bit 10
-  } exponent,
-  {
-    Bit 0, Bit 1, Bit 2, Bit 3, Bit 4, Bit 5,
-    Bit 6, Bit 7, Bit 8, Bit 9, Bit 10, Bit 11,
-    Bit 12, Bit 13, Bit 14, Bit 15, Bit 16, Bit 17,
-    Bit 18, Bit 19, Bit 20, Bit 21, Bit 22, Bit 23,
-    Bit 24, Bit 25, Bit 26, Bit 27, Bit 28, Bit 29,
-    Bit 30, Bit 31, Bit 32, Bit 33, Bit 34, Bit 35,
-    Bit 36, Bit 37, Bit 38, Bit 39, Bit 40, Bit 41,
-    Bit 42, Bit 43, Bit 44, Bit 45, Bit 46, Bit 47,
-    Bit 48, Bit 49, Bit 50, Bit 51
-  } fraction
+exponent[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4,
+  bit[] 5, bit[] 6, bit[] 7, bit[] 8, bit[] 9, bit[] 10
 };
 
-bool? = ?< {} true, {} false >;
-null? = ?{};
-list? = ?< {} nil, { X car, Y cdr } cons > = Y;
-object? = ?< {} nil, { { K key, V val } car, O cdr } cons > = O;
+fraction[] = {
+  bit[] 0,  bit[] 1,  bit[] 2,  bit[] 3,  bit[] 4,  bit[] 5,
+  bit[] 6,  bit[] 7,  bit[] 8,  bit[] 9,  bit[] 10, bit[] 11,
+  bit[] 12, bit[] 13, bit[] 14, bit[] 15, bit[] 16, bit[] 17,
+  bit[] 18, bit[] 19, bit[] 20, bit[] 21, bit[] 22, bit[] 23,
+  bit[] 24, bit[] 25, bit[] 26, bit[] 27, bit[] 28, bit[] 29,
+  bit[] 30, bit[] 31, bit[] 32, bit[] 33, bit[] 34, bit[] 35,
+  bit[] 36, bit[] 37, bit[] 38, bit[] 39, bit[] 40, bit[] 41,
+  bit[] 42, bit[] 43, bit[] 44, bit[] 45, bit[] 46, bit[] 47,
+  bit[] 48, bit[] 49, bit[] 50, bit[] 51
+};
+
+number[] = {
+  sign[] sign,
+  exponent[] exponent,
+  fraction[] fraction
+};
+
+byte[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
+  bit[] 4, bit[] 5, bit[] 6, bit[] 7
+};
+
+ascii[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
+  bit[] 4, bit[] 5, bit[] 6
+};
+
+bmp_hi_common[] = <
+  { bit[] 0, bit[] 1, bit[] 2 } h08_0F,
+  ascii[] h10_7F,
+  ascii[] h80_CF,
+  { bit[] 0, bit[] 1, bit[] 2 } hD0_D7,
+  {} hF9,
+  { bit[] 0 } hFA_FB,
+  { bit[] 0 } hFC_FD,
+  { bit[] 0 } hFE_FF
+>;
+
+bmp_hi_private_use[] = <
+  { bit[] 0, bit[] 1, bit[] 2, bit[] 3 } hE0_EF,
+  { bit[] 0, bit[] 1, bit[] 2 } hF0_F7,
+  {} hF8
+>;
+
+plane0[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4,
+  bit[] 5, bit[] 6, bit[] 7, bit[] 8, bit[] 9, bit[] 10
+};
+
+plane_02_10[] = <
+  { bit[] 0 } p02_03,
+  { bit[] 0, bit[] 1 } p04_07,
+  { bit[] 0, bit[] 1, bit[] 2 } p08_0F,
+  {} p10
+>;
+
+unicode[] = <
+  ascii[] ascii,
+  { bmp_hi_common[] hi, byte[] lo } bmp_common,
+  { bmp_hi_private_use[] hi, byte[] lo } bmp_private_use,
+  plane0[] plane0,
+  { byte[] mid, byte[] lo } supplementary_plane1,
+  { plane_02_10[] plane, byte[] mid, byte[] lo } supplementary_planes2_16
+>;
+
+string[] = < {} nil, { unicode[] car, S cdr } cons > = S;
+
+bool[] = < {} true, {} false >;
+
+list[X] = < {} nil, { X car, L cdr } cons > = L;
+
+pair[K, V] = { K key, V val };
+
+object[V] = list[pair[string[], V]];
+
+djson[] = <
+  number[] number,
+  string[] string,
+  bool[] bool,
+  {} null,
+  list[J] list,
+  object[J] object
+> = J;
+
+json? = ? djson[];
+
+bit? = ? bit[];
+string? = ? string[];
+float64? = ? number[];
+bool? = ? bool[];
+null? = ? {};
+list? = ? list[X];
+object? = ? list[pair[K, V]];
 
 ---------------------------------------------------------------
 -- §2. Constructors and Projections
