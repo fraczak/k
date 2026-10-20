@@ -5,6 +5,57 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.0] — 2026-10-20 — Named Patterns, Type Schemes & Trie Codecs
+
+### Language & Type System
+
+- **Named Patterns & Parameterized Schemes (`named-patterns.mjs`)**:
+  - Introduced first-class syntax for closed named patterns:
+    `byte[] = { bit 0, bit 1, ... };` and `bool[] = < bit false, ... >;`.
+  - Added parameterized type schemes with explicit type variables:
+    `list[X] = < X head, (list[X]) tail >;` and
+    `pair[A, B] = { A first, B second };`.
+  - Implemented monomorphic expansion with cycle detection and sharing.
+  - Full object file support: `.ko` and `.klib` payloads serialize and
+    deserialize named pattern tables alongside relations.
+
+- **Standard Library & Examples Refactoring**:
+  - Adopted named patterns throughout `core.k` (`bit[]`, `byte[]`,
+    `pair[A, B]`, `either[A, B]`, `option[X]`).
+  - Refactored `Examples/*.k` (`djson.k`, `arithmetics.k`, `bnat.k`,
+    `nat.k`, `code.k`, `karatsuba-mult.k`, `poly.k`, `vhdl_to_k.k`)
+    for clarity and conciseness using named patterns.
+
+### Dynamic JSON Codecs
+
+- **Bit-Trie Codec (`codecs/djson-btrie.mjs`, `k-djson-btrie`)**:
+  - Added binary bit-trie dynamic JSON codec with variable-length
+    bit prefixing for compact wire encodings.
+  - Accompanied by formal K specification in `Examples/djson-btrie.k`.
+
+- **Packed Nibble-Trie Codec (`codecs/djson-ptrie.mjs`)**:
+  - Added packed 4-bit nibble trie codec (`k-djson-ptrie`) for
+    optimized traversal.
+  - Accompanied by formal K specification in `Examples/djson-ptrie.k`.
+
+- **JSON Approaches Comparison & Benchmarks**:
+  - Added comparative architecture and benchmark documentation in
+    `DOCS/JSON_APPROACHES_COMPARISON.md`.
+  - Added benchmark suite in `scripts/perf-djson.mjs` and
+    `tests/bench-djson-tries.mjs`.
+
+### Interactive REPL & Tooling
+
+- **Pattern Inspection & Persistence in REPL**:
+  - Added `:patterns` / `:pat` commands to inspect loaded patterns.
+  - Display canonical type code / relation hashes:
+    `name[] = ...  -- @hash`.
+  - Added pattern lookup by `@hash` (`:pattern @hash`, `:pat @hash`).
+  - Tab-completion support for pattern names and canonical `@hashes`.
+  - Full pattern persistence across REPL sessions via `.klib` files.
+
+---
+
 ## [7.2.0] — 2026-10-17 — Dynamic JSON Codec (djson) & Lazy Wire Decoding
 
 ### Features & Performance Improvements
@@ -440,6 +491,21 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+[8.0.0]: https://github.com/fraczak/k/releases/tag/v8.0.0
+[7.2.0]: https://github.com/fraczak/k/releases/tag/v7.2.0
+[7.1.0]: https://github.com/fraczak/k/releases/tag/v7.1.0
+[7.0.2]: https://github.com/fraczak/k/releases/tag/v7.0.2
+[7.0.1]: https://github.com/fraczak/k/releases/tag/v7.0.1
+[7.0.0]: https://github.com/fraczak/k/releases/tag/v7.0.0
+[6.10.6]: https://github.com/fraczak/k/releases/tag/v6.10.6
+[6.10.5]: https://github.com/fraczak/k/releases/tag/v6.10.5
+[6.10.4]: https://github.com/fraczak/k/releases/tag/v6.10.4
+[6.10.3]: https://github.com/fraczak/k/releases/tag/v6.10.3
+[6.10.2]: https://github.com/fraczak/k/releases/tag/v6.10.2
+[6.10.1]: https://github.com/fraczak/k/releases/tag/v6.10.1
+[6.10.0]: https://github.com/fraczak/k/releases/tag/v6.10.0
+[6.9.0]: https://github.com/fraczak/k/releases/tag/v6.9.0
+[6.5.0]: https://github.com/fraczak/k/releases/tag/v6.5.0
 [6.2.3]: https://github.com/fraczak/k/releases/tag/v6.2.3
 [6.1.0]: https://github.com/fraczak/k/releases/tag/v6.1.0
 [6.0.0]: https://github.com/fraczak/k/releases/tag/v6.0.0
