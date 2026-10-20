@@ -366,10 +366,53 @@ function listAliases(aliases) {
   return entries.map(([name, hash]) => `${name} = ${hash}`).join("\n");
 }
 
-function prettyPattern(name, pat) {
+function resolvePatternCanonicalName(state, name, pat) {
+  if (!state || !pat) return null;
+  if (pat._canonical) return pat._canonical;
+  const params = pat.params || [];
+  const source = `? ${name}[${params.join(", ")}]`;
+  try {
+    restoreCodes(state);
+    const annotated = annotate(source, {
+      libraries: [stateLibrary(state)],
+      patterns: state.patterns
+    });
+    const mainRel = annotated.rels.__main__;
+    if (
+      mainRel?.typePatternGraph &&
+      mainRel?.def?.patterns?.[0] != null
+    ) {
+      const rootId = mainRel.typePatternGraph.find(
+        mainRel.def.patterns[0]
+      );
+      const propList = patternToPropertyList(
+        exportPatternGraph(mainRel.typePatternGraph, rootId)
+      );
+      const codeHash = closedPatternToCodeHash(propList);
+      if (codeHash) {
+        state.codes = codes.dump();
+        pat._canonical = codeHash;
+        return codeHash;
+      }
+    }
+    const relHash = annotated.relAlias?.__main__ || null;
+    if (relHash) {
+      pat._canonical = relHash;
+      return relHash;
+    }
+  } catch {
+    restoreCodes(state);
+    return null;
+  }
+  return null;
+}
+
+function prettyPattern(name, pat, state = null) {
   const params = (pat?.params || []).join(", ");
   const filterStr = pat?.filter ? prettyFilter(pat.filter) : "()";
-  return `${name}[${params}] = ${filterStr};`;
+  const canonical = resolvePatternCanonicalName(state, name, pat);
+  const suffix = canonical ? `  -- ${canonical}` : "";
+  return `${name}[${params}] = ${filterStr};${suffix}`;
 }
 
 function listPatterns(patterns) {
@@ -823,6 +866,14 @@ function completeCommandArgument(line, state) {
     const matches = names
       .filter((name) => name.startsWith(trimmed))
       .map((name) => `${prefix}${name}`);
+    if (trimmed.startsWith("@")) {
+      for (const [name, p] of Object.entries(state.patterns || {})) {
+        const hash = resolvePatternCanonicalName(state, name, p);
+        if (hash && hash.startsWith(trimmed)) {
+          matches.push(`${prefix}${hash}`);
+        }
+      }
+    }
     return [matches, line];
   }
 
@@ -1328,12 +1379,23 @@ async function evaluateCommand(line, state) {
         throw new Error(`${usagePrefix}pattern requires a pattern name`);
       }
       const rawName = arg.trim();
-      const patternName = rawName.replace(/\[.*\]$/, "").trim();
-      const pat = state.patterns?.[patternName];
+      let patternName = rawName.replace(/\[.*\]$/, "").trim();
+      let pat = state.patterns?.[patternName];
+      if (!pat && patternName.startsWith("@")) {
+        for (const [name, p] of Object.entries(state.patterns || {})) {
+          if (
+            resolvePatternCanonicalName(state, name, p) === patternName
+          ) {
+            patternName = name;
+            pat = p;
+            break;
+          }
+        }
+      }
       if (!pat) {
         throw new Error(`Unknown pattern '${rawName}'`);
       }
-      return [prettyPattern(patternName, pat)];
+      return [prettyPattern(patternName, pat, state)];
     }
     case "patterns":
     case "pats":
@@ -1656,5 +1718,6 @@ export {
   ensureEnveloped,
   patternFromFilter,
   prettyPattern,
+  resolvePatternCanonicalName,
   listPatterns
 };

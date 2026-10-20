@@ -663,11 +663,32 @@ output = await evaluateInput(":pats", patState);
 assert.equal(output[0], "bit[]");
 
 output = await evaluateInput(":pattern bit", patState);
-assert.equal(output[0], "bit[] = <{} 0, {} 1>;");
+assert.equal(
+  output[0],
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+);
 output = await evaluateInput(":pattern bit[]", patState);
-assert.equal(output[0], "bit[] = <{} 0, {} 1>;");
+assert.equal(
+  output[0],
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+);
 output = await evaluateInput(":pat bit", patState);
-assert.equal(output[0], "bit[] = <{} 0, {} 1>;");
+assert.equal(
+  output[0],
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+);
+output = await evaluateInput(
+  ":pattern @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg",
+  patState
+);
+assert.equal(
+  output[0],
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+);
 
 await assert.rejects(
   () => evaluateInput(":pattern unknown", patState),
@@ -688,6 +709,12 @@ completions = completeInput(":pattern b", patState)[0];
 assert(completions.includes(":pattern bit"));
 completions = completeInput(":pat b", patState)[0];
 assert(completions.includes(":pat bit"));
+completions = completeInput(":pattern @Mjusy", patState)[0];
+assert(
+  completions.includes(
+    ":pattern @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+  )
+);
 
 output = await evaluateInput("{} | 0 ? bit[]", patState);
 assert.match(output[0], /\{\}\|0/);
@@ -697,7 +724,11 @@ output = await evaluateInput(
   patState
 );
 output = await evaluateInput(":pattern pair", patState);
-assert.equal(output[0], "pair[A, B] = {A first, B second};");
+assert.equal(
+  output[0],
+  "pair[A, B] = {A first, B second};  -- " +
+    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
+);
 
 output = await evaluateInput(":load Examples/list.k", patState);
 assert.equal(output[0], "loaded Examples/list.k");
@@ -705,6 +736,13 @@ output = await evaluateInput(":patterns", patState);
 assert(output[0].includes("bit[]"));
 assert(output[0].includes("list[X]"));
 assert(output[0].includes("pair[A, B]"));
+
+output = await evaluateInput(":pattern list", patState);
+assert.equal(
+  output[0],
+  "list[X] = <{} nil, {X car, Y cdr} cons>=Y;  -- " +
+    "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe"
+);
 
 output = await evaluateInput("{} | nil ? list[bit[]]", patState);
 assert.match(output[0], /\{\}\|nil/);
@@ -722,7 +760,11 @@ assert(output[0].includes("pair[A, B]"));
 assert(output[0].includes("list[X]"));
 
 output = await evaluateInput(":pattern bit", freshState);
-assert.equal(output[0], "bit[] = <{} 0, {} 1>;");
+assert.equal(
+  output[0],
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+);
 output = await evaluateInput("{} | nil ? list[bit[]]", freshState);
 assert.match(output[0], /\{\}\|nil/);
 
