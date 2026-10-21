@@ -581,73 +581,32 @@ assert.equal(output[0], "output limit disabled");
 output = await evaluateInput(":limit", limitState);
 assert.equal(output[0], "Current output limit: none");
 
-// Verify Examples/djson.k (json?, dot, has_key?, keys, values, remove, put)
-const jsonKState = createState({ engine: "wasm" });
-output = await evaluateInput(":load Examples/djson.k", jsonKState);
+// Verify Examples/djson.k (json?, get, nth, set, del)
+const djsonKState = createState({ engine: "wasm" });
+output = await evaluateInput(":load Examples/djson.k", djsonKState);
 assert.equal(output[0], "loaded Examples/djson.k");
-await evaluateInput(":codec load codecs/djson.mjs", jsonKState);
+await evaluateInput(":codec load codecs/djson.mjs", djsonKState);
 await evaluateInput(
-  ':input djson.mjs {"name":"Alice","age":30,"active":true}',
-  jsonKState
-);
-output = await evaluateInput(
-  "{/object cdr car .key key, /object object} dot",
-  jsonKState
-);
-assert.match(output[0], /djson\.mjs: 30/);
-
-await evaluateInput(
-  ':input djson.mjs {"name":"Alice","age":30}',
-  jsonKState
-);
-output = await evaluateInput(
-  "{/object car .key key, /object object} remove object",
-  jsonKState
-);
-assert.match(output[0], /djson\.mjs: \{"name":"Alice"\}/);
-
-// Verify Examples/djson-btrie.k (json?, get, nth, set, del)
-const btrieState = createState({ engine: "wasm" });
-output = await evaluateInput(":load Examples/djson-btrie.k", btrieState);
-assert.equal(output[0], "loaded Examples/djson-btrie.k");
-await evaluateInput(":codec load codecs/djson-btrie.mjs", btrieState);
-await evaluateInput(
-  ':input djson-btrie.mjs ["age", {"name":"Alice","age":30}]',
-  btrieState
+  ':input djson.mjs ["age", {"name":"Alice","age":30}]',
+  djsonKState
 );
 output = await evaluateInput(
   "{{0 index, () json} nth /string key, " +
     "{1 index, () json} nth json} get",
-  btrieState
+  djsonKState
 );
-assert.match(output[0], /djson-btrie\.mjs: 30/);
+assert.match(output[0], /djson\.mjs: 30/);
 
 await evaluateInput(
-  ':input djson-btrie.mjs ["age", {"name":"Alice","age":30}]',
-  btrieState
+  ':input djson.mjs ["age", {"name":"Alice","age":30}]',
+  djsonKState
 );
 output = await evaluateInput(
   "{{0 index, () json} nth /string key, " +
     "{1 index, () json} nth json} del",
-  btrieState
+  djsonKState
 );
-assert.match(output[0], /djson-btrie\.mjs: \{"name":"Alice"\}/);
-
-// Verify Examples/djson-ptrie.k (json?, dot, nth, list_size, obj_size)
-const ptrieState = createState({ engine: "wasm" });
-output = await evaluateInput(":load Examples/djson-ptrie.k", ptrieState);
-assert.equal(output[0], "loaded Examples/djson-ptrie.k");
-await evaluateInput(":codec load codecs/djson-ptrie.mjs", ptrieState);
-await evaluateInput(
-  ':input djson-ptrie.mjs ["age", {"name":"Alice","age":30}]',
-  ptrieState
-);
-output = await evaluateInput(
-  "{{0 index, /list list} nth /string key, " +
-    "{1 index, /list list} nth /object object} dot",
-  ptrieState
-);
-assert.match(output[0], /djson-ptrie\.mjs: 30/);
+assert.match(output[0], /djson\.mjs: \{"name":"Alice"\}/);
 
 // Verify named pattern persistence, listing, display, and tab completion
 const patState = createState({ engine: "wasm" });

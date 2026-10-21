@@ -1,26 +1,22 @@
 # Comparison of JSON Approaches in k
 
-This document compares the four JSON codec and schema implementations in
-the **k** repository:
+> [!NOTE]
+> **Resolution**: The **binary bit-trie** was selected and standardized
+> as the sole dynamic JSON implementation in `codecs/djson.mjs` and
+> `Examples/djson.k`. The cons-list and Patricia trie implementations
+> were removed. This document preserves the architectural comparison
+> and benchmark findings that guided this design decision.
+
+This document compares the JSON codec and schema implementations:
 
 1. **Schema-Specializing JSON** (`json`):
    [`codecs/json.mjs`][json-mjs]
-2. **Dynamic Cons-List JSON** (`djson`):
+2. **Universal Dynamic JSON (Binary Bit-Trie)** (`djson`):
    [`codecs/djson.mjs`][djson-mjs] & [`Examples/djson.k`][djson-k]
-3. **Dynamic Binary Bit-Trie JSON** (`djson-btrie`):
-   [`codecs/djson-btrie.mjs`][djson-btrie-mjs] &
-   [`Examples/djson-btrie.k`][djson-btrie-k]
-4. **Dynamic Patricia/Radix Trie JSON** (`djson-ptrie`):
-   [`codecs/djson-ptrie.mjs`][djson-ptrie-mjs] &
-   [`Examples/djson-ptrie.k`][djson-ptrie-k]
 
 [json-mjs]: file:///home/wojtek/gits/K/k/codecs/json.mjs
 [djson-mjs]: file:///home/wojtek/gits/K/k/codecs/djson.mjs
 [djson-k]: file:///home/wojtek/gits/K/k/Examples/djson.k
-[djson-btrie-mjs]: file:///home/wojtek/gits/K/k/codecs/djson-btrie.mjs
-[djson-btrie-k]: file:///home/wojtek/gits/K/k/Examples/djson-btrie.k
-[djson-ptrie-mjs]: file:///home/wojtek/gits/K/k/codecs/djson-ptrie.mjs
-[djson-ptrie-k]: file:///home/wojtek/gits/K/k/Examples/djson-ptrie.k
 
 ---
 

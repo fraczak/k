@@ -9,8 +9,6 @@ import * as SDK from "../codecs/runtime/codec-sdk.mjs";
 import * as IntCodec from "../codecs/int.mjs";
 import * as JsonCodec from "../codecs/json.mjs";
 import * as DjsonCodec from "../codecs/djson.mjs";
-import * as DjsonBtrieCodec from "../codecs/djson-btrie.mjs";
-import * as DjsonPtrieCodec from "../codecs/djson-ptrie.mjs";
 import * as Utf8Codec from "../codecs/utf8.mjs";
 import * as Utf16Codec from "../codecs/utf16.mjs";
 import * as IeeeCodec from "../codecs/ieee.mjs";
@@ -57,16 +55,6 @@ for (const [name, codec, sampleInput] of [
   ["int.mjs", IntCodec, "42"],
   ["json.mjs", JsonCodec, '{"x": 1}'],
   ["djson.mjs", DjsonCodec, '{"x": 1, "arr": [true, null, "hi"]}'],
-  [
-    "djson-btrie.mjs",
-    DjsonBtrieCodec,
-    '{"x": 1, "arr": [true, null, "hi"]}'
-  ],
-  [
-    "djson-ptrie.mjs",
-    DjsonPtrieCodec,
-    '{"x": 1, "arr": [true, null, "hi"]}'
-  ],
   ["utf8.mjs", Utf8Codec, "hello"],
   ["utf16.mjs", Utf16Codec, "hello"],
   ["ieee.mjs", IeeeCodec, "3.14"],
@@ -87,8 +75,6 @@ for (const relPath of [
   "codecs/int.mjs",
   "codecs/json.mjs",
   "codecs/djson.mjs",
-  "codecs/djson-btrie.mjs",
-  "codecs/djson-ptrie.mjs",
   "codecs/utf8.mjs",
   "codecs/utf16.mjs",
   "codecs/ieee.mjs",
@@ -328,15 +314,11 @@ console.log("8. Verifying fast string decoding & bounded rendering...");
   );
 }
 
-// 9. DJSON Family Singleton Pattern Invariants & Round-Trip
-console.log("9. Verifying DJSON family singleton pattern invariants...");
+// 9. DJSON Singleton Pattern Invariants & Round-Trip
+console.log("9. Verifying DJSON singleton pattern invariants...");
 {
   assert(Array.isArray(DjsonCodec.DJSON_PATTERN));
-  assert.equal(DjsonCodec.DJSON_PATTERN.length, 29);
-  assert(Array.isArray(DjsonBtrieCodec.DJSON_BTRIE_PATTERN));
-  assert.equal(DjsonBtrieCodec.DJSON_BTRIE_PATTERN.length, 27);
-  assert(Array.isArray(DjsonPtrieCodec.DJSON_PTRIE_PATTERN));
-  assert.equal(DjsonPtrieCodec.DJSON_PTRIE_PATTERN.length, 33);
+  assert.equal(DjsonCodec.DJSON_PATTERN.length, 27);
 
   const samples = [
     null,
@@ -351,19 +333,7 @@ console.log("9. Verifying DJSON family singleton pattern invariants...");
   ];
 
   for (const [label, codec, pat, relPath] of [
-    ["djson", DjsonCodec, DjsonCodec.DJSON_PATTERN, "codecs/djson.mjs"],
-    [
-      "djson-btrie",
-      DjsonBtrieCodec,
-      DjsonBtrieCodec.DJSON_BTRIE_PATTERN,
-      "codecs/djson-btrie.mjs"
-    ],
-    [
-      "djson-ptrie",
-      DjsonPtrieCodec,
-      DjsonPtrieCodec.DJSON_PTRIE_PATTERN,
-      "codecs/djson-ptrie.mjs"
-    ]
+    ["djson", DjsonCodec, DjsonCodec.DJSON_PATTERN, "codecs/djson.mjs"]
   ]) {
     for (const sample of samples) {
       const jsonStr = JSON.stringify(sample);

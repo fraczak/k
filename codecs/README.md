@@ -105,9 +105,7 @@ as `k-parse.mjs`, keep that name. Every installed codec binary supports
 | `k-print` | `k-print.mjs` | Read a binary pattern+value stream and write the decoded JSON-like value. Use `--debug` to include the decoded pattern. |
 | `k-show` | `show.mjs` | Pass the wire stream through unchanged on stdout while printing the decoded value and filter to stderr. |
 | `k-json` | `json.mjs` | Convert JSON to/from the binary stream with `--parse` or `--print`. |
-| `k-djson` | `djson.mjs` | Convert JSON to/from a universal dynamic JSON singleton pattern with `--parse` or `--print`. |
-| `k-djson-btrie` | `djson-btrie.mjs` | Binary bit-trie dynamic JSON. |
-| `k-djson-ptrie` | `djson-ptrie.mjs` | Radix trie dynamic JSON. |
+| `k-djson` | `djson.mjs` | Dynamic binary bit-trie JSON codec. |
 | `k-int` | `int.mjs` | Convert decimal integers to/from the binary stream with `--parse` or `--print`. |
 | `k-ieee` | `ieee.mjs` | Convert float literals to/from the binary stream with `--parse` or `--print`. |
 | `k-unit` | `unit.mjs` | Write or validate the unit value `{}` with `--parse` or `--print`. |

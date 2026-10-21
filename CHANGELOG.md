@@ -5,6 +5,30 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Dynamic JSON (djson) Consolidation
+
+- **Unified Binary Bit-Trie Representation**:
+  - Consolidated all dynamic JSON approaches onto the binary bit-trie
+    implementation (`btrie[V]`), eliminating linear cons-lists and
+    heap allocations in dynamic document navigation.
+  - Standardized `Examples/djson.k` as the single dynamic JSON
+    specification and `codecs/djson.mjs` (`k-djson`) as its codec.
+  - Retired obsolete cons-list and Patricia trie dynamic JSON
+    variants (`djson-btrie.k`, `djson-ptrie.k`, `djson-btrie.mjs`,
+    `djson-ptrie.mjs`, `k-djson-btrie`, `k-djson-ptrie`).
+- **Complete Standard Library on `json?`**:
+  - Implemented standard dynamic JSON methods in `Examples/djson.k`
+    operating directly on the universal `json?` type:
+    * Object operations: `get`, `has?`, `set`, `del`
+    * List operations: `nth`, `has_index?`, `set_nth`, `del_nth`,
+      `push`
+    * Enumerations: `keys`, `keys_raw`, `values`, `values_raw`
+    * Cardinality: `length` (JSON float64 number), `length_nat`
+      (`bits?`)
+    * Type inspection: `type_of` and `is_*?` predicates
+
 ## [8.0.0] — 2026-10-20 — Named Patterns, Type Schemes & Trie Codecs
 
 ### Language & Type System

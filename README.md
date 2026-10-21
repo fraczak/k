@@ -248,9 +248,7 @@ For a detailed guide to all four formats, commands, and workflows, see
 | Command | Purpose |
 | --- | --- |
 | `k-json` | Convert JSON to/from binary stream (specializing) |
-| `k-djson` | Convert JSON to/from dynamic JSON (cons-list) |
-| `k-djson-btrie` | Convert JSON to/from binary bit-trie dynamic JSON |
-| `k-djson-ptrie` | Convert JSON to/from radix trie dynamic JSON |
+| `k-djson` | Convert JSON to/from dynamic JSON (binary bit-trie) |
 | `k-int` | Convert decimal integers to/from binary stream |
 | `k-ieee` | Convert float literals to/from binary stream |
 | `k-unit` | Produce or validate the unit value |

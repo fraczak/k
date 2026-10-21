@@ -11,7 +11,7 @@ import { Value } from "../Value.mjs";
 import {
   fromJsonValue,
   toJsonValue
-} from "../codecs/djson-btrie.mjs";
+} from "../codecs/djson.mjs";
 import {
   textToStringValue,
   stringValueToText
@@ -21,7 +21,7 @@ const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   ".."
 );
-const libPath = path.join(root, "Examples", "djson-btrie.k");
+const libPath = path.join(root, "Examples", "djson.k");
 const djsonK = readFileSync(libPath, "utf8");
 
 function compileOp(op) {

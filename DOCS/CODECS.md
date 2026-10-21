@@ -158,34 +158,30 @@ The `codecs/` directory provides the following standard codecs:
   - JSON objects map directly to products `{ field: val, ... }`.
   - JSON arrays map to indexed products `{ "0": a0, "1": a1, ... }`.
   - Ideal for record-oriented projection (e.g. `.user .name`).
-- **`djson.mjs` (`k-djson`) — Universal Dynamic JSON (Cons-List)**:
-  Maps every JSON document to a single universal recursive named pattern
-  `djson[]`:
+- **`djson.mjs` (`k-djson`) — Universal Dynamic JSON (Binary Bit-Trie)**:
+  Maps every JSON document to a single universal recursive named
+  pattern `djson[]`:
   ```k
+  btrie[V] = < {} nil, { opt[V] val, T 0, T 1 } trie > = T;
+
   djson[] = <
-    float64 number,
-    str string,
-    < {} true, {} false > bool,
+    number[] number,
+    string[] string,
+    bool[] bool,
     {} null,
-    < {} nil, { J car, L cdr } cons > = L list,
-    < {} nil, { { str key, J val } car, O cdr } cons > = O object
+    btrie[J] list,
+    btrie[J] object
   > = J;
   ```
-  Because every JSON value shares the exact same static 29-node pattern,
-  a `k` relation can be compiled once against `djson[]` and process
-  arbitrary JSON documents of any shape or array/object length.
-- **`djson-btrie.mjs` (`k-djson-btrie`) — Binary Bit-Trie Dynamic JSON**:
-  Replaces the linear `list` and `object` cons-lists with a unified
-  27-node binary bit-trie (`TRIE`). Array indices (`bits?`) and string
-  keys are stored along MSB-to-LSB bit paths, enabling $O(|K|)$ lookup
-  (`get` and `nth` in `Examples/djson-btrie.k`) via direct `.0`/`.1`
-  projections with zero character-equality checks, accompanied by a
-  complete standard library on `json?` (`get`, `nth`, `has?`, `set`,
-  `del`, `push`, `keys`, `values`, `length`, `type_of`).
-- **`djson-ptrie.mjs` (`k-djson-ptrie`) — Patricia/Radix Dynamic JSON**:
-  Models `list` and `object` as path-compressed radix tries (`trie-array`
-  style) with `prefix` and $O(1)$ subtree `size` (`list_size` and
-  `obj_size` in `Examples/djson-ptrie.k`).
+  Uses a unified 27-node binary bit-trie for both arrays and objects.
+  Array indices (`bits?`) and string keys are stored along MSB-to-LSB
+  bit paths, enabling $O(|K|)$ lookup via direct `.0`/`.1` projections
+  with zero allocations and zero character-equality loops.
+  Accompanied by a complete standard library on `json?` in
+  [`Examples/djson.k`](../Examples/djson.k) (`get`, `nth`, `has?`,
+  `has_index?`, `set`, `del`, `set_nth`, `del_nth`, `push`, `keys`,
+  `keys_raw`, `values`, `values_raw`, `length`, `length_nat`,
+  `type_of`).
 
 ## Testing a Codec
 
@@ -220,9 +216,9 @@ npm test
 ## Web REPL (VFS) Bundling
 
 When `repl.html` is generated (`npm run build:repl-html`):
-- Codecs (`int.mjs`, `json.mjs`, `djson.mjs`, `djson-btrie.mjs`,
-  `djson-ptrie.mjs`, `utf8.mjs`, `unit.mjs`, `ieee.mjs`) are bundled into
-  100% self-contained ES modules with zero imports.
+- Codecs (`int.mjs`, `json.mjs`, `djson.mjs`, `utf8.mjs`, `unit.mjs`,
+  `ieee.mjs`) are bundled into 100% self-contained ES modules with zero
+  imports.
 - `runCodecCLI` is shimmed as a no-op, and `Value` helpers are directly
   inlined.
 - In the browser, the VFS serves these self-contained modules directly to
