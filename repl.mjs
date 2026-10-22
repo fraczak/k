@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { argv, exit, stdin, stdout } from "node:process";
 
 import { annotate, parse } from "./index.mjs";
+import { expandFilter } from "./named-patterns.mjs";
 import run, { constrainWithPattern, run_rel } from "./run.mjs";
 import { compileWasmArtifactFromObject, instantiateWasmArtifact } from "./backends/wasm/src/wasm.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
@@ -370,6 +371,80 @@ function listAliases(aliases) {
   return entries.map(([name, hash]) => `${name} = ${hash}`).join("\n");
 }
 
+function restoreFormalParams(canonicalFilter, pat, allPatterns) {
+  const params = pat?.params || [];
+  if (params.length === 0 || !canonicalFilter) {
+    return canonicalFilter;
+  }
+  try {
+    const expanded = expandFilter(pat.filter, allPatterns);
+    const paramPaths = [];
+    function collectPaths(filter, path) {
+      if (!filter) return;
+      if (filter.type === "name" && params.includes(filter.name)) {
+        paramPaths.push({ path, name: filter.name });
+        return;
+      }
+      if (filter.fields) {
+        for (const [key, child] of Object.entries(filter.fields)) {
+          collectPaths(child, [...path, key]);
+        }
+      }
+    }
+    collectPaths(expanded, []);
+
+    const cloned = JSON.parse(JSON.stringify(canonicalFilter));
+    const knotSubst = {};
+
+    for (const { path, name } of paramPaths) {
+      if (path.length === 0) return { type: "name", name };
+      let curr = cloned;
+      for (let i = 0; i < path.length; i++) {
+        const seg = path[i];
+        if (!curr?.fields?.[seg]) {
+          curr = null;
+          break;
+        }
+        if (i === path.length - 1) {
+          const target = curr.fields[seg];
+          if (
+            target?.type === "name" &&
+            target.name?.startsWith("X")
+          ) {
+            knotSubst[target.name] = name;
+          }
+          if (target?.name && target.name.startsWith("X")) {
+            knotSubst[target.name] = name;
+          }
+          curr.fields[seg] = { type: "name", name };
+        } else {
+          curr = curr.fields[seg];
+        }
+      }
+    }
+
+    function substKnots(node) {
+      if (!node) return;
+      if (node.type === "name" && knotSubst[node.name]) {
+        node.name = knotSubst[node.name];
+      }
+      if (node.name && knotSubst[node.name]) {
+        node.name = knotSubst[node.name];
+      }
+      if (node.fields) {
+        for (const child of Object.values(node.fields)) {
+          substKnots(child);
+        }
+      }
+    }
+    substKnots(cloned);
+
+    return cloned;
+  } catch {
+    return canonicalFilter;
+  }
+}
+
 function resolvePatternCanonicalInfo(state, name, pat) {
   if (!state || !pat) return { hash: null, def: null };
   if (pat._canonical && pat._canonicalDef) {
@@ -396,7 +471,12 @@ function resolvePatternCanonicalInfo(state, name, pat) {
         rootId
       );
       if (canonicalFilter) {
-        pat._canonicalDef = prettyFilter(canonicalFilter);
+        const restored = restoreFormalParams(
+          canonicalFilter,
+          pat,
+          state.patterns
+        );
+        pat._canonicalDef = prettyFilter(restored);
       }
       const propList = patternToPropertyList(
         exportPatternGraph(mainRel.typePatternGraph, rootId)
