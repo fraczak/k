@@ -7,6 +7,18 @@ function anError(pos,msg) {
     throw new Error(`Parse Error (lines ${pos.first_line}:${pos.first_column}...${pos.last_line}:${pos.last_column}): ${msg}`);
 }
 
+function validatePatternParams(params, name, loc) {
+    const seen = new Set();
+    for (const p of params) {
+        if (seen.has(p)) {
+            const msg =
+                `Duplicate parameter '${p}' in pattern '${name}'.`;
+            anError(loc, msg);
+        }
+        seen.add(p);
+    }
+}
+
 function getToken(yytext,yy,lstack) {
     const yylloc = yy.lexer.yylloc;
     const loc = lstack[lstack.length - 1]; //  { first_line: 5, last_line: 5, first_column: 2, last_column: 3 };
@@ -124,16 +136,7 @@ defs:                                   {  }
     | defs name eq comp sc              { s.add_rel($2.value,$4); }
     | defs name lb pattern_params rb eq filter sc
         {
-            const seen = new Set();
-            for (const p of $4) {
-                if (seen.has(p)) {
-                    const msg =
-                        `Duplicate parameter '${p}' ` +
-                        `in pattern '${$2.value}'.`;
-                    anError(@4, msg);
-                }
-                seen.add(p);
-            }
+            validatePatternParams($4, $2.value, @4);
             s.add_pattern($2.value, $4, $7);
         }
     ;
@@ -161,6 +164,26 @@ filter_
                                           args: $3,
                                           start: $1.start,
                                           end: $4.end
+                                      };
+                                  }
+    | at name lb pattern_args rb
+                                  {
+                                      $$ = {
+                                          type: "pattern_apply",
+                                          pattern: "@" + $2.value,
+                                          args: $4,
+                                          start: $1.start,
+                                          end: $5.end
+                                      };
+                                  }
+    | at name
+                                  {
+                                      $$ = {
+                                          type: "pattern_apply",
+                                          pattern: "@" + $2.value,
+                                          args: [],
+                                          start: $1.start,
+                                          end: $2.end
                                       };
                                   }
     ;

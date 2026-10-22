@@ -17,7 +17,12 @@ export {
   retypeObjectRelationForBackend,
   specializeObjectRelations
 } from "./kir.mjs";
-export { compileLibrary, decodeObject, loadLibrary } from "./object.mjs";
+export {
+  compileLibrary,
+  decodeObject,
+  loadLibrary,
+  buildExportPreamble
+} from "./object.mjs";
 export { createState, evaluateInput } from "./repl.mjs";
 export { parse as parseFloat64, print as printFloat64 } from "./codecs/ieee.mjs";
 export { valueForCode } from "./repl-codecs.mjs";

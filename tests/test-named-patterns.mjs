@@ -186,4 +186,121 @@ console.log("--> Test 7: Error handling (unknown, arity, cycles, dupes)");
   console.log("    Passed: Error conditions correctly handled.");
 }
 
+// Test 8: Canonical pattern references and aliasing
+console.log("--> Test 8: Canonical pattern references and aliasing");
+{
+  const { compileLibrary } = await import("../object.mjs");
+  const baseLib = compileLibrary(`
+    bit[] = < {}0, {}1 >;
+    list[X] = < {}nil, { X car, Y cdr } cons > = Y;
+  `, { exports: ["bit", "list"] });
+
+  const script1 = `
+    -- Canonical hash application with and without arguments
+    is_bit = ? @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
+    is_bit2 = ? @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg;
+    is_bit_list = ? @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[
+      @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[]
+    ];
+
+    b0 = {}|0 is_bit;
+    b1 = {}|1 is_bit2;
+    l = { b1 car, {}|nil cdr }|cons is_bit_list;
+    { b0 b0, b1 b1, l l }
+  `;
+  const fn1 = k.compile(script1, { libraries: [baseLib] });
+  const out1 = fn1(Value.product({}));
+  assert.equal(out1.product.b0.tag, "0");
+  assert.equal(out1.product.b1.tag, "1");
+  assert.equal(out1.product.l.tag, "cons");
+
+  // Aliasing canonical patterns
+  const script2 = `
+    my_bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
+    my_bit2[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg;
+    my_list[T] = @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[T];
+
+    is_my_list = ? my_list[my_bit[]];
+    val = { {}|0 car, {}|nil cdr }|cons is_my_list;
+    val
+  `;
+  const fn2 = k.compile(script2, { libraries: [baseLib] });
+  const out2 = fn2(Value.product({}));
+  assert.equal(out2.tag, "cons");
+  console.log("    Passed: Canonical pattern references and aliasing.");
+}
+
+// Test 9: Library export, validation, and multi-library consumption
+console.log("--> Test 9: Library export and canonical pattern metadata");
+{
+  const { compileLibrary, extractAliasesFromObject } =
+    await import("../object.mjs");
+  const { validateObjectPayload } =
+    await import("../objects/validate.mjs");
+  const { buildExportPreamble } =
+    await import("../canonical-pattern.mjs");
+
+  const libSource = `
+    bit[] = < {}0, {}1 >;
+    list[X] = < {}nil, { X car, Y cdr } cons > = Y;
+    pair[A, B] = { A first, B second };
+  `;
+  const lib = compileLibrary(libSource, {
+    exports: ["bit", "list", "pair"]
+  });
+
+  validateObjectPayload(lib);
+
+  assert.equal(
+    lib.patternAlias.bit,
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+  );
+  assert.equal(
+    lib.patternAlias.list,
+    "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe"
+  );
+  assert.equal(
+    lib.patternAlias.pair,
+    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
+  );
+
+  const bitHash = "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg";
+  const listHash = "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe";
+  assert.equal(lib.meta[bitHash].type, "pattern");
+  assert.equal(lib.meta[listHash].type, "pattern");
+
+  const aliases = extractAliasesFromObject(lib);
+  assert.match(aliases, /bit\[\] = @Mjusy/);
+  assert.match(aliases, /list\[X\] = @JagVex/);
+  assert.match(aliases, /pair\[A, B\] = @KqTB/);
+
+  const preamble = buildExportPreamble(
+    ["bit", "list:my_list"],
+    [lib]
+  );
+  assert.match(preamble, /bit\[\] = @Mjusy/);
+  assert.match(preamble, /my_list\[X\] = @JagVex/);
+
+  const consumerSource = `
+    is_bit = ? bit[];
+    is_pair = ? @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[
+      bit[], bit[]
+    ];
+    is_pair_list = ? list[@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[
+      bit[], bit[]
+    ]];
+
+    b = {}|0 is_bit;
+    p = { b first, {}|1 second } is_pair;
+    l = { p car, {}|nil cdr }|cons is_pair_list;
+    l
+  `;
+  const fnConsumer = k.compile(consumerSource, {
+    libraries: [lib]
+  });
+  const outConsumer = fnConsumer(Value.product({}));
+  assert.equal(outConsumer.tag, "cons");
+  console.log("    Passed: Library export and pattern metadata.");
+}
+
 console.log("==> All Named Patterns Tests Passed Successfully!");

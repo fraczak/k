@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   annotate,
+  buildExportPreamble,
   decodeWire,
   encodeToWire,
   exportPatternGraph,
@@ -476,35 +477,6 @@ function intersectInputEnvelope(inputPattern, valuePattern) {
 
 function validateInputEnvelope(inputPattern, valuePattern) {
   intersectInputEnvelope(inputPattern, valuePattern);
-}
-
-function buildExportPreamble(exportSpecs, libraries) {
-  if (exportSpecs.length === 0) return "";
-
-  const aliasMap = {};
-  for (const lib of libraries) {
-    for (const [name, hash] of Object.entries(lib.relAlias || {})) {
-      if (name !== "__main__") aliasMap[name] = hash;
-    }
-    for (const [hash, entry] of Object.entries(lib.meta || {})) {
-      if (entry?.type !== "rel") continue;
-      for (const origin of entry?.origins || []) {
-        if (origin?.name && origin.name !== "__main__") {
-          aliasMap[origin.name] = hash;
-        }
-      }
-    }
-  }
-
-  const lines = [];
-  for (const spec of exportSpecs) {
-    const [libName, localName] = spec.includes(":") ? spec.split(":", 2) : [spec, spec];
-    const hash = aliasMap[libName];
-    if (!hash) throw new Error(`--export: '${libName}' not found in loaded libraries`);
-    const body = hash.startsWith("@") ? hash.slice(1) : hash;
-    lines.push(`${localName} = @${body};`);
-  }
-  return lines.join("\n") + "\n";
 }
 
 async function compileWasmArtifactFromDefs(

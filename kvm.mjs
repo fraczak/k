@@ -13,7 +13,8 @@ import {
   compileLibrary,
   compileObjectBuffer,
   decodeObject,
-  loadLibrary
+  loadLibrary,
+  buildExportPreamble
 } from "./object.mjs";
 import codes from "./codes.mjs";
 import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
@@ -39,33 +40,6 @@ function isFile(filePath) {
     if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return false;
     throw error;
   }
-}
-
-function buildExportPreamble(exports, libraries) {
-  if (exports.length === 0) return "";
-  const aliasMap = {};
-  for (const lib of libraries) {
-    for (const [name, hash] of Object.entries(lib.relAlias || {})) {
-      if (name !== "__main__") aliasMap[name] = hash;
-    }
-    for (const [hash, entry] of Object.entries(lib.meta || {})) {
-      if (entry?.type !== "rel") continue;
-      for (const origin of entry?.origins || []) {
-        if (origin?.name && origin.name !== "__main__") {
-          aliasMap[origin.name] = hash;
-        }
-      }
-    }
-  }
-  const lines = [];
-  for (const spec of exports) {
-    const [libName, localName] = spec.includes(":") ? spec.split(":", 2) : [spec, spec];
-    const hash = aliasMap[libName];
-    if (!hash) throw new Error(`--export: '${libName}' not found in loaded libraries`);
-    const body = hash.startsWith("@") ? hash.slice(1) : hash;
-    lines.push(`${localName} = @${body};`);
-  }
-  return lines.join("\n") + "\n";
 }
 
 function kirFindCode(kir) {

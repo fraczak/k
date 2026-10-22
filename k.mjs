@@ -12,7 +12,8 @@ import {
   compileLibrary,
   decodeObject,
   objectToFunction,
-  loadLibrary
+  loadLibrary,
+  buildExportPreamble
 } from "./object.mjs";
 
 let kScript, inputStream;
@@ -106,42 +107,24 @@ function compileFile(filePath, libraries, preamble) {
       }
     }
 
-    function buildExportPreamble() {
-      if (exports.length === 0) return "";
-      const aliasMap = {};
-      for (const lib of libraries) {
-        for (const [name, hash] of Object.entries(lib.relAlias || {})) {
-          if (name !== "__main__") aliasMap[name] = hash;
-        }
-        for (const [hash, entry] of Object.entries(lib.meta || {})) {
-          if (entry?.type !== "rel") continue;
-          for (const origin of entry?.origins || []) {
-            if (origin?.name && origin.name !== "__main__") aliasMap[origin.name] = hash;
-          }
-        }
-      }
-      const lines = [];
-      for (const spec of exports) {
-        const [libName, localName] = spec.includes(":") ? spec.split(":", 2) : [spec, spec];
-        const hash = aliasMap[libName];
-        if (!hash) throw new Error(`--export: '${libName}' not found in loaded libraries`);
-        const body = hash.startsWith("@") ? hash.slice(1) : hash;
-        lines.push(`${localName} = @${body};`);
-      }
-      return lines.join("\n") + "\n";
-    }
+    const preamble = buildExportPreamble(exports, libraries);
 
     let kScriptStr = (function (arg) {
       if (arg == null) {
         throw new Error("Missing script argument");
       }
       if (arg === "-k") {
-        throw new Error("-k is no longer supported; pass the source/object file path directly");
+        throw new Error(
+          "-k is no longer supported; " +
+          "pass the source/object file path directly"
+        );
       }
-      if (isFile(arg)) return compileFile(arg, libraries, buildExportPreamble());
-      return buildExportPreamble() + arg;
+      if (isFile(arg)) return compileFile(arg, libraries, preamble);
+      return preamble + arg;
     })(args.shift());
-    let kScript = typeof kScriptStr === "function" ? kScriptStr : k.compile(kScriptStr, { libraries });
+    let kScript = typeof kScriptStr === "function"
+      ? kScriptStr
+      : k.compile(kScriptStr, { libraries });
     inputStream = (function (arg) {
       if (arg == null) {
         return stdin;

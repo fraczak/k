@@ -185,6 +185,7 @@ export function validateObjectPayload(object) {
   assertObject(object.codes || {}, "object.codes");
   assertObject(object.rels || {}, "object.rels");
   assertObject(object.relAlias || {}, "object.relAlias");
+  assertObject(object.patternAlias || {}, "object.patternAlias");
   assertObject(object.meta || {}, "object.meta");
   assertObject(object.compileStats || {}, "object.compileStats");
 
@@ -204,6 +205,11 @@ export function validateObjectPayload(object) {
     }
   }
 
+  for (const [name, hash] of Object.entries(object.patternAlias || {})) {
+    assertString(name, `object.patternAlias key ${name}`);
+    assertString(hash, `object.patternAlias.${name}`);
+  }
+
   for (const [name, rel] of Object.entries(object.rels || {})) {
     assertObject(rel, `object.rels.${name}`);
     validateObjectExp(rel.def, `object.rels.${name}.def`, relNames, codeNames);
@@ -214,7 +220,13 @@ export function validateObjectPayload(object) {
 
   for (const [hash, entry] of Object.entries(object.meta || {})) {
     assertObject(entry, `object.meta.${hash}`);
-    if (entry.type !== "code" && entry.type !== "rel") fail(`object.meta.${hash}.type must be code or rel`);
+    if (
+      entry.type !== "code" &&
+      entry.type !== "rel" &&
+      entry.type !== "pattern"
+    ) {
+      fail(`object.meta.${hash}.type must be code, rel, or pattern`);
+    }
     assertArray(entry.origins || [], `object.meta.${hash}.origins`);
   }
 

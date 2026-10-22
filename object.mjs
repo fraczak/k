@@ -3,6 +3,10 @@ import run, { run_rel, run_converged } from "./run.mjs";
 import codes from "./codes.mjs";
 import { TypePatternGraph } from "./TypePatternGraph.mjs";
 import { patterns2filters, prettyRel } from "./pretty.mjs";
+import {
+  resolvePatternCanonicalInfo,
+  buildExportPreamble
+} from "./canonical-pattern.mjs";
 
 const OBJECT_MAGIC = Buffer.from("KOBJ\n");
 
@@ -65,17 +69,32 @@ function isSourceName(name) {
 
 function addOrigin(meta, hash, type, origin) {
   if (!hash) return;
+  origin.type = type;
   if (!meta[hash]) {
     meta[hash] = { type, origins: [] };
   } else if (meta[hash].type == null) {
     meta[hash].type = type;
   } else if (meta[hash].type !== type) {
-    throw new Error(`Metadata type conflict for ${hash}: ${meta[hash].type} vs ${type}`);
+    if (
+      (meta[hash].type === "rel" && type === "pattern") ||
+      (meta[hash].type === "pattern" && type === "rel")
+    ) {
+      if (type === "rel") meta[hash].type = "rel";
+    } else {
+      throw new Error(
+        `Metadata type conflict for ${hash}: ` +
+        `${meta[hash].type} vs ${type}`
+      );
+    }
+  }
+  if (type === "pattern" && origin.params) {
+    meta[hash].params = origin.params;
   }
   if (meta[hash].origins.some((existing) =>
     existing.source === origin.source &&
     existing.name === origin.name &&
-    existing.compiledAt === origin.compiledAt
+    existing.compiledAt === origin.compiledAt &&
+    (existing.type || meta[hash].type) === type
   )) {
     return;
   }
@@ -288,7 +307,13 @@ function mergeMetaEntries(...metas) {
   for (const meta of metas) {
     for (const [hash, entry] of Object.entries(meta || {})) {
       const type = entry?.type;
-      if (type !== "code" && type !== "rel") continue;
+      if (
+        type !== "code" &&
+        type !== "rel" &&
+        type !== "pattern"
+      ) {
+        continue;
+      }
       for (const origin of entry.origins || []) {
         if (!origin?.name) continue;
         addOrigin(merged, hash, type, { ...origin });
@@ -296,6 +321,18 @@ function mergeMetaEntries(...metas) {
     }
   }
   return merged;
+}
+
+function patternOrigin(source, name, compiledAt, pat) {
+  const node = pat?.filter;
+  return {
+    source,
+    name,
+    params: pat?.params || [],
+    compiledAt,
+    ...(node?.start ? { start: node.start } : {}),
+    ...(node?.end ? { end: node.end } : {})
+  };
 }
 
 function buildMeta(annotated, source) {
@@ -319,6 +356,23 @@ function buildMeta(annotated, source) {
     if (!rel) continue;
     if (name === "__main__" || isSourceName(name)) {
       addOrigin(meta, hash, "rel", relationOrigin(source, name, now, rel));
+    }
+  }
+
+  const patterns = annotated.sourceDefs?.patterns || {};
+  for (const [name, pat] of Object.entries(patterns)) {
+    if (!isSourceName(name)) continue;
+    const info = resolvePatternCanonicalInfo(name, pat, {
+      patterns,
+      libraries: annotated.libraries || []
+    });
+    if (info.hash) {
+      addOrigin(
+        meta,
+        info.hash,
+        "pattern",
+        patternOrigin(source, name, now, pat)
+      );
     }
   }
   return meta;
@@ -481,15 +535,8 @@ function compileLibrary(script, options = {}) {
       def: rewriteRefsToCanonical(rel.def, relAlias)
     };
   }
-  const libraryMetaHashes = new Set([
-    ...Object.keys(allCodes),
-    ...Object.keys(libRels)
-  ]);
-  const libMeta = Object.fromEntries(
-    Object.entries(meta).filter(([hash]) => libraryMetaHashes.has(hash))
-  );
-
   const libPatterns = {};
+  const patternAlias = {};
   if (options.libraries) {
     for (const lib of options.libraries) {
       const lp =
@@ -498,6 +545,7 @@ function compileLibrary(script, options = {}) {
         lib.sourceDefs?.patterns ||
         {};
       Object.assign(libPatterns, lp);
+      Object.assign(patternAlias, lib.patternAlias || {});
     }
   }
   if (options.patterns) {
@@ -507,11 +555,36 @@ function compileLibrary(script, options = {}) {
     Object.assign(libPatterns, annotated.sourceDefs.patterns);
   }
 
+  for (const [name, pat] of Object.entries(libPatterns)) {
+    if (name.startsWith("@")) continue;
+    const info = resolvePatternCanonicalInfo(name, pat, {
+      patterns: libPatterns,
+      libraries: options.libraries || []
+    });
+    if (info.hash) {
+      patternAlias[name] = info.hash;
+      if (!libPatterns[info.hash]) {
+        libPatterns[info.hash] = pat;
+      }
+    }
+  }
+
+  const libraryMetaHashes = new Set([
+    ...Object.keys(allCodes),
+    ...Object.keys(libRels),
+    ...Object.values(patternAlias),
+    ...Object.keys(libPatterns).filter((k) => k.startsWith("@"))
+  ]);
+  const libMeta = Object.fromEntries(
+    Object.entries(meta).filter(([hash]) => libraryMetaHashes.has(hash))
+  );
+
   return {
     format: "k-object",
     codes: allCodes,
     rels: libRels,
     relAlias: serialized.relAlias,
+    patternAlias,
     compileStats: serialized.compileStats,
     meta: libMeta,
     patterns: libPatterns,
@@ -533,7 +606,8 @@ function hydrateObject(object) {
   return {
     ...object,
     rels: hydratedRels,
-    patterns: object.patterns || {}
+    patterns: object.patterns || {},
+    patternAlias: object.patternAlias || {}
   };
 }
 
@@ -856,10 +930,15 @@ function extractAliasesFromObject(object) {
   const entries = [];
 
   for (const [hash, entry] of Object.entries(hydrated.meta || {})) {
-    const type = entry?.type;
-    if (type !== "code" && type !== "rel") continue;
-    const typeOrder = type === "code" ? 0 : 1;
     for (const origin of entry.origins || []) {
+      const type = origin.type || entry?.type;
+      if (
+        type !== "code" &&
+        type !== "rel" &&
+        type !== "pattern"
+      ) continue;
+      const typeOrder =
+        type === "code" ? 0 : (type === "pattern" ? 1 : 2);
       if (origin?.name === "__main__") continue;
       if (!origin?.name || !isSourceName(origin.name)) continue;
       entries.push({
@@ -867,6 +946,7 @@ function extractAliasesFromObject(object) {
         typeOrder,
         hash,
         name: origin.name,
+        params: entry.params || origin.params || [],
         source: origin.source || "",
         compiledAt: origin.compiledAt,
         comment: originComment(origin)
@@ -879,7 +959,11 @@ function extractAliasesFromObject(object) {
   const activeEntries = new Set();
   for (let i = 0; i < entries.length; i++) {
     const next = entries[i + 1];
-    if (!next || next.type !== entries[i].type || next.name !== entries[i].name) {
+    if (
+      !next ||
+      next.type !== entries[i].type ||
+      next.name !== entries[i].name
+    ) {
       activeEntries.add(entries[i]);
     }
   }
@@ -889,8 +973,21 @@ function extractAliasesFromObject(object) {
   for (const entry of entries) {
     if (lastType != null && lastType !== entry.type) lines.push("");
     lastType = entry.type;
-    const prefix = entry.type === "code" ? "$ " : "";
-    const line = `${prefix}${entry.name} = @${hashBody(entry.hash)}; # ${entry.comment}`;
+    let line;
+    const body = hashBody(entry.hash);
+    if (entry.type === "code") {
+      line = `$ ${entry.name} = @${body}; # ${entry.comment}`;
+    } else if (entry.type === "pattern") {
+      const paramStr =
+        entry.params && entry.params.length > 0
+          ? `[${entry.params.join(", ")}]`
+          : "[]";
+      line =
+        `${entry.name}${paramStr} = @${body}${paramStr}; ` +
+        `# ${entry.comment}`;
+    } else {
+      line = `${entry.name} = @${body}; # ${entry.comment}`;
+    }
     lines.push(activeEntries.has(entry) ? line : `# ${line}`);
   }
 
@@ -920,7 +1017,8 @@ export {
   decompileObject,
   decompileObjectBuffer,
   extractAliasesFromObject,
-  extractAliasesFromObjectBuffer
+  extractAliasesFromObjectBuffer,
+  buildExportPreamble
 };
 
 export default {
@@ -942,5 +1040,6 @@ export default {
   decompileObject,
   decompileObjectBuffer,
   extractAliasesFromObject,
-  extractAliasesFromObjectBuffer
+  extractAliasesFromObjectBuffer,
+  buildExportPreamble
 };

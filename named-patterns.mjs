@@ -26,13 +26,20 @@ export function expandFilter(
 
   if (filter.type === "pattern_apply") {
     const patternName = filter.pattern;
-    const template = patterns[patternName];
+    let template = patterns[patternName];
+    if (!template && patternName.startsWith("@")) {
+      template = patterns[patternName.slice(1)];
+    }
+    if (!template && !patternName.startsWith("@")) {
+      template = patterns["@" + patternName];
+    }
     if (!template) {
       const pos = filter.start
         ? ` (lines ${filter.start.line}:${filter.start.column})`
         : "";
+      const suffix = patternName.startsWith("@") ? "" : "[]";
       throw new Error(
-        `Unknown pattern template '${patternName}[]'${pos}`
+        `Unknown pattern template '${patternName}${suffix}'${pos}`
       );
     }
 
@@ -244,6 +251,11 @@ export function expandPatternsInRels(rels, patterns = {}, options = {}) {
       for (const [name, pat] of Object.entries(libPatterns)) {
         if (!(name in allPatterns)) {
           allPatterns[name] = pat;
+        }
+      }
+      for (const [name, hash] of Object.entries(lib.patternAlias || {})) {
+        if (libPatterns[name] && !(hash in allPatterns)) {
+          allPatterns[hash] = libPatterns[name];
         }
       }
     }
