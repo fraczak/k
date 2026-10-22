@@ -3,6 +3,13 @@
 bnat[] = < {} _, B 0, B 1 > = B;
 bnat? = ? bnat[];
 
+bnat_pair[] = { bnat[] x, bnat[] y };
+reverse_state[] = { bnat[] x, bnat[] result };
+bnat_carry_state[] = { bnat[] x, bnat[] y, < {} 0, {} 1 > c };
+times_state[] = { bnat[] result, bnat[] _x, bnat[] y };
+align_state[] = { bnat[] _x, bnat[] _y, bnat[] x, bnat[] y };
+cmp[] = < {} lt, {} eq, {} gt >;
+
 _ = {}|_;
 _1 = |1;
 _0 = |0;
@@ -24,7 +31,7 @@ remove_leading_zeros = < /0 remove_leading_zeros, () >;
 reverse = {() x, _ result} _reverse;
 
 _reverse =
-  ?{ bnat[] = X x, ... }
+  ? reverse_state[]
   <
     {.x/_ if, .result then} .then,
     {.x/0 x, .result _0 result} _reverse,
@@ -53,7 +60,7 @@ plus =
 
 _plus =
   -- least significant bit first addition with carry
-  ?{ bnat[] = X x, ... }
+  ? bnat_carry_state[]
   <
     {.x/_ if1, .y/_ if2, <.c/0 bnat_0, bnat_1> then} .then,
     {.x/_ if1, .c/0 if2, .y                    then} .then,
@@ -89,7 +96,7 @@ minus =
 
 _minus =
   -- least significat bit first substraction with carry
-  ?{ bnat[] = X x, bnat[] = Y y, ... }
+  ? bnat_carry_state[]
   <
     {.x   x, .y/_   y, .c/0   if} .x,
     {.x/1 x, .y/_   y, .c/1   if} .x _0,
@@ -117,7 +124,7 @@ times =
 ;
 
 _times =
-  ?{ bnat[] = Y y, ... }
+  ? times_state[]
   <
     { .y/_ if, .result then } .then,
     { .result _0 result, ._x _x, .y/0 y } _times,
@@ -150,7 +157,7 @@ align =
 ;
 
 _align = 
-  ?{ bnat[] = X _x, bnat[] = Y _y, ... }
+  ? align_state[]
   <
     {._x/_ if1, ._y/_ if2, {.x x, .y y} then} .then,
     {._x </0, /_ _> _x, ._y </0, /_ _> _y, .x _0 x, .y _0 y} _align,
@@ -167,7 +174,7 @@ gt = {} |gt;
 
 compare = align _compare;
 _compare = 
-  ?{ bnat[] = X x, bnat[] = Y y, ... }
+  ? bnat_pair[]
   <
     {.x/_ if1, .y/_ if2 } eq,
     {.x/0 x, .y/0 y} _compare,

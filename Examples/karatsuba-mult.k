@@ -11,15 +11,29 @@ bits? = ? bits[];
 0 = 0b |0;
 1 = 0b |1;
 
+int[] = < bits[] "+", bits[] "-" >;
+int? = ? int[];
+
+bits_pair[] = { bits[] x, bits[] y };
+inv_state[] = { bits[] x, bits[] r };
+carry_bit[] = < {} 0, {} 1 >;
+add_state[] = { bits[] x, bits[] y, carry_bit[] c, bits[] r };
+times_state[] = { bits[] result, bits[] _x, bits[] y };
+
 unat[] = < {} _, U 1 > = U;
 unat? = ? unat[];
 0u = {} | _;
+
+split_state[] = { bits[] x_rev, unat[] m, bits[] low };
+split_result[] = { bits[] low, bits[] high };
+half_state[] = { bits[] x, bits[] y, unat[] m };
+int_pair[] = { int[] x, int[] y };
 
 empty = < /_ yes, no >;
 empty? = {empty /yes if, () then} .then;
 
 inv = {()x, 0b r} _inv;
-_inv = ?{ bits[] = X x, ... }
+_inv = ? inv_state[]
 <
   {.x empty? if, .r then} .then,
   <
@@ -29,7 +43,7 @@ _inv = ?{ bits[] = X x, ... }
 >;
 
 concat = {.x inv x, .y y} concat_;
-concat_ = ?{ bits[] = X x, ... }
+concat_ = ? bits_pair[]
 <
   {.x empty? if, .y then} .then,
   <
@@ -52,7 +66,7 @@ c0 = {} | 0;
 c1 = {} | 1;
 
 _plus = {.x x, .y y, .c c, 0b r} _plus_;
-_plus_ = ?{ bits[] = X x, ... }
+_plus_ = ? add_state[]
 <
   {.x empty? if, .y empty? and, .c/0 c, .r inv then} .then,
   {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
@@ -72,7 +86,7 @@ _plus_ = ?{ bits[] = X x, ... }
 >;
 
 _minus = {.x x, .y y, .c c, 0b r} _minus_;
-_minus_ = ?{ bits[] = X x, ... }
+_minus_ = ? add_state[]
 <
   {.y empty? if, .c/0 and, {.r x, .x r} _inv then} .then,
   <
@@ -92,7 +106,7 @@ _minus_ = ?{ bits[] = X x, ... }
 plus_bits = {.x inv x, .y inv y, c0 c} _plus inv nat;
 minus_bits = {.x inv x, .y inv y, c0 c} _minus inv nat;
 
-_times = ?{ bits[] = Y y, ... }
+_times = ? times_state[]
 <
   {.y empty? if, .result then} .then,
   <
@@ -108,14 +122,14 @@ unat_to_double_zeros =
   ? unat[] < /_ 0b, /1 unat_to_double_zeros |0 |0 > ? bits[];
 
 _peel2 = < </0,/1> </0,/1>, </0,/1>, () >;
-_half_unat = ?{ bits[] = X x, ... }
+_half_unat = ? half_state[]
 <
   {.x empty? if, .y empty? and, .m then} .then,
   {.x _peel2 x, .y _peel2 y, .m |1 m} _half_unat
 >;
 half_unat = {.x x, .y y, 0u m} _half_unat;
 
-_split_rev_u = ?{ bits[] = X x_rev, unat[] = M m, ... }
+_split_rev_u = ? split_state[]
 <
   {.m /_ if, {.low nat low, .x_rev inv nat high} then} .then,
   {.x_rev empty? if, {.low nat low, 0 high} then} .then,
@@ -158,7 +172,7 @@ shift2_bits_u =
   {.val x, .m unat_to_double_zeros y} concat
 >;
 
-_karatsuba = ?{ bits[] = X x, bits[] = Y y }
+_karatsuba = ? bits_pair[]
 <
   -- Base case: if m < 256 (< 512 bits), fall back to times_bits
   {{.x x, .y y} half_unat m, .x x, .y y}
@@ -197,7 +211,7 @@ _karatsuba = ?{ bits[] = X x, bits[] = Y y }
   >
 >;
 
-karatsuba =
+karatsuba = ? int_pair[]
 {
   <
     {.x/'+' if, .y /'+' and} sign_plus,

@@ -6,6 +6,22 @@ no = yes swap_yes_no;
 bits[] = < {} _, B 0, B 1 > = B;
 bits? = ? bits[];
 
+bits_pair[] = { bits[] x, bits[] y };
+inv_state[] = { bits[] x, bits[] r };
+yes_no[] = < {} yes, {} no >;
+in_order_state[] = { bits[] x, bits[] y, yes_no[] inOrder };
+carry_bit[] = < {} 0, {} 1 >;
+add_state[] = { bits[] x, bits[] y, carry_bit[] c, bits[] r };
+times_state[] = { bits[] result, bits[] _x, bits[] y };
+div_restoring_state[] = {
+  bits[] x, bits[] y, bits[] q, bits[] r
+};
+pad_state[] = { bits[] x, bits[] steps, bits[] _y };
+align_down_state[] = { bits[] x, bits[] y, bits[] _y };
+div_down_state[] = {
+  bits[] x, bits[] _y, bits[] steps, bits[] q
+};
+
 0b = {} | _;
 -- |1 = | 1;
 -- |0  = | 0;
@@ -29,7 +45,7 @@ empty = < /_ yes, no >;
 empty? = {empty /yes if, () then} .then;
 
 concat = {.x inv x, .y y} concat_; 
-concat_ = ?{ bits[] = X x, ... }
+concat_ = ? bits_pair[]
   < 
     {.x empty? if, .y then} .then,
     < 
@@ -38,7 +54,7 @@ concat_ = ?{ bits[] = X x, ... }
     > concat_ 
   >;
 inv = {()x, 0b r} _inv; 
-_inv = ?{ bits[] = X x, ... }
+_inv = ? inv_state[]
   < 
     {.x empty? if, .r then} .then,
     < 
@@ -48,7 +64,7 @@ _inv = ?{ bits[] = X x, ... }
   >;
 
 inOrder = {.x inv x, .y inv y, yes inOrder} inOrder_;
-inOrder_ = ?{ bits[] = X x, ... }
+inOrder_ = ? in_order_state[]
   < 
     {.x </0,/1> if1, .y /_ if2, .inOrder swap_yes_no then} .then,
     {.x /_ if, .inOrder then} .then,
@@ -67,6 +83,7 @@ EQ = {inOrder /yes if, {.x y, .y x} inOrder /yes and, () then} .then;
 --------------------------------------
 int[] = < bits[] "+", bits[] "-" >;
 int? = ? int[];
+int_pair[] = { int[] x, int[] y };
 
 remove_leading_zeros = <
   /0 remove_leading_zeros, 
@@ -87,7 +104,7 @@ inc = <
   /'-' {inv x, 0b y} _dec nat |'-'
 >;
 
-_inc = ?{ bits[] = X x, ... } <
+_inc = ? bits_pair[] <
     {.x empty? if, .y |1 then} .then,
     {.x /0 x, .y |1 y} concat_, 
     {.x /1 x, .y |0  y} _inc
@@ -99,7 +116,7 @@ dec = <
   /'-' {inv x, 0b y} _inc nat |'-'
 >;
 
-_dec = ?{ bits[] = X x, ... } <
+_dec = ? bits_pair[] <
     {.x /1 x, .y |0  y} concat_, 
     {.x /0 x, .y |1 y} _dec
 >;
@@ -130,7 +147,7 @@ _plus = {.x x, .y y, .c c, 0b r} _plus_;
 
 _plus_ =
   -- least significant bit first addition with carry
-  ?{ bits[] = X x, ... }
+  ? add_state[]
   <
     {.x empty? if, .y empty? and, .c/0 c, .r inv then} .then,
     {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
@@ -158,7 +175,7 @@ _minus = {.x x, .y y, .c c, 0b r} _minus_;
 
 _minus_ =
   -- least significant bit first substraction with carry
-  ?{ bits[] = X x, ... }
+  ? add_state[]
   <
     {.y empty? if, .c/0 and, {.r x, .x r} _inv then} .then,
     <
@@ -201,7 +218,7 @@ times =
 ;
 
 _times =
-  ?{ bits[] = Y y, ... }
+  ? times_state[]
   <
     { .y empty? if, .result then } .then,
     <
@@ -228,7 +245,7 @@ shift_in_1 = inv |1 inv nat;
 sub_bits = {.x inv x, .y inv y, c0 c} _minus inv nat;
 
 _div_restoring =
-  ?{ bits[] = X x, ... }
+  ? div_restoring_state[]
   <
     {.x empty? if, {.q inv int div, .r rem} then} .then,
     <
@@ -252,7 +269,7 @@ _div_restoring =
     _div_restoring
   >;
 
-_pad_down = ?{ bits[] = X x, bits[] = S steps, ... }
+_pad_down = ? pad_state[]
   <
     {.x empty? if, {._y _y, .steps steps} then} .then,
     {
@@ -262,7 +279,7 @@ _pad_down = ?{ bits[] = X x, bits[] = S steps, ... }
     } _pad_down
   >;
 
-_align_down = ?{ bits[] = X x, bits[] = Y y, ... }
+_align_down = ? align_down_state[]
   <
     {
       .x </0, /1> x,
@@ -282,7 +299,7 @@ _align_down = ?{ bits[] = X x, bits[] = Y y, ... }
     } .then
   >;
 
-_div_down = ?{ bits[] = X steps, ... }
+_div_down = ? div_down_state[]
   {
     .x x,
     ._y _y,
@@ -326,7 +343,7 @@ _div_down = ?{ bits[] = X steps, ... }
     } _div_down
   >;
 
-_check_2y = ?{ bits[] = X x, bits[] = Y y, ... }
+_check_2y = ? bits_pair[]
   <
     {.x empty? if, {} | down_shift then} .then,
     {.y empty? if, {} | restore then} .then,
@@ -398,7 +415,7 @@ gcd =
   > _gcd
 ;
 
-_gcd = ?{ bits[] = X x, ... } <
+_gcd = ? bits_pair[] <
   { .y remove_leading_zeros empty? if, .x nat then } .then,
   { .y x, mod y } _gcd
 >;

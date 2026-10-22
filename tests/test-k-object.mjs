@@ -92,7 +92,11 @@ const natDecompiledSource = decompileObjectBuffer(natLibraryBuffer);
 const natRoundTripSource = decompileObjectBuffer(
   compileLibraryBuffer(natDecompiledSource, { source: "Examples/nat.decompiled.k" })
 );
-const recursiveNatPattern = /\?\{<\{\} 0, X0 \+1>=X0 x, <X1 \+1, \.\.\.>=X1 y\} <\{\.x [A-Za-z0-9_]+ x, \.y [A-Za-z0-9_]+ y\} [A-Za-z0-9_]+, \.y> \?X1;/;
+const recursiveNatPattern = new RegExp(
+  "\\?\\{<\\{\\} 0, X0 \\+1>=X0 x, X0 y\\} " +
+  "<\\{\\.x [A-Za-z0-9_]+ x, \\.y [A-Za-z0-9_]+ y\\} " +
+  "[A-Za-z0-9_]+, \\.y> \\?X0;"
+);
 assert.equal(natRoundTripSource, natDecompiledSource);
 assert.match(natDecompiledSource, recursiveNatPattern);
 

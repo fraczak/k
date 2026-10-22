@@ -7,12 +7,17 @@ int[] = < bits[] "+", bits[] "-" >;
 list[X] = < {} nil, { X car, Y cdr } cons > = Y;
 list? = ? list[X];
 
+nths_args[X] = { int[] n, list[X] list };
+reverse_state[X] = { list[X] reversed, list[X] list };
+split_state[X] = { list[X] odd, list[X] even, list[X] list };
+split_result[X] = { list[X] odd, list[X] even };
+
 nil = {} | nil list?;
 cons = { .car car, .cdr cdr } | cons list?;
 car = list? /cons .car;
 cdr = list? /cons .cdr;
 
-nths = ?{ int[] n, list[X] list } 
+nths = ? nths_args[X]
   < 
     { .n pos? dec n, .list cdr list } nths,
     { .n zero_int? if, .list car then } .then
@@ -21,7 +26,7 @@ nths = ?{ int[] n, list[X] list }
 reverse = ? list[X]
   { nil reversed, () list } _reverse;
   
-_reverse = ?{ list[X] reversed, list[X] list } 
+_reverse = ? reverse_state[X]
   <   
     {
       { .list car car, .reversed cdr } cons reversed,
@@ -35,7 +40,7 @@ split = ? list[X]
   { nil odd, nil even, reverse list } _split
 ;
 
-_split = ?{ list[X] odd, list[X] even, list[X] list }
+_split = ? split_state[X]
   < 
     { 
       { .list car car, .odd cdr } cons odd,
@@ -47,7 +52,7 @@ _split = ?{ list[X] odd, list[X] even, list[X] list }
   >
 ;
 
-split_ = ?{ list[X] odd, list[X] even, list[X] list }
+split_ = ? split_state[X]
   < 
     { 
       .odd odd,

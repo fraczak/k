@@ -1,52 +1,97 @@
 // Primitive bit domains used throughout floating-point encodings.
-// IEEE-754 double-precision building blocks: bit-level domains, flag enums,
-// and ripple-carry arithmetic helpers reused across add/sub/mul/div.
-
-
+// IEEE-754 double-precision building blocks: bit-level domains,
+// flag enums, and ripple-carry arithmetic helpers reused across
+// add/sub/mul/div.
+bit[] = < {} 0, {} 1 >;
+sign[] = < {} "+", {} "-" >;
 
 // Small utility products for pairing bits or signs.
-
-
+bit_pair[] = { bit[] x, bit[] y };
+sign_pair[] = { sign[] x, sign[] y };
 
 // Comparator states and result lattice (accounts for NaN unordered case).
-
-
+cmp_state[] = < {} eq, {} gt, {} lt >;
+cmp[] = < {} eq_exact, {} eq_zero, {} gt, {} lt, {} unordered_nan >;
 
 // IEEE-754 double fields: 11-bit exponent and 52-bit fraction.
-
-
+exp11[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4,
+  bit[] 5, bit[] 6, bit[] 7, bit[] 8, bit[] 9, bit[] 10
+};
+frac52[] = {
+  bit[] 0,  bit[] 1,  bit[] 2,  bit[] 3,  bit[] 4,  bit[] 5,
+  bit[] 6,  bit[] 7,  bit[] 8,  bit[] 9,  bit[] 10, bit[] 11,
+  bit[] 12, bit[] 13, bit[] 14, bit[] 15, bit[] 16, bit[] 17,
+  bit[] 18, bit[] 19, bit[] 20, bit[] 21, bit[] 22, bit[] 23,
+  bit[] 24, bit[] 25, bit[] 26, bit[] 27, bit[] 28, bit[] 29,
+  bit[] 30, bit[] 31, bit[] 32, bit[] 33, bit[] 34, bit[] 35,
+  bit[] 36, bit[] 37, bit[] 38, bit[] 39, bit[] 40, bit[] 41,
+  bit[] 42, bit[] 43, bit[] 44, bit[] 45, bit[] 46, bit[] 47,
+  bit[] 48, bit[] 49, bit[] 50, bit[] 51
+};
 
 // Logical view of a double plus rounding/exception flag enums per op.
-
-
-
-
-
+float64[] = { sign[] sign, exp11[] exponent, frac52[] fraction };
+flags_add[] = <
+  {} none, {} invalid, {} overflow, {} underflow, {} inexact
+>;
+flags_sub[] = <
+  {} none, {} invalid, {} overflow, {} underflow, {} inexact
+>;
+flags_mul[] = <
+  {} none, {} invalid, {} overflow, {} underflow, {} inexact
+>;
+flags_div[] = <
+  {} none, {} invalid, {} div_by_zero,
+  {} overflow, {} underflow, {} inexact
+>;
 
 // Bundles pairing an arithmetic result with its raised flags.
-
-
-
-
+add_result[] = { float64[] result, flags_add[] flags };
+sub_result[] = { float64[] result, flags_sub[] flags };
+mul_result[] = { float64[] result, flags_mul[] flags };
+div_result[] = { float64[] result, flags_div[] flags };
 
 // Common products for operand pairs and extended significands.
-
-
+float_pair[] = { float64[] x, float64[] y };
+sig53[] = {
+  bit[] 0,  bit[] 1,  bit[] 2,  bit[] 3,  bit[] 4,  bit[] 5,
+  bit[] 6,  bit[] 7,  bit[] 8,  bit[] 9,  bit[] 10, bit[] 11,
+  bit[] 12, bit[] 13, bit[] 14, bit[] 15, bit[] 16, bit[] 17,
+  bit[] 18, bit[] 19, bit[] 20, bit[] 21, bit[] 22, bit[] 23,
+  bit[] 24, bit[] 25, bit[] 26, bit[] 27, bit[] 28, bit[] 29,
+  bit[] 30, bit[] 31, bit[] 32, bit[] 33, bit[] 34, bit[] 35,
+  bit[] 36, bit[] 37, bit[] 38, bit[] 39, bit[] 40, bit[] 41,
+  bit[] 42, bit[] 43, bit[] 44, bit[] 45, bit[] 46, bit[] 47,
+  bit[] 48, bit[] 49, bit[] 50, bit[] 51, bit[] 52
+};
+sig56[] = {
+  bit[] 0,  bit[] 1,  bit[] 2,  bit[] 3,  bit[] 4,  bit[] 5,
+  bit[] 6,  bit[] 7,  bit[] 8,  bit[] 9,  bit[] 10, bit[] 11,
+  bit[] 12, bit[] 13, bit[] 14, bit[] 15, bit[] 16, bit[] 17,
+  bit[] 18, bit[] 19, bit[] 20, bit[] 21, bit[] 22, bit[] 23,
+  bit[] 24, bit[] 25, bit[] 26, bit[] 27, bit[] 28, bit[] 29,
+  bit[] 30, bit[] 31, bit[] 32, bit[] 33, bit[] 34, bit[] 35,
+  bit[] 36, bit[] 37, bit[] 38, bit[] 39, bit[] 40, bit[] 41,
+  bit[] 42, bit[] 43, bit[] 44, bit[] 45, bit[] 46, bit[] 47,
+  bit[] 48, bit[] 49, bit[] 50, bit[] 51, bit[] 52, bit[] 53,
+  bit[] 54, bit[] 55
+};
 
 // Helper shapes for ripple-carry adders and small shifts.
-
-
-
-
+exp_sum[] = { exp11[] sum, bit[] carry };
+sig56_sum[] = { sig56[] sum, bit[] carry };
+adder_out[] = { bit[] sum, bit[] carry };
+shift6[] = { bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4, bit[] 5 };
 
 // Pairings used during exponent/fraction comparisons.
-
-
+exp_pair[]  = { exp11[] x, exp11[] y };
+frac_pair[] = { frac52[] x, frac52[] y };
 
 // Comparator pipelines carry current state alongside bit pairs.
-
-
-
+cmp_step_in[]  = { bit_pair[] bits, cmp_state[] state };
+cmp_exp_ctx[]  = { exp_pair[] pair, cmp_state[] state };
+cmp_frac_ctx[] = { frac_pair[] pair, cmp_state[] state };
 
 // Canonical bit literals for convenience.
 0 = {} |0 ;
@@ -287,8 +332,11 @@ sig56_not =  {
 
 // 56-bit ripple-carry add with optional incoming carry.
 // 14-bit ripple-carry adder
-
-
+sig14[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4, bit[] 5, bit[] 6,
+  bit[] 7, bit[] 8, bit[] 9, bit[] 10, bit[] 11, bit[] 12, bit[] 13
+};
+sig14_sum[] = { sig14[] sum, bit[] carry };
 sig14_add_cin = 
   {
     .x x,
@@ -535,9 +583,29 @@ mux_bit =
 
 # --- sig112 helpers (mul/div) ------------------------------------------------
 // Wide 112-bit slice used for intermediate mul/div significands.
-
+sig112[] = {
+  bit[] 0,   bit[] 1,   bit[] 2,   bit[] 3,   bit[] 4,   bit[] 5,
+  bit[] 6,   bit[] 7,   bit[] 8,   bit[] 9,   bit[] 10,  bit[] 11,
+  bit[] 12,  bit[] 13,  bit[] 14,  bit[] 15,  bit[] 16,  bit[] 17,
+  bit[] 18,  bit[] 19,  bit[] 20,  bit[] 21,  bit[] 22,  bit[] 23,
+  bit[] 24,  bit[] 25,  bit[] 26,  bit[] 27,  bit[] 28,  bit[] 29,
+  bit[] 30,  bit[] 31,  bit[] 32,  bit[] 33,  bit[] 34,  bit[] 35,
+  bit[] 36,  bit[] 37,  bit[] 38,  bit[] 39,  bit[] 40,  bit[] 41,
+  bit[] 42,  bit[] 43,  bit[] 44,  bit[] 45,  bit[] 46,  bit[] 47,
+  bit[] 48,  bit[] 49,  bit[] 50,  bit[] 51,  bit[] 52,  bit[] 53,
+  bit[] 54,  bit[] 55,  bit[] 56,  bit[] 57,  bit[] 58,  bit[] 59,
+  bit[] 60,  bit[] 61,  bit[] 62,  bit[] 63,  bit[] 64,  bit[] 65,
+  bit[] 66,  bit[] 67,  bit[] 68,  bit[] 69,  bit[] 70,  bit[] 71,
+  bit[] 72,  bit[] 73,  bit[] 74,  bit[] 75,  bit[] 76,  bit[] 77,
+  bit[] 78,  bit[] 79,  bit[] 80,  bit[] 81,  bit[] 82,  bit[] 83,
+  bit[] 84,  bit[] 85,  bit[] 86,  bit[] 87,  bit[] 88,  bit[] 89,
+  bit[] 90,  bit[] 91,  bit[] 92,  bit[] 93,  bit[] 94,  bit[] 95,
+  bit[] 96,  bit[] 97,  bit[] 98,  bit[] 99,  bit[] 100, bit[] 101,
+  bit[] 102, bit[] 103, bit[] 104, bit[] 105, bit[] 106, bit[] 107,
+  bit[] 108, bit[] 109, bit[] 110, bit[] 111
+};
 // Helper shape: sum and carry for wide 112-bit arithmetic.
-
+sig112_sum[] = { sig112[] sum, bit[] carry };
 // Bitwise inversion across the 112-bit extended significand.
 sig112_not =  {
   .0 not_bit 0,

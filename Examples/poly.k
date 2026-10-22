@@ -4,6 +4,20 @@
 -- List constructors and destructors
 list[X] = < {} nil, { X car, Y cdr } cons > = Y;
 list? = ? list[X];
+
+pair[A, B] = { A first, B second };
+list_pair[X] = { list[X] xs, list[X] ys };
+indexed_list[X] = { int[] n, list[X] xs };
+split_result[X] = { list[X] first, list[X] second };
+reverse_state[X] = { list[X] xs, list[X] acc };
+split_by_state[X] = { int[] n, list[X] xs, list[X] acc };
+repeat_args[X] = { int[] n, X x };
+repeat_state[X] = { int[] n, X x, list[X] acc };
+append_args[X] = { X x, list[X] xs };
+split_step_state[X] = {
+  list[X] xs, list[X] first, list[X] second
+};
+int_pair[] = { int[] x, int[] y };
 nil = {} | nil list?;
 singleton = {() car, nil cdr} | cons list?;
 cons = {.car car, .cdr cdr} | cons list?;
@@ -15,11 +29,11 @@ cdr = list? /cons .cdr;
 pred_int = dec /'+' nat | '+';
 
 -- Concatenate two lists: {xs, ys} -> list
-concat = {.xs reverse xs, .ys acc} _reverse;
+concat = ? list_pair[X] {.xs reverse xs, .ys acc} _reverse;
 
 -- Reverse a list: xs -> list
-reverse = {() xs, nil acc} _reverse;
-_reverse = <
+reverse = ? list[X] {() xs, nil acc} _reverse;
+_reverse = ? reverse_state[X] <
   {.xs cdr xs, {.xs car car, .acc cdr} cons acc} _reverse,
   .acc
 >;
@@ -32,41 +46,41 @@ _length = <
 >;
 
 -- Get N-th element of a list (0-indexed): {n, xs} -> element
-get_nth = <
+get_nth = ? indexed_list[X] <
   {.n zero_int? if, .xs car then} .then,
   {.n pred_int n, .xs cdr xs} get_nth
 >;
 
 -- Split list at index N: {n, xs} -> {first, second}
-split_by = {.n n, .xs xs, nil acc} _split_by;
-_split_by = <
+split_by = ? indexed_list[X] {.n n, .xs xs, nil acc} _split_by;
+_split_by = ? split_by_state[X] <
   {.n zero_int? if, {.acc reverse first, .xs second} then} .then,
   {.xs /nil if, {.acc reverse first, nil second} then} .then,
   {.n pred_int n, .xs cdr xs, {.xs car car, .acc cdr} cons acc} _split_by
 >;
 
 -- Take the first N elements of a list: {n, xs} -> list
-take = split_by .first;
+take = ? indexed_list[X] split_by .first;
 
 -- Drop the first N elements of a list: {n, xs} -> list
-drop = <
+drop = ? indexed_list[X] <
   {.n zero_int? if, .xs then} .then,
   {.xs /nil if, nil then} .then,
   {.n pred_int n, .xs cdr xs} drop
 >;
 
 -- Repeat element X, N times: {n, x} -> list
-repeat = {.n n, .x x, nil acc} _repeat;
-_repeat = <
+repeat = ? repeat_args[X] {.n n, .x x, nil acc} _repeat;
+_repeat = ? repeat_state[X] <
   {.n zero_int? if, .acc then} .then,
   {.n pred_int n, .x x, {.x car, .acc cdr} cons acc} _repeat
 >;
 
 -- Append an element to the end of a list: {x, xs} -> list
-append = {.xs xs, {.x car, nil cdr} cons ys} concat;
+append = ? append_args[X] {.xs xs, {.x car, nil cdr} cons ys} concat;
 
 -- Zip two lists into a list of {x, y} pairs: {xs, ys} -> list
-zip = <
+zip = ? list_pair[X] <
   {.xs /nil if, nil then} .then,
   {.ys /nil if, nil then} .then,
   {
@@ -83,7 +97,7 @@ gen_list_ = <
 >;
 
 -- Identity filter on {x, y} when x is greater than y: ?{X x, X y}=Y -> ?Y
-gt? =
+gt? = ? int_pair[]
   <
     {.x/- if1, .y/+ if2, () then} .then,
     {{.x/- y, .y/- x} GT if, () then} .then,
@@ -93,8 +107,8 @@ gt? =
 
 -- Split list into two halves by alternating elements:
 -- xs -> {first, second}
-split = {() xs, nil first, nil second} _split;
-_split = <
+split = ? list[X] {() xs, nil first, nil second} _split;
+_split = ? split_step_state[X] <
   {.xs /nil if, {.first first, .second second} then} .then,
   {
     .xs cdr /nil if,
@@ -108,7 +122,7 @@ _split = <
 >;
 
 -- Merge two sorted lists: {xs, ys} -> list
-merge = <
+merge = ? list_pair[X] <
   {.xs /nil if, .ys then} .then,
   {.ys /nil if, .xs then} .then,
   {

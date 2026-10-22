@@ -16,6 +16,11 @@ byte[] = {
 
 nibble[] = { bit[] 0, bit[] 1, bit[] 2, bit[] 3 };
 
+full_adder_inputs[] = { bit[] a, bit[] b, bit[] c_in };
+full_adder_outputs[] = { bit[] sum, bit[] carry };
+nibble_pair[] = { nibble[] a, nibble[] b };
+four_bit_adder_result[] = { nibble[] sum, bit[] overflow };
+
 0 = {} | 0;
 1 = {} | 1;
 
@@ -33,7 +38,7 @@ xor_bit = < {.x/0 if, .y then} .then, .y not_bit >;
 xor_abc = {{.a x, .b y} xor_bit x, .c y} xor_bit;
 
 -- VHDL: Full adder component
-full_adder = ?{ bit[] a, bit[] b, bit[] c_in } {
+full_adder = ? full_adder_inputs[] {
   {.a a, .b b, .c_in c} xor_abc sum,
   {
     {.a x, .b y} and_bit x,
@@ -42,7 +47,7 @@ full_adder = ?{ bit[] a, bit[] b, bit[] c_in } {
 };
 
 -- VHDL: architecture of 4-bit adder
-four_bit_adder = ?{ nibble[] a, nibble[] b } {
+four_bit_adder = ? nibble_pair[] {
   .a a, .b b,
   {.a.0 a, .b.0 b, 0 c_in} full_adder fa0
 } {
