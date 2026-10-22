@@ -155,6 +155,47 @@ Reads the plain-JSON library file and merges its codes, relations,
 aliases, and metadata into the session. Aliases are recovered from
 `meta[hash].origins[]` unless `--no-alias` is used.
 
+## Pattern Inspection
+
+### `:patterns` (or `:pats`)
+
+Lists all currently defined named pattern templates along with their
+declared parameter signatures (e.g. `bit[]`, `list[X]`, `pair[A, B]`).
+
+### `:pattern <name>` (or `:pat <name>`, `:pat @hash`)
+
+Displays the **canonical definition** of a named pattern template:
+
+```text
+> pair[A, B] = { A first, B second };
+> :pat pair
+pair[X0, X1] = {X0 first, X1 second};  -- @...
+
+> list[T] = < {} nil, { T car, Y cdr } cons > = Y;
+> :pat list
+list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- @...
+
+> same_pair[T] = { T first, T second };
+> :pat same_pair
+same_pair[X0] = {X0 first, X0 second};  -- @...
+```
+
+Rather than echoing the syntax used to construct the template, the
+canonical definition decompiles the underlying minimal finite tree
+automaton. Local parameter and knot names chosen by the author are
+erased; instead, the canonical definition introduces its own variables
+(`X0`, `X1`, `X2`, ...) in deterministic traversal (discovery) order:
+
+- **External Ports**: Open type holes (`(...)`) are recorded as
+  canonical parameters in the template header (`[X0, X1]`, `[X1]`, etc.)
+  in discovery order.
+- **Recursive Knots**: Cycles back to existing nodes are bound using
+  knot variables (`=X0`).
+- **Content Hash**: Every canonical definition is annotated with its
+  deterministic content-addressed hash (`-- @hash`).
+
+Lookup by canonical hash is also supported: `:pattern @hash`.
+
 ## Codecs and Numerical Values
 
 In `k`, there are no primitive numbers or built-in numerical literals.
@@ -334,6 +375,9 @@ instantly without exhausting stack or terminal buffers. Use
 {}|0 ?<{} 0, ...>
 > :rel inc
 inc = | +1;  -- @...
+> pair[A, B] = { A first, B second };
+> :pat pair
+pair[X0, X1] = {X0 first, X1 second};  -- @...
 > :klib nat.klib
 saved nat.klib
 > :ko inc.ko inc

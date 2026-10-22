@@ -208,6 +208,29 @@ To guarantee decidability and termination:
    that yield isomorphic regular tree automata produce identical
    canonical hashes and wire encoders.
 
+4. **Canonical Form and REPL Decompilation**:
+   In the interactive REPL, inspecting a pattern via `:pattern <name>`
+   (or `:pat <name>`) displays its **canonical definition** rather than
+   the source syntax used to define it:
+   - User-defined parameter names (`A`, `B`, `X`) and knot names (`Y`,
+     `T`) are erased.
+   - The canonical decompiler introduces fresh variables (`X0`, `X1`,
+     `X2`, ...) in deterministic traversal (discovery) order.
+   - Open type ports are introduced in the pattern header (`name[...]`)
+     in order of discovery:
+     ```k
+     -- pair[A, B] = { A first, B second };
+     pair[X0, X1] = {X0 first, X1 second};  -- @...
+
+     -- list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+     list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- @...
+
+     -- same_pair[T] = { T first, T second };
+     same_pair[X0] = {X0 first, X0 second};  -- @...
+     ```
+   - Two syntactically different definitions yielding isomorphic
+     automata produce the exact same canonical definition and hash.
+
 ---
 
 ## 7. Concrete Library Examples

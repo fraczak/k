@@ -85,6 +85,11 @@ Direct or mutual recursion among templates (`bits[]` calling `bits[]`)
 is disallowed to ensure every template dependency graph is an acyclic
 DAG, guaranteeing finite regular tree automaton compilation.
 
+In the interactive REPL, inspecting a pattern with `:pattern <name>` (or
+`:pat <name>`) displays its canonical decompiled form with newly
+introduced variables in discovery order (e.g.
+`list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- @...`).
+
 ## Filters and Terminal Positions
 
 A k script can describe a pattern through:

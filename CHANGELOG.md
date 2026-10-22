@@ -72,8 +72,12 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Pattern Inspection & Persistence in REPL**:
   - Added `:patterns` / `:pat` commands to inspect loaded patterns.
+  - `:pat <name>` prints the canonical pattern definition decompiled
+    from its underlying automaton, introducing its own canonical
+    variables (`X0`, `X1`, ...) in discovery order instead of echoing
+    input parameter names.
   - Display canonical type code / relation hashes:
-    `name[] = ...  -- @hash`.
+    `name[...] = ...  -- @hash`.
   - Added pattern lookup by `@hash` (`:pattern @hash`, `:pat @hash`).
   - Tab-completion support for pattern names and canonical `@hashes`.
   - Full pattern persistence across REPL sessions via `.klib` files.
