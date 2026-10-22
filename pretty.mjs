@@ -178,7 +178,11 @@ function patterns2filters(typePatternGraph, ...patternIds) {
 
 }
 
-function patternGraphToCanonical(typePatternGraph, rootId) {
+function patternGraphToCanonical(
+  typePatternGraph,
+  rootId,
+  expectedParamCount = null
+) {
   const newTypePatternGraph = new TypePatternGraph(
     typePatternGraph.registerCodeDef,
     typePatternGraph.findCode
@@ -196,7 +200,7 @@ function patternGraphToCanonical(typePatternGraph, rootId) {
 
   const variables = inDegree.reduce((vars, degree, i) => {
     const p = newTypePatternGraph.get_pattern(i);
-    if (degree > 1 || p.pattern === "(...)") {
+    if (degree > 1) {
       vars[i] = true;
     }
     return vars;
@@ -204,18 +208,29 @@ function patternGraphToCanonical(typePatternGraph, rootId) {
 
   const filterVars = {};
   const canonicalParams = [];
+  const maxParams =
+    expectedParamCount != null ? expectedParamCount : Infinity;
 
   const buildFilter = (path, patternId) => {
     let named_filter = {};
     const pattern = newTypePatternGraph.get_pattern(patternId);
-    if (variables[patternId]) {
+    const isParam =
+      pattern.pattern === "(...)" &&
+      !filterVars[patternId] &&
+      canonicalParams.length < maxParams;
+
+    if (variables[patternId] || isParam) {
       if (filterVars[patternId]) {
         return { type: "name", name: filterVars[patternId] };
       }
       const varName = `X${Object.keys(filterVars).length}`;
       filterVars[patternId] = varName;
       named_filter = { name: varName };
-      if (pattern.pattern === "(...)") {
+      if (
+        isParam ||
+        (pattern.pattern === "(...)" &&
+          canonicalParams.length < maxParams)
+      ) {
         canonicalParams.push(varName);
       }
     }

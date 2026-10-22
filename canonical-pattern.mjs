@@ -34,8 +34,14 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       const rootId = mainRel.typePatternGraph.find(
         mainRel.def.patterns[0]
       );
+      const expectedParamCount =
+        pat.params != null ? pat.params.length : null;
       const { filter: canonicalFilter, canonicalParams } =
-        patternGraphToCanonical(mainRel.typePatternGraph, rootId);
+        patternGraphToCanonical(
+          mainRel.typePatternGraph,
+          rootId,
+          expectedParamCount
+        );
       if (canonicalFilter) {
         pat._canonicalDef = prettyFilter(canonicalFilter);
         pat._canonicalParams = canonicalParams;

@@ -767,6 +767,24 @@ assert.equal(
 output = await evaluateInput("{} | nil ? list[bit[]]", freshState);
 assert.match(output[0], /\{\}\|nil/);
 
+output = await evaluateInput("a[] = x;", freshState);
+output = await evaluateInput(":pattern a", freshState);
+assert.equal(
+  output[0],
+  "a[] = (...);  -- " +
+    "@QfyLpmn56wuppuGvrrUJz8LKtgaXfbMtad7RnzBcFk2S"
+);
+output = await evaluateInput(
+  "closed_same_pair[] = { T first, T second };",
+  freshState
+);
+output = await evaluateInput(":pattern closed_same_pair", freshState);
+assert.equal(
+  output[0],
+  "closed_same_pair[] = {X0 first, X0 second};  -- " +
+    "@TyjJDJuYAbp56mytRMzu2HMTfQq7rKLcGsaQtFG28yhW"
+);
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });
 console.log("OK");
