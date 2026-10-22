@@ -37,7 +37,7 @@ is complete.
 | `:wasm` / `:pkir` / `:js` | Shortcut to switch engine |
 | `:rel name` | Show relation definition |
 | `:rels` | List relation aliases |
-| `:pattern name` | Show named pattern definition (alias: `:pat`) |
+| `:pattern name` | Show canonical definition of pattern (alias: `:pat`) |
 | `:patterns` | List defined named pattern templates (alias: `:pats`) |
 | `:limit [num\|none]` | Set maximum characters for value output (default: 4096) |
 | `:codec load file` | Load a codec from an ES module file (e.g. `:codec load codecs/int.mjs`) |

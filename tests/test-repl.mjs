@@ -627,19 +627,19 @@ assert.equal(output[0], "bit[]");
 output = await evaluateInput(":pattern bit", patState);
 assert.equal(
   output[0],
-  "bit[] = <{} 0, {} 1>;  -- " +
+  "bit[] = <{}=X0 0, X0 1>;  -- " +
     "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
 );
 output = await evaluateInput(":pattern bit[]", patState);
 assert.equal(
   output[0],
-  "bit[] = <{} 0, {} 1>;  -- " +
+  "bit[] = <{}=X0 0, X0 1>;  -- " +
     "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
 );
 output = await evaluateInput(":pat bit", patState);
 assert.equal(
   output[0],
-  "bit[] = <{} 0, {} 1>;  -- " +
+  "bit[] = <{}=X0 0, X0 1>;  -- " +
     "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
 );
 output = await evaluateInput(
@@ -648,8 +648,23 @@ output = await evaluateInput(
 );
 assert.equal(
   output[0],
-  "bit[] = <{} 0, {} 1>;  -- " +
+  "bit[] = <{}=X0 0, X0 1>;  -- " +
     "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+);
+
+output = await evaluateInput(
+  "byte[] = { " +
+    "bit[] b0, bit[] b1, bit[] b2, bit[] b3, " +
+    "bit[] b4, bit[] b5, bit[] b6, bit[] b7 " +
+  "};",
+  patState
+);
+output = await evaluateInput(":pattern byte", patState);
+assert.equal(
+  output[0],
+  "byte[] = {<{}=X1 0, X1 1>=X0 b0, X0 b1, X0 b2, X0 b3, " +
+    "X0 b4, X0 b5, X0 b6, X0 b7};  -- " +
+    "@4ukq2gpiEBFa7WXxcfRm8pfdr2kgYLTTnwsmLHeMd9i5"
 );
 
 await assert.rejects(
@@ -688,7 +703,7 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern pair", patState);
 assert.equal(
   output[0],
-  "pair[A, B] = {A first, B second};  -- " +
+  "pair[A, B] = {(...) first, (...) second};  -- " +
     "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
 );
 
@@ -702,7 +717,7 @@ assert(output[0].includes("pair[A, B]"));
 output = await evaluateInput(":pattern list", patState);
 assert.equal(
   output[0],
-  "list[X] = <{} nil, {X car, Y cdr} cons>=Y;  -- " +
+  "list[X] = <{(...) car, X0 cdr} cons, {} nil>=X0;  -- " +
     "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe"
 );
 
@@ -724,7 +739,7 @@ assert(output[0].includes("list[X]"));
 output = await evaluateInput(":pattern bit", freshState);
 assert.equal(
   output[0],
-  "bit[] = <{} 0, {} 1>;  -- " +
+  "bit[] = <{}=X0 0, X0 1>;  -- " +
     "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
 );
 output = await evaluateInput("{} | nil ? list[bit[]]", freshState);

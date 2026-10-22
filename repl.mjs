@@ -21,7 +21,11 @@ if (typeof globalThis !== "undefined") {
   globalThis.isVariant = isVariant;
   globalThis.patternFromFilter = patternFromFilter;
 }
-import { prettyCode, prettyFilter } from "./pretty.mjs";
+import {
+  patterns2filters,
+  prettyCode,
+  prettyFilter
+} from "./pretty.mjs";
 import {
   compileObject,
   compileLibrary,
@@ -366,9 +370,11 @@ function listAliases(aliases) {
   return entries.map(([name, hash]) => `${name} = ${hash}`).join("\n");
 }
 
-function resolvePatternCanonicalName(state, name, pat) {
-  if (!state || !pat) return null;
-  if (pat._canonical) return pat._canonical;
+function resolvePatternCanonicalInfo(state, name, pat) {
+  if (!state || !pat) return { hash: null, def: null };
+  if (pat._canonical && pat._canonicalDef) {
+    return { hash: pat._canonical, def: pat._canonicalDef };
+  }
   const params = pat.params || [];
   const source = `? ${name}[${params.join(", ")}]`;
   try {
@@ -385,6 +391,13 @@ function resolvePatternCanonicalName(state, name, pat) {
       const rootId = mainRel.typePatternGraph.find(
         mainRel.def.patterns[0]
       );
+      const [canonicalFilter] = patterns2filters(
+        mainRel.typePatternGraph,
+        rootId
+      );
+      if (canonicalFilter) {
+        pat._canonicalDef = prettyFilter(canonicalFilter);
+      }
       const propList = patternToPropertyList(
         exportPatternGraph(mainRel.typePatternGraph, rootId)
       );
@@ -392,26 +405,37 @@ function resolvePatternCanonicalName(state, name, pat) {
       if (codeHash) {
         state.codes = codes.dump();
         pat._canonical = codeHash;
-        return codeHash;
+        return {
+          hash: codeHash,
+          def: pat._canonicalDef || null
+        };
       }
     }
     const relHash = annotated.relAlias?.__main__ || null;
     if (relHash) {
       pat._canonical = relHash;
-      return relHash;
+      return {
+        hash: relHash,
+        def: pat._canonicalDef || null
+      };
     }
   } catch {
     restoreCodes(state);
-    return null;
+    return { hash: null, def: null };
   }
-  return null;
+  return { hash: null, def: pat._canonicalDef || null };
+}
+
+function resolvePatternCanonicalName(state, name, pat) {
+  return resolvePatternCanonicalInfo(state, name, pat).hash;
 }
 
 function prettyPattern(name, pat, state = null) {
   const params = (pat?.params || []).join(", ");
-  const filterStr = pat?.filter ? prettyFilter(pat.filter) : "()";
-  const canonical = resolvePatternCanonicalName(state, name, pat);
-  const suffix = canonical ? `  -- ${canonical}` : "";
+  const info = resolvePatternCanonicalInfo(state, name, pat);
+  const filterStr = info.def ||
+    (pat?.filter ? prettyFilter(pat.filter) : "()");
+  const suffix = info.hash ? `  -- ${info.hash}` : "";
   return `${name}[${params}] = ${filterStr};${suffix}`;
 }
 
