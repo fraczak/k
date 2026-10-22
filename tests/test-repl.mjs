@@ -703,7 +703,7 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern pair", patState);
 assert.equal(
   output[0],
-  "pair[A, B] = {A first, B second};  -- " +
+  "pair[X0, X1] = {X0 first, X1 second};  -- " +
     "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
 );
 
@@ -717,7 +717,7 @@ assert(output[0].includes("pair[A, B]"));
 output = await evaluateInput(":pattern list", patState);
 assert.equal(
   output[0],
-  "list[X] = <{X car, X0 cdr} cons, {} nil>=X0;  -- " +
+  "list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- " +
     "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe"
 );
 
@@ -745,13 +745,13 @@ assert.equal(
 output = await evaluateInput(":pattern pair", freshState);
 assert.equal(
   output[0],
-  "pair[A, B] = {A first, B second};  -- " +
+  "pair[X0, X1] = {X0 first, X1 second};  -- " +
     "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
 );
 output = await evaluateInput(":pattern list", freshState);
 assert.equal(
   output[0],
-  "list[X] = <{X car, X0 cdr} cons, {} nil>=X0;  -- " +
+  "list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- " +
     "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe"
 );
 output = await evaluateInput(
@@ -761,7 +761,7 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern same_pair", freshState);
 assert.equal(
   output[0],
-  "same_pair[T] = {T first, T second};  -- " +
+  "same_pair[X0] = {X0 first, X0 second};  -- " +
     "@TyjJDJuYAbp56mytRMzu2HMTfQq7rKLcGsaQtFG28yhW"
 );
 output = await evaluateInput("{} | nil ? list[bit[]]", freshState);

@@ -178,5 +178,113 @@ function patterns2filters(typePatternGraph, ...patternIds) {
 
 }
 
-export default { prettyCode, prettyRel, prettyFilter, patterns2filters };
-export { prettyCode, prettyRel, prettyFilter, patterns2filters };
+function patternGraphToCanonical(typePatternGraph, rootId) {
+  const newTypePatternGraph = new TypePatternGraph(
+    typePatternGraph.registerCodeDef,
+    typePatternGraph.findCode
+  );
+  const renamed = typePatternGraph.clone([rootId], newTypePatternGraph);
+  const newRootId = newTypePatternGraph.find(renamed[rootId]);
+
+  const inDegree = newTypePatternGraph.patterns.nodes.map(() => 0);
+  inDegree[newRootId]++;
+  newTypePatternGraph.edges.forEach((outEdges) =>
+    Object.values(outEdges).forEach((destMap) =>
+      Object.values(destMap).forEach((dst) => inDegree[dst]++)
+    )
+  );
+
+  const variables = inDegree.reduce((vars, degree, i) => {
+    const p = newTypePatternGraph.get_pattern(i);
+    if (degree > 1 || p.pattern === "(...)") {
+      vars[i] = true;
+    }
+    return vars;
+  }, {});
+
+  const filterVars = {};
+  const canonicalParams = [];
+
+  const buildFilter = (path, patternId) => {
+    let named_filter = {};
+    const pattern = newTypePatternGraph.get_pattern(patternId);
+    if (variables[patternId]) {
+      if (filterVars[patternId]) {
+        return { type: "name", name: filterVars[patternId] };
+      }
+      const varName = `X${Object.keys(filterVars).length}`;
+      filterVars[patternId] = varName;
+      named_filter = { name: varName };
+      if (pattern.pattern === "(...)") {
+        canonicalParams.push(varName);
+      }
+    }
+
+    const edges = newTypePatternGraph.edges[patternId] || {};
+    const fields = () =>
+      Object.keys(edges)
+        .sort()
+        .reduce((flds, key) => {
+          flds[key] = buildFilter(
+            [...path, key],
+            Object.values(edges[key])[0]
+          );
+          return flds;
+        }, {});
+
+    switch (pattern.pattern) {
+      case "type": {
+        const code = newTypePatternGraph.findCode(pattern.type);
+        if (code?.code === "product") {
+          return { type: "product", fields: fields(), ...named_filter };
+        } else if (code?.code === "union") {
+          return { type: "union", fields: fields(), ...named_filter };
+        }
+        return { type: "code", code: pattern.type, ...named_filter };
+      }
+      case "(...)":
+        return {
+          type: null,
+          open: true,
+          fields: fields(),
+          ...named_filter
+        };
+      case "{...}":
+        return {
+          type: "product",
+          open: true,
+          fields: fields(),
+          ...named_filter
+        };
+      case "<...>":
+        return {
+          type: "union",
+          open: true,
+          fields: fields(),
+          ...named_filter
+        };
+      case "{}":
+        return { type: "product", fields: fields(), ...named_filter };
+      case "<>":
+        return { type: "union", fields: fields(), ...named_filter };
+    }
+  };
+
+  const filter = buildFilter([], newRootId);
+  return { filter, canonicalParams };
+}
+
+export default {
+  prettyCode,
+  prettyRel,
+  prettyFilter,
+  patterns2filters,
+  patternGraphToCanonical
+};
+export {
+  prettyCode,
+  prettyRel,
+  prettyFilter,
+  patterns2filters,
+  patternGraphToCanonical
+};
