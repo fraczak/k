@@ -5,6 +5,33 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.2.0] — 2026-10-21 — Canonical Pattern Decompilation & Parameters
+
+### Interactive REPL & Tooling
+
+- **Canonical Pattern Decompilation (`:pattern`, `:pat`)**:
+  - `:pattern <name>` (or `:pat <name>`) prints the canonical pattern
+    definition decompiled from its underlying minimal automaton,
+    rather than echoing user-defined construction syntax.
+  - Automatically erases author-chosen parameter and knot names,
+    introducing canonical variables (`X0`, `X1`, `X2`, ...) in
+    deterministic traversal (discovery) order.
+  - Open type holes (`(...)`) are recorded as introduced parameters
+    in the pattern header in discovery order:
+    * `pair[X0, X1] = {X0 first, X1 second};  -- @hash`
+    * `list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- @hash`
+    * `same_pair[X0] = {X0 first, X0 second};  -- @hash`
+    * `dict[X1, X2] = <{{X1 first, X2 second} car, X0 cdr} cons,`
+      `{} nil>=X0;  -- @hash`
+  - Added `patternGraphToCanonical` to `pretty.mjs` for decompiling
+    pattern graphs with introduced canonical variables.
+  - Supports direct pattern lookup by content-addressed hash
+    (`:pattern @hash`, `:pat @hash`).
+  - Displays canonical content-addressed digest comments (`-- @hash`).
+  - Added comprehensive unit tests in `tests/test-repl.mjs`.
+  - Updated documentation across `DOCS/REPL.md`,
+    `DOCS/NAMED_PATTERNS.md`, and `DOCS/PATTERNS.md`.
+
 ## [8.1.0] — 2026-10-20 — Dynamic JSON Bit-Trie & json? Standard Library
 
 ### Dynamic JSON (djson) Consolidation
@@ -72,12 +99,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Pattern Inspection & Persistence in REPL**:
   - Added `:patterns` / `:pat` commands to inspect loaded patterns.
-  - `:pat <name>` prints the canonical pattern definition decompiled
-    from its underlying automaton, introducing its own canonical
-    variables (`X0`, `X1`, ...) in discovery order instead of echoing
-    input parameter names.
   - Display canonical type code / relation hashes:
-    `name[...] = ...  -- @hash`.
+    `name[] = ...  -- @hash`.
   - Added pattern lookup by `@hash` (`:pattern @hash`, `:pat @hash`).
   - Tab-completion support for pattern names and canonical `@hashes`.
   - Full pattern persistence across REPL sessions via `.klib` files.
