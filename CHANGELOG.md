@@ -5,6 +5,43 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.4.0] — 2026-10-23 — Linear Skeletons & Parameter Diagonalization
+
+### Pure Linear Skeleton Model for Parameterized Patterns
+
+- **Never Equalize Leaves in Canonical Templates**:
+  - The canonicalizer derives a pure linear skeleton for all
+    parameterized patterns, treating every open leaf position as an
+    independent port (`X0, X1, X2, ...`).
+  - Leaves are never unified in the canonical pattern graph,
+    guaranteeing maximum template deduplication across all variations
+    of a structural schema (records, products, sums).
+- **Parameter Diagonalization in Aliases**:
+  - Non-linear equality constraints across leaves are represented as
+    diagonalized argument vectors (`aliasArgs`) on the alias definition
+    itself rather than inside the canonical template graph:
+    * `same_pair[T] = @hash[T, T];` (formal parameter equality)
+    * `closed_same_pair[] = @hash[T, T];` (existential variable equality)
+    * `p[X] = @hash[X, Y, Y];` (mixed formal and existential equality)
+    * `p[] = @hash[X, X];` (pure existential equality)
+  - When instantiated, shared existential variables are renamed to fresh
+    unification variables (`_Y_np1`), enforcing structural equality at
+    use-time with full type safety.
+- **Canonical Sharing Across Diagonalizations**:
+  - `pair[A, B]`, `same_pair[T]`, `closed_same_pair[]`, and `any_pair[]`
+    all compile to and share the exact same canonical pattern graph and
+    content hash (`@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm`).
+  - `diag_p[] = { X x, X y }` shares the same canonical hash as
+    `a[]`, `b[X]`, `c[X, Y]`, `d[Y, X]`.
+- **Object File Persistence**:
+  - Ahead-of-time `.klib` and `.ko` object files persist canonical
+    deduplicated linear templates under `patterns[@hash]`, alias mappings
+    under `patternAlias`, and diagonalized routing vectors in
+    `meta[hash].origins[].aliasArgs`.
+- **Documentation**:
+  - Updated `DOCS/CANONICAL_PATTERNS.md` and
+    `DOCS/OBJECT_FILE_AND_PATTERN.md`.
+
 ## [8.3.0] — 2026-10-22 — Content-Addressable Patterns & Aliasing
 
 ### Content-Addressable Canonical Patterns

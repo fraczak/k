@@ -8,6 +8,65 @@ import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { closedPatternToCodeHash } from "./repl-codecs.mjs";
 import { expandFilter } from "./named-patterns.mjs";
 
+function collectFilterKnots(filter) {
+  const knots = new Set();
+  function walk(node) {
+    if (!node || typeof node !== "object") return;
+    if (node.name && node.type !== "name") {
+      knots.add(node.name);
+    }
+    if (node.fields) {
+      for (const child of Object.values(node.fields)) {
+        walk(child);
+      }
+    }
+    if (node.args) {
+      for (const arg of node.args) {
+        walk(arg);
+      }
+    }
+  }
+  walk(filter);
+  return knots;
+}
+
+function skeletonizeFilter(filter, knots) {
+  let leafIdx = 0;
+  function walk(node) {
+    if (!node || typeof node !== "object") return node;
+    if (node.type === "name" && knots.has(node.name)) {
+      return { ...node };
+    }
+    if (node.name && node.type !== "name") {
+      const knotName = node.name;
+      if (node.fields) {
+        const newFields = {};
+        for (const [k, v] of Object.entries(node.fields)) {
+          newFields[k] = walk(v);
+        }
+        return { ...node, name: knotName, fields: newFields };
+      }
+      return { ...node };
+    }
+    if (node.type === "product" || node.type === "union") {
+      const newFields = {};
+      for (const [k, v] of Object.entries(node.fields || {})) {
+        newFields[k] = walk(v);
+      }
+      return { ...node, fields: newFields };
+    }
+    if (node.type === "code") {
+      return { ...node };
+    }
+    return {
+      type: "name",
+      name: `__LEAF_${leafIdx++}__`,
+      open: true
+    };
+  }
+  return walk(filter);
+}
+
 function collectParamPaths(filter) {
   const map = {};
   function walk(node, path) {
@@ -121,8 +180,24 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
     }
   }
 
-  const dummyParams = formalParams.map((_, i) => `P${i}`);
-  const source = `? ${name}[${dummyParams.join(", ")}]`;
+  let expandedFilter = null;
+  try {
+    expandedFilter = expandFilter(pat.filter, allPatterns);
+  } catch {
+    expandedFilter = pat.filter;
+  }
+
+  if (!pat.filter) {
+    return {
+      hash: pat._canonical || null,
+      def: null,
+      params: formalParams
+    };
+  }
+
+  const knots = collectFilterKnots(expandedFilter);
+  const skeletonFilter = skeletonizeFilter(expandedFilter, knots);
+  const source = `? ${prettyFilter(skeletonFilter)}`;
   try {
     const annotated = annotate(source, {
       libraries: options.libraries || [],
@@ -131,6 +206,7 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
     const mainRel = annotated.rels.__main__;
     let canonicalFilter = null;
     let graphParams = null;
+    let codeHash = null;
     if (
       mainRel?.typePatternGraph &&
       mainRel?.def?.patterns?.[0] != null
@@ -138,11 +214,10 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       const rootId = mainRel.typePatternGraph.find(
         mainRel.def.patterns[0]
       );
-      const paramLimit = null;
       const res = patternGraphToCanonical(
         mainRel.typePatternGraph,
         rootId,
-        paramLimit
+        null
       );
       canonicalFilter = res.filter;
       graphParams = res.canonicalParams;
@@ -150,45 +225,26 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       const propList = patternToPropertyList(
         exportPatternGraph(mainRel.typePatternGraph, rootId)
       );
-      const codeHash = closedPatternToCodeHash(propList);
-      if (codeHash) {
-        pat._canonical = codeHash;
-        pat._canonicalDef = prettyFilter(canonicalFilter);
-        pat._canonicalParams = graphParams;
-        pat._aliasArgs = [];
-        pat._graphParams = graphParams;
-        pat._canonicalFilterAst = toAstFilter(canonicalFilter);
-        return {
-          hash: codeHash,
-          def: pat._canonicalDef,
-          params: pat._canonicalParams,
-          aliasArgs: pat._aliasArgs,
-          canonicalParams: graphParams,
-          canonicalFilterAst: pat._canonicalFilterAst
-        };
-      }
+      codeHash = closedPatternToCodeHash(propList);
     }
 
     if (canonicalFilter) {
       pat._canonicalDef = prettyFilter(canonicalFilter);
     }
 
-    let expandedFilter = null;
-    try {
-      expandedFilter = expandFilter(pat.filter, allPatterns);
-    } catch {
-      expandedFilter = pat.filter;
-    }
-
     const varPaths = collectCanonicalVarPaths(canonicalFilter);
-    const aliasArgs = (graphParams || []).map((cVar) => {
+    const tokens = (graphParams || []).map((cVar) => {
       const path = varPaths[cVar];
-      const origVar = path
-        ? findVarAtPath(expandedFilter, path)
-        : null;
-      if (origVar && formalParams.includes(origVar)) {
-        return origVar;
-      }
+      return path ? findVarAtPath(expandedFilter, path) : null;
+    });
+    const tokenCounts = {};
+    for (const t of tokens) {
+      if (t) tokenCounts[t] = (tokenCounts[t] || 0) + 1;
+    }
+    const aliasArgs = tokens.map((t) => {
+      if (!t) return "(...)";
+      if (formalParams.includes(t)) return t;
+      if (tokenCounts[t] > 1) return t;
       return "(...)";
     });
 
@@ -201,24 +257,25 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       return graphParams?.[i] || `X${i}`;
     });
 
+    const relHash = annotated.relAlias?.__main__ || null;
+    const finalHash =
+      codeHash || relHash || pat._canonical || null;
+
+    pat._canonical = finalHash;
     pat._canonicalParams =
       formalCount > 0 ? selectedParams : [];
     pat._graphParams = graphParams || [];
     pat._aliasArgs = aliasArgs;
     pat._canonicalFilterAst = toAstFilter(canonicalFilter);
 
-    const relHash = annotated.relAlias?.__main__ || null;
-    if (relHash) {
-      pat._canonical = relHash;
-      return {
-        hash: relHash,
-        def: pat._canonicalDef || null,
-        params: pat._canonicalParams,
-        aliasArgs: pat._aliasArgs,
-        canonicalParams: pat._graphParams,
-        canonicalFilterAst: pat._canonicalFilterAst
-      };
-    }
+    return {
+      hash: pat._canonical,
+      def: pat._canonicalDef || null,
+      params: pat._canonicalParams,
+      aliasArgs: pat._aliasArgs,
+      canonicalParams: pat._graphParams,
+      canonicalFilterAst: pat._canonicalFilterAst
+    };
   } catch {
     return {
       hash: pat._canonical || null,

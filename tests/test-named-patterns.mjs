@@ -521,11 +521,11 @@ console.log(
   );
 
   assert.equal(peInfo.hash, feInfo.hash);
-  assert.equal(peInfo.def, "{X0 a, X1 b, X1 c}");
+  assert.equal(peInfo.def, "{X0 a, X1 b, X2 c}");
   assert.deepEqual(peInfo.params, ["X0"]);
-  assert.deepEqual(peInfo.aliasArgs, ["Z", "(...)"]);
+  assert.deepEqual(peInfo.aliasArgs, ["Z", "Y", "Y"]);
   assert.deepEqual(feInfo.params, ["X0", "X1"]);
-  assert.deepEqual(feInfo.aliasArgs, ["A", "B"]);
+  assert.deepEqual(feInfo.aliasArgs, ["A", "B", "B"]);
 
   // Verify that pair_equal enforces equality between b and c
   const fnOk = k.compile(`
@@ -546,6 +546,82 @@ console.log(
   );
   console.log(
     "    Passed: Repeated existential variable wildcard constraints."
+  );
+}
+
+// Test 15: Diagonalized leaves share canonical linear skeleton
+console.log(
+  "--> Test 15: Diagonalized leaves share canonical linear skeleton"
+);
+{
+  const { resolvePatternCanonicalInfo } =
+    await import("../canonical-pattern.mjs");
+  const { parse } = await import("../parser.mjs");
+
+  const ast = parse(`
+    pair[A, B] = { A first, B second };
+    same_pair[T] = { T first, T second };
+    closed_same_pair[] = { T first, T second };
+    any_pair[] = { (...) first, (...) second };
+    diag_p[] = { X x, X y };
+    ()
+  `);
+  const pairInfo = resolvePatternCanonicalInfo(
+    "pair",
+    ast.defs.patterns.pair,
+    { patterns: ast.defs.patterns }
+  );
+  const sameInfo = resolvePatternCanonicalInfo(
+    "same_pair",
+    ast.defs.patterns.same_pair,
+    { patterns: ast.defs.patterns }
+  );
+  const closedSameInfo = resolvePatternCanonicalInfo(
+    "closed_same_pair",
+    ast.defs.patterns.closed_same_pair,
+    { patterns: ast.defs.patterns }
+  );
+  const anyInfo = resolvePatternCanonicalInfo(
+    "any_pair",
+    ast.defs.patterns.any_pair,
+    { patterns: ast.defs.patterns }
+  );
+  const diagPInfo = resolvePatternCanonicalInfo(
+    "diag_p",
+    ast.defs.patterns.diag_p,
+    { patterns: ast.defs.patterns }
+  );
+
+  const pairHash = "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm";
+  assert.equal(pairInfo.hash, pairHash);
+  assert.equal(sameInfo.hash, pairHash);
+  assert.equal(closedSameInfo.hash, pairHash);
+  assert.equal(anyInfo.hash, pairHash);
+
+  assert.equal(pairInfo.def, "{X0 first, X1 second}");
+  assert.equal(sameInfo.def, "{X0 first, X1 second}");
+  assert.equal(closedSameInfo.def, "{X0 first, X1 second}");
+  assert.equal(anyInfo.def, "{X0 first, X1 second}");
+
+  assert.deepEqual(pairInfo.aliasArgs, ["A", "B"]);
+  assert.deepEqual(sameInfo.aliasArgs, ["T", "T"]);
+  assert.deepEqual(closedSameInfo.aliasArgs, ["T", "T"]);
+  assert.deepEqual(anyInfo.aliasArgs, ["(...)", "(...)"]);
+
+  assert.deepEqual(pairInfo.params, ["X0", "X1"]);
+  assert.deepEqual(sameInfo.params, ["X0"]);
+  assert.deepEqual(closedSameInfo.params, []);
+  assert.deepEqual(anyInfo.params, []);
+
+  // diag_p[] shares canonical skeleton with a, b, c, d
+  const xyHash = "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x";
+  assert.equal(diagPInfo.hash, xyHash);
+  assert.equal(diagPInfo.def, "{X0 x, X1 y}");
+  assert.deepEqual(diagPInfo.params, []);
+  assert.deepEqual(diagPInfo.aliasArgs, ["X", "X"]);
+
+  console.log(
+    "    Passed: Diagonalized leaves share canonical linear skeleton."
   );
 }
 

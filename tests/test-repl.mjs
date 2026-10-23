@@ -766,8 +766,8 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern same_pair", freshState);
 assert.equal(
   output[0],
-  "same_pair[X0] = {X0 first, X0 second};  -- " +
-    "@TyjJDJuYAbp56mytRMzu2HMTfQq7rKLcGsaQtFG28yhW"
+  "same_pair[X0] = {X0 first, X1 second};  -- " +
+    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
 );
 output = await evaluateInput("{} | nil ? list[bit[]]", freshState);
 assert.match(output[0], /\{\}\|nil/);
@@ -786,8 +786,8 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern closed_same_pair", freshState);
 assert.equal(
   output[0],
-  "closed_same_pair[] = {X0 first, X0 second};  -- " +
-    "@TyjJDJuYAbp56mytRMzu2HMTfQq7rKLcGsaQtFG28yhW"
+  "closed_same_pair[] = {X0 first, X1 second};  -- " +
+    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
 );
 
 output = await evaluateInput(
@@ -840,6 +840,17 @@ assert(
     "d[Y,X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]"
   )
 );
+assert(
+  output[0].includes(
+    "same_pair[T] = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[T,T]"
+  )
+);
+assert(
+  output[0].includes(
+    "closed_same_pair[] = " +
+      "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[T,T]"
+  )
+);
 
 await assert.rejects(
   () =>
@@ -854,30 +865,30 @@ await evaluateInput("p[X]= {X x, Y y, Y z};", freshState);
 output = await evaluateInput(":pats", freshState);
 assert(
   output[0].includes(
-    "p[X] = @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X,(...)]"
+    "p[X] = @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X,Y,Y]"
   )
 );
 
 output = await evaluateInput(":pat p", freshState);
 assert.equal(
   output[0],
-  "p[X0] = {X0 x, X1 y, X1 z};  -- " +
-    "@A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P"
+  "p[X0] = {X0 x, X1 y, X2 z};  -- " +
+    "@PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR"
 );
 
 output = await evaluateInput(
-  ":pat @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P",
+  ":pat @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR",
   freshState
 );
 assert.equal(
   output[0],
-  "@A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X0, X1] = " +
-    "{X0 x, X1 y, X1 z};"
+  "@PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X0, X1, X2] = " +
+    "{X0 x, X1 y, X2 z};"
 );
 
 output = await evaluateInput(
   "{{} x, {} y, {} z} ? " +
-    "@A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[{}, {}]",
+    "@PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[{}, {}, {}]",
   freshState
 );
 assert.match(output[0], /\{\{\} x, \{\} y, \{\} z\}/);
@@ -893,17 +904,17 @@ await evaluateInput(`:klib ${testKlibPath2}`, freshState);
 const freshState2 = createState({ engine: "wasm" });
 await evaluateInput(`:load ${testKlibPath2}`, freshState2);
 const pHash = freshState2.patternAliases.p;
-assert.equal(pHash, "@A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P");
+assert.equal(pHash, "@PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR");
 const pOrigins = freshState2.meta[pHash]?.origins?.filter(
   (o) => o.name === "p"
 );
 assert.equal(pOrigins?.length, 1);
 assert.deepEqual(pOrigins[0].params, ["X"]);
-assert.deepEqual(pOrigins[0].aliasArgs, ["X", "(...)"]);
+assert.deepEqual(pOrigins[0].aliasArgs, ["X", "Y", "Y"]);
 output = await evaluateInput(":pats", freshState2);
 assert(
   output[0].includes(
-    "p[X] = @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X,(...)]"
+    "p[X] = @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X,Y,Y]"
   )
 );
 

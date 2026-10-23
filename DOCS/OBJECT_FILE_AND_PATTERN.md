@@ -124,15 +124,23 @@ The payload stores:
 - each relation's type-pattern graph state,
 - each relation's `typeDerivation.status`,
 - relation aliases in `relAlias`,
+- pattern aliases in `patternAlias`,
+- deduplicated canonical pattern ASTs in `patterns`,
 - compiler convergence details in top-level `compileStats`,
-- metadata, including aliases and origin source locations,
+- metadata (`meta`), including aliases, origin source locations, and
+  pattern parameter routing vectors (`aliasArgs`),
 - the main relation name.
 
 Relation `def` values do not store source `start` / `end` markers. Source
 locations live on `meta[hash].origins[]` entries. Each metadata entry has
-`type: "code"` or `type: "rel"`. Origin entries hold `source`, `name`,
-`compiledAt`, and optional `start` / `end`; origin entries do not have
-`kind`.
+`type: "code"`, `type: "rel"`, or `type: "pattern"`. Origin entries hold
+`source`, `name`, `compiledAt`, optional `start` / `end`, and for
+patterns, `params` and `aliasArgs` (recording parameter routing and
+diagonalization). Origin entries do not have `kind`.
+
+For complete details on canonical pattern skeletons, alias argument
+routing, and object reflection, see
+[`DOCS/CANONICAL_PATTERNS.md`](./CANONICAL_PATTERNS.md).
 
 Relation `def` values also do not store generated input/output filters.
 Those filters are derived from `def.patterns` and `typePatternGraph` when

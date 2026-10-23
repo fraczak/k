@@ -15,101 +15,125 @@ This document specifies:
 3. Why the variable pointing to the root of a recursive pattern graph
    (and cycle knots in general) is an internal structural fixed-point
    and cannot be exposed as an external parameter.
+4. How canonical patterns, aliases, and argument routing are persisted
+   in object files (`.klib` and `.ko`).
 
 ---
 
-## 2. Canonical Pattern Derivation
+## 2. Canonical Pattern Derivation: The Pure Linear Skeleton
 
 When a pattern is compiled:
 ```k
 p[X] = {X x, Y y, Y z};
 ```
-the compiler evaluates the right-hand filter into a minimal directed
-graph (regular tree automaton).
+the compiler evaluates the right-hand filter into a
+**pure linear skeleton**.
 
-### 2.1 Full Variable Node Discovery
+### 2.1 Never Equalizing Pattern Leaves
 
-In the graph representation:
-- `X` is an open port referenced at field `x`.
-- `Y` is an existential variable shared between fields `y` and `z`,
-  constraining them to identical subtrees.
+In the pure skeleton model, two leaves of a pattern graph are **never
+equalized** in the canonical template:
+- Even if an author repeats an existential variable (like `Y` at fields
+  `y` and `z`), or repeats a formal parameter (like `T` in
+  `same_pair[T] = { T first, T second }`), the canonicalizer assigns an
+  independent, distinct canonical port `X0, X1, X2, ...` to every open
+  leaf slot.
+- Any non-linear equality constraint between leaves is represented
+  outside the canonical graph, in the **diagonalized argument vector** of
+  the alias definition.
 
-The canonicalizer walks the minimal automaton in deterministic
-breadth-first traversal order, assigning canonical variable names
-`X0`, `X1`, `X2`, ... to each open variable node discovered in the
-graph.
+In the example `p[X] = {X x, Y y, Y z}`:
+- Field `x` becomes canonical port `X0`.
+- Field `y` becomes canonical port `X1`.
+- Field `z` becomes canonical port `X2`.
 
-Crucially, **all** variable nodes present in the filter graph are
-retained in the canonical pattern definition. In the example above:
-- `X` becomes canonical port `X0`.
-- `Y` becomes canonical port `X1`.
-
-The resulting minimal canonical pattern graph produces a deterministic
-content hash (e.g. `@A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P`).
-The canonical pattern definition is therefore:
-
+The canonical pattern is the 3-port linear product:
 ```k
-@A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X0, X1] = {
-  X0 x, X1 y, X1 z
+@PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X0, X1, X2] = {
+  X0 x, X1 y, X2 z
 };
 ```
 
-Canonical patterns always take the full arity of all variable nodes
-discovered in the graph.
+Canonical patterns always take the full arity of all leaf positions
+discovered in the pattern skeleton.
 
 ---
 
-## 3. Named Patterns as Parameter Routing Aliases
+## 3. Named Patterns as Parameter Routing and Diagonalization Aliases
 
 When an author defines an alias like:
 ```k
 p[X] = {X x, Y y, Y z};
 ```
-the user only exposed `X` in the parameter list `[X]`, leaving `Y`
-unexposed.
-
-The definition `p[X]` does **not** create a separate pattern graph.
-Instead, it defines an alias that instantiates the underlying canonical
-pattern `@A6vr...`, routing the author's parameter `X` to slot `X0`, and
-plugging unexposed slots (here `X1`) with the open wildcard `(...)`:
+the definition `p[X]` does **not** create a separate canonical pattern
+graph. Instead, it defines an alias that routes:
+- The author's formal parameter `X` to slot `X0`.
+- The shared existential variable `Y` to both slots `X1` and `X2`:
 
 ```k
-p[X] = @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X, (...)];
+p[X] = @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X, Y, Y];
 ```
 
-### 3.1 Canonical Pattern Sharing Across Permutations
+When `p` is instantiated (e.g. `p[int]`), the template expansion engine:
+1. Substitutes formal parameter `X` with caller argument `int`.
+2. Renames internal existential variable `Y` to a unique fresh variable
+   `_Y_np1` across all occurrences in the argument list:
+   `@PScs...[int, _Y_np1, _Y_np1]`.
+3. Expands the canonical template with those arguments, yielding:
+   `{ int x, _Y_np1 y, _Y_np1 z }`.
+4. The type derivation engine unifies the type of field `y` with the type
+   of field `z` via the shared fresh variable `_Y_np1`.
 
-Multiple alias definitions with different parameter exposures or
-orderings over isomorphic filter graphs share the exact same canonical
-hash:
+Thus, existential equality constraints are preserved with full type-safety
+at use-time, while enabling maximum structural template deduplication.
 
+### 3.1 Canonical Pattern Sharing Across Diagonalizations and Permutations
+
+Under this architecture, all variations over the same underlying product
+or union structure share the **exact same canonical pattern graph and
+content hash**:
+
+#### Example 1: Pair Variations
 ```k
-a[]    = {X x, Y y};
-b[X]   = {X x, Y y};
-c[X,Y] = {X x, Y y};
-d[Y,X] = {X x, Y y};
+pair[A, B]         = { A first, B second };
+same_pair[T]       = { T first, T second };
+closed_same_pair[] = { T first, T second };
+any_pair[]         = { (...) first, (...) second };
+```
+All four compile to the single canonical skeleton:
+```k
+@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[X0, X1] = {
+  X0 first, X1 second
+};
 ```
 
-All four patterns compile to the identical canonical graph:
-`@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X0, X1] = {X0 x, X1 y};`
+Their `:pats` alias representations reflect their respective parameter
+routings and diagonalizations:
+```text
+> :pats
+any_pair[] = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[(...),(...)]
+closed_same_pair[] = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[T,T]
+pair[A,B] = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[A,B]
+same_pair[T] = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[T,T]
+```
 
-Inspecting the aliases with `:pats` shows how each alias projects its
-arguments into the shared canonical template:
-
+#### Example 2: Record `{ x, y }` Variations
+```k
+a[]      = { (...) x, (...) y };
+b[X]     = { X x, (...) y };
+c[X,Y]   = { X x, Y y };
+d[Y,X]   = { X x, Y y };
+diag_p[] = { X x, X y };
+```
+All five share `@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x`:
 ```text
 > :pats
 a[] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[(...),(...)]
 b[X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,(...)]
 c[X,Y] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
 d[Y,X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
+diag_p[] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,X]
 ```
-
-Notice:
-- `a[]` exposes no parameters, so both canonical ports are `(...)`.
-- `b[X]` exposes only `X` (slot `X0`), so slot `X1` is filled with
-  `(...)`.
-- `c[X,Y]` routes caller arguments `[X, Y]` to canonical slots `[X0, X1]`.
-- `d[Y,X]` routes caller arguments `[Y, X]` to canonical slots `[X0, X1]`.
 
 ---
 
@@ -120,9 +144,9 @@ everywhere relations and aliases can be used:
 
 1. **Direct Inspection**:
    ```text
-   > :pat @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P
-   @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X0, X1] = {
-     X0 x, X1 y, X1 z
+   > :pat @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR
+   @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X0, X1, X2] = {
+     X0 x, X1 y, X2 z
    };
    ```
 
@@ -130,56 +154,36 @@ everywhere relations and aliases can be used:
    Callers can instantiate canonical patterns directly by passing all
    canonical arguments:
    ```k
-   { {} x, {} y, {} z } ? @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[
-     {}, {}
+   { {} x, {} y, {} z } ? @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[
+     {}, {}, {}
    ];
    ```
 
 3. **Explicit Definition by Hash**:
    Canonical pattern definitions are accepted directly by the grammar:
    ```k
-   @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X, Y] = {
-     X x, Y y, Y z
+   @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X0, X1, X2] = {
+     X0 x, X1 y, X2 z
    };
    ```
 
 ---
 
-## 5. Unrestricted Patterns `(...)` as Anonymous Canonical Ports
+## 5. Alias Argument Generation Rules
 
-An unrestricted pattern `(...)` represents an open wildcard hole with no
-type constraints. In the type pattern graph, an unrestricted pattern
-`(...)` and an unbound variable `X` lower to the exact same node type:
-`{ pattern: '(...)' }`.
-
-The canonicalizer treats every unrestricted node in the graph as an open
-variable port. Consequently:
-- Writing `{(...) x, (...) y, (...) z}` produces the **exact same
-  canonical pattern** as `{X x, Y y, Z z}`:
-  ```k
-  @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X0, X1, X2] = {
-    X0 x, X1 y, X2 z
-  };
-  ```
-- An alias definition like:
-  ```k
-  p[X] = {X x, (...) y};
-  ```
-  derives the generic canonical pattern for `{X x, Y y}`:
-  ```k
-  @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X0, X1] = {
-    X0 x, X1 y
-  };
-  ```
-  and defines the alias routing `X` to port `X0` and wildcard `(...)`
-  to port `X1`:
-  ```k
-  p[X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X, (...)];
-  ```
-
-This guarantees maximal canonical sharing: whether a hole is written as
-a named variable or an inline `(...)`, both share the identical underlying
-canonical template.
+For every canonical port `Xi` at path `P` in the canonical filter:
+Let `t` be the token found at path `P` in the author's filter.
+The corresponding alias argument is determined by:
+1. **Wildcard leaf**: If `t` is absent or an explicit `(...)` wildcard,
+   the argument is `"(...)"`.
+2. **Formal parameter**: If `t` is declared in `pattern_params`, the
+   argument is `t` (e.g. `[T, T]` for diagonalized parameter `T`).
+3. **Repeated existential variable**: If `t` is an internal variable
+   appearing $> 1$ times in the filter, the argument is `t` (e.g. `[X, X]`
+   or `[Z, Y, Y]`), preserving existential equality across fields.
+4. **Single-occurrence internal variable**: If `t` is an internal variable
+   appearing only once, it imposes no constraints and is normalized to
+   `"(...)"`.
 
 ---
 
@@ -250,3 +254,96 @@ list[X, Y] = < {} nil, { X car, Y cdr } cons > = Y;
 
 The root node of a pattern graph is matched against incoming data by the
 runtime; it is never an open parameter port.
+
+---
+
+## 7. Reflection of Patterns in Object Files (`.klib` and `.ko`)
+
+Ahead-of-time compiled libraries (`.klib`) and executables (`.ko`) store
+patterns in their top-level object container (`format: "k-object"`).
+Patterns are persisted across three coordinated structures:
+
+### 7.1 `patternAlias` (Lexical Names to Content Hashes)
+
+Maps human-readable pattern names to their canonical content hashes.
+All aliases sharing the same linear skeleton point to the same hash:
+
+```json
+"patternAlias": {
+  "pair":             "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm",
+  "same_pair":        "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm",
+  "closed_same_pair": "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm",
+  "p":                "@PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR"
+}
+```
+
+### 7.2 `patterns` (Deduplicated Canonical ASTs)
+
+The `patterns` dictionary stores the canonical template definition under
+its content hash `@hash`:
+- **Deduplicated**: Even if a program defines multiple variations over a
+  pair or record, the canonical template is stored exactly once under
+  its `@hash`.
+- **Linear Multi-Hole Functor**: Every leaf position is an independent
+  canonical parameter (`X0, X1, ...`), with no leaves unified in the
+  persisted filter AST.
+
+```json
+"patterns": {
+  "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm": {
+    "params": ["X0", "X1"],
+    "filter": {
+      "type": "product",
+      "fields": {
+        "first":  { "type": "name", "name": "X0", "open": true },
+        "second": { "type": "name", "name": "X1", "open": true }
+      }
+    }
+  }
+}
+```
+
+### 7.3 `meta` (Provenance & `aliasArgs` Routing Vectors)
+
+The `meta` dictionary maps each `@hash` to its canonical port list
+and an `origins` array recording how every alias projects caller
+parameters into the linear skeleton:
+
+```json
+"meta": {
+  "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm": {
+    "type": "pattern",
+    "params": ["X0", "X1"],
+    "origins": [
+      {
+        "name": "pair",
+        "params": ["A", "B"],
+        "aliasArgs": ["A", "B"],
+        "compiledAt": "2026-10-23T19:38:29.691Z"
+      },
+      {
+        "name": "same_pair",
+        "params": ["T"],
+        "aliasArgs": ["T", "T"],
+        "compiledAt": "2026-10-23T19:38:29.691Z"
+      },
+      {
+        "name": "closed_same_pair",
+        "params": [],
+        "aliasArgs": ["T", "T"],
+        "compiledAt": "2026-10-23T19:38:29.691Z"
+      }
+    ]
+  }
+}
+```
+
+The `aliasArgs` vector:
+1. Records **parameter diagonalization** (e.g. `["T", "T"]`), instructing
+   the runtime to supply formal argument `T` to both canonical ports.
+2. Preserves **existential constraints** (e.g. `["X", "Y", "Y"]`),
+   ensuring `Y` is renamed to a shared fresh variable when instantiated.
+3. Enables **lossless alias export**: when generating `--export` preambles
+   or exporting `.klib` files, `buildExportPreamble` reads `origin.params`
+   and `origin.aliasArgs` to recreate the exact source-level alias
+   definitions.
