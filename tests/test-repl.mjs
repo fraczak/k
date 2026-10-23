@@ -620,9 +620,15 @@ output = await evaluateInput("bit[] = < {} 0, {} 1 >;", patState);
 assert.match(output[0], /\/\* comp:/);
 
 output = await evaluateInput(":patterns", patState);
-assert.equal(output[0], "bit[]");
+assert.equal(
+  output[0],
+  "bit = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+);
 output = await evaluateInput(":pats", patState);
-assert.equal(output[0], "bit[]");
+assert.equal(
+  output[0],
+  "bit = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+);
 
 output = await evaluateInput(":pattern bit", patState);
 assert.equal(
@@ -710,9 +716,9 @@ assert.equal(
 output = await evaluateInput(":load Examples/list.k", patState);
 assert.equal(output[0], "loaded Examples/list.k");
 output = await evaluateInput(":patterns", patState);
-assert(output[0].includes("bit[]"));
-assert(output[0].includes("list[X]"));
-assert(output[0].includes("pair[A, B]"));
+assert(output[0].includes("bit = @Mjusy"));
+assert(output[0].includes("list = @JagVex"));
+assert(output[0].includes("pair = @KqTB"));
 
 output = await evaluateInput(":pattern list", patState);
 assert.equal(
@@ -732,9 +738,9 @@ const freshState = createState({ engine: "wasm" });
 output = await evaluateInput(`:load ${testKlibPath}`, freshState);
 assert.equal(output[0], `loaded ${testKlibPath}`);
 output = await evaluateInput(":patterns", freshState);
-assert(output[0].includes("bit[]"));
-assert(output[0].includes("pair[A, B]"));
-assert(output[0].includes("list[X]"));
+assert(output[0].includes("bit = @Mjusy"));
+assert(output[0].includes("pair = @KqTB"));
+assert(output[0].includes("list = @JagVex"));
 
 output = await evaluateInput(":pattern bit", freshState);
 assert.equal(
@@ -783,6 +789,34 @@ assert.equal(
   output[0],
   "closed_same_pair[] = {X0 first, X0 second};  -- " +
     "@TyjJDJuYAbp56mytRMzu2HMTfQq7rKLcGsaQtFG28yhW"
+);
+
+output = await evaluateInput(
+  "c[X,Y] = {X x, Y y};d[Y,X] = {X x, Y y};",
+  freshState
+);
+output = await evaluateInput(":pat c", freshState);
+assert.equal(
+  output[0],
+  "c[X0, X1] = {X0 x, X1 y};  -- " +
+    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x"
+);
+output = await evaluateInput(":pat d", freshState);
+assert.equal(
+  output[0],
+  "d[X0, X1] = {X1 x, X0 y};  -- " +
+    "@qrWNGNcuFVdkynHwDzGjB2kSAf4tJD4iHvR2J9eGsPLq"
+);
+output = await evaluateInput(":pats", freshState);
+assert(
+  output[0].includes(
+    "c = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x"
+  )
+);
+assert(
+  output[0].includes(
+    "d = @qrWNGNcuFVdkynHwDzGjB2kSAf4tJD4iHvR2J9eGsPLq"
+  )
 );
 
 fs.rmSync(tmpDir, { recursive: true, force: true });

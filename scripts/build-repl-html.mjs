@@ -1930,7 +1930,7 @@ const htmlContent = `<!DOCTYPE html>
               <tr>
                 <td><code>:patterns</code></td>
                 <td>
-                  List defined named pattern templates
+                  List pattern aliases
                   (alias <code>:pats</code>)
                 </td>
               </tr>

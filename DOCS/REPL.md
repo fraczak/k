@@ -38,7 +38,7 @@ is complete.
 | `:rel name` | Show relation definition |
 | `:rels` | List relation aliases |
 | `:pattern name` | Show canonical definition of pattern (alias: `:pat`) |
-| `:patterns` | List defined named pattern templates (alias: `:pats`) |
+| `:patterns` | List pattern aliases as `alias = @hash` (alias: `:pats`) |
 | `:limit [num\|none]` | Set maximum characters for value output (default: 4096) |
 | `:codec load file` | Load a codec from an ES module file (e.g. `:codec load codecs/int.mjs`) |
 | `:codec unload name` | Unload a registered codec |
@@ -159,8 +159,15 @@ aliases, and metadata into the session. Aliases are recovered from
 
 ### `:patterns` (or `:pats`)
 
-Lists all currently defined named pattern templates along with their
-declared parameter signatures (e.g. `bit[]`, `list[X]`, `pair[A, B]`).
+Lists all defined named pattern aliases and their canonical `@hash`
+addresses (formatted as `alias = @hash`, matching `:rels`):
+
+```text
+> :pats
+bit = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg
+list = @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe
+pair = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm
+```
 
 ### `:pattern <name>` (or `:pat <name>`, `:pat @hash`)
 
@@ -170,6 +177,12 @@ Displays the **canonical definition** of a named pattern template:
 > pair[A, B] = { A first, B second };
 > :pat pair
 pair[X0, X1] = {X0 first, X1 second};  -- @...
+
+> c[X,Y] = {X x, Y y};d[Y,X] = {X x, Y y};
+> :pat c
+c[X0, X1] = {X0 x, X1 y};  -- @NPSHm9...
+> :pat d
+d[X0, X1] = {X1 x, X0 y};  -- @qrWNGN...
 
 > list[T] = < {} nil, { T car, Y cdr } cons > = Y;
 > :pat list

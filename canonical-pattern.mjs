@@ -6,6 +6,51 @@ import { patternGraphToCanonical, prettyFilter } from "./pretty.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { closedPatternToCodeHash } from "./repl-codecs.mjs";
+import hash from "./hash.mjs";
+import { expandFilter } from "./named-patterns.mjs";
+
+function collectParamTraversal(filter) {
+  const seen = new Set();
+  const order = [];
+  function walk(node) {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "name" && typeof node.name === "string") {
+      const match = node.name.match(/^__PARAM_(\d+)__$/);
+      if (match) {
+        const idx = Number(match[1]);
+        if (!seen.has(idx)) {
+          seen.add(idx);
+          order.push(idx);
+        }
+      }
+    }
+    if (node.fields) {
+      for (const k of Object.keys(node.fields).sort()) {
+        walk(node.fields[k]);
+      }
+    }
+  }
+  walk(filter);
+  return order;
+}
+
+function remapFilterVars(filter, map) {
+  if (!filter || typeof filter !== "object") return filter;
+  const res = { ...filter };
+  if (filter.name && map[filter.name]) {
+    res.name = map[filter.name];
+  }
+  if (filter.type === "name" && map[filter.name]) {
+    res.name = map[filter.name];
+  }
+  if (filter.fields) {
+    res.fields = {};
+    for (const [k, v] of Object.entries(filter.fields)) {
+      res.fields[k] = remapFilterVars(v, map);
+    }
+  }
+  return res;
+}
 
 export function resolvePatternCanonicalInfo(name, pat, options = {}) {
   if (!pat) return { hash: null, def: null, params: null };
@@ -19,14 +64,38 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
   if (typeof name === "string" && name.startsWith("@")) {
     pat._canonical = name;
   }
-  const params = pat.params || [];
-  const source = `? ${name}[${params.join(", ")}]`;
+  const formalParams = pat.params || [];
+  const formalCount = formalParams.length;
+  const allPatterns = { ...(options.patterns || {}) };
+  if (name && pat) allPatterns[name] = pat;
+
+  let traversalParamIndices = [];
+  if (formalCount > 0) {
+    try {
+      const markerArgs = formalParams.map((_, i) => ({
+        type: "name",
+        name: `__PARAM_${i}__`
+      }));
+      const expanded = expandFilter(
+        { type: "pattern_apply", pattern: name, args: markerArgs },
+        allPatterns
+      );
+      traversalParamIndices = collectParamTraversal(expanded);
+    } catch {
+      traversalParamIndices = [];
+    }
+  }
+
+  const dummyParams = formalParams.map((_, i) => `P${i}`);
+  const source = `? ${name}[${dummyParams.join(", ")}]`;
   try {
     const annotated = annotate(source, {
       libraries: options.libraries || [],
-      patterns: options.patterns || {}
+      patterns: allPatterns
     });
     const mainRel = annotated.rels.__main__;
+    let canonicalFilter = null;
+    let canonicalParams = null;
     if (
       mainRel?.typePatternGraph &&
       mainRel?.def?.patterns?.[0] != null
@@ -34,36 +103,72 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       const rootId = mainRel.typePatternGraph.find(
         mainRel.def.patterns[0]
       );
-      const expectedParamCount =
-        pat.params != null ? pat.params.length : null;
-      const { filter: canonicalFilter, canonicalParams } =
-        patternGraphToCanonical(
-          mainRel.typePatternGraph,
-          rootId,
-          expectedParamCount
-        );
-      if (canonicalFilter) {
-        pat._canonicalDef = prettyFilter(canonicalFilter);
-        pat._canonicalParams = canonicalParams;
-      }
+      const res = patternGraphToCanonical(
+        mainRel.typePatternGraph,
+        rootId,
+        formalCount
+      );
+      canonicalFilter = res.filter;
+      canonicalParams = res.canonicalParams;
+
       const propList = patternToPropertyList(
         exportPatternGraph(mainRel.typePatternGraph, rootId)
       );
       const codeHash = closedPatternToCodeHash(propList);
       if (codeHash) {
         pat._canonical = codeHash;
+        pat._canonicalDef = prettyFilter(canonicalFilter);
+        pat._canonicalParams = canonicalParams;
         return {
           hash: codeHash,
-          def: pat._canonicalDef || null,
-          params: pat._canonicalParams || null
+          def: pat._canonicalDef,
+          params: pat._canonicalParams
         };
       }
     }
+
+    let finalFilter = canonicalFilter;
+    if (
+      canonicalFilter &&
+      formalCount > 0 &&
+      canonicalParams?.length > 0
+    ) {
+      const remap = {};
+      for (let j = 0; j < canonicalParams.length; j++) {
+        const origVar = canonicalParams[j];
+        const paramIdx = traversalParamIndices[j];
+        if (paramIdx != null) {
+          const targetVar =
+            canonicalParams[paramIdx] || `X${paramIdx}`;
+          if (origVar !== targetVar) {
+            remap[origVar] = targetVar;
+          }
+        }
+      }
+      if (Object.keys(remap).length > 0) {
+        finalFilter = remapFilterVars(canonicalFilter, remap);
+      }
+    }
+
+    if (finalFilter) {
+      pat._canonicalDef = prettyFilter(finalFilter);
+      pat._canonicalParams = canonicalParams;
+    }
+
     const relHash = annotated.relAlias?.__main__ || null;
     if (relHash) {
-      pat._canonical = relHash;
+      const isIdentity =
+        traversalParamIndices.length === formalCount &&
+        traversalParamIndices.every((idx, pos) => idx === pos);
+      let finalHash = relHash;
+      if (!isIdentity && traversalParamIndices.length > 0) {
+        finalHash = hash(
+          `${relHash}:${traversalParamIndices.join(",")}`
+        );
+      }
+      pat._canonical = finalHash;
       return {
-        hash: relHash,
+        hash: finalHash,
         def: pat._canonicalDef || null,
         params: pat._canonicalParams || null
       };

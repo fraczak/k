@@ -351,16 +351,29 @@ function savedLibrary(state) {
     if (meta[hash].type == null) meta[hash].type = "rel";
     meta[hash].origins.push({ source: "<repl>", name, compiledAt: now });
   }
+  for (const [name, hash] of Object.entries(
+    state.patternAliases || {}
+  )) {
+    if (!meta[hash]) meta[hash] = { type: "pattern", origins: [] };
+    if (meta[hash].type == null) meta[hash].type = "pattern";
+    meta[hash].origins.push({
+      source: "<repl>",
+      name,
+      compiledAt: now
+    });
+  }
   const rels = reachableRelations(state.rels, Object.values(state.relAliases));
   const storedHashes = new Set([
     ...Object.keys(state.codes),
-    ...Object.keys(rels)
+    ...Object.keys(rels),
+    ...Object.values(state.patternAliases || {})
   ]);
   return {
     format: "k-object",
     codes: state.codes,
     rels,
     relAlias: state.relAliases,
+    patternAlias: state.patternAliases || {},
     compileStats: { sccs: [], sccCount: 0 },
     patterns: state.patterns || {},
     meta: Object.fromEntries(
@@ -433,14 +446,32 @@ function prettyPattern(name, pat, state = null) {
   return `${name}[${params}] = ${filterStr};${suffix}`;
 }
 
-function listPatterns(patterns) {
-  const entries = Object.entries(patterns || {})
-    .filter(([name]) => !name.startsWith("@"))
-    .sort(([a], [b]) => a.localeCompare(b));
-  if (entries.length === 0) return "(none)";
-  return entries
-    .map(([name, pat]) => `${name}[${(pat?.params || []).join(", ")}]`)
-    .join("\n");
+function listPatternAliases(state) {
+  const aliases = { ...(state?.patternAliases || {}) };
+  for (const [name, pat] of Object.entries(state?.patterns || {})) {
+    if (name.startsWith("@")) continue;
+    if (!aliases[name]) {
+      const hash = resolvePatternCanonicalName(state, name, pat);
+      if (hash) aliases[name] = hash;
+    }
+  }
+  return listAliases(aliases);
+}
+
+function listPatterns(stateOrPatterns) {
+  if (
+    stateOrPatterns &&
+    (stateOrPatterns.patterns || stateOrPatterns.patternAliases)
+  ) {
+    return listPatternAliases(stateOrPatterns);
+  }
+  const aliases = {};
+  for (const [name, pat] of Object.entries(stateOrPatterns || {})) {
+    if (name.startsWith("@")) continue;
+    const hash = pat?._canonical || null;
+    if (hash) aliases[name] = hash;
+  }
+  return listAliases(aliases);
 }
 
 function formatCodecOutput(output) {
@@ -1502,7 +1533,7 @@ async function evaluateCommand(line, state) {
     }
     case "patterns":
     case "pats":
-      return [listPatterns(state.patterns)];
+      return [listPatternAliases(state)];
     case "codec":
     case "codecs":
       return loadCodec(arg, state);
@@ -1596,7 +1627,7 @@ function helpText() {
     ":rel name            show relation definition",
     ":rels                list relation aliases",
     ":pattern name        show named pattern definition (alias :pat)",
-    ":patterns            list defined named patterns (alias :pats)",
+    ":patterns            list pattern aliases (alias :pats)",
     ":limit [num|none]    set maximum characters for value output",
     ":codec load file     load a codec module from file",
     ":codec unload name   unload a registered codec",

@@ -303,4 +303,43 @@ console.log("--> Test 9: Library export and canonical pattern metadata");
   console.log("    Passed: Library export and pattern metadata.");
 }
 
+// Test 10: Parameter permutation canonicalization and hash distinction
+console.log("--> Test 10: Parameter permutation (c[X,Y] vs d[Y,X])");
+{
+  const { resolvePatternCanonicalInfo } =
+    await import("../canonical-pattern.mjs");
+  const { parse } = await import("../parser.mjs");
+
+  const ast = parse(`
+    c[X,Y] = {X x, Y y};
+    d[Y,X] = {X x, Y y};
+    ()
+  `);
+  const cInfo = resolvePatternCanonicalInfo(
+    "c",
+    ast.defs.patterns.c,
+    { patterns: ast.defs.patterns }
+  );
+  const dInfo = resolvePatternCanonicalInfo(
+    "d",
+    ast.defs.patterns.d,
+    { patterns: ast.defs.patterns }
+  );
+
+  assert.equal(cInfo.def, "{X0 x, X1 y}");
+  assert.equal(dInfo.def, "{X1 x, X0 y}");
+  assert.notEqual(cInfo.hash, dInfo.hash);
+  assert.equal(
+    cInfo.hash,
+    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x"
+  );
+  assert.equal(
+    dInfo.hash,
+    "@qrWNGNcuFVdkynHwDzGjB2kSAf4tJD4iHvR2J9eGsPLq"
+  );
+  console.log(
+    "    Passed: Parameter permutation canonicalization & hashing."
+  );
+}
+
 console.log("==> All Named Patterns Tests Passed Successfully!");
