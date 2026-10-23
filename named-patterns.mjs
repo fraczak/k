@@ -99,12 +99,33 @@ export function expandFilter(
     const nextStack = new Set(stack);
     nextStack.add(patternName);
 
+    const paramWildcardVars = {};
+    for (let i = 0; i < expandedArgs.length; i++) {
+      const arg = expandedArgs[i];
+      if (
+        arg &&
+        arg.type === null &&
+        arg.open === true &&
+        (!arg.fields || Object.keys(arg.fields).length === 0) &&
+        !arg.name
+      ) {
+        paramWildcardVars[i] = `_wildcard_np${++uniqueIdRef.val}`;
+      }
+    }
+
     function substitute(node) {
       if (!node || typeof node !== "object") return node;
 
       if (node.type === "name") {
         const paramIdx = template.params.indexOf(node.name);
         if (paramIdx !== -1) {
+          if (paramWildcardVars[paramIdx]) {
+            return {
+              type: "name",
+              name: paramWildcardVars[paramIdx],
+              open: true
+            };
+          }
           const clonedArg = cloneFilter(expandedArgs[paramIdx]);
           if (node.name && node.name !== template.params[paramIdx]) {
             clonedArg.name = varSubst[node.name] || node.name;

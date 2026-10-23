@@ -5,6 +5,42 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.3.0] — 2026-10-22 — Content-Addressable Patterns & Aliasing
+
+### Content-Addressable Canonical Patterns
+
+- **Canonical Pattern Derivation & Minimal Automata**:
+  - All pattern definitions compile to minimal regular tree automata
+    identified by deterministic content-addressed hashes (`@hash`).
+  - Canonical patterns take the full arity of all discovered variable
+    nodes (e.g. `@hash[X0, X1] = {X0 x, X1 y};`).
+  - Open wildcards `(...)` lower to open type holes equivalent to
+    unbound variables, sharing canonical templates across definitions.
+- **Named Patterns as Parameter Routing Aliases**:
+  - Named patterns (`p[X] = {X x, Y y};`) are lexical aliases routing
+    caller arguments to canonical parameter slots, padding unexposed
+    internal ports with wildcards: `p[X] = @hash[X, (...)];`.
+  - Isomorphic pattern permutations (`a[]`, `b[X]`, `c[X,Y]`, `d[Y,X]`)
+    share the identical canonical hash, enabling deduplication.
+  - Multi-level nested template applications and parameter reorderings
+    resolve and decompile accurately.
+- **Unification Preservation for Wildcards**:
+  - Repeated internal existential variables in canonical templates
+    preserve structural type-equality constraints when instantiated
+    with wildcard arguments (`(...)`), preventing type pollution.
+- **Knot Safety**:
+  - The grammar strictly rejects parameter names that conflict with
+    recursive knot variables (`= Knot`), preserving cycle semantics
+    ($\mu$-fixpoints) and preventing recursion destruction.
+- **REPL & Persistence**:
+  - `:pats` lists all defined aliases and their canonical port routing.
+  - `:pat <name>` decompiles and displays canonical definitions.
+  - Saving to `.klib` preserves parameter and alias routing metadata
+    origins without duplication.
+- **Documentation**:
+  - Authored `DOCS/CANONICAL_PATTERNS.md` and updated `README.md` and
+    `DOCS/REPL.md`.
+
 ## [8.2.0] — 2026-10-21 — Canonical Pattern Decompilation & Parameters
 
 ### Interactive REPL & Tooling

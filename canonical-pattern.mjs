@@ -6,47 +6,74 @@ import { patternGraphToCanonical, prettyFilter } from "./pretty.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { closedPatternToCodeHash } from "./repl-codecs.mjs";
-import hash from "./hash.mjs";
 import { expandFilter } from "./named-patterns.mjs";
 
-function collectParamTraversal(filter) {
-  const seen = new Set();
-  const order = [];
-  function walk(node) {
+function collectParamPaths(filter) {
+  const map = {};
+  function walk(node, path) {
     if (!node || typeof node !== "object") return;
     if (node.type === "name" && typeof node.name === "string") {
-      const match = node.name.match(/^__PARAM_(\d+)__$/);
-      if (match) {
-        const idx = Number(match[1]);
-        if (!seen.has(idx)) {
-          seen.add(idx);
-          order.push(idx);
-        }
+      const m = node.name.match(/^__PARAM_(\d+)__$/);
+      if (m) {
+        const idx = Number(m[1]);
+        if (!map[idx]) map[idx] = [];
+        map[idx].push(path);
       }
     }
     if (node.fields) {
       for (const k of Object.keys(node.fields).sort()) {
-        walk(node.fields[k]);
+        walk(node.fields[k], [...path, k]);
       }
     }
   }
-  walk(filter);
-  return order;
+  walk(filter, []);
+  return map;
 }
 
-function remapFilterVars(filter, map) {
-  if (!filter || typeof filter !== "object") return filter;
-  const res = { ...filter };
-  if (filter.name && map[filter.name]) {
-    res.name = map[filter.name];
+function findVarAtPath(filter, path) {
+  let curr = filter;
+  for (let i = 0; i < path.length; i++) {
+    const key = path[i];
+    if (!curr?.fields?.[key]) return null;
+    curr = curr.fields[key];
   }
-  if (filter.type === "name" && map[filter.name]) {
-    res.name = map[filter.name];
+  return curr?.name || (curr?.type === "name" ? curr.name : null);
+}
+
+function collectCanonicalVarPaths(canonicalFilter) {
+  const paths = {};
+  function walk(node, path) {
+    if (!node || typeof node !== "object") return;
+    const name =
+      node.name || (node.type === "name" ? node.name : null);
+    if (name && /^X\d+$/.test(name) && !paths[name]) {
+      paths[name] = path;
+    }
+    if (node.fields) {
+      for (const k of Object.keys(node.fields).sort()) {
+        walk(node.fields[k], [...path, k]);
+      }
+    }
   }
-  if (filter.fields) {
+  walk(canonicalFilter, []);
+  return paths;
+}
+
+function toAstFilter(node) {
+  if (!node || typeof node !== "object") return node;
+  const res = { ...node };
+  if (
+    res.name &&
+    /^X\d+$/.test(res.name) &&
+    (!res.fields || Object.keys(res.fields).length === 0)
+  ) {
+    res.type = "name";
+    res.open = true;
+  }
+  if (res.fields) {
     res.fields = {};
-    for (const [k, v] of Object.entries(filter.fields)) {
-      res.fields[k] = remapFilterVars(v, map);
+    for (const [k, v] of Object.entries(node.fields)) {
+      res.fields[k] = toAstFilter(v);
     }
   }
   return res;
@@ -54,11 +81,19 @@ function remapFilterVars(filter, map) {
 
 export function resolvePatternCanonicalInfo(name, pat, options = {}) {
   if (!pat) return { hash: null, def: null, params: null };
-  if (pat._canonical && pat._canonicalDef) {
+  if (
+    pat._canonical &&
+    pat._canonicalDef &&
+    pat._canonicalParams &&
+    pat._aliasArgs
+  ) {
     return {
       hash: pat._canonical,
       def: pat._canonicalDef,
-      params: pat._canonicalParams || pat.params || null
+      params: pat._canonicalParams,
+      aliasArgs: pat._aliasArgs,
+      canonicalParams: pat._graphParams || [],
+      canonicalFilterAst: pat._canonicalFilterAst || null
     };
   }
   if (typeof name === "string" && name.startsWith("@")) {
@@ -69,7 +104,7 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
   const allPatterns = { ...(options.patterns || {}) };
   if (name && pat) allPatterns[name] = pat;
 
-  let traversalParamIndices = [];
+  let pathMap = {};
   if (formalCount > 0) {
     try {
       const markerArgs = formalParams.map((_, i) => ({
@@ -80,9 +115,9 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
         { type: "pattern_apply", pattern: name, args: markerArgs },
         allPatterns
       );
-      traversalParamIndices = collectParamTraversal(expanded);
+      pathMap = collectParamPaths(expanded);
     } catch {
-      traversalParamIndices = [];
+      pathMap = {};
     }
   }
 
@@ -95,7 +130,7 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
     });
     const mainRel = annotated.rels.__main__;
     let canonicalFilter = null;
-    let canonicalParams = null;
+    let graphParams = null;
     if (
       mainRel?.typePatternGraph &&
       mainRel?.def?.patterns?.[0] != null
@@ -103,13 +138,14 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       const rootId = mainRel.typePatternGraph.find(
         mainRel.def.patterns[0]
       );
+      const paramLimit = null;
       const res = patternGraphToCanonical(
         mainRel.typePatternGraph,
         rootId,
-        formalCount
+        paramLimit
       );
       canonicalFilter = res.filter;
-      canonicalParams = res.canonicalParams;
+      graphParams = res.canonicalParams;
 
       const propList = patternToPropertyList(
         exportPatternGraph(mainRel.typePatternGraph, rootId)
@@ -118,59 +154,69 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       if (codeHash) {
         pat._canonical = codeHash;
         pat._canonicalDef = prettyFilter(canonicalFilter);
-        pat._canonicalParams = canonicalParams;
+        pat._canonicalParams = graphParams;
+        pat._aliasArgs = [];
+        pat._graphParams = graphParams;
+        pat._canonicalFilterAst = toAstFilter(canonicalFilter);
         return {
           hash: codeHash,
           def: pat._canonicalDef,
-          params: pat._canonicalParams
+          params: pat._canonicalParams,
+          aliasArgs: pat._aliasArgs,
+          canonicalParams: graphParams,
+          canonicalFilterAst: pat._canonicalFilterAst
         };
       }
     }
 
-    let finalFilter = canonicalFilter;
-    if (
-      canonicalFilter &&
-      formalCount > 0 &&
-      canonicalParams?.length > 0
-    ) {
-      const remap = {};
-      for (let j = 0; j < canonicalParams.length; j++) {
-        const origVar = canonicalParams[j];
-        const paramIdx = traversalParamIndices[j];
-        if (paramIdx != null) {
-          const targetVar =
-            canonicalParams[paramIdx] || `X${paramIdx}`;
-          if (origVar !== targetVar) {
-            remap[origVar] = targetVar;
-          }
-        }
-      }
-      if (Object.keys(remap).length > 0) {
-        finalFilter = remapFilterVars(canonicalFilter, remap);
-      }
+    if (canonicalFilter) {
+      pat._canonicalDef = prettyFilter(canonicalFilter);
     }
 
-    if (finalFilter) {
-      pat._canonicalDef = prettyFilter(finalFilter);
-      pat._canonicalParams = canonicalParams;
+    let expandedFilter = null;
+    try {
+      expandedFilter = expandFilter(pat.filter, allPatterns);
+    } catch {
+      expandedFilter = pat.filter;
     }
+
+    const varPaths = collectCanonicalVarPaths(canonicalFilter);
+    const aliasArgs = (graphParams || []).map((cVar) => {
+      const path = varPaths[cVar];
+      const origVar = path
+        ? findVarAtPath(expandedFilter, path)
+        : null;
+      if (origVar && formalParams.includes(origVar)) {
+        return origVar;
+      }
+      return "(...)";
+    });
+
+    const selectedParams = formalParams.map((_, i) => {
+      const paths = pathMap[i] || [];
+      for (const p of paths) {
+        const v = findVarAtPath(canonicalFilter, p);
+        if (v) return v;
+      }
+      return graphParams?.[i] || `X${i}`;
+    });
+
+    pat._canonicalParams =
+      formalCount > 0 ? selectedParams : [];
+    pat._graphParams = graphParams || [];
+    pat._aliasArgs = aliasArgs;
+    pat._canonicalFilterAst = toAstFilter(canonicalFilter);
 
     const relHash = annotated.relAlias?.__main__ || null;
     if (relHash) {
-      const isIdentity =
-        traversalParamIndices.length === formalCount &&
-        traversalParamIndices.every((idx, pos) => idx === pos);
-      let finalHash = relHash;
-      if (!isIdentity && traversalParamIndices.length > 0) {
-        finalHash = hash(
-          `${relHash}:${traversalParamIndices.join(",")}`
-        );
-      }
-      pat._canonical = finalHash;
+      pat._canonical = relHash;
       return {
-        hash: finalHash,
+        hash: relHash,
         def: pat._canonicalDef || null,
-        params: pat._canonicalParams || null
+        params: pat._canonicalParams,
+        aliasArgs: pat._aliasArgs,
+        canonicalParams: pat._graphParams,
+        canonicalFilterAst: pat._canonicalFilterAst
       };
     }
   } catch {
@@ -204,7 +250,14 @@ export function buildExportPreamble(exports = [], libraries = []) {
         hash,
         params:
           lib.patterns?.[name]?.params ||
+          lib.patterns?.[name]?._canonicalParams ||
           lib.patterns?.[hash]?.params ||
+          [],
+        aliasArgs:
+          lib.patterns?.[name]?._aliasArgs ||
+          lib.meta?.[hash]?.origins?.find((o) => o.name === name)
+            ?.aliasArgs ||
+          lib.patterns?.[name]?.params ||
           []
       };
     }
@@ -212,7 +265,8 @@ export function buildExportPreamble(exports = [], libraries = []) {
       if (!patMap[name]) {
         patMap[name] = {
           hash: pat._canonical || lib.patternAlias?.[name] || name,
-          params: pat.params || []
+          params: pat.params || [],
+          aliasArgs: pat._aliasArgs || pat.params || []
         };
       }
     }
@@ -227,7 +281,12 @@ export function buildExportPreamble(exports = [], libraries = []) {
           if (origin?.name) {
             patMap[origin.name] = {
               hash,
-              params: entry.params || origin.params || []
+              params: origin.params || entry.params || [],
+              aliasArgs:
+                origin.aliasArgs ||
+                entry.aliasArgs ||
+                origin.params ||
+                []
             };
           }
         }
@@ -264,7 +323,14 @@ export function buildExportPreamble(exports = [], libraries = []) {
           target.params && target.params.length > 0
             ? `[${target.params.join(", ")}]`
             : "[]";
-        lines.push(`${localName}${paramStr} = @${body}${paramStr};`);
+        const args = target.aliasArgs || target.params;
+        const argStr =
+          args && args.length > 0
+            ? `[${args.join(", ")}]`
+            : paramStr;
+        lines.push(
+          `${localName}${paramStr} = @${body}${argStr};`
+        );
         emitted = true;
       }
     }

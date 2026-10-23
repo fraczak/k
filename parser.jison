@@ -7,7 +7,29 @@ function anError(pos,msg) {
     throw new Error(`Parse Error (lines ${pos.first_line}:${pos.first_column}...${pos.last_line}:${pos.last_column}): ${msg}`);
 }
 
-function validatePatternParams(params, name, loc) {
+function collectFilterKnots(filter) {
+    const knots = new Set();
+    function walk(node) {
+        if (!node || typeof node !== "object") return;
+        if (node.name && node.type !== "name") {
+            knots.add(node.name);
+        }
+        if (node.fields) {
+            for (const child of Object.values(node.fields)) {
+                walk(child);
+            }
+        }
+        if (node.args) {
+            for (const arg of node.args) {
+                walk(arg);
+            }
+        }
+    }
+    walk(filter);
+    return knots;
+}
+
+function validatePatternParams(params, name, loc, filter) {
     const seen = new Set();
     for (const p of params) {
         if (seen.has(p)) {
@@ -16,6 +38,18 @@ function validatePatternParams(params, name, loc) {
             anError(loc, msg);
         }
         seen.add(p);
+    }
+    if (filter) {
+        const knots = collectFilterKnots(filter);
+        for (const p of params) {
+            if (knots.has(p)) {
+                const msg =
+                    `Pattern parameter '${p}' in pattern '${name}' ` +
+                    `conflicts with knot '${p}'. ` +
+                    `Knot variables cannot be pattern parameters.`;
+                anError(loc, msg);
+            }
+        }
     }
 }
 
@@ -136,8 +170,13 @@ defs:                                   {  }
     | defs name eq comp sc              { s.add_rel($2.value,$4); }
     | defs name lb pattern_params rb eq filter sc
         {
-            validatePatternParams($4, $2.value, @4);
+            validatePatternParams($4, $2.value, @4, $7);
             s.add_pattern($2.value, $4, $7);
+        }
+    | defs at name lb pattern_params rb eq filter sc
+        {
+            validatePatternParams($5, "@" + $3.value, @5, $8);
+            s.add_pattern("@" + $3.value, $5, $8);
         }
     ;
 

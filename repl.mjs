@@ -145,14 +145,23 @@ function aliasPreamble(state, omitName = null) {
   for (const [name, hash] of Object.entries(
     state.patternAliases || {}
   ).sort()) {
-    if (name !== omitName) {
-      const pat = state.patterns?.[name] || state.patterns?.[hash];
+    if (
+      name.startsWith("@") ||
+      name === hash ||
+      name === omitName
+    ) {
+      continue;
+    }
+    const pat = state.patterns?.[name] || state.patterns?.[hash];
       const params = pat?.params || [];
       const paramStr =
         params.length > 0 ? `[${params.join(", ")}]` : "[]";
       const body = hash.startsWith("@") ? hash.slice(1) : hash;
-      lines.push(`${name}${paramStr} = @${body}${paramStr};`);
-    }
+      const info = resolvePatternCanonicalInfo(state, name, pat);
+      const args = info?.aliasArgs || pat?._aliasArgs || params;
+      const argStr =
+        args && args.length > 0 ? `[${args.join(", ")}]` : paramStr;
+      lines.push(`${name}${paramStr} = @${body}${argStr};`);
   }
   return lines.filter(Boolean).join("\n");
 }
@@ -225,10 +234,10 @@ function mergeMeta(state, meta = {}) {
 function rememberOrigin(state, hash, name, type, source = "<repl>") {
   if (!state.meta[hash]) state.meta[hash] = { type, origins: [] };
   if (state.meta[hash].type == null) state.meta[hash].type = type;
-  const exists = state.meta[hash].origins.some((origin) =>
-    origin.name === name && state.meta[hash].type === type && origin.source === source
+  const existing = state.meta[hash].origins.find((origin) =>
+    origin.name === name
   );
-  if (!exists) {
+  if (!existing) {
     state.meta[hash].origins.push({
       source,
       name,
@@ -344,23 +353,58 @@ function savedLibrary(state) {
   for (const [name, hash] of Object.entries(state.typeAliases)) {
     if (!meta[hash]) meta[hash] = { type: "code", origins: [] };
     if (meta[hash].type == null) meta[hash].type = "code";
-    meta[hash].origins.push({ source: "<repl>", name, compiledAt: now });
+    if (!meta[hash].origins.some((o) => o.name === name)) {
+      meta[hash].origins.push({
+        source: "<repl>",
+        name,
+        compiledAt: now
+      });
+    }
   }
   for (const [name, hash] of Object.entries(state.relAliases)) {
     if (!meta[hash]) meta[hash] = { type: "rel", origins: [] };
     if (meta[hash].type == null) meta[hash].type = "rel";
-    meta[hash].origins.push({ source: "<repl>", name, compiledAt: now });
+    if (!meta[hash].origins.some((o) => o.name === name)) {
+      meta[hash].origins.push({
+        source: "<repl>",
+        name,
+        compiledAt: now
+      });
+    }
   }
   for (const [name, hash] of Object.entries(
     state.patternAliases || {}
   )) {
-    if (!meta[hash]) meta[hash] = { type: "pattern", origins: [] };
+    const pat = state.patterns?.[name] || state.patterns?.[hash];
+    const info = resolvePatternCanonicalInfo(state, name, pat);
+    if (!meta[hash]) {
+      meta[hash] = {
+        type: "pattern",
+        params: info.canonicalParams || pat?.params || [],
+        origins: []
+      };
+    }
     if (meta[hash].type == null) meta[hash].type = "pattern";
-    meta[hash].origins.push({
-      source: "<repl>",
-      name,
-      compiledAt: now
-    });
+    if (!meta[hash].params && info.canonicalParams) {
+      meta[hash].params = info.canonicalParams;
+    }
+    const existing = meta[hash].origins.find((o) => o.name === name);
+    if (!existing) {
+      meta[hash].origins.push({
+        source: "<repl>",
+        name,
+        params: pat?.params || [],
+        aliasArgs: info.aliasArgs || pat?.params || [],
+        compiledAt: now
+      });
+    } else {
+      if (!existing.params && pat?.params) {
+        existing.params = pat.params;
+      }
+      if (!existing.aliasArgs && info.aliasArgs) {
+        existing.aliasArgs = info.aliasArgs;
+      }
+    }
   }
   const rels = reachableRelations(state.rels, Object.values(state.relAliases));
   const storedHashes = new Set([
@@ -436,26 +480,54 @@ function resolvePatternCanonicalName(state, name, pat) {
 
 function prettyPattern(name, pat, state = null) {
   const info = resolvePatternCanonicalInfo(state, name, pat);
-  const paramList = info.params != null
-    ? info.params
-    : (pat?.params || []);
+  const isHash = typeof name === "string" && name.startsWith("@");
+  const paramList =
+    isHash && (info.canonicalParams || pat?.params)
+      ? (info.canonicalParams || pat.params)
+      : info.params != null
+      ? info.params
+      : (pat?.params || []);
   const params = paramList.join(", ");
   const filterStr = info.def ||
     (pat?.filter ? prettyFilter(pat.filter) : "()");
-  const suffix = info.hash ? `  -- ${info.hash}` : "";
+  const suffix =
+    info.hash && !isHash ? `  -- ${info.hash}` : "";
   return `${name}[${params}] = ${filterStr};${suffix}`;
 }
 
 function listPatternAliases(state) {
-  const aliases = { ...(state?.patternAliases || {}) };
-  for (const [name, pat] of Object.entries(state?.patterns || {})) {
-    if (name.startsWith("@")) continue;
-    if (!aliases[name]) {
-      const hash = resolvePatternCanonicalName(state, name, pat);
-      if (hash) aliases[name] = hash;
-    }
+  const aliases = [];
+  const names = [
+    ...new Set([
+      ...Object.keys(state?.patternAliases || {}),
+      ...Object.keys(state?.patterns || {})
+    ])
+  ].filter((name) => !name.startsWith("@")).sort();
+
+  for (const name of names) {
+    const pat =
+      state?.patterns?.[name] ||
+      (state?.patternAliases?.[name]
+        ? state?.patterns?.[state.patternAliases[name]]
+        : null);
+    const info = resolvePatternCanonicalInfo(state, name, pat);
+    const hash =
+      info?.hash || state?.patternAliases?.[name] || null;
+    if (!hash) continue;
+    const formalParams = pat?.params || [];
+    const paramStr =
+      formalParams.length > 0
+        ? `[${formalParams.join(",")}]`
+        : "[]";
+    const args = info?.aliasArgs || formalParams;
+    const argStr =
+      args.length > 0
+        ? `[${args.join(",")}]`
+        : "[]";
+    aliases.push(`${name}${paramStr} = ${hash}${argStr}`);
   }
-  return listAliases(aliases);
+  if (aliases.length === 0) return "(none)";
+  return aliases.join("\n");
 }
 
 function listPatterns(stateOrPatterns) {
@@ -465,13 +537,7 @@ function listPatterns(stateOrPatterns) {
   ) {
     return listPatternAliases(stateOrPatterns);
   }
-  const aliases = {};
-  for (const [name, pat] of Object.entries(stateOrPatterns || {})) {
-    if (name.startsWith("@")) continue;
-    const hash = pat?._canonical || null;
-    if (hash) aliases[name] = hash;
-  }
-  return listAliases(aliases);
+  return listPatternAliases({ patterns: stateOrPatterns || {} });
 }
 
 function formatCodecOutput(output) {
@@ -529,8 +595,10 @@ function userDefinedNames(source) {
     relNames: Object.keys(parsed.defs.rels).filter((name) =>
       NAME_RE.test(name) && !name.startsWith("@") && name !== "__main__"
     ),
-    patternNames: Object.keys(parsed.defs.patterns || {}).filter((name) =>
-      NAME_RE.test(name) && !name.startsWith("@")
+    patternNames: Object.keys(parsed.defs.patterns || {}).filter(
+      (name) =>
+        (NAME_RE.test(name) && !name.startsWith("@")) ||
+        (name.startsWith("@") && NAME_RE.test(name.slice(1)))
     )
   };
 }
@@ -580,7 +648,7 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
   }
 
   const parsed = parse(`${source}\n()`);
-  const patternAlias = { ...(lib.patternAlias || {}) };
+  const patternAlias = {};
   for (const name of patternNames) {
     const pat = parsed.defs?.patterns?.[name];
     if (!pat) continue;
@@ -596,7 +664,7 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
       if (!meta[info.hash]) {
         meta[info.hash] = {
           type: "pattern",
-          params: pat.params || [],
+          params: info.canonicalParams || pat.params || [],
           origins: []
         };
       }
@@ -604,6 +672,7 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
         source: options.source || null,
         name,
         params: pat.params || [],
+        aliasArgs: info.aliasArgs || pat.params || [],
         compiledAt: now,
         ...(pat.filter?.start ? { start: pat.filter.start } : {}),
         ...(pat.filter?.end ? { end: pat.filter.end } : {})
@@ -1115,9 +1184,46 @@ function loadSourceOrKlib(state, targetPath, options = {}) {
         lib,
         compileOptions
       );
+      const { patternNames } = userDefinedNames(source);
+      let parsedSource;
+      try {
+        parsedSource = parse(source);
+      } catch {
+        parsedSource = parse(`${source}\n()`);
+      }
+      const filePatterns = {};
+      for (const name of patternNames) {
+        const pat = parsedSource.defs?.patterns?.[name];
+        if (pat) {
+          filePatterns[name] = pat;
+          if (patternAlias[name]) {
+            const info = resolvePatternCanonicalInfo(state, name, pat);
+            filePatterns[patternAlias[name]] = {
+              params:
+                info.canonicalParams ||
+                info.params ||
+                pat.params ||
+                [],
+              filter: info.canonicalFilterAst || pat.filter,
+              _canonical: patternAlias[name],
+              _canonicalDef: info.def,
+              _canonicalParams: info.canonicalParams,
+              _graphParams: info.canonicalParams,
+              _aliasArgs: info.canonicalParams,
+              _canonicalFilterAst: info.canonicalFilterAst
+            };
+          }
+        }
+      }
       mergeLibrary(
         state,
-        { ...lib, relAlias, patternAlias, meta },
+        {
+          ...lib,
+          relAlias,
+          patternAlias,
+          meta,
+          patterns: filePatterns
+        },
         targetPath,
         { loadAliases }
       );
@@ -1204,7 +1310,21 @@ function compileSnippetArtifacts(source, state, sourceName = "<repl>") {
       if (pat) {
         patterns[name] = pat;
         if (patternAlias[name]) {
-          patterns[patternAlias[name]] = pat;
+          const info = resolvePatternCanonicalInfo(state, name, pat);
+          patterns[patternAlias[name]] = {
+            params:
+              info.canonicalParams ||
+              info.params ||
+              pat.params ||
+              [],
+            filter: info.canonicalFilterAst || pat.filter,
+            _canonical: patternAlias[name],
+            _canonicalDef: info.def,
+            _canonicalParams: info.canonicalParams,
+            _graphParams: info.canonicalParams,
+            _aliasArgs: info.canonicalParams,
+            _canonicalFilterAst: info.canonicalFilterAst
+          };
         }
       }
     }
@@ -1494,13 +1614,15 @@ async function evaluateCommand(line, state) {
       let patternName = rawName.replace(/\[.*\]$/, "").trim();
       let pat = null;
       if (patternName.startsWith("@")) {
-        for (const [name, hash] of Object.entries(
-          state.patternAliases || {}
-        )) {
-          if (hash === patternName) {
-            patternName = name;
-            pat = state.patterns?.[name] || state.patterns?.[hash];
-            break;
+        pat = state.patterns?.[patternName];
+        if (!pat) {
+          for (const [name, hash] of Object.entries(
+            state.patternAliases || {}
+          )) {
+            if (hash === patternName) {
+              pat = state.patterns?.[hash] || state.patterns?.[name];
+              break;
+            }
           }
         }
         if (!pat) {
@@ -1511,14 +1633,10 @@ async function evaluateCommand(line, state) {
               !name.startsWith("@") &&
               resolvePatternCanonicalName(state, name, p) === patternName
             ) {
-              patternName = name;
-              pat = p;
+              pat = state.patterns?.[patternName] || p;
               break;
             }
           }
-        }
-        if (!pat) {
-          pat = state.patterns?.[patternName];
         }
       } else {
         pat = state.patterns?.[patternName];

@@ -182,7 +182,7 @@ pair[X0, X1] = {X0 first, X1 second};  -- @...
 > :pat c
 c[X0, X1] = {X0 x, X1 y};  -- @NPSHm9...
 > :pat d
-d[X0, X1] = {X1 x, X0 y};  -- @qrWNGN...
+d[X1, X0] = {X0 x, X1 y};  -- @NPSHm9...
 
 > list[T] = < {} nil, { T car, Y cdr } cons > = Y;
 > :pat list
@@ -191,6 +191,20 @@ list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- @...
 > same_pair[T] = { T first, T second };
 > :pat same_pair
 same_pair[X0] = {X0 first, X0 second};  -- @...
+```
+
+Listing defined pattern aliases with `:pats` shows how each pattern's
+parameters map into the canonical template's slots, using `(...)` for
+any unexposed pattern holes:
+
+```text
+> a[]= {X x, Y y}; b[X] = {X x, Y y};
+> c[X,Y] = {X x, Y y}; d[Y,X] = {X x, Y y};
+> :pats
+a[] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[(...),(...)]
+b[X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,(...)]
+c[X,Y] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
+d[Y,X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
 ```
 
 Rather than echoing the syntax used to construct the template, the

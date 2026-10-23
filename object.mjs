@@ -323,12 +323,13 @@ function mergeMetaEntries(...metas) {
   return merged;
 }
 
-function patternOrigin(source, name, compiledAt, pat) {
+function patternOrigin(source, name, compiledAt, pat, info) {
   const node = pat?.filter;
   return {
     source,
     name,
     params: pat?.params || [],
+    aliasArgs: info?.aliasArgs || pat?.params || [],
     compiledAt,
     ...(node?.start ? { start: node.start } : {}),
     ...(node?.end ? { end: node.end } : {})
@@ -371,7 +372,7 @@ function buildMeta(annotated, source) {
         meta,
         info.hash,
         "pattern",
-        patternOrigin(source, name, now, pat)
+        patternOrigin(source, name, now, pat, info)
       );
     }
   }
@@ -564,7 +565,14 @@ function compileLibrary(script, options = {}) {
     if (info.hash) {
       patternAlias[name] = info.hash;
       if (!libPatterns[info.hash]) {
-        libPatterns[info.hash] = pat;
+        libPatterns[info.hash] = {
+          params:
+            info.canonicalParams ||
+            info.params ||
+            pat.params ||
+            [],
+          filter: info.canonicalFilterAst || pat.filter
+        };
       }
     }
   }
@@ -946,7 +954,12 @@ function extractAliasesFromObject(object) {
         typeOrder,
         hash,
         name: origin.name,
-        params: entry.params || origin.params || [],
+        params: origin.params || entry.params || [],
+        aliasArgs:
+          origin.aliasArgs ||
+          entry.aliasArgs ||
+          origin.params ||
+          [],
         source: origin.source || "",
         compiledAt: origin.compiledAt,
         comment: originComment(origin)
@@ -982,8 +995,13 @@ function extractAliasesFromObject(object) {
         entry.params && entry.params.length > 0
           ? `[${entry.params.join(", ")}]`
           : "[]";
+      const args = entry.aliasArgs || entry.params;
+      const argStr =
+        args && args.length > 0
+          ? `[${args.join(", ")}]`
+          : paramStr;
       line =
-        `${entry.name}${paramStr} = @${body}${paramStr}; ` +
+        `${entry.name}${paramStr} = @${body}${argStr}; ` +
         `# ${entry.comment}`;
     } else {
       line = `${entry.name} = @${body}; # ${entry.comment}`;

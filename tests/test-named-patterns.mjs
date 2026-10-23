@@ -303,18 +303,32 @@ console.log("--> Test 9: Library export and canonical pattern metadata");
   console.log("    Passed: Library export and pattern metadata.");
 }
 
-// Test 10: Parameter permutation canonicalization and hash distinction
-console.log("--> Test 10: Parameter permutation (c[X,Y] vs d[Y,X])");
+// Test 10: Canonical pattern sharing & parameter aliasing
+console.log(
+  "--> Test 10: Canonical pattern sharing (a[], b[X], c[X,Y], d[Y,X])"
+);
 {
   const { resolvePatternCanonicalInfo } =
     await import("../canonical-pattern.mjs");
   const { parse } = await import("../parser.mjs");
 
   const ast = parse(`
+    a[] = {X x, Y y};
+    b[X] = {X x, Y y};
     c[X,Y] = {X x, Y y};
     d[Y,X] = {X x, Y y};
     ()
   `);
+  const aInfo = resolvePatternCanonicalInfo(
+    "a",
+    ast.defs.patterns.a,
+    { patterns: ast.defs.patterns }
+  );
+  const bInfo = resolvePatternCanonicalInfo(
+    "b",
+    ast.defs.patterns.b,
+    { patterns: ast.defs.patterns }
+  );
   const cInfo = resolvePatternCanonicalInfo(
     "c",
     ast.defs.patterns.c,
@@ -326,19 +340,212 @@ console.log("--> Test 10: Parameter permutation (c[X,Y] vs d[Y,X])");
     { patterns: ast.defs.patterns }
   );
 
+  const sharedHash = "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x";
+  assert.equal(aInfo.hash, sharedHash);
+  assert.equal(bInfo.hash, sharedHash);
+  assert.equal(cInfo.hash, sharedHash);
+  assert.equal(dInfo.hash, sharedHash);
+
+  assert.equal(aInfo.def, "{X0 x, X1 y}");
+  assert.equal(bInfo.def, "{X0 x, X1 y}");
   assert.equal(cInfo.def, "{X0 x, X1 y}");
-  assert.equal(dInfo.def, "{X1 x, X0 y}");
-  assert.notEqual(cInfo.hash, dInfo.hash);
-  assert.equal(
-    cInfo.hash,
-    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x"
+  assert.equal(dInfo.def, "{X0 x, X1 y}");
+
+  assert.deepEqual(aInfo.aliasArgs, ["(...)", "(...)"]);
+  assert.deepEqual(bInfo.aliasArgs, ["X", "(...)"]);
+  assert.deepEqual(cInfo.aliasArgs, ["X", "Y"]);
+  assert.deepEqual(dInfo.aliasArgs, ["X", "Y"]);
+
+  assert.deepEqual(aInfo.params, []);
+  assert.deepEqual(bInfo.params, ["X0"]);
+  assert.deepEqual(cInfo.params, ["X0", "X1"]);
+  assert.deepEqual(dInfo.params, ["X1", "X0"]);
+  console.log(
+    "    Passed: Canonical pattern sharing & parameter aliasing."
   );
-  assert.equal(
-    dInfo.hash,
-    "@qrWNGNcuFVdkynHwDzGjB2kSAf4tJD4iHvR2J9eGsPLq"
+}
+
+// Test 11: Knot parameter conflict rejection and canonical patterns
+console.log(
+  "--> Test 11: Knot conflict rejection & direct canonical patterns"
+);
+{
+  assert.throws(
+    () =>
+      k.compile("list[X,Y] = <{}nil,{X car, Y cdr} cons> = Y; ()"),
+    /conflicts with knot 'Y'/
+  );
+
+  const directDefSource = `
+    @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X, Y] = {
+      X x, Y y, Y z
+    };
+    is_p = ? @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[
+      {}, {}
+    ];
+    { {} x, {} y, {} z } is_p
+  `;
+  const fnDirect = k.compile(directDefSource);
+  const outDirect = fnDirect(Value.product({}));
+  assert.equal(outDirect != null, true);
+  console.log(
+    "    Passed: Knot conflict rejection and canonical patterns."
+  );
+}
+
+// Test 12: Unrestricted pattern (...) unification with variable ports
+console.log(
+  "--> Test 12: Wildcard (...) unification with canonical variables"
+);
+{
+  const { resolvePatternCanonicalInfo } =
+    await import("../canonical-pattern.mjs");
+  const { parse } = await import("../parser.mjs");
+
+  const ast = parse(`
+    c[X,Y] = {X x, Y y};
+    p[X] = {X x, (...) y};
+    q[X,Y,Z] = {X x, Y y, Z z};
+    t[] = {(...) x, (...) y, (...) z};
+    ()
+  `);
+  const cInfo = resolvePatternCanonicalInfo(
+    "c",
+    ast.defs.patterns.c,
+    { patterns: ast.defs.patterns }
+  );
+  const pInfo = resolvePatternCanonicalInfo(
+    "p",
+    ast.defs.patterns.p,
+    { patterns: ast.defs.patterns }
+  );
+  const qInfo = resolvePatternCanonicalInfo(
+    "q",
+    ast.defs.patterns.q,
+    { patterns: ast.defs.patterns }
+  );
+  const tInfo = resolvePatternCanonicalInfo(
+    "t",
+    ast.defs.patterns.t,
+    { patterns: ast.defs.patterns }
+  );
+
+  assert.equal(cInfo.hash, pInfo.hash);
+  assert.equal(qInfo.hash, tInfo.hash);
+
+  assert.equal(pInfo.def, "{X0 x, X1 y}");
+  assert.equal(tInfo.def, "{X0 x, X1 y, X2 z}");
+
+  assert.deepEqual(pInfo.aliasArgs, ["X", "(...)"]);
+  assert.deepEqual(tInfo.aliasArgs, ["(...)", "(...)", "(...)"]);
+  console.log(
+    "    Passed: Wildcard (...) unification with canonical variables."
+  );
+}
+
+// Test 13: Nested template composition & parameter routing
+console.log(
+  "--> Test 13: Nested composition & parameter routing"
+);
+{
+  const { resolvePatternCanonicalInfo } =
+    await import("../canonical-pattern.mjs");
+  const { parse } = await import("../parser.mjs");
+
+  const ast = parse(`
+    pair[A, B] = { A a, B b };
+    flip[Y, X] = pair[X, Y];
+    outer[Z] = pair[pair[Z, (...)], (...)];
+    deep[] = pair[pair[(...), (...)], (...)];
+    ()
+  `);
+  const flipInfo = resolvePatternCanonicalInfo(
+    "flip",
+    ast.defs.patterns.flip,
+    { patterns: ast.defs.patterns }
+  );
+  const pairInfo = resolvePatternCanonicalInfo(
+    "pair",
+    ast.defs.patterns.pair,
+    { patterns: ast.defs.patterns }
+  );
+  const outerInfo = resolvePatternCanonicalInfo(
+    "outer",
+    ast.defs.patterns.outer,
+    { patterns: ast.defs.patterns }
+  );
+  const deepInfo = resolvePatternCanonicalInfo(
+    "deep",
+    ast.defs.patterns.deep,
+    { patterns: ast.defs.patterns }
+  );
+
+  assert.equal(flipInfo.hash, pairInfo.hash);
+  assert.deepEqual(flipInfo.params, ["X1", "X0"]);
+  assert.deepEqual(flipInfo.aliasArgs, ["X", "Y"]);
+
+  assert.equal(outerInfo.hash, deepInfo.hash);
+  assert.equal(outerInfo.def, "{{X0 a, X1 b} a, X2 b}");
+  assert.deepEqual(outerInfo.params, ["X0"]);
+  assert.deepEqual(outerInfo.aliasArgs, ["Z", "(...)", "(...)"]);
+  assert.deepEqual(deepInfo.params, []);
+  assert.deepEqual(deepInfo.aliasArgs, ["(...)", "(...)", "(...)"]);
+  console.log(
+    "    Passed: Nested composition and parameter routing."
+  );
+}
+
+// Test 14: Repeated variable unification with wildcards
+console.log(
+  "--> Test 14: Repeated existential variable wildcard constraints"
+);
+{
+  const { resolvePatternCanonicalInfo } =
+    await import("../canonical-pattern.mjs");
+  const { parse } = await import("../parser.mjs");
+
+  const ast = parse(`
+    pair_equal[Z] = { Z a, Y b, Y c };
+    full_equal[A, B] = { A a, B b, B c };
+    ()
+  `);
+  const peInfo = resolvePatternCanonicalInfo(
+    "pair_equal",
+    ast.defs.patterns.pair_equal,
+    { patterns: ast.defs.patterns }
+  );
+  const feInfo = resolvePatternCanonicalInfo(
+    "full_equal",
+    ast.defs.patterns.full_equal,
+    { patterns: ast.defs.patterns }
+  );
+
+  assert.equal(peInfo.hash, feInfo.hash);
+  assert.equal(peInfo.def, "{X0 a, X1 b, X1 c}");
+  assert.deepEqual(peInfo.params, ["X0"]);
+  assert.deepEqual(peInfo.aliasArgs, ["Z", "(...)"]);
+  assert.deepEqual(feInfo.params, ["X0", "X1"]);
+  assert.deepEqual(feInfo.aliasArgs, ["A", "B"]);
+
+  // Verify that pair_equal enforces equality between b and c
+  const fnOk = k.compile(`
+    pair_equal[Z] = { Z a, Y b, Y c };
+    check = ? pair_equal[{}];
+    { {} a, {} b, {} c } check
+  `);
+  assert.doesNotThrow(() => fnOk());
+
+  assert.throws(
+    () =>
+      k.compile(`
+        pair_equal[Z] = { Z a, Y b, Y c };
+        check = ? pair_equal[{}];
+        { {} a, {} b, {}|0 c } check
+      `),
+    /Cannot unify/
   );
   console.log(
-    "    Passed: Parameter permutation canonicalization & hashing."
+    "    Passed: Repeated existential variable wildcard constraints."
   );
 }
 

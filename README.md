@@ -147,6 +147,28 @@ or inside relation parameter guards (`?{ nat[] = N x, ... }`). There are
 no built-in primitive values: the empty product `{}` is the only leaf
 in a non-recursive definition.
 
+Like relations, patterns are **content-addressable**. Every definition
+derives a minimal regular tree automaton identified by its cryptographic
+hash `@hash`. A user-defined pattern name is an alias routing its
+parameters into the canonical template slots, filling unexposed ports
+with wildcards `(...)`:
+
+```text
+> a[]    = {X x, Y y};
+> b[X]   = {X x, Y y};
+> c[X,Y] = {X x, Y y};
+> d[Y,X] = {X x, Y y};
+> :pats
+a[]    = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[(...),(...)]
+b[X]   = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,(...)]
+c[X,Y] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
+d[Y,X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
+```
+
+Canonical patterns can also be instantiated or defined directly by
+hash (`? @hash[...]`), and inspected with `:pat <name>`. See
+[DOCS/CANONICAL_PATTERNS.md](DOCS/CANONICAL_PATTERNS.md) for full details.
+
 **The four-bracket architecture**
 
 k uses an orthogonal four-bracket convention with non-overlapping
@@ -217,11 +239,12 @@ file formats:
   carrying principal schema contracts for instant runtime specialization
   (`specializeKVM`).
 
-In `k`, all relations and derived schemas are identified canonically by immutable
-content-addressed hashes (`@hash`). There is no global symbol namespace;
-friendly names (such as `plus`, `int`, or `5`) are local aliases stored
-in metadata. Similarly, there are no primitive numbers: numerical
-identifiers like `5` or `10` are nullary relations mapping `{}` to `bits`.
+In `k`, all relations, schemas, and pattern templates are identified
+canonically by immutable content-addressed hashes (`@hash`). There is
+no global symbol namespace; friendly names (such as `plus`, `list`, or
+`5`) are local aliases stored in metadata. Similarly, there are no
+primitive numbers: numerical identifiers like `5` or `10` are nullary
+relations mapping `{}` to `bits`.
 
 For a detailed guide to all four formats, commands, and workflows, see
 [DOCS/FILE_FORMATS.md](DOCS/FILE_FORMATS.md).
@@ -356,6 +379,7 @@ and standard libraries:
 | File | Contents |
 | --- | --- |
 | `core.k` | Standard library: booleans, units, strings, optionals, and fundamental helpers |
+| `djson.k` | Dynamic JSON with balanced binary bit-trie indexing |
 | `arithmetics.k` | Integer and rational arithmetic built from bit-level relations from scratch |
 | `ieee.k` | IEEE 754 binary64 floating-point arithmetic (`add`, `sub`, `mul`, `div`) |
 | `poly.k` | Polymorphic list operations (`concat`, `reverse`, `length`, `get_nth`, `split_by`, `zip`) |
@@ -408,6 +432,10 @@ The suite covers:
 - [DOCS/FILE_FORMATS.md](DOCS/FILE_FORMATS.md) - guide to
   .k, .ko, .klib, and .kvm file formats and workflows
 - [DOCS/DICTIONARY.md](DOCS/DICTIONARY.md) - concept names and terminology
+- [DOCS/CANONICAL_PATTERNS.md](DOCS/CANONICAL_PATTERNS.md) -
+  content-addressable canonical patterns and parameter aliasing
+- [DOCS/NAMED_PATTERNS.md](DOCS/NAMED_PATTERNS.md) -
+  parameterized pattern templates and type schemes
 - [DOCS/REPL.md](DOCS/REPL.md) - interactive interpreter and codec details
 - [DOCS/WEB_REPL_REQUIREMENTS.md](DOCS/WEB_REPL_REQUIREMENTS.md) -
   Web REPL architecture and requirements
