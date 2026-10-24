@@ -183,6 +183,21 @@ console.log("--> Test 7: Error handling (unknown, arity, cycles, dupes)");
     () => k.compile("dupe[X, X] = {}; ()"),
     /Duplicate parameter 'X' in pattern 'dupe'/
   );
+
+  assert.throws(
+    () => k.compile("p[] = { missing[] x }; ()"),
+    /Unknown pattern template 'missing\[\]'/
+  );
+
+  assert.throws(
+    () => k.compile("p[] = missing[]; ()"),
+    /Unknown pattern template 'missing\[\]'/
+  );
+
+  assert.throws(
+    () => k.compile("a[] = b[]; b[] = a[]; ()"),
+    /Cyclic pattern template dependency detected/
+  );
   console.log("    Passed: Error conditions correctly handled.");
 }
 

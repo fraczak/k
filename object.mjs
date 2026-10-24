@@ -336,7 +336,7 @@ function patternOrigin(source, name, compiledAt, pat, info) {
   };
 }
 
-function buildMeta(annotated, source) {
+function buildMeta(annotated, source, options = {}) {
   const meta = {};
   const representatives = annotated.representatives || {};
   const relAlias = annotated.relAlias || {};
@@ -361,11 +361,27 @@ function buildMeta(annotated, source) {
   }
 
   const patterns = annotated.sourceDefs?.patterns || {};
+  const allPatterns = {};
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      const lp =
+        lib.patterns ||
+        lib.defs?.patterns ||
+        lib.sourceDefs?.patterns ||
+        {};
+      Object.assign(allPatterns, lp);
+    }
+  }
+  if (options.patterns) {
+    Object.assign(allPatterns, options.patterns);
+  }
+  Object.assign(allPatterns, patterns);
+
   for (const [name, pat] of Object.entries(patterns)) {
     if (!isSourceName(name)) continue;
     const info = resolvePatternCanonicalInfo(name, pat, {
-      patterns,
-      libraries: annotated.libraries || []
+      patterns: allPatterns,
+      libraries: options.libraries || []
     });
     if (info.hash) {
       addOrigin(
@@ -464,7 +480,7 @@ function compileObject(script, options = {}) {
   const serialized = serializeAnnotated(annotated);
   const meta = mergeMetaEntries(
     importedLibraryMeta(options.libraries),
-    buildMeta(annotated, options.source || null)
+    buildMeta(annotated, options.source || null, options)
   );
 
   // Prune to reachable from main
@@ -521,7 +537,7 @@ function compileLibrary(script, options = {}) {
   const serialized = serializeAnnotated(annotated);
   const meta = mergeMetaEntries(
     importedLibraryMeta(options.libraries),
-    buildMeta(annotated, options.source || null)
+    buildMeta(annotated, options.source || null, options)
   );
   const relAlias = serialized.relAlias || {};
 
@@ -571,7 +587,13 @@ function compileLibrary(script, options = {}) {
             info.params ||
             pat.params ||
             [],
-          filter: info.canonicalFilterAst || pat.filter
+          filter: info.canonicalFilterAst || pat.filter,
+          _canonical: info.hash,
+          _canonicalDef: info.def,
+          _canonicalParams: info.canonicalParams,
+          _graphParams: info.canonicalParams,
+          _aliasArgs: info.aliasArgs,
+          _canonicalFilterAst: info.canonicalFilterAst
         };
       }
     }

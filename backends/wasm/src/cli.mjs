@@ -35,38 +35,7 @@ export function loadLibraryFromPath(libPath) {
     return loadLibrary(decodeObject(fs.readFileSync(libPath)));
   }
   if (ext === ".k") {
-    let depLibs = [];
-    const baseName = path.basename(libPath);
-    if (baseName === "poly.k") {
-      const dir = path.dirname(libPath);
-      const arithPath = path.join(dir, "arithmetics.k");
-      if (fs.existsSync(arithPath)) {
-        const arithLib = loadLibrary(
-          compileLibrary(fs.readFileSync(arithPath, "utf8"), {
-            source: arithPath
-          })
-        );
-        depLibs.push(arithLib);
-      }
-    }
     const rawSource = fs.readFileSync(libPath, "utf8");
-    if (depLibs.length > 0) {
-      const neededExports = [
-        "0", "int", "inc", "dec", "nat", "zero_int?", "neg?", "GT"
-      ];
-      const preamble = buildExportPreamble(neededExports, depLibs);
-      const compiled = compileLibrary(preamble + rawSource, {
-        source: libPath,
-        libraries: depLibs
-      });
-      const mergedLib = loadLibrary(compiled);
-      for (const dep of depLibs) {
-        for (const [k, v] of Object.entries(dep.relAlias || {})) {
-          if (!mergedLib.relAlias[k]) mergedLib.relAlias[k] = v;
-        }
-      }
-      return mergedLib;
-    }
     return loadLibrary(compileLibrary(rawSource, { source: libPath }));
   }
   throw new Error(`Unsupported library extension: ${ext}`);

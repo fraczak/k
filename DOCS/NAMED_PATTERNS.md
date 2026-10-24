@@ -104,6 +104,18 @@ between variables and patterns is 100% deterministic:
 - **Identifier with `[...]`** (`bit[]`, `list[T]`, `pair[A, B]`):
   - Always a pattern template lookup or instantiation.
 
+### 3.2 Undefined Pattern Application Prohibition
+
+An identifier with `[...]` (e.g. `missing[]` or `dict[K, V]`) **must**
+refer to a defined pattern template in scope or in an imported library.
+
+- An undefined pattern application is a compile-time error
+  (`Unknown pattern template 'missing[]'`).
+- An undefined pattern application is **never** silently converted into
+  a variable or open leaf slot (`X0`, `X1`, etc.).
+- Identifiers intended as existential type variables must appear
+  without brackets (e.g. `T` or `X`).
+
 ---
 
 ## 4. Internal Variables as Unification Knots
@@ -230,6 +242,15 @@ To guarantee decidability and termination:
      ```
    - Two syntactically different definitions yielding isomorphic
      automata produce the exact same canonical definition and hash.
+
+5. **Eager Definition-Time Validation**:
+   All pattern definitions are strictly validated at script/module
+   compilation time, even if no relation in the file references them:
+   - Undefined template lookups raise `Unknown pattern template`.
+   - Mutually recursive template definitions raise
+     `Cyclic pattern template dependency detected`.
+   - Arity mismatches raise
+     `Pattern '...' expects N parameters, got M`.
 
 ---
 

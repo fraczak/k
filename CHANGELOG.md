@@ -5,6 +5,48 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.4.1] — 2026-10-23 — Strict Pattern Validation & Autohook Removal
+
+### Strict Pattern Template Validation & Variable Distinction
+
+- **Reject Undefined Pattern Applications**:
+  - Prohibit undefined pattern template applications (`name[...]`).
+    Previously, unexpanded `pattern_apply` AST nodes fell through
+    `skeletonizeFilter` and were silently converted into open leaf
+    variables (`X0`, `X1`), turning unresolved templates like
+    `{ missing[] x }` into existential records.
+  - In `canonical-pattern.mjs`, `skeletonizeFilter` now explicitly raises
+    `Unknown pattern template '<name>[]'` when an unexpanded
+    `pattern_apply` AST node is encountered, and
+    `resolvePatternCanonicalInfo` propagates template expansion errors
+    instead of silently swallowing them.
+  - Leaf variable generation in the linear skeleton is strictly
+    restricted to genuine variable nodes (`type === "name"` or untyped
+    leaves).
+- **Eager Definition-Time Validation**:
+  - Introduced `validatePatternDefinitions` in `named-patterns.mjs` and
+    integrated it into `annotate` in `index.mjs`, rejecting undefined
+    templates, cyclic dependencies, and arity mismatches at module
+    compile time, even if no relation references them.
+- **Library Compilation Metadata**:
+  - In `object.mjs`, compiled libraries directly preserve their canonical
+    pattern filters and metadata, preventing AST desynchronization.
+
+### Removal of Implicit Autohooks
+
+- **Explicit Loading Across All Environments**:
+  - Removed all implicit file autohooks and magic dependencies across
+    the REPL (`repl.mjs`), LLVM CLI (`backends/llvm/src/cli.mjs`), and
+    Wasm CLI (`backends/wasm/src/cli.mjs`).
+  - Users and test suites must explicitly load dependencies (e.g.
+    `Examples/arithmetics.k` before `Examples/poly.k`).
+
+### Documentation
+
+- Updated `DOCS/NAMED_PATTERNS.md`, `DOCS/PATTERNS.md`,
+  `DOCS/CANONICAL_PATTERNS.md`, `DOCS/REPL.md`, and
+  `DOCS/WEB_REPL_REQUIREMENTS.md`.
+
 ## [8.4.0] — 2026-10-23 — Linear Skeletons & Parameter Diagonalization
 
 ### Pure Linear Skeleton Model for Parameterized Patterns

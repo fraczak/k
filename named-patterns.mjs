@@ -293,8 +293,44 @@ export function expandPatternsInRels(rels, patterns = {}, options = {}) {
   return rels;
 }
 
+export function validatePatternDefinitions(
+  patterns = {},
+  options = {}
+) {
+  const allPatterns = { ...(options.patterns || {}), ...patterns };
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      const libPatterns =
+        lib.patterns ||
+        lib.defs?.patterns ||
+        lib.sourceDefs?.patterns ||
+        {};
+      for (const [name, pat] of Object.entries(libPatterns)) {
+        if (!(name in allPatterns)) {
+          allPatterns[name] = pat;
+        }
+      }
+      for (const [name, hash] of Object.entries(
+        lib.patternAlias || {}
+      )) {
+        if (libPatterns[name] && !(hash in allPatterns)) {
+          allPatterns[hash] = libPatterns[name];
+        }
+      }
+    }
+  }
+
+  for (const [name, pat] of Object.entries(patterns)) {
+    if (name.startsWith("@")) continue;
+    if (pat?.filter) {
+      expandFilter(pat.filter, allPatterns, new Set([name]));
+    }
+  }
+}
+
 export default {
   expandFilter,
   expandExp,
   expandPatternsInRels,
+  validatePatternDefinitions,
 };

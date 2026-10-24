@@ -90,6 +90,22 @@ In the interactive REPL, inspecting a pattern with `:pattern <name>` (or
 introduced variables in discovery order (e.g.
 `list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- @...`).
 
+### Template Applications vs. Type Variables
+
+Identifiers with square brackets (`name[...]`) are strictly pattern
+template applications. A referenced pattern template must exist in scope
+or in an imported library. An undefined template lookup raises an
+`Unknown pattern template` error immediately and is **never** silently
+treated as an open variable or leaf.
+
+In contrast, bare identifiers without brackets in pattern positions (e.g.
+`X`, `T`, `Y`) represent formal parameters, cycle knots (`= Y`), or
+existential type variables asserting type equality across fields.
+
+Pattern definitions are validated eagerly at compile time: undefined
+references, cyclic template dependencies, and arity mismatches are
+rejected before code generation or canonical hashing.
+
 ## Filters and Terminal Positions
 
 A k script can describe a pattern through:

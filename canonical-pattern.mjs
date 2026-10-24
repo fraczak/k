@@ -58,11 +58,23 @@ function skeletonizeFilter(filter, knots) {
     if (node.type === "code") {
       return { ...node };
     }
-    return {
-      type: "name",
-      name: `__LEAF_${leafIdx++}__`,
-      open: true
-    };
+    if (node.type === "pattern_apply") {
+      const pos = node.start
+        ? ` (lines ${node.start.line}:${node.start.column})`
+        : "";
+      const suffix = node.pattern?.startsWith("@") ? "" : "[]";
+      throw new Error(
+        `Unknown pattern template '${node.pattern}${suffix}'${pos}`
+      );
+    }
+    if (node.type === "name" || node.type === null) {
+      return {
+        type: "name",
+        name: `__LEAF_${leafIdx++}__`,
+        open: true
+      };
+    }
+    return node;
   }
   return walk(filter);
 }
@@ -118,21 +130,29 @@ function collectCanonicalVarPaths(canonicalFilter) {
   return paths;
 }
 
-function toAstFilter(node) {
+function toAstFilter(node, canonicalParams = []) {
   if (!node || typeof node !== "object") return node;
   const res = { ...node };
-  if (
-    res.name &&
-    /^X\d+$/.test(res.name) &&
-    (!res.fields || Object.keys(res.fields).length === 0)
-  ) {
-    res.type = "name";
-    res.open = true;
+  if (res.type === null) {
+    return {
+      type: "name",
+      name: res.name,
+      open: true
+    };
+  }
+  if (res.type === "name") {
+    return {
+      type: "name",
+      name: res.name,
+      ...(canonicalParams.includes(res.name)
+        ? { open: true }
+        : {})
+    };
   }
   if (res.fields) {
     res.fields = {};
     for (const [k, v] of Object.entries(node.fields)) {
-      res.fields[k] = toAstFilter(v);
+      res.fields[k] = toAstFilter(v, canonicalParams);
     }
   }
   return res;
@@ -155,12 +175,24 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       canonicalFilterAst: pat._canonicalFilterAst || null
     };
   }
-  if (typeof name === "string" && name.startsWith("@")) {
+  const isDirectCanonical =
+    typeof name === "string" && name.startsWith("@");
+  if (isDirectCanonical) {
     pat._canonical = name;
   }
   const formalParams = pat.params || [];
   const formalCount = formalParams.length;
   const allPatterns = { ...(options.patterns || {}) };
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      const lp =
+        lib.patterns ||
+        lib.defs?.patterns ||
+        lib.sourceDefs?.patterns ||
+        {};
+      Object.assign(allPatterns, lp);
+    }
+  }
   if (name && pat) allPatterns[name] = pat;
 
   let pathMap = {};
@@ -180,13 +212,6 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
     }
   }
 
-  let expandedFilter = null;
-  try {
-    expandedFilter = expandFilter(pat.filter, allPatterns);
-  } catch {
-    expandedFilter = pat.filter;
-  }
-
   if (!pat.filter) {
     return {
       hash: pat._canonical || null,
@@ -195,8 +220,12 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
     };
   }
 
+  const expandedFilter = expandFilter(pat.filter, allPatterns);
+
   const knots = collectFilterKnots(expandedFilter);
-  const skeletonFilter = skeletonizeFilter(expandedFilter, knots);
+  const skeletonFilter = isDirectCanonical
+    ? expandedFilter
+    : skeletonizeFilter(expandedFilter, knots);
   const source = `? ${prettyFilter(skeletonFilter)}`;
   try {
     const annotated = annotate(source, {
@@ -266,7 +295,10 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       formalCount > 0 ? selectedParams : [];
     pat._graphParams = graphParams || [];
     pat._aliasArgs = aliasArgs;
-    pat._canonicalFilterAst = toAstFilter(canonicalFilter);
+    pat._canonicalFilterAst = toAstFilter(
+      canonicalFilter,
+      graphParams || []
+    );
 
     return {
       hash: pat._canonical,
@@ -276,18 +308,16 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
       canonicalParams: pat._graphParams,
       canonicalFilterAst: pat._canonicalFilterAst
     };
-  } catch {
-    return {
-      hash: pat._canonical || null,
-      def: pat._canonicalDef || null,
-      params: pat._canonicalParams || null
-    };
+  } catch (err) {
+    if (isDirectCanonical) {
+      return {
+        hash: pat._canonical || null,
+        def: pat._canonicalDef || null,
+        params: pat._canonicalParams || null
+      };
+    }
+    throw err;
   }
-  return {
-    hash: pat._canonical || null,
-    def: pat._canonicalDef || null,
-    params: pat._canonicalParams || null
-  };
 }
 
 export function canonicalPatternHash(name, pat, options = {}) {

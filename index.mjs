@@ -2,7 +2,10 @@ import { parse } from "./parser.mjs";
 import { fromObject, isValue } from "./Value.mjs";
 import { parseValue } from "./valueIO.mjs";
 import { compileTypes } from "./compiler.mjs";
-import { expandPatternsInRels } from "./named-patterns.mjs";
+import {
+  expandPatternsInRels,
+  validatePatternDefinitions
+} from "./named-patterns.mjs";
 import run from "./run.mjs";
 import codes from "./codes.mjs";
 
@@ -38,6 +41,7 @@ function annotate(script, options = {}) {
   const representatives = codes.register(defs.codes);
   const rels = {...defs.rels, "__main__": {def: exp}};
 
+  validatePatternDefinitions(defs.patterns || {}, options);
   expandPatternsInRels(rels, defs.patterns || {}, options);
 
   // Inject library relations into the rels table so @hash refs resolve

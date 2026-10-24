@@ -1153,15 +1153,6 @@ function loadSourceOrKlib(state, targetPath, options = {}) {
   const normKey = normalizeFilePath(targetPath);
   if (!state.loadedFiles) state.loadedFiles = new Set();
 
-  // If loading poly.k, auto-load arithmetics.k first if not already loaded
-  if (normKey === "Examples/poly.k" || normKey.endsWith("/poly.k") || normKey === "poly.k") {
-    const arithKey = "arithmetics.k";
-    const alreadyHasArith = Array.from(state.loadedFiles).some(f => path.basename(f) === "arithmetics.k");
-    if (!alreadyHasArith) {
-      loadSourceOrKlib(state, arithKey, { loadAliases });
-    }
-  }
-
   const loadPath = resolveKFilePath(targetPath);
   if (loadPath.endsWith(".klib")) {
     const lib = loadLibrary(decodeLibrary(fs.readFileSync(loadPath)));
@@ -1184,45 +1175,13 @@ function loadSourceOrKlib(state, targetPath, options = {}) {
         lib,
         compileOptions
       );
-      const { patternNames } = userDefinedNames(source);
-      let parsedSource;
-      try {
-        parsedSource = parse(source);
-      } catch {
-        parsedSource = parse(`${source}\n()`);
-      }
-      const filePatterns = {};
-      for (const name of patternNames) {
-        const pat = parsedSource.defs?.patterns?.[name];
-        if (pat) {
-          filePatterns[name] = pat;
-          if (patternAlias[name]) {
-            const info = resolvePatternCanonicalInfo(state, name, pat);
-            filePatterns[patternAlias[name]] = {
-              params:
-                info.canonicalParams ||
-                info.params ||
-                pat.params ||
-                [],
-              filter: info.canonicalFilterAst || pat.filter,
-              _canonical: patternAlias[name],
-              _canonicalDef: info.def,
-              _canonicalParams: info.canonicalParams,
-              _graphParams: info.canonicalParams,
-              _aliasArgs: info.canonicalParams,
-              _canonicalFilterAst: info.canonicalFilterAst
-            };
-          }
-        }
-      }
       mergeLibrary(
         state,
         {
           ...lib,
           relAlias,
           patternAlias,
-          meta,
-          patterns: filePatterns
+          meta
         },
         targetPath,
         { loadAliases }
@@ -1298,36 +1257,10 @@ function compileSnippetArtifacts(source, state, sourceName = "<repl>") {
     );
     const annotated = annotateWithOptionalIdentity(fullSource, options);
     const { patternNames } = userDefinedNames(source);
-    let parsedSnippet;
-    try {
-      parsedSnippet = parse(source);
-    } catch {
-      parsedSnippet = parse(`${source}\n()`);
-    }
-    const patterns = { ...(state.patterns || {}) };
-    for (const name of patternNames) {
-      const pat = parsedSnippet.defs?.patterns?.[name];
-      if (pat) {
-        patterns[name] = pat;
-        if (patternAlias[name]) {
-          const info = resolvePatternCanonicalInfo(state, name, pat);
-          patterns[patternAlias[name]] = {
-            params:
-              info.canonicalParams ||
-              info.params ||
-              pat.params ||
-              [],
-            filter: info.canonicalFilterAst || pat.filter,
-            _canonical: patternAlias[name],
-            _canonicalDef: info.def,
-            _canonicalParams: info.canonicalParams,
-            _graphParams: info.canonicalParams,
-            _aliasArgs: info.canonicalParams,
-            _canonicalFilterAst: info.canonicalFilterAst
-          };
-        }
-      }
-    }
+    const patterns = {
+      ...(state.patterns || {}),
+      ...(lib.patterns || {})
+    };
     return {
       annotated,
       lib: {

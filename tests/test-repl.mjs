@@ -303,6 +303,18 @@ assert.equal(tcoState.value.toJSON(), "zero");
 const arithState = createState();
 output = await evaluateInput(":load Examples/arithmetics.k", arithState);
 assert.equal(output[0], "loaded Examples/arithmetics.k");
+output = await evaluateInput(":pat bits", arithState);
+assert.equal(
+  output[0],
+  "bits[] = <X0 0, X0 1, {} _>=X0;  -- " +
+    "@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb"
+);
+output = await evaluateInput(":pat bits_pair", arithState);
+assert.equal(
+  output[0],
+  "bits_pair[] = {<X0 0, X0 1, {} _>=X0 x, X0 y};  -- " +
+    "@R7RD2sgu6yPqpCQBBcJqkzxHQMZfEJLcNW4UKBcTiC3m"
+);
 output = await evaluateInput("10", arithState);
 assert.match(output[0], /^\{\}\|_\|0\|1\|0\|1/);
 output = await evaluateInput("{10 int x, 5 int y} plus", arithState);
@@ -446,11 +458,33 @@ assert.equal(promptForState(unitState), "unit.mjs> ");
 output = await evaluateInput("{}", unitState);
 assert.match(output[0], /unit\.mjs: \{\}/);
 
-const polyAutoState = createState();
-output = await evaluateInput(":load Examples/poly.k", polyAutoState);
+// Verify that poly.k does NOT auto-load arithmetics.k (no autohooks)
+const polyFreshState = createState();
+await assert.rejects(
+  () => evaluateInput(":load Examples/poly.k", polyFreshState),
+  /Unknown pattern template 'int\[\]'/
+);
+
+// Explicitly loading arithmetics.k then poly.k succeeds
+const polyExplicitState = createState();
+output = await evaluateInput(
+  ":load Examples/arithmetics.k",
+  polyExplicitState
+);
+assert.equal(output[0], "loaded Examples/arithmetics.k");
+output = await evaluateInput(
+  ":load Examples/poly.k",
+  polyExplicitState
+);
 assert.equal(output[0], "loaded Examples/poly.k");
-assert.ok(polyAutoState.relAliases.reverse, "poly relations should be loaded");
-assert.ok(polyAutoState.relAliases.int, "arithmetics int should be auto-loaded");
+assert.ok(
+  polyExplicitState.relAliases.reverse,
+  "poly relations loaded"
+);
+assert.ok(
+  polyExplicitState.relAliases.int,
+  "arithmetics int loaded"
+);
 
 // Verify timing reporting is always on and reflects active engine
 const timingState = createState();
@@ -670,6 +704,15 @@ assert.equal(
   "byte[] = {<{}=X1 0, X1 1>=X0 b0, X0 b1, X0 b2, X0 b3, " +
     "X0 b4, X0 b5, X0 b6, X0 b7};  -- " +
     "@4ukq2gpiEBFa7WXxcfRm8pfdr2kgYLTTnwsmLHeMd9i5"
+);
+
+await assert.rejects(
+  () => evaluateInput("bad[] = { missing[] x };", patState),
+  /Unknown pattern template 'missing\[\]'/
+);
+await assert.rejects(
+  () => evaluateInput("bad[] = missing[];", patState),
+  /Unknown pattern template 'missing\[\]'/
 );
 
 await assert.rejects(

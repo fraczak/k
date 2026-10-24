@@ -71,23 +71,21 @@ The bundled VFS and UI examples must include only verified useful files:
 - `Examples/poly.k` — Polymorphic list functions (`concat`, `reverse`, `length`, `get_nth`, `split_by`, `take`, `drop`, `zip`).
 
 #### Dependency Management for `poly.k`
-- `Examples/poly.k` depends on `dec`, `nat`, and `zero_int?` from `Examples/arithmetics.k`.
-- Loading `Examples/poly.k` on a fresh session will automatically ensure `Examples/arithmetics.k` is loaded first if not already loaded in the session.
+- `Examples/poly.k` depends on `dec`, `nat`, and `zero_int?` from
+  `Examples/arithmetics.k`.
+- Dependencies are loaded explicitly: users load
+  `Examples/arithmetics.k` before `Examples/poly.k`.
+  No autohooks or implicit loading are performed.
 
 ---
 
-### Objective 4: Auto-Loading `.k` Files on Codec Load & Code Aliasing
+### Objective 4: Explicit Loading & Code Aliasing
 
 #### Requirements
-1. **Codec-to-File Auto-Loading**:
-   When a codec is registered or loaded (via `:codec load <name>`, REPL initialization, or UI action):
-   - Check if the required `.k` file is already loaded in `state.loadedFiles`.
-   - If not loaded, automatically load and evaluate the corresponding `.k` file before completing codec registration:
-     - `int` -> auto-loads `Examples/arithmetics.k`
-     - `utf8` -> auto-loads `core.k`
-     - `json` -> auto-loads `core.k`
-     - `ieee` -> auto-loads `Examples/ieee.k`
-   - Print an informative message, e.g.: `(auto-loaded Examples/arithmetics.k for codec 'int')`.
+1. **Explicit Loading (No Autohooks)**:
+   - Codecs and `.k` files must be loaded explicitly by the user
+     (e.g. `:load Examples/arithmetics.k` then `:load Examples/poly.k`).
+   - The REPL does not perform implicit or hidden auto-loading.
 
 2. **Bidirectional Code Aliasing**:
    Establish code aliasing so that codec names and their standard type names are both valid aliases pointing to the same canonical type hash:

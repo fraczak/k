@@ -57,6 +57,19 @@ The canonical pattern is the 3-port linear product:
 Canonical patterns always take the full arity of all leaf positions
 discovered in the pattern skeleton.
 
+### 2.2 Leaf Variables vs. Template Applications
+
+During canonicalization, only genuine leaf type variables (`type: "name"`
+or untyped leaf nodes) are assigned canonical port slots (`X0`, `X1`,
+...).
+
+Template applications (`name[...]` or `@hash[...]`) must be fully
+expanded before skeletonization. If an unexpanded `pattern_apply` AST
+node reaches the skeletonizer (e.g. due to an unresolved template name),
+the compiler rejects it immediately with an `Unknown pattern template`
+error. An undefined pattern template application is never converted into
+an open leaf variable slot.
+
 ---
 
 ## 3. Named Patterns as Parameter Routing and Diagonalization Aliases

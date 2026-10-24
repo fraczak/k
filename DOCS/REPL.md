@@ -207,6 +207,12 @@ c[X,Y] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
 d[Y,X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
 ```
 
+Note: In `a[] = {X x, Y y}`, `X` and `Y` are bare identifiers and thus
+treated as existential type variables. If an author writes `missing[]`,
+the REPL rejects the definition with an error
+(`Unknown pattern template 'missing[]'`). Undefined pattern applications
+are never treated as open variables or leaves.
+
 Rather than echoing the syntax used to construct the template, the
 canonical definition decompiles the underlying minimal finite tree
 automaton. Local parameter and knot names chosen by the author are
