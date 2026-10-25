@@ -3,7 +3,7 @@
   "displayName": "k language",
   "description": "Syntax highlighting and snippets for the k language — first-order partial functions over algebraic data types",
   "publisher": "wojtek",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "ISC",
   "homepage": "https://github.com/fraczak/k",
   "repository": {
@@ -36,7 +36,7 @@
     "themes/k-contrast-color-theme.json"
   ],
   "scripts": {
-    "test": "node test/background-ranges.test.js"
+    "test": "node test/run.js"
   },
   "contributes": {
     "languages": [

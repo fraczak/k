@@ -215,16 +215,6 @@ filter_
                                           end: $5.end
                                       };
                                   }
-    | at name
-                                  {
-                                      $$ = {
-                                          type: "pattern_apply",
-                                          pattern: "@" + $2.value,
-                                          args: [],
-                                          start: $1.start,
-                                          end: $2.end
-                                      };
-                                  }
     ;
 
 pattern_args

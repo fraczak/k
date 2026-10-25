@@ -47,4 +47,19 @@ assert.deepStrictEqual(nestedRanges.filter, [
 ]);
 assert.deepStrictEqual(nestedRanges.type, [{ start: 9, end: 13 }]);
 
+const patSource = [
+  "bits[] = < {} _, B 0, B 1 > = B;",
+  "list[X] = < {} nil, { X car, Y cdr } cons > = Y;",
+  "reverse = ? list[X] = L {() xs, nil acc} _reverse;",
+  "reverse"
+].join("\n");
+const patRanges = collectBackgroundRanges(patSource);
+assert.deepStrictEqual(slices(patSource, patRanges.type), [
+  "bits[] = < {} _, B 0, B 1 > = B;",
+  "list[X] = < {} nil, { X car, Y cdr } cons > = Y;"
+]);
+assert.deepStrictEqual(slices(patSource, patRanges.filter), [
+  "? list[X] = L"
+]);
+
 console.log("background range scanner tests passed");

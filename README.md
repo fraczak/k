@@ -436,6 +436,8 @@ The suite covers:
   content-addressable canonical patterns and parameter aliasing
 - [DOCS/NAMED_PATTERNS.md](DOCS/NAMED_PATTERNS.md) -
   parameterized pattern templates and type schemes
+- [DOCS/PAPER.md](DOCS/PAPER.md) -
+  K language paper: relational calculus, patterns, and serialization
 - [DOCS/REPL.md](DOCS/REPL.md) - interactive interpreter and codec details
 - [DOCS/WEB_REPL_REQUIREMENTS.md](DOCS/WEB_REPL_REQUIREMENTS.md) -
   Web REPL architecture and requirements

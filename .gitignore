@@ -16,3 +16,4 @@ k_compiler/
 *.wasm
 debug_full.wat
 .cache/
+*.vsix

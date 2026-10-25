@@ -210,16 +210,30 @@ console.log("--> Test 8: Canonical pattern references and aliasing");
     list[X] = < {}nil, { X car, Y cdr } cons > = Y;
   `, { exports: ["bit", "list"] });
 
+  // Syntax error: canonical pattern without parameter list
+  // must fail at parse time
+  assert.throws(
+    () => k.compile(
+      "is_bit = ? @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg; ()"
+    ),
+    /Parse error[\s\S]*Expecting 'LB'/
+  );
+  assert.throws(
+    () => k.compile(
+      "my_bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg; ()"
+    ),
+    /Parse error[\s\S]*Expecting 'LB'/
+  );
+
   const script1 = `
-    -- Canonical hash application with and without arguments
+    -- Canonical hash application with parameter list
     is_bit = ? @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
-    is_bit2 = ? @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg;
     is_bit_list = ? @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[
       @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[]
     ];
 
     b0 = {}|0 is_bit;
-    b1 = {}|1 is_bit2;
+    b1 = {}|1 is_bit;
     l = { b1 car, {}|nil cdr }|cons is_bit_list;
     { b0 b0, b1 b1, l l }
   `;
@@ -232,7 +246,6 @@ console.log("--> Test 8: Canonical pattern references and aliasing");
   // Aliasing canonical patterns
   const script2 = `
     my_bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
-    my_bit2[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg;
     my_list[T] = @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[T];
 
     is_my_list = ? my_list[my_bit[]];

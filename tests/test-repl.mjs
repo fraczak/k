@@ -306,14 +306,20 @@ assert.equal(output[0], "loaded Examples/arithmetics.k");
 output = await evaluateInput(":pat bits", arithState);
 assert.equal(
   output[0],
-  "bits[] = <X0 0, X0 1, {} _>=X0;  -- " +
-    "@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb"
+  "bits[] = <B 0, B 1, {} _>=B;  -- " +
+    "@VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb[]"
 );
-output = await evaluateInput(":pat bits_pair", arithState);
+output = await evaluateInput(":pat bit", arithState);
 assert.equal(
   output[0],
-  "bits_pair[] = {<X0 0, X0 1, {} _>=X0 x, X0 y};  -- " +
-    "@R7RD2sgu6yPqpCQBBcJqkzxHQMZfEJLcNW4UKBcTiC3m"
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[]"
+);
+output = await evaluateInput(":pat int[]", arithState);
+assert.equal(
+  output[0],
+  "int[] = <bits[] +, bits[] ->;  -- " +
+    "@Nws3vysWqC9PznraTP4kWPp44Rd77NAqrx9dgbtHAjGA[]"
 );
 output = await evaluateInput("10", arithState);
 assert.match(output[0], /^\{\}\|_\|0\|1\|0\|1/);
@@ -462,7 +468,7 @@ assert.match(output[0], /unit\.mjs: \{\}/);
 const polyFreshState = createState();
 await assert.rejects(
   () => evaluateInput(":load Examples/poly.k", polyFreshState),
-  /Unknown pattern template 'int\[\]'/
+  /Unknown pattern template/
 );
 
 // Explicitly loading arithmetics.k then poly.k succeeds
@@ -667,20 +673,20 @@ assert.equal(
 output = await evaluateInput(":pattern bit", patState);
 assert.equal(
   output[0],
-  "bit[] = <{}=X0 0, X0 1>;  -- " +
-    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[]"
 );
 output = await evaluateInput(":pattern bit[]", patState);
 assert.equal(
   output[0],
-  "bit[] = <{}=X0 0, X0 1>;  -- " +
-    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[]"
 );
 output = await evaluateInput(":pat bit", patState);
 assert.equal(
   output[0],
-  "bit[] = <{}=X0 0, X0 1>;  -- " +
-    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+  "bit[] = <{} 0, {} 1>;  -- " +
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[]"
 );
 output = await evaluateInput(
   ":pattern @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg",
@@ -701,9 +707,9 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern byte", patState);
 assert.equal(
   output[0],
-  "byte[] = {<{}=X1 0, X1 1>=X0 b0, X0 b1, X0 b2, X0 b3, " +
-    "X0 b4, X0 b5, X0 b6, X0 b7};  -- " +
-    "@4ukq2gpiEBFa7WXxcfRm8pfdr2kgYLTTnwsmLHeMd9i5"
+  "byte[] = {bit[] b0, bit[] b1, bit[] b2, bit[] b3, " +
+    "bit[] b4, bit[] b5, bit[] b6, bit[] b7};  -- " +
+    "@4ukq2gpiEBFa7WXxcfRm8pfdr2kgYLTTnwsmLHeMd9i5[]"
 );
 
 await assert.rejects(
@@ -751,8 +757,8 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern pair", patState);
 assert.equal(
   output[0],
-  "pair[X0, X1] = {X0 first, X1 second};  -- " +
-    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
+  "pair[A, B] = {A first, B second};  -- " +
+    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[A, B]"
 );
 
 output = await evaluateInput(":load Examples/list.k", patState);
@@ -765,8 +771,8 @@ assert(output[0].includes("pair[A,B] = @KqTB"));
 output = await evaluateInput(":pattern list", patState);
 assert.equal(
   output[0],
-  "list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- " +
-    "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe"
+  "list[X] = <{} nil, {X car, Y cdr} cons>=Y;  -- " +
+    "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X]"
 );
 
 output = await evaluateInput("{} | nil ? list[bit[]]", patState);
@@ -788,19 +794,19 @@ output = await evaluateInput(":pattern bit", freshState);
 assert.equal(
   output[0],
   "bit[] = <{}=X0 0, X0 1>;  -- " +
-    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg"
+    "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[]"
 );
 output = await evaluateInput(":pattern pair", freshState);
 assert.equal(
   output[0],
-  "pair[X0, X1] = {X0 first, X1 second};  -- " +
-    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
+  "pair[A, B] = {X0 first, X1 second};  -- " +
+    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[A, B]"
 );
 output = await evaluateInput(":pattern list", freshState);
 assert.equal(
   output[0],
-  "list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- " +
-    "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe"
+  "list[X] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- " +
+    "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X]"
 );
 output = await evaluateInput(
   "same_pair[T] = { T first, T second };",
@@ -809,8 +815,8 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern same_pair", freshState);
 assert.equal(
   output[0],
-  "same_pair[X0] = {X0 first, X1 second};  -- " +
-    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
+  "same_pair[T] = {T first, T second};  -- " +
+    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[T, T]"
 );
 output = await evaluateInput("{} | nil ? list[bit[]]", freshState);
 assert.match(output[0], /\{\}\|nil/);
@@ -819,8 +825,8 @@ output = await evaluateInput("a[] = x;", freshState);
 output = await evaluateInput(":pattern a", freshState);
 assert.equal(
   output[0],
-  "a[] = X0;  -- " +
-    "@QfyLpmn56wuppuGvrrUJz8LKtgaXfbMtad7RnzBcFk2S"
+  "a[] = x;  -- " +
+    "@QfyLpmn56wuppuGvrrUJz8LKtgaXfbMtad7RnzBcFk2S[(...)]"
 );
 output = await evaluateInput(
   "closed_same_pair[] = { T first, T second };",
@@ -829,8 +835,8 @@ output = await evaluateInput(
 output = await evaluateInput(":pattern closed_same_pair", freshState);
 assert.equal(
   output[0],
-  "closed_same_pair[] = {X0 first, X1 second};  -- " +
-    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm"
+  "closed_same_pair[] = {T first, T second};  -- " +
+    "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[T, T]"
 );
 
 output = await evaluateInput(
@@ -841,26 +847,26 @@ output = await evaluateInput(
 output = await evaluateInput(":pat a", freshState);
 assert.equal(
   output[0],
-  "a[] = {X0 x, X1 y};  -- " +
-    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x"
+  "a[] = {X x, Y y};  -- " +
+    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[(...), (...)]"
 );
 output = await evaluateInput(":pat b", freshState);
 assert.equal(
   output[0],
-  "b[X0] = {X0 x, X1 y};  -- " +
-    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x"
+  "b[X] = {X x, Y y};  -- " +
+    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X, (...)]"
 );
 output = await evaluateInput(":pat c", freshState);
 assert.equal(
   output[0],
-  "c[X0, X1] = {X0 x, X1 y};  -- " +
-    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x"
+  "c[X, Y] = {X x, Y y};  -- " +
+    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X, Y]"
 );
 output = await evaluateInput(":pat d", freshState);
 assert.equal(
   output[0],
-  "d[X1, X0] = {X0 x, X1 y};  -- " +
-    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x"
+  "d[Y, X] = {X x, Y y};  -- " +
+    "@NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X, Y]"
 );
 output = await evaluateInput(":pats", freshState);
 assert(
@@ -915,8 +921,8 @@ assert(
 output = await evaluateInput(":pat p", freshState);
 assert.equal(
   output[0],
-  "p[X0] = {X0 x, X1 y, X2 z};  -- " +
-    "@PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR"
+  "p[X] = {X x, Y y, Y z};  -- " +
+    "@PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X, Y, Y]"
 );
 
 output = await evaluateInput(

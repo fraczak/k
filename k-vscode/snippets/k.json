@@ -58,5 +58,15 @@
     "prefix": "undef",
     "body": ["<>"],
     "description": "Empty merge: always undefined (bottom)"
+  },
+  "Named pattern definition (0-arity)": {
+    "prefix": "pat",
+    "body": ["${1:name}[] = ${2:filter};"],
+    "description": "0-arity named pattern template definition"
+  },
+  "Parameterized pattern definition": {
+    "prefix": "patpoly",
+    "body": ["${1:name}[${2:X}] = ${3:filter};"],
+    "description": "Parameterized named pattern template definition"
   }
 }

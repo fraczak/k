@@ -5,7 +5,8 @@ const NAME_PART = /[a-zA-Z0-9_?!+\-]/;
 const OPEN_TO_CLOSE = new Map([
   ["{", "}"],
   ["<", ">"],
-  ["(", ")"]
+  ["(", ")"],
+  ["[", "]"]
 ]);
 const CLOSERS = new Set(OPEN_TO_CLOSE.values());
 
@@ -136,11 +137,25 @@ function parseFilterEnd(tokens, startIndex) {
   let endIndex;
   if (token.value === "$") {
     endIndex = parseCodeEnd(tokens, startIndex + 1);
-  } else if (token.value === "(" || token.value === "{" || token.value === "<") {
+  } else if (
+    token.value === "(" ||
+    token.value === "{" ||
+    token.value === "<"
+  ) {
     const matching = findMatching(tokens, startIndex);
     endIndex = matching === -1 ? -1 : matching + 1;
-  } else if (isName(token)) {
-    endIndex = startIndex + 1;
+  } else if (
+    isName(token) ||
+    (token.value === "@" && isName(tokens[startIndex + 1]))
+  ) {
+    const nameEnd =
+      token.value === "@" ? startIndex + 2 : startIndex + 1;
+    if (tokens[nameEnd]?.value === "[") {
+      const matching = findMatching(tokens, nameEnd);
+      endIndex = matching === -1 ? nameEnd + 1 : matching + 1;
+    } else {
+      endIndex = nameEnd;
+    }
   } else {
     return -1;
   }
@@ -163,21 +178,50 @@ function collectBackgroundRanges(text) {
 
   let index = tokens[0]?.value === "~" ? 1 : 0;
   while (index < tokens.length) {
+    let nameEnd = -1;
+    if (tokens[index]?.value === "@" && isName(tokens[index + 1])) {
+      nameEnd = index + 2;
+    } else if (isName(tokens[index])) {
+      nameEnd = index + 1;
+    }
+
+    let isPatternDefinition = false;
+    let patternEqualsIndex = -1;
+    if (nameEnd !== -1 && tokens[nameEnd]?.value === "[") {
+      const closeBracket = findMatching(tokens, nameEnd);
+      if (
+        closeBracket !== -1 &&
+        tokens[closeBracket + 1]?.value === "="
+      ) {
+        isPatternDefinition = true;
+        patternEqualsIndex = closeBracket + 1;
+      }
+    }
+
     const isTypeDefinition =
       tokens[index]?.value === "$" &&
       isName(tokens[index + 1]) &&
       tokens[index + 2]?.value === "=";
     const isRelationDefinition =
+      !isPatternDefinition &&
       isName(tokens[index]) &&
       tokens[index + 1]?.value === "=";
 
-    if (!isTypeDefinition && !isRelationDefinition) break;
+    if (
+      !isTypeDefinition &&
+      !isRelationDefinition &&
+      !isPatternDefinition
+    ) {
+      break;
+    }
 
-    const equalsIndex = index + (isTypeDefinition ? 2 : 1);
+    const equalsIndex = isPatternDefinition
+      ? patternEqualsIndex
+      : index + (isTypeDefinition ? 2 : 1);
     const endIndex = findDefinitionEnd(tokens, equalsIndex + 1);
     if (endIndex === -1) break;
 
-    if (isTypeDefinition) {
+    if (isTypeDefinition || isPatternDefinition) {
       type.push({
         start: tokens[index].start,
         end: tokens[endIndex].end

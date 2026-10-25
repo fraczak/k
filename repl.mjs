@@ -137,10 +137,19 @@ function aliasLine(kind, name, hash) {
   return `${name} = @${body};`;
 }
 
-function aliasPreamble(state, omitName = null) {
+function shouldOmitAlias(name, omit) {
+  if (!omit) return false;
+  if (omit instanceof Set) return omit.has(name);
+  if (typeof omit === "string") return name === omit;
+  return false;
+}
+
+function aliasPreamble(state, omit = null) {
   const lines = [];
   for (const [name, hash] of Object.entries(state.relAliases).sort()) {
-    if (name !== omitName) lines.push(aliasLine("rel", name, hash));
+    if (!shouldOmitAlias(name, omit)) {
+      lines.push(aliasLine("rel", name, hash));
+    }
   }
   for (const [name, hash] of Object.entries(
     state.patternAliases || {}
@@ -148,20 +157,20 @@ function aliasPreamble(state, omitName = null) {
     if (
       name.startsWith("@") ||
       name === hash ||
-      name === omitName
+      shouldOmitAlias(name, omit)
     ) {
       continue;
     }
     const pat = state.patterns?.[name] || state.patterns?.[hash];
-      const params = pat?.params || [];
-      const paramStr =
-        params.length > 0 ? `[${params.join(", ")}]` : "[]";
-      const body = hash.startsWith("@") ? hash.slice(1) : hash;
-      const info = resolvePatternCanonicalInfo(state, name, pat);
-      const args = info?.aliasArgs || pat?._aliasArgs || params;
-      const argStr =
-        args && args.length > 0 ? `[${args.join(", ")}]` : paramStr;
-      lines.push(`${name}${paramStr} = @${body}${argStr};`);
+    const params = pat?.params || [];
+    const paramStr =
+      params.length > 0 ? `[${params.join(", ")}]` : "[]";
+    const body = hash.startsWith("@") ? hash.slice(1) : hash;
+    const info = resolvePatternCanonicalInfo(state, name, pat);
+    const args = info?.aliasArgs || pat?._aliasArgs || params;
+    const argStr =
+      args && args.length > 0 ? `[${args.join(", ")}]` : paramStr;
+    lines.push(`${name}${paramStr} = @${body}${argStr};`);
   }
   return lines.filter(Boolean).join("\n");
 }
@@ -179,14 +188,30 @@ function remapDiagnosticMessage(message, lineOffset) {
   if (!lineOffset) return message;
 
   let rewritten = message.replace(
-    /\(lines (\d+):(\d+)\.\.\.(\d+):(\d+)\)/g,
-    (_, startLine, startCol, endLine, endCol) =>
-      `(lines ${remapLineNumber(Number(startLine), lineOffset)}:${startCol}...${remapLineNumber(Number(endLine), lineOffset)}:${endCol})`
+    /\(lines (\d+):(\d+)(?:\.\.\.(\d+):(\d+))?\)/g,
+    (_, startLine, startCol, endLine, endCol) => {
+      const remStart = remapLineNumber(Number(startLine), lineOffset);
+      if (endLine != null && endCol != null) {
+        const remEnd = remapLineNumber(Number(endLine), lineOffset);
+        return `(lines ${remStart}:${startCol}...${remEnd}:${endCol})`;
+      }
+      return `(lines ${remStart}:${startCol})`;
+    }
   );
 
   rewritten = rewritten.replace(
-    /Parse error on line (\d+):/g,
-    (_, line) => `Parse error on line ${remapLineNumber(Number(line), lineOffset)}:`
+    /(?:Parse|Lexical) error on line (\d+):/g,
+    (_, line) =>
+      `Parse error on line ${remapLineNumber(Number(line), lineOffset)}:`
+  );
+
+  rewritten = rewritten.replace(
+    /(?<!\()lines (\d+):(\d+)\.\.\.(\d+):(\d+)/g,
+    (_, startLine, startCol, endLine, endCol) => {
+      const remStart = remapLineNumber(Number(startLine), lineOffset);
+      const remEnd = remapLineNumber(Number(endLine), lineOffset);
+      return `lines ${remStart}:${startCol}...${remEnd}:${endCol}`;
+    }
   );
 
   return rewritten;
@@ -273,10 +298,6 @@ function mergeLibrary(state, lib, source = "<load>", options = {}) {
     ...state.patterns,
     ...(lib.patterns || lib.sourceDefs?.patterns ||
       lib.defs?.patterns || {})
-  };
-  state.patternAliases = {
-    ...state.patternAliases,
-    ...(lib.patternAlias || {})
   };
   mergeMeta(state, lib.meta);
 
@@ -481,17 +502,32 @@ function resolvePatternCanonicalName(state, name, pat) {
 function prettyPattern(name, pat, state = null) {
   const info = resolvePatternCanonicalInfo(state, name, pat);
   const isHash = typeof name === "string" && name.startsWith("@");
+  const isDirectAlias =
+    pat?.filter?.type === "pattern_apply" &&
+    typeof pat.filter.pattern === "string" &&
+    pat.filter.pattern.startsWith("@");
+
   const paramList =
     isHash && (info.canonicalParams || pat?.params)
       ? (info.canonicalParams || pat.params)
-      : info.params != null
-      ? info.params
-      : (pat?.params || []);
+      : (pat?.params || info.params || []);
   const params = paramList.join(", ");
-  const filterStr = info.def ||
-    (pat?.filter ? prettyFilter(pat.filter) : "()");
+
+  let filterStr;
+  if (isHash) {
+    filterStr =
+      info.def || (pat?.filter ? prettyFilter(pat.filter) : "()");
+  } else if (pat?.filter && !isDirectAlias) {
+    filterStr = prettyFilter(pat.filter);
+  } else {
+    filterStr =
+      info.def || (pat?.filter ? prettyFilter(pat.filter) : "()");
+  }
+
+  const aliasArgs = info.aliasArgs || pat?.params || [];
+  const argStr = aliasArgs.join(", ");
   const suffix =
-    info.hash && !isHash ? `  -- ${info.hash}` : "";
+    info.hash && !isHash ? `  -- ${info.hash}[${argStr}]` : "";
   return `${name}[${params}] = ${filterStr};${suffix}`;
 }
 
@@ -601,6 +637,15 @@ function userDefinedNames(source) {
         (name.startsWith("@") && NAME_RE.test(name.slice(1)))
     )
   };
+}
+
+function definedNamesInSource(source) {
+  try {
+    const { relNames, patternNames } = userDefinedNames(source);
+    return new Set([...(relNames || []), ...(patternNames || [])]);
+  } catch {
+    return new Set();
+  }
 }
 
 function originFromSourceNode(source, name, compiledAt, node) {
@@ -1160,7 +1205,7 @@ function loadSourceOrKlib(state, targetPath, options = {}) {
   } else {
     restoreCodes(state);
     const source = fs.readFileSync(loadPath, "utf8");
-    const preamble = aliasPreamble(state);
+    const preamble = aliasPreamble(state, definedNamesInSource(source));
     const fullSource = [preamble, source].filter(Boolean).join("\n");
     const compileOptions = {
       source: targetPath,
@@ -1240,7 +1285,7 @@ function analyzeAcceptedSnippet(source, explicitTerminated = explicitSnippetTerm
 
 function compileSnippetArtifacts(source, state, sourceName = "<repl>") {
   restoreCodes(state);
-  const preamble = aliasPreamble(state);
+  const preamble = aliasPreamble(state, definedNamesInSource(source));
   const fullSource = [preamble, source].filter(Boolean).join("\n");
   const options = {
     source: sourceName,

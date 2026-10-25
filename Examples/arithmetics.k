@@ -4,23 +4,8 @@ yes = {}|yes;
 no = yes swap_yes_no;
 
 bits[] = < {} _, B 0, B 1 > = B;
-bits? = ? bits[];
 
-bits_pair[] = { bits[] x, bits[] y };
-inv_state[] = { bits[] x, bits[] r };
-yes_no[] = < {} yes, {} no >;
-in_order_state[] = { bits[] x, bits[] y, yes_no[] inOrder };
-carry_bit[] = < {} 0, {} 1 >;
-add_state[] = { bits[] x, bits[] y, carry_bit[] c, bits[] r };
-times_state[] = { bits[] result, bits[] _x, bits[] y };
-div_restoring_state[] = {
-  bits[] x, bits[] y, bits[] q, bits[] r
-};
-pad_state[] = { bits[] x, bits[] steps, bits[] _y };
-align_down_state[] = { bits[] x, bits[] y, bits[] _y };
-div_down_state[] = {
-  bits[] x, bits[] _y, bits[] steps, bits[] q
-};
+bit[] = < {} 0, {} 1 >;
 
 0b = {} | _;
 -- |1 = | 1;
@@ -45,7 +30,7 @@ empty = < /_ yes, no >;
 empty? = {empty /yes if, () then} .then;
 
 concat = {.x inv x, .y y} concat_; 
-concat_ = ? bits_pair[]
+concat_ = ? { bits[] x, bits[] y } 
   < 
     {.x empty? if, .y then} .then,
     < 
@@ -54,7 +39,7 @@ concat_ = ? bits_pair[]
     > concat_ 
   >;
 inv = {()x, 0b r} _inv; 
-_inv = ? inv_state[]
+_inv = ? { bits[] x, bits[] r }
   < 
     {.x empty? if, .r then} .then,
     < 
@@ -64,7 +49,7 @@ _inv = ? inv_state[]
   >;
 
 inOrder = {.x inv x, .y inv y, yes inOrder} inOrder_;
-inOrder_ = ? in_order_state[]
+inOrder_ = ?{ bits[] x, bits[] y, < {} yes, {} no > inOrder }
   < 
     {.x </0,/1> if1, .y /_ if2, .inOrder swap_yes_no then} .then,
     {.x /_ if, .inOrder then} .then,
@@ -104,7 +89,7 @@ inc = <
   /'-' {inv x, 0b y} _dec nat |'-'
 >;
 
-_inc = ? bits_pair[] <
+_inc = ? { bits[] x, bits[] y } <
     {.x empty? if, .y |1 then} .then,
     {.x /0 x, .y |1 y} concat_, 
     {.x /1 x, .y |0  y} _inc
@@ -116,7 +101,7 @@ dec = <
   /'-' {inv x, 0b y} _inc nat |'-'
 >;
 
-_dec = ? bits_pair[] <
+_dec = ? { bits[] x, bits[] y } <
     {.x /1 x, .y |0  y} concat_, 
     {.x /0 x, .y |1 y} _dec
 >;
@@ -147,7 +132,7 @@ _plus = {.x x, .y y, .c c, 0b r} _plus_;
 
 _plus_ =
   -- least significant bit first addition with carry
-  ? add_state[]
+  ? { bits[] x, bits[] y, bit[] c, bits[] r }
   <
     {.x empty? if, .y empty? and, .c/0 c, .r inv then} .then,
     {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
@@ -175,7 +160,7 @@ _minus = {.x x, .y y, .c c, 0b r} _minus_;
 
 _minus_ =
   -- least significant bit first substraction with carry
-  ? add_state[]
+  ? { bits[] x, bits[] y, bit[] c, bits[] r }
   <
     {.y empty? if, .c/0 and, {.r x, .x r} _inv then} .then,
     <
@@ -218,7 +203,7 @@ times =
 ;
 
 _times =
-  ? times_state[]
+  ? { bits[] result, bits[] _x, bits[] y }
   <
     { .y empty? if, .result then } .then,
     <
@@ -245,7 +230,7 @@ shift_in_1 = inv |1 inv nat;
 sub_bits = {.x inv x, .y inv y, c0 c} _minus inv nat;
 
 _div_restoring =
-  ? div_restoring_state[]
+  ? { bits[] x, bits[] y, bits[] q, bits[] r }
   <
     {.x empty? if, {.q inv int div, .r rem} then} .then,
     <
@@ -269,7 +254,7 @@ _div_restoring =
     _div_restoring
   >;
 
-_pad_down = ? pad_state[]
+_pad_down = ? { bits[] x, bits[] steps, bits[] _y }
   <
     {.x empty? if, {._y _y, .steps steps} then} .then,
     {
@@ -279,7 +264,7 @@ _pad_down = ? pad_state[]
     } _pad_down
   >;
 
-_align_down = ? align_down_state[]
+_align_down = ? { bits[] x, bits[] y, bits[] _y }
   <
     {
       .x </0, /1> x,
@@ -299,7 +284,7 @@ _align_down = ? align_down_state[]
     } .then
   >;
 
-_div_down = ? div_down_state[]
+_div_down = ? { bits[] x, bits[] _y, bits[] steps, bits[] q }
   {
     .x x,
     ._y _y,
@@ -343,7 +328,7 @@ _div_down = ? div_down_state[]
     } _div_down
   >;
 
-_check_2y = ? bits_pair[]
+_check_2y = ? { bits[] x, bits[] y }
   <
     {.x empty? if, {} | down_shift then} .then,
     {.y empty? if, {} | restore then} .then,
@@ -415,7 +400,7 @@ gcd =
   > _gcd
 ;
 
-_gcd = ? bits_pair[] <
+_gcd = ? { bits[] x, bits[] y } <
   { .y remove_leading_zeros empty? if, .x nat then } .then,
   { .y x, mod y } _gcd
 >;

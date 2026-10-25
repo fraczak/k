@@ -34,10 +34,14 @@ export function expandFilter(
       template = patterns["@" + patternName];
     }
     if (!template) {
-      const pos = filter.start
-        ? ` (lines ${filter.start.line}:${filter.start.column})`
-        : "";
-      const suffix = patternName.startsWith("@") ? "" : "[]";
+      const pos =
+        filter.start && filter.end
+          ? ` (lines ${filter.start.line}:${filter.start.column}...` +
+            `${filter.end.line}:${filter.end.column})`
+          : filter.start
+          ? ` (lines ${filter.start.line}:${filter.start.column})`
+          : "";
+      const suffix = "[]";
       throw new Error(
         `Unknown pattern template '${patternName}${suffix}'${pos}`
       );
@@ -53,9 +57,13 @@ export function expandFilter(
     const expectedArity = template.params.length;
     const actualArity = (filter.args || []).length;
     if (expectedArity !== actualArity) {
-      const pos = filter.start
-        ? ` (lines ${filter.start.line}:${filter.start.column})`
-        : "";
+      const pos =
+        filter.start && filter.end
+          ? ` (lines ${filter.start.line}:${filter.start.column}...` +
+            `${filter.end.line}:${filter.end.column})`
+          : filter.start
+          ? ` (lines ${filter.start.line}:${filter.start.column})`
+          : "";
       throw new Error(
         `Pattern '${patternName}' expects ${expectedArity} ` +
         `argument${expectedArity === 1 ? "" : "s"}, ` +
@@ -185,6 +193,10 @@ export function expandFilter(
     const instantiated = substitute(template.filter);
     if (filter.name) {
       instantiated.name = filter.name;
+    }
+    if (filter.start) {
+      instantiated.start = filter.start;
+      instantiated.end = filter.end || filter.start;
     }
     return instantiated;
   }

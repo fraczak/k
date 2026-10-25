@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#comment-block" },
     { "include": "#comment-line" },
+    { "include": "#canonical-pattern-definition" },
     { "include": "#pattern-definition" },
     { "include": "#type-definition" },
     { "include": "#relation-definition" },
@@ -26,6 +27,37 @@
       "name": "comment.line.k",
       "match": "(?://|--|%|#|\\\\\\\\).*$"
     },
+    "canonical-pattern-definition": {
+      "comment": "@hash[P1, ...] = filter; defines a canonical pattern",
+      "name": "meta.definition.pattern.canonical.k",
+      "contentName": "meta.expression.pattern.k",
+      "begin":
+        "(@)([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)([^\\]]*)(\\])\\s*(=)",
+      "end": "(;)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.canonical.k" },
+        "2": { "name": "entity.name.type.canonical.k" },
+        "3": { "name": "entity.name.type.canonical.k" },
+        "4": { "name": "variable.parameter.pattern.k" },
+        "5": { "name": "entity.name.type.canonical.k" },
+        "6": { "name": "keyword.operator.assignment.k" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.terminator.definition.k" }
+      },
+      "patterns": [
+        { "include": "#filter-union" },
+        { "include": "#filter-product" },
+        { "include": "#filter-any" },
+        { "include": "#pattern-apply-canonical" },
+        { "include": "#pattern-apply-named" },
+        { "include": "#dots" },
+        { "include": "#pattern-variable" },
+        { "include": "#separator" },
+        { "include": "#comment-block" },
+        { "include": "#comment-line" }
+      ]
+    },
     "pattern-definition": {
       "comment": "name[P1, ...] = filter; defines a named pattern",
       "name": "meta.definition.pattern.k",
@@ -33,10 +65,10 @@
       "begin": "([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)([^\\]]*)(\\])\\s*(=)",
       "end": "(;)",
       "beginCaptures": {
-        "1": { "name": "entity.name.function.pattern.k" },
-        "2": { "name": "punctuation.section.brackets.begin.k" },
+        "1": { "name": "entity.name.type.pattern.k" },
+        "2": { "name": "entity.name.type.pattern.k" },
         "3": { "name": "variable.parameter.pattern.k" },
-        "4": { "name": "punctuation.section.brackets.end.k" },
+        "4": { "name": "entity.name.type.pattern.k" },
         "5": { "name": "keyword.operator.assignment.k" }
       },
       "endCaptures": {
@@ -46,7 +78,11 @@
         { "include": "#filter-union" },
         { "include": "#filter-product" },
         { "include": "#filter-any" },
-        { "include": "#filter-pattern-apply" },
+        { "include": "#pattern-apply-canonical" },
+        { "include": "#pattern-apply-named" },
+        { "include": "#dots" },
+        { "include": "#pattern-variable" },
+        { "include": "#separator" },
         { "include": "#comment-block" },
         { "include": "#comment-line" }
       ]
@@ -242,6 +278,8 @@
         { "include": "#comment-line" },
         { "include": "#filter-expression" },
         { "include": "#type-expression" },
+        { "include": "#pattern-apply-canonical" },
+        { "include": "#pattern-apply-named" },
         { "include": "#projection-dot" },
         { "include": "#projection-slash" },
         { "include": "#variant-intro" },
@@ -383,15 +421,44 @@
         },
         {
           "name": "meta.expression.filter.k",
-          "match":
-            "(\\?)\\s*([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)([^\\]]*)(\\])",
-          "captures": {
+          "begin":
+            "(\\?)\\s*(@)([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)",
+          "end":
+            "(\\])(?:\\s*(=)\\s*([\\w+\\-][\\w?!+\\-]*))?",
+          "beginCaptures": {
             "1": { "name": "keyword.operator.filter.k" },
-            "2": { "name": "entity.name.function.pattern.k" },
-            "3": { "name": "punctuation.section.brackets.begin.k" },
-            "4": { "name": "meta.arguments.pattern.k" },
-            "5": { "name": "punctuation.section.brackets.end.k" }
-          }
+            "2": { "name": "punctuation.definition.canonical.k" },
+            "3": { "name": "support.type.canonical.k" },
+            "4": { "name": "support.type.canonical.k" }
+          },
+          "endCaptures": {
+            "1": { "name": "support.type.canonical.k" },
+            "2": { "name": "keyword.operator.binding.k" },
+            "3": { "name": "variable.other.pattern.k" }
+          },
+          "patterns": [
+            { "include": "#pattern-argument-content" }
+          ]
+        },
+        {
+          "name": "meta.expression.filter.k",
+          "begin":
+            "(\\?)\\s*([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)",
+          "end":
+            "(\\])(?:\\s*(=)\\s*([\\w+\\-][\\w?!+\\-]*))?",
+          "beginCaptures": {
+            "1": { "name": "keyword.operator.filter.k" },
+            "2": { "name": "support.type.pattern.k" },
+            "3": { "name": "support.type.pattern.k" }
+          },
+          "endCaptures": {
+            "1": { "name": "support.type.pattern.k" },
+            "2": { "name": "keyword.operator.binding.k" },
+            "3": { "name": "variable.other.pattern.k" }
+          },
+          "patterns": [
+            { "include": "#pattern-argument-content" }
+          ]
         },
         {
           "name": "meta.expression.filter.k",
@@ -455,7 +522,8 @@
       "patterns": [
         { "include": "#comment-block" },
         { "include": "#comment-line" },
-        { "include": "#filter-pattern-apply" },
+        { "include": "#pattern-apply-canonical" },
+        { "include": "#pattern-apply-named" },
         { "include": "#filter-tag" },
         { "include": "#filter-product" },
         { "include": "#filter-union" },
@@ -470,7 +538,8 @@
       "patterns": [
         { "include": "#comment-block" },
         { "include": "#comment-line" },
-        { "include": "#filter-pattern-apply" },
+        { "include": "#pattern-apply-canonical" },
+        { "include": "#pattern-apply-named" },
         { "include": "#filter-label" },
         { "include": "#filter-product" },
         { "include": "#filter-union" },
@@ -532,16 +601,52 @@
         }
       ]
     },
-    "filter-pattern-apply": {
-      "name": "meta.expression.filter.apply.k",
-      "match":
-        "([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)([^\\]]*)(\\])",
-      "captures": {
-        "1": { "name": "entity.name.function.pattern.k" },
-        "2": { "name": "punctuation.section.brackets.begin.k" },
-        "3": { "name": "meta.arguments.pattern.k" },
-        "4": { "name": "punctuation.section.brackets.end.k" }
-      }
+    "pattern-apply-canonical": {
+      "comment": "@hash[...] canonical pattern application",
+      "name": "meta.expression.pattern.apply.canonical.k",
+      "begin": "(@)([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)",
+      "end": "(\\])",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.canonical.k" },
+        "2": { "name": "support.type.canonical.k" },
+        "3": { "name": "support.type.canonical.k" }
+      },
+      "endCaptures": {
+        "1": { "name": "support.type.canonical.k" }
+      },
+      "patterns": [
+        { "include": "#pattern-argument-content" }
+      ]
+    },
+    "pattern-apply-named": {
+      "comment": "name[...] pattern application",
+      "name": "meta.expression.pattern.apply.k",
+      "begin": "([\\w+\\-][\\w?!+\\-]*)\\s*(\\[)",
+      "end": "(\\])",
+      "beginCaptures": {
+        "1": { "name": "support.type.pattern.k" },
+        "2": { "name": "support.type.pattern.k" }
+      },
+      "endCaptures": {
+        "1": { "name": "support.type.pattern.k" }
+      },
+      "patterns": [
+        { "include": "#pattern-argument-content" }
+      ]
+    },
+    "pattern-argument-content": {
+      "patterns": [
+        { "include": "#comment-block" },
+        { "include": "#comment-line" },
+        { "include": "#pattern-apply-canonical" },
+        { "include": "#pattern-apply-named" },
+        { "include": "#filter-union" },
+        { "include": "#filter-product" },
+        { "include": "#filter-any" },
+        { "include": "#dots" },
+        { "include": "#pattern-variable" },
+        { "include": "#separator" }
+      ]
     },
     "pattern-variable": {
       "name": "variable.other.pattern.k",
@@ -644,7 +749,7 @@
     },
     "brackets": {
       "name": "punctuation.brackets.k",
-      "match": "[{}()<>]"
+      "match": "[\\[\\]{}()<>]"
     }
   }
 }

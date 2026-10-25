@@ -9,20 +9,26 @@ unions).
 - **Syntax highlighting** for all current k constructs:
   - Line comments (`--`, `//`, `%`, `#`) and block comments (`/* … */`)
   - Relation definitions: `name = …;`
+  - Named pattern definitions and templates: `name[...] = …;`
+    (pattern name highlights include the square brackets `[...]`)
+  - Pattern applications and references: `name[...]`, `@hash[...]`
   - All three operators: `.field` (product projection), `/tag` (union projection), `|tag` (variant introduction)
-  - Filter expressions: `?< … > = X`, `?{ … } = X` with pattern variables
+  - Filter expressions: `?< … > = X`, `?{ … } = X`, `? name[...]`
+    with pattern variables
   - Canonical content-addressed references: `@base58hash`
   - Quoted label strings: `"label"`, `'label'` (with escape sequences)
   - The `...` any/open pattern marker
 - **Nested expression backgrounds** for filters inside relations
 - **k Contrast color theme** with:
-  - Separate foreground colors for relation identifiers, labels, tags,
-    filter variables, and canonical relation names
+  - Separate foreground colors for pattern names, relation identifiers,
+    labels, tags, filter variables, and canonical names
 - **Snippets** for every common pattern (trigger via `Tab` after prefix):
 
 | Prefix | Inserts |
 |--------|---------|
 | `fn` | Function definition |
+| `pat` | Named pattern definition `name[] = …;` |
+| `patpoly` | Parameterized pattern definition `name[X] = …;` |
 | `comp` | Composition `(f g)` |
 | `merge` | Merge `< f, g >` |
 | `prod` | Product combinator `{ f l, g l }` |
@@ -35,7 +41,8 @@ unions).
 | `unit` | `{}` empty product (leaf) |
 | `undef` | `<>` always-undefined |
 
-- **Bracket matching and auto-close** for `{ }`, `( )`, `< >`, `"…"`, `'…'`
+- **Bracket matching and auto-close** for `{ }`, `( )`, `< >`, `[ ]`,
+  `"…"`, `'…'`
 - **Toggle line comment** bound to `--` (Ctrl+/ / Cmd+/)
 - **Word selection** understands k identifiers including `?`, `!`, `+`, `-`
 

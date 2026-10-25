@@ -59,9 +59,13 @@ function skeletonizeFilter(filter, knots) {
       return { ...node };
     }
     if (node.type === "pattern_apply") {
-      const pos = node.start
-        ? ` (lines ${node.start.line}:${node.start.column})`
-        : "";
+      const pos =
+        node.start && node.end
+          ? ` (lines ${node.start.line}:${node.start.column}...` +
+            `${node.end.line}:${node.end.column})`
+          : node.start
+          ? ` (lines ${node.start.line}:${node.start.column})`
+          : "";
       const suffix = node.pattern?.startsWith("@") ? "" : "[]";
       throw new Error(
         `Unknown pattern template '${node.pattern}${suffix}'${pos}`
