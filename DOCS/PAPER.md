@@ -1,7 +1,29 @@
-# K: A Minimalist Relational Language with Content-Addressable Patterns
+# K: the programming language
 
-**Author:** The K Language Group  
+**Author:** Wojciech Fraczak  
 **Date:** October 2026  
+
+---
+
+## Abstract
+
+K is a minimalist programming language inspired by the algebraic
+principles of Milner’s CCS and Hoare’s CSP. Computation is modeled as
+partial functions (called *relations*) over rooted, edge-labeled trees,
+built from three fundamental combinators: sequential composition,
+concurrent choice, and parallel composition. Together with elementary tree
+navigation and construction, these combinators replace the control-flow
+constructs, variable bindings, and built-in primitive types of traditional
+programming languages.
+
+In K, both partial functions (relations) and their types (called
+*patterns*) are content-addressable. Because K is Turing-complete,
+semantic function equality is undecidable; however, patterns denote
+regular tree languages, which admit an effective canonical
+representation. Through parameterized *Named Patterns*, K factors schemas
+into canonical linear skeletons and parameter routing vectors, enabling
+exact structural type equivalence, global cryptographic deduplication,
+and static verification with zero runtime overhead.
 
 ---
 
@@ -10,27 +32,34 @@
 K is a relational programming language inspired by the algebraic
 principles of **Milner’s Calculus of Communicating Systems (CCS)** and
 **Hoare’s Communicating Sequential Processes (CSP)**. Computation in K is
-modeled as first-order partial relations over **rooted, edge-labeled
-trees**, structured around three fundamental algebraic composition modes:
+modeled as first-order partial functions (called *relations*) over
+**rooted, edge-labeled trees**, structured around three fundamental
+algebraic composition modes:
 
-1. **Transformation Chaining (Sequential Composition)**: `(f1 f2 ...)`
-2. **Concurrent Choice (Alternative Composition)**: `< f1, f2, ... >`
-3. **Parallel Composition**: `{ f1 l1, f2 l2, ... }`
+1. **Transformation Chaining**: feeding the output tree of one relation as
+   the input to the next (sequential composition).
+2. **Concurrent Choice**: evaluating alternative relations and selecting
+   the first one defined on the input (alternative composition).
+3. **Parallel Composition**: evaluating multiple relations in parallel on
+   the same input tree and assembling their results under distinct
+   labeled branches of a new tree.
 
-Using these three combinators over products and variants, programmers
-define concepts such as booleans, numbers, data structures, and
-arithmetic algorithms directly in K.
+Together with elementary tree navigation and construction, these three
+combinators replace the disparate mechanisms of traditional programming
+languages—such as conditional branching, local variable bindings, argument
+passing, and built-in primitive types—within a single uniform algebra.
 
-Within this framework, a filter expression `?schema` embeds a schema
-directly into K syntax as an identity relation, providing a uniform way
-to annotate and type relations. The compiler verifies these structural
-contracts statically and uses them as inductive witnesses to ensure
-relation typing converges, leaving execution free of runtime type checks.
+Within this framework, types (called *patterns*) are regular tree
+languages that can be embedded directly into relations as
+domain-restricting identity filters. The compiler verifies these
+structural contracts statically and uses them as inductive witnesses to
+ensure type derivation converges, leaving execution free of runtime type
+checks.
 
-This work presents the K relational calculus and introduces **Named
-Patterns**: an architecture that resolves the tension between reusable,
-parameterized structural schemas and global, content-addressed
-cryptographic deduplication.
+This work presents the K relational calculus (Section 2), its static
+pattern and type system (Section 3), **Named Patterns** and the Linear
+Canonical Theorem for global cryptographic content-addressing (Sections
+4–6), and K’s self-describing binary serialization format (Appendix A).
 
 ---
 
@@ -40,8 +69,8 @@ cryptographic deduplication.
 
 K programs compute over **documents**, which are mathematically defined
 as finite, rooted, edge-labeled trees. Crucially, **a document is always
-interpreted in the context of a schema** (a regular tree automaton
-defining the language of admissible trees).
+interpreted in the context of a schema** (called a *pattern* in K; a
+regular tree automaton defining the language of admissible trees).
 
 Schemas and documents are built from two dual structural constructors:
 
@@ -66,75 +95,113 @@ transform an incoming document into an outgoing document under their
 respective schemas. In addition to transformation chaining (functional
 composition), K adopts from process calculi (Milner’s CCS and Hoare’s
 CSP) two structural constructions: concurrent choice and parallel
-composition:
+composition. In the following, `f1`, `f2`, $\dots$ denote K relations,
+`label1`, `label2`, $\dots$ denote outgoing edge labels, and $P_1, P_2,
+\dots$ denote the analogous process expressions in CCS and CSP:
 
-1. **Transformation Chaining `(f1 f2 ...)` (Sequential Composition)**:
-   Chains relations: the output document of `f1` is passed as input to
-   `f2`, and so on ($f_n \circ \dots \circ f_1$, or in CSP:
-   $P_1 ; P_2 ; \dots$). An empty composition `()` denotes the
-   identity relation `id`.
-2. **Concurrent Choice `< f1, f2, ... >` (Alternative Composition)**:
-   Evaluates alternative relations (in CCS: $P_1 + P_2 + \dots$, or in
-   CSP: $P_1 \Box P_2 \Box \dots$): if `f1` is defined on the input
-   document, its output is produced; otherwise, computation proceeds to
-   `f2`. An empty choice `<>` is undefined everywhere.
-3. **Parallel Composition `{ f1 label1, f2 label2, ... }`**:
-   Evaluates relations in parallel (in CCS: $P_1 \mid P_2 \mid \dots$,
-   or in CSP: $P_1 \parallel P_2 \parallel \dots$) on the same incoming
-   document $x$, constructing a product document whose labeled edges
-   `label1, label2, ...` point to the respective results
-   $f_1(x), f_2(x), \dots$. If any branch $f_i$ is undefined, the entire
-   product relation is undefined.
+1. **Transformation Chaining `(f1 f2 ...)`**: Chains relations such that
+   the output document of $f_1$ is passed as input to $f_2$, and so on
+   ($f_n \circ \dots \circ f_1$, corresponding to *Sequential Composition*
+   $P_1 ; P_2 ; \dots$ in CSP). An empty composition `()` denotes the
+   identity relation.
+2. **Concurrent Choice `< f1, f2, ... >`**: Evaluates alternative
+   relations (corresponding to *Alternative Composition* $P_1 + P_2 +
+   \dots$ in CCS, or $P_1 \Box P_2 \Box \dots$ in CSP): if $f_1$ is
+   defined on the incoming document, its output is produced; otherwise,
+   computation proceeds to $f_2$. An empty choice `<>` is undefined
+   everywhere.
+3. **Parallel Composition `{ f1 label1, f2 label2, ... }`**: Evaluates
+   relations in parallel (corresponding to *Parallel Composition* $P_1
+   \mid P_2 \mid \dots$ in CCS, or $P_1 \parallel P_2 \parallel \dots$ in
+   CSP) on the same incoming document $x$, constructing a product document
+   whose labeled edges `label1, label2, ...` point to the respective
+   results $f_1(x), f_2(x), \dots$. If any branch $f_i$ is undefined, the
+   entire product relation is undefined.
 
 Elementary relations navigate and construct document trees:
 - **Product projection `.label`**: traverses edge `label`, returning
   the sub-document.
 - **Variant projection `/tag`**: traverses variant `tag`, returning
   its payload document if the tag matches.
-- **Variant constructor `| tag`**: constructs a variant document by
+- **Variant constructor `|tag`**: constructs a variant document by
   tagging the incoming document with `tag`.
 
 Under these combinators:
 - The empty product `{}` is a relation that transforms any input into
   the unit document.
 - Constant relations combine `{}` with constructor relations: for
-  example, `{} | true` produces the boolean true document, and
-  `{} | zero` produces the Peano zero document.
+  example, `{} |true` produces the boolean true document, and
+  `{} |zero` produces the Peano zero document.
 
 ---
 
 ## 3. Patterns: Compile-Time Prototypes and Inductive Witnesses
 
 A **pattern** defines a regular tree language accepted by a deterministic
-tree automaton.
+tree automaton. Syntactically, a pattern $P$ is constructed from:
+- **Product and union patterns**: `{ P1 l1, ..., Pn ln }` and
+  `< P1 t1, ..., Pn tn >`, which may optionally include a literal
+  ellipsis `...` (e.g., `< P1 t1, ... >`) to denote an *open* product or
+  union permitting additional unlisted fields or tags;
+- **Wildcards and pattern variables**: bare identifiers `X`, which act as
+  polymorphic pattern variables unifying all occurrences of `X`, and the
+  wildcard `(...)`, which acts as an anonymous pattern variable;
+- **Recursive bindings**: `P = X`, which binds the pattern node $P$ to
+  `X` so that occurrences of `X` inside $P$ form cycles in the automaton.
+
+For example, the pattern
+
+```k
+< {} nil, { (...) car, List cdr } cons > = List
+```
+
+describes a linked list: a list is a variant that is either `nil`
+(carrying the empty product `{}`) or `cons` (carrying a product with a
+head element under label `car` and a recursive tail list `List` under
+label `cdr`). Because the cycle returns to the same `cons` node, all
+elements of the list share the same type.
 
 ### 3.1 Filters as Static Prototypes
 
-In K, a filter expression `?schema` is a **static prototype** for a
-relation:
-- It specifies that a relation accepts a value with structural encoding
-  `schema` and yields an output with that identical encoding.
-- At compilation time, the compiler proves that incoming expressions
-  satisfy `schema`, establishing the relation’s input and output
-  contract.
-- At execution time, `?schema` is an identity operation (`id`). All
-  structural constraints are resolved and verified entirely during
-  compilation, enabling execution with zero runtime type-checking
-  overhead.
-
-Selective transformation over variants is expressed by **variant
-projections (`/tag`)** composed within **choice** (`< f1, f2 >`):
-a projection `/tag` evaluates successfully when the variant matches tag
-`tag`, and is undefined otherwise, allowing the choice combinator to
-proceed with the next alternative relation.
+In languages like ML, a first-order function $f$ is typed via a separate
+signature $f : \text{In} \to \text{Out}$. In K, a pattern $P$ is embedded
+directly into relation syntax as a filter `?P`—an identity relation
+whose domain and codomain are restricted to $P$—so a full signature is
+written simply as `(?In f ?Out)`. This uniform notation is particularly
+convenient for partial inline annotations: for example, in
+`(f1 f2 ?P f3)`, the filter `?P` witnesses only the output of `f2` and
+the input of `f3`. Because the compiler verifies all filter constraints
+statically, `?P` is a pure no-op at runtime, incurring zero execution
+overhead.
 
 ### 3.2 Inductive Witnesses in Contract Derivation
 
 The K compiler derives a contract $P_{\text{in}} \to P_{\text{out}}$ for
-every relation. In recursive relations, explicit filter prototypes serve
-as **inductive termination witnesses**: they establish the induction
-hypothesis and base, guaranteeing regular convergence and termination
-in fixed-point type propagation.
+every relation via fixed-point iteration. Because elementary projections
+such as `/0` and `/+1` only infer *open* variant patterns (`< ... >`), and
+open nodes at different depths cannot be merged automatically by state
+minimization, an unannotated recursive definition such as
+
+```k
+peel_bad = < /+1 peel_bad, /0 |0 >;
+```
+
+fails to converge, unrolling an infinite chain of nested open unions
+`< X1 0, < X1 0, < ... > +1, ... > +1, ... >`.
+
+By inserting inline filter annotations sharing a pattern variable `X`:
+
+```k
+peel = ?X < /+1 ?X peel, /0 |0 >;
+```
+
+the two occurrences of `?X` unify the relation’s input domain with the
+payload of `/+1`. This explicitly witnesses the inductive cycle and allows
+type derivation to converge immediately to the polymorphic contract:
+
+```k
+?< X1 0, X0 +1, ... > = X0  -->  ?< X1 0, ... >
+```
 
 ---
 
@@ -224,7 +291,7 @@ Within any pattern template, variables are classified into three
 orthogonal categories:
 
 1. **External Ports ($\forall$)**: Variables declared in header
-   `[P1, ... Pn]`, representing open slots supplied by caller arguments.
+   `[P1, ..., Pn]`, representing open slots supplied by caller arguments.
 2. **Internal Existential Variables ($\exists$)**: Free variables within
    the template body asserting structural equality across multiple fields.
 3. **Cycle Knots ($\mu$)**: Variables bound via `= KnotName`, forming
@@ -263,8 +330,8 @@ documents, relations, and compile-time patterns:
 bit[] = < {} 0, {} 1 >;
 
 -- 2. Constructors
-0 = {} | 0 ?bit[];
-1 = {} | 1 ?bit[];
+0 = {} |0 ?bit[];
+1 = {} |1 ?bit[];
 not = < /0 1, 0 >;
 
 -- 3. Half adder: prototype ?{ bit[] a, bit[] b }
@@ -291,8 +358,8 @@ framework inspired by algebraic process calculi:
 - **Documents** are rooted, edge-labeled trees interpreted in the
   context of schemas.
 - **Computation** is partial relations formed by transformation chaining
-  `(f1 f2 ...)`, concurrent choice `<f1, f2, ...>`, and parallel
-  composition `{f1 label1, f2 label2, ...}`.
+  `(f1 f2 ...)`, concurrent choice `< f1, f2, ... >`, and parallel
+  composition `{ f1 label1, f2 label2, ... }`.
 - **Types** are patterns acting as static compile-time prototypes and
   inductive witnesses, with zero runtime overhead.
 
@@ -300,7 +367,8 @@ By decomposing named patterns into pure linear canonical skeletons and
 parameter routing vectors, K achieves maximal cross-codebase
 deduplication while preserving author-intended equality constraints.
 The result is a rigorous, expressive, and elegantly minimal foundation
-for content-addressed programming.
+for content-addressed programming. An implementation of K is available
+on GitHub [6].
 
 ---
 
@@ -328,7 +396,7 @@ this envelope:
   the schema to the payload sub-schema.
 - **Parallel composition `{ f1 l1, ... }`**: constructs a product
   document paired with the product schema of its branches.
-- **Variant constructor `| tag`**: constructs a tagged variant document
+- **Variant constructor `|tag`**: constructs a tagged variant document
   paired with the union schema containing that tag.
 
 ### A.2 Self-Hosted Schema Representation
@@ -401,3 +469,22 @@ maximal compactness:
 The resulting binary wire format is strictly prefix-free,
 self-delimiting, and structurally transparent, enabling direct stream
 processing and lazy sub-document projection.
+
+---
+
+## References
+
+1. R. Milner. *Communication and Concurrency*. Prentice Hall, 1989.
+2. C. A. R. Hoare. *Communicating Sequential Processes*. Prentice Hall,
+   1985.
+3. H. Hosoya and B. C. Pierce. Regular expression pattern matching for
+   XML. *ACM Transactions on Programming Languages and Systems (TOPLAS)*,
+   25(2):194–232, 2003.
+4. R. C. Merkle. A digital signature based on a conventional encryption
+   function. In *Advances in Cryptology — CRYPTO ’87*, pages 369–378.
+   Springer, 1987.
+5. H. Comon, M. Dauchet, R. Gilleron, C. Löding, F. Jacquemard,
+   D. Lugiez, S. Tison, and M. Tommasi. *Tree Automata Techniques and
+   Applications*. Available online: `https://tata.gforge.inria.fr/`, 2007.
+6. An implementation of K can be found at GitHub:
+   `https://github.com/fraczak/k`.

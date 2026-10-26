@@ -1,0 +1,435 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{cite}
+\usepackage[colorlinks=true,
+            linkcolor=blue!70!black,
+            citecolor=blue!70!black,
+            urlcolor=blue!70!black]{hyperref}
+
+% --- Theorem Environments ---
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{invariant}[theorem]{Invariant}
+
+% --- Code Listings Configuration ---
+\lstdefinelanguage{k}{
+  morecomment=[l]{--},
+  morekeywords={bit, bits, pair, list, same_pair, closed_same_pair, any_pair, peel, peel_bad, half_add, not, edge, edges, node, pattern, string, unicode},
+  sensitive=true,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries\color{blue!75!black},
+  commentstyle=\itshape\color{gray!75!black},
+  stringstyle=\color{green!50!black},
+  breaklines=true,
+  tabsize=2,
+  columns=fullflexible,
+  keepspaces=true,
+  frame=single,
+  rulecolor=\color{gray!30},
+  backgroundcolor=\color{gray!5},
+  aboveskip=0.8em,
+  belowskip=0.8em
+}
+
+\lstset{language=k}
+
+% --- Metadata ---
+\title{\textbf{K: the programming language}}
+\author{
+  \textbf{Wojciech Fraczak}\\
+  \texttt{fraczak@gmail.com}
+}
+\date{October 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+K is a minimalist programming language inspired by the algebraic principles of Milner's CCS and Hoare's CSP. Computation is modeled as partial functions (called \emph{relations}) over rooted, edge-labeled trees, built from three fundamental combinators: sequential composition, concurrent choice, and parallel composition. Together with elementary tree navigation and construction, these combinators replace the control-flow constructs, variable bindings, and built-in primitive types of traditional programming languages.
+
+In K, both partial functions (relations) and their types (called \emph{patterns}) are content-addressable. Because K is Turing-complete, semantic function equality is undecidable; however, patterns denote regular tree languages, which admit an effective canonical representation. Through parameterized \emph{Named Patterns}, K factors schemas into canonical linear skeletons and parameter routing vectors, enabling exact structural type equivalence, global cryptographic deduplication, and static verification with zero runtime overhead.
+\end{abstract}
+
+\vspace{0.5em}
+\noindent\textbf{Keywords:} Relational programming, Process calculi, Content-addressable code, Regular tree languages, Type systems.
+
+\vspace{1em}
+
+% ============================================================================
+\section{Introduction}
+% ============================================================================
+
+K is a relational programming language inspired by the algebraic principles of Milner's Calculus of Communicating Systems (CCS)~\cite{milner1989ccs} and Hoare's Communicating Sequential Processes (CSP)~\cite{hoare1985csp}. Computation in K is modeled as first-order partial functions (called \emph{relations}) over \textbf{rooted, edge-labeled trees}, structured around three fundamental algebraic composition modes:
+
+\begin{enumerate}
+  \item \textbf{Transformation Chaining}: feeding the output tree of one relation as the input to the next (sequential composition).
+  \item \textbf{Concurrent Choice}: evaluating alternative relations and selecting the first one defined on the input (alternative composition).
+  \item \textbf{Parallel Composition}: evaluating multiple relations in parallel on the same input tree and assembling their results under distinct labeled branches of a new tree.
+\end{enumerate}
+
+Together with elementary tree navigation and construction, these three combinators replace the disparate mechanisms of traditional programming languages---such as conditional branching, local variable bindings, argument passing, and built-in primitive types---within a single uniform algebra.
+
+Within this framework, types (called \emph{patterns}) are regular tree languages that can be embedded directly into relations as domain-restricting identity filters. The compiler verifies these structural contracts statically and uses them as inductive witnesses to ensure type derivation converges, leaving execution free of runtime type checks.
+
+This work presents the K relational calculus (Section~2), its static pattern and type system (Section~3), \textbf{Named Patterns} and the Linear Canonical Theorem for global cryptographic content-addressing (Sections~4--6), and K's self-describing binary serialization format (Appendix~A).
+
+% ============================================================================
+\section{The Core Calculus: Schemas, Documents, and Relations}
+% ============================================================================
+
+\subsection{Documents and Schemas}
+
+K programs compute over \textbf{documents}, mathematically defined as finite, rooted, edge-labeled trees. Crucially, \emph{a document is always interpreted in the context of a schema} (called a \emph{pattern} in K)---a deterministic regular tree automaton~\cite{comon2007tree} defining the language of admissible trees.
+
+Schemas and documents are built from two dual structural constructors:
+\begin{itemize}
+  \item \textbf{Products}: In the context of a product schema $\{ S_1 \;\text{label}_1, S_2 \;\text{label}_2, \dots \}$, a product document consists of labeled outgoing edges pointing to sub-documents, each conforming to its respective sub-schema $S_i$. The empty product \lstinline|{}| corresponds to the unique \textbf{unit document}.
+  \item \textbf{Variants (Unions)}: In the context of a union schema $\langle S_1 \;\text{tag}_1, S_2 \;\text{tag}_2, \dots \rangle$, a variant document selects a tag $\text{tag}_k$ and carries a payload document conforming to sub-schema $S_k$. A variant document only has meaning within a union schema specifying its admissible alternatives.
+\end{itemize}
+
+At system boundaries, every value is a self-describing pair of $(\text{schema}, \text{document})$.
+
+\subsection{Relations: Three Combinators}
+
+Computation in K is expressed as first-order partial relations that transform an incoming document into an outgoing document under their respective schemas. In addition to transformation chaining (functional composition), K adopts from process calculi (Milner's CCS and Hoare's CSP) two structural constructions: concurrent choice and parallel composition. In the following, $f_1, f_2, \dots, f_n$ denote K relations, $\text{label}_1, \text{label}_2, \dots$ denote outgoing edge labels, and $P_1, P_2, \dots$ denote the analogous process expressions in CCS and CSP:
+
+\begin{enumerate}
+  \item \textbf{Transformation Chaining \texttt{(f1 f2 ...)}}: Chains relations such that the output document of $f_1$ is passed as input to $f_2$, and so on ($f_n \circ \dots \circ f_1$, corresponding to \emph{Sequential Composition} $P_1 ; P_2 ; \dots$ in CSP). An empty composition \lstinline|()| denotes the identity relation.
+  
+  \item \textbf{Concurrent Choice \texttt{< f1, f2, ... >}}: Evaluates alternative relations (corresponding to \emph{Alternative Composition} $P_1 + P_2 + \dots$ in CCS, or $P_1 \Box P_2 \Box \dots$ in CSP): if $f_1$ is defined on the incoming document, its output is produced; otherwise, computation proceeds to $f_2$. An empty choice \lstinline|<>| is undefined everywhere.
+  
+  \item \textbf{Parallel Composition \texttt{\{ f1 label1, f2 label2, ... \}}}: Evaluates relations in parallel (corresponding to \emph{Parallel Composition} $P_1 \mid P_2 \mid \dots$ in CCS, or $P_1 \parallel P_2 \parallel \dots$ in CSP) on the same incoming document $x$, constructing a product document whose labeled edges $\text{label}_1, \text{label}_2, \dots$ point to the respective results $f_1(x), f_2(x), \dots$. If any branch $f_i$ is undefined, the entire product relation is undefined.
+\end{enumerate}
+
+Elementary relations navigate and construct document trees:
+\begin{itemize}
+  \item \textbf{Product projection \texttt{.label}}: traverses edge \lstinline|label|, returning the sub-document.
+  \item \textbf{Variant projection \texttt{/tag}}: traverses variant \lstinline|tag|, returning its payload document if the tag matches.
+  \item \textbf{Variant constructor \texttt{|tag}}: constructs a variant document by tagging the incoming document with \lstinline|tag|.
+\end{itemize}
+
+Under these combinators:
+\begin{itemize}
+  \item The empty product \lstinline|{}| is a relation that transforms any input into the unit document.
+  \item Constant relations combine \lstinline|{}| with constructor relations: for example, \lstinline!{} |true! produces the boolean true document, and \lstinline!{} |zero! produces the Peano zero document.
+\end{itemize}
+
+% ============================================================================
+\section{Patterns: Compile-Time Prototypes and Inductive Witnesses}
+% ============================================================================
+
+A \textbf{pattern} defines a regular tree language accepted by a deterministic tree automaton~\cite{hosoya2003regular}. Syntactically, a pattern $P$ is constructed from:
+\begin{itemize}
+  \item \textbf{Product and union patterns}: $\{ P_1 \; l_1, \dots, P_n \; l_n \}$ and $\langle P_1 \; t_1, \dots, P_n \; t_n \rangle$, which may optionally include a literal ellipsis \lstinline|...| (e.g., \lstinline|< P1 t1, ... >|) to denote an \emph{open} product or union permitting additional unlisted fields or tags;
+  \item \textbf{Wildcards and pattern variables}: bare identifiers \lstinline|X|, which act as polymorphic pattern variables unifying all occurrences of \lstinline|X|, and the wildcard \lstinline|(...)|, which acts as an anonymous pattern variable;
+  \item \textbf{Recursive bindings}: \lstinline|P = X|, which binds the pattern node $P$ to \lstinline|X| so that occurrences of \lstinline|X| inside $P$ form cycles in the automaton.
+\end{itemize}
+
+For example, the pattern
+\begin{lstlisting}[language=k]
+< {} nil, { (...) car, List cdr } cons > = List
+\end{lstlisting}
+describes a linked list: a list is a variant that is either \lstinline|nil| (carrying the empty product \lstinline|{}|) or \lstinline|cons| (carrying a product with a head element under label \lstinline|car| and a recursive tail list \lstinline|List| under label \lstinline|cdr|). Because the cycle returns to the same \lstinline|cons| node, all elements of the list share the same type.
+
+\subsection{Filters as Static Prototypes}
+
+In languages like ML, a first-order function $f$ is typed via a separate signature $f : \text{In} \to \text{Out}$. In K, a pattern $P$ is embedded directly into relation syntax as a filter \lstinline|?P|---an identity relation whose domain and codomain are restricted to $P$---so a full signature is written simply as \lstinline|(?In f ?Out)|. This uniform notation is particularly convenient for partial inline annotations: for example, in \lstinline|(f1 f2 ?P f3)|, the filter \lstinline|?P| witnesses only the output of \lstinline|f2| and the input of \lstinline|f3|. Because the compiler verifies all filter constraints statically, \lstinline|?P| is a pure no-op at runtime, incurring zero execution overhead.
+
+\subsection{Inductive Witnesses in Contract Derivation}
+
+The K compiler derives a contract $P_{\text{in}} \to P_{\text{out}}$ for every relation via fixed-point iteration. Because elementary projections such as \lstinline|/0| and \lstinline|/+1| only infer \emph{open} variant patterns (\lstinline|< ... >|), and open nodes at different depths cannot be merged automatically by state minimization, an unannotated recursive definition such as
+\begin{lstlisting}[language=k]
+peel_bad = < /+1 peel_bad, /0 |0 >;
+\end{lstlisting}
+fails to converge, unrolling an infinite chain of nested open unions \lstinline|< X1 0, < X1 0, < ... > +1, ... > +1, ... >|.
+
+By inserting inline filter annotations sharing a pattern variable \lstinline|X|:
+\begin{lstlisting}[language=k]
+peel = ?X < /+1 ?X peel, /0 |0 >;
+\end{lstlisting}
+the two occurrences of \lstinline|?X| unify the relation's input domain with the payload of \lstinline|/+1|. This explicitly witnesses the inductive cycle and allows type derivation to converge immediately to the polymorphic contract:
+\begin{lstlisting}[language=k]
+?< X1 0, X0 +1, ... > = X0  -->  ?< X1 0, ... >
+\end{lstlisting}
+
+% ============================================================================
+\section{Named Patterns and Parameterized Schemas}
+% ============================================================================
+
+K provides named patterns as parameterized regular tree templates:
+
+\begin{lstlisting}[language=k]
+-- Arity-0 leaf patterns:
+bit[]  = < {} 0, {} 1 >;
+bits[] = < {} _, B 0, B 1 > = B;
+
+-- Parameterized product:
+pair[A, B] = { A first, B second };
+
+-- Inductive linked list:
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+\end{lstlisting}
+
+Square brackets \lstinline|[...]| provide deterministic lexical disambiguation: a bare identifier (\lstinline|X|) represents a variable, whereas a bracketed identifier (\lstinline|bit[]| or \lstinline|list[X]|) represents a pattern template application.
+
+% ============================================================================
+\section{Linear Canonical Normalization}
+% ============================================================================
+
+In a content-addressed system~\cite{merkle1987sig}, every entity is identified by its cryptographic hash \lstinline|@hash|. A major problem arises when parameterized patterns enforce equality constraints:
+
+\begin{lstlisting}[language=k]
+pair[A, B]         = { A first, B second };
+same_pair[T]       = { T first, T second };
+closed_same_pair[] = { T first, T second };
+any_pair[]         = { (...) first, (...) second };
+\end{lstlisting}
+
+All four patterns describe a binary record with fields \lstinline|first| and \lstinline|second|. If equality constraints were baked into the canonical graph, the compiler would produce four distinct graphs, fracturing global deduplication.
+
+\subsection{The Linear Canonical Theorem}
+
+K solves this by factoring every pattern into two independent parts:
+
+\begin{equation}
+\text{Pattern} = \bigl(\mathcal{S}_{\text{canonical}},\, \vec{\rho}\bigr)
+\end{equation}
+
+\begin{enumerate}
+  \item \textbf{Linear Canonical Skeleton ($\mathcal{S}_{\text{canonical}}$)}: Leaves are \textbf{separated linearly}. Every open slot is assigned a distinct port $X_0, X_1, \dots$ in depth-first order.
+  \item \textbf{Parameter Routing Vector ($\vec{\rho}$)}: An external vector routing caller parameters, diagonalized equalities, and wildcards.
+\end{enumerate}
+
+The canonical skeleton for all four pair variations is identical:
+\begin{lstlisting}[language=k]
+@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[X0, X1] = {
+  X0 first, X1 second
+};
+\end{lstlisting}
+
+Their routing vectors capture their specific constraints:
+\begin{lstlisting}[basicstyle=\ttfamily\small]
+pair[A, B]         = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[A, B]
+same_pair[T]       = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[T, T]
+closed_same_pair[] = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[T, T]
+any_pair[]         = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[(...), (...)]
+\end{lstlisting}
+
+\subsection{Benefits of Linear Decomposition}
+
+\begin{itemize}
+  \item \textbf{Global Deduplication}: Structurally isomorphic shapes share the exact same \lstinline|@hash| across all libraries and programs.
+  \item \textbf{Affine Multi-Hole Functors}: Skeletons act as pure multi-hole functors $\text{Type}^n \to \text{Type}$.
+  \item \textbf{Zero Loss of Type Safety}: When \lstinline|same_pair[bit[]]| is instantiated, the parameter $T$ routes to both ports, enforcing equality at the call site while preserving the shared linear canonical graph.
+\end{itemize}
+
+% ============================================================================
+\section{Variables: Ports, Knots, and Inductive Integrity}
+% ============================================================================
+
+Within any pattern template, variables are classified into three orthogonal categories:
+
+\begin{enumerate}
+  \item \textbf{External Ports ($\forall$)}: Variables declared in header \lstinline|[P1, ..., Pn]|, representing open slots supplied by caller arguments.
+  \item \textbf{Internal Existential Variables ($\exists$)}: Free variables within the template body asserting structural equality across multiple fields.
+  \item \textbf{Cycle Knots ($\mu$)}: Variables bound via \lstinline|= KnotName|, forming directed back-edges that define recursive fixed points.
+\end{enumerate}
+
+\subsection{Knot Encapsulation and Inductive Integrity}
+
+Cycle knots represent the internal topology of recursive definitions. In:
+\begin{lstlisting}[language=k]
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+\end{lstlisting}
+\lstinline|= Y| binds the root union, and \lstinline|Y| in field \lstinline|cdr| refers back to this node, closing the inductive cycle.
+
+To preserve inductive integrity, knots are strictly encapsulated as internal fixed points. Parameter substitution operates exclusively on external ports (\lstinline|X|), ensuring that recursive cycles remain structurally intact across all instantiations.
+
+\subsection{The Knot Invariant}
+
+\begin{invariant}[Knot Invariant]
+Formal parameters and cycle knots occupy disjoint namespaces: parameters and knots remain strictly segregated, guaranteeing that internal recursive wiring remains permanently intact.
+\end{invariant}
+
+% ============================================================================
+\section{A Complete Example: Bit Arithmetic}
+% ============================================================================
+
+The following self-contained K program illustrates the interplay of documents, relations, and compile-time patterns:
+
+\begin{lstlisting}[language=k]
+-- 1. Patterns (compile-time prototypes)
+bit[] = < {} 0, {} 1 >;
+
+-- 2. Constructors
+0 = {} |0 ?bit[];
+1 = {} |1 ?bit[];
+not = < /0 1, 0 >;
+
+-- 3. Half adder: prototype ?{ bit[] a, bit[] b }
+half_add = ?{ bit[] a, bit[] b }
+  < 
+    { .a /0 if, { .b sum, 0 carry } then } .then,
+    { .b not sum, .b carry }
+  >;
+\end{lstlisting}
+
+Here, \lstinline|?{ bit[] a, bit[] b }| establishes the static input prototype. The two rules concisely handle both cases of \lstinline|a|:
+\begin{enumerate}
+  \item When \lstinline|a| is \lstinline|0|: \lstinline|{ .a /0 if, ... } .then| succeeds, producing sum \lstinline|b| and carry \lstinline|0|.
+  \item When \lstinline|a| is \lstinline|1|: choice selects the second branch, producing sum \lstinline|.b not| and carry \lstinline|b|.
+\end{enumerate}
+
+% ============================================================================
+\section{Conclusion}
+% ============================================================================
+
+K unifies data, computation, and types into a minimal, content-addressed framework inspired by algebraic process calculi:
+\begin{itemize}
+  \item \textbf{Documents} are rooted, edge-labeled trees interpreted in the context of schemas.
+  \item \textbf{Computation} is partial relations formed by transformation chaining \lstinline|(f1 f2 ...)|, concurrent choice \lstinline|< f1, f2, ... >|, and parallel composition \lstinline|{ f1 label1, f2 label2, ... }|.
+  \item \textbf{Types} are patterns acting as static compile-time prototypes and inductive witnesses, with zero runtime overhead.
+\end{itemize}
+
+By decomposing named patterns into pure linear canonical skeletons and parameter routing vectors, K achieves maximal cross-codebase deduplication while preserving author-intended equality constraints. The result is a rigorous, expressive, and elegantly minimal foundation for content-addressed programming. An implementation of K is available on GitHub~\cite{k2026github}.
+
+% ============================================================================
+\appendix
+\section{Data Serialization and Enveloped Values}
+% ============================================================================
+
+\subsection{The Enveloped Value}
+
+In K, documents are abstract rooted trees whose structure and interpretation are defined relative to a schema. At execution and transport boundaries, data is represented as an \textbf{enveloped value} (or \emph{framed value}): a self-describing pair
+
+\begin{equation}
+(S,\, d)
+\end{equation}
+
+\noindent where:
+\begin{itemize}
+  \item $S$ is a rooted regular pattern graph defining the schema.
+  \item $d$ is a document tree conforming to $S$.
+\end{itemize}
+
+The schema $S$ serves as the structural authority for the document $d$. During relation execution, elementary operations propagate and refine this envelope:
+\begin{itemize}
+  \item \textbf{Product projection \texttt{.label}}: extracts the target sub-document and advances the schema to the corresponding field sub-schema.
+  \item \textbf{Variant projection \texttt{/tag}}: matches the variant tag and advances the schema to the payload sub-schema.
+  \item \textbf{Parallel composition \texttt{\{ f1 l1, ... \}}}: constructs a product document paired with the product schema of its branches.
+  \item \textbf{Variant constructor \texttt{|tag}}: constructs a tagged variant document paired with the union schema containing that tag.
+\end{itemize}
+
+\subsection{Self-Hosted Schema Representation}
+
+Schemas in K are first-class documents defined directly within the language. The standard core library \texttt{core.k} defines the canonical schema for patterns:
+
+\begin{lstlisting}[language=k]
+edge[]    = { string[] label, bits[] target };
+edges[]   = < {} nil, { edge[] car, E cdr } cons > = E;
+node[]    = <
+  {} any,
+  edges[] open-product,
+  edges[] open-union,
+  edges[] closed-product,
+  edges[] closed-union
+>;
+pattern[] = < {} nil, { node[] car, P cdr } cons > = P;
+\end{lstlisting}
+
+A schema is represented as an inductive list of canonical nodes:
+\begin{itemize}
+  \item Node 0 designates the root of the schema automaton.
+  \item Edges specify labeled transitions to target node indices, encoded as bit paths (\lstinline|bits[]|).
+  \item Nodes distinguish between products and unions, as well as open and closed structural contracts.
+\end{itemize}
+
+Because \lstinline|pattern[]| is a fixed, universally agreed-upon schema constant, it provides the inductive anchor for all K binary serialization.
+
+\subsection{The Canonical Wire Stream}
+
+The binary wire representation of an enveloped value $(S, d)$ is a two-stage prefix-free bitstream:
+
+\begin{equation}
+\text{Stream} = \text{encode}\bigl(S : \text{pattern}[]\bigr) \; \text{encode}(d : S)
+\end{equation}
+
+\begin{enumerate}
+  \item \textbf{Schema Header}: The schema $S$ is serialized as a regular K document under the universal singleton schema \lstinline|pattern[]|.
+  \item \textbf{Document Payload}: The document $d$ is serialized as a prefix-free bitstream interpreted strictly relative to the decoded schema $S$.
+\end{enumerate}
+
+Decoding operates deterministically: the recipient first decodes $S$ using the universal \lstinline|pattern[]| specification, and then uses $S$ to decode the subsequent payload bitstream $d$.
+
+\subsection{Prefix-Free Payload Encoding}
+
+Given the decoded schema $S$, the document payload $d$ is encoded with maximal compactness:
+
+\begin{itemize}
+  \item \textbf{Products}: Field values are encoded sequentially in canonical sorted label order:
+  \begin{equation}
+  \text{encode}(d_1) \; \text{encode}(d_2) \dots \text{encode}(d_k)
+  \end{equation}
+  Because the schema specifies field identities and ordering, the payload consists exclusively of contiguous field value bits.
+  \item \textbf{Variants}: A union alternative is identified by its tag ordinal, encoded in minimal fixed-width bits:
+  \begin{equation}
+  w = \lceil \log_2(n) \rceil
+  \end{equation}
+  where $n$ is the union cardinality, followed immediately by the payload document conforming to the selected alternative.
+  \item \textbf{Compact Base Cases}:
+  \begin{itemize}
+    \item The empty product \lstinline|{}| consumes 0 bits.
+    \item A singleton variant ($n = 1$) consumes 0 bits.
+    \item A boolean choice ($n = 2$, e.g., \lstinline|< {} 0, {} 1 >|) consumes exactly 1 bit.
+  \end{itemize}
+\end{itemize}
+
+The resulting binary wire format is strictly prefix-free, self-delimiting, and structurally transparent, enabling direct stream processing and lazy sub-document projection.
+
+% ============================================================================
+% References
+% ============================================================================
+\begin{thebibliography}{9}
+
+\bibitem{milner1989ccs}
+R.~Milner.
+\newblock \emph{Communication and Concurrency}.
+\newblock Prentice Hall, 1989.
+
+\bibitem{hoare1985csp}
+C.~A.~R. Hoare.
+\newblock \emph{Communicating Sequential Processes}.
+\newblock Prentice Hall, 1985.
+
+\bibitem{hosoya2003regular}
+H.~Hosoya and B.~C. Pierce.
+\newblock Regular expression pattern matching for {XML}.
+\newblock \emph{ACM Transactions on Programming Languages and Systems (TOPLAS)}, 25(2):194--232, 2003.
+
+\bibitem{merkle1987sig}
+R.~C. Merkle.
+\newblock A digital signature based on a conventional encryption function.
+\newblock In \emph{Advances in Cryptology --- CRYPTO '87}, pages 369--378. Springer, 1987.
+
+\bibitem{comon2007tree}
+H.~Comon, M.~Dauchet, R.~Gilleron, C.~L{\"o}ding, F.~Jacquemard, D.~Lugiez, S.~Tison, and M.~Tommasi.
+\newblock \emph{Tree Automata Techniques and Applications}.
+\newblock Available online: \url{https://tata.gforge.inria.fr/}, 2007.
+
+\bibitem{k2026github}
+An implementation of K can be found at GitHub: \url{https://github.com/fraczak/k}.
+
+\end{thebibliography}
+
+\end{document}
