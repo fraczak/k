@@ -2,31 +2,30 @@
 -- Uses arbitrary-precision integers from Examples/arithmetics.k.
 
 int[] = @Nws3vysWqC9PznraTP4kWPp44Rd77NAqrx9dgbtHAjGA[];
-dec = @5KHpeRC9ttY3Xr3nxUppCmdDiQeb9jALAKydqbQ4cims;
-nat = @D39Vu9wCCxSqGif6P4csWhBqW7iEZARGwzNrhXZF2erB;
-0 = @4u5HUXEyPjb3ts7Y269aX2ZyReMm3dZUfsURv3CsaQju;
-int = @qj5fvkMmQSLRVQPPft93pj7zGFLuMcw8UB6QmJZVZEqW;
-inc = @9qsrKfAtXQgC2dxuHcryfsMc6FJKDKjZWqdt9gzULxAj;
-zero_int? = @5KP7SBHTAkr7qxxcNqjA5pf3NRLdzMCTGqRyWzZMwAQT;
+dec = @yfy9ReCFtxn6HsW2qsER58PXQY8ptEdiH69pfi6rifeh;
+nat = @74wj62GF7Bp6kN6TgCZ4WVkT6XmppzBQUaYLTzyuMFwc; 
+0 = @9Km2FCiyv2WkuemV4M3FyzVmsXCDGadh6tpV2aF752i7;
+int = @MFaVuu9DS9Q3BVvJbtCH3PGHwRSYxmgRJYVvDkNGCf6P;
+inc = @HE2LWWQz9vHAaLhKTLprrabPtYT3iQagULEep8DbtA52;
+zero_int? = @ht7ftUEYTp3bzQ9ZDEaMSCqPRgeawQmqxdVE2Gn4GHqS;
 neg? = @qHsFhcAZcrrUtCtwBRCtRG63hBJKjm25P5DbK4GfdWHe;
-GT = @rRhDaVjcGKLCUGsiwGmQc27dncDaAjU54xzARehsLwXA;
+GT = @gDKwJWunDzB9TNsrcr6JUJqciCgz3zgDZzCdyjDZ8stQ;
 
 -- List constructors and destructors
 list[X] = < {} nil, { X car, Y cdr } cons > = Y;
-list? = ? list[X];
 
-nil = {} | nil ?list[X];
-singleton = {() car, nil cdr} | cons ?list[X];
-cons = {.car car, .cdr cdr} | cons ?list[X];
-nil? = ?list[X] / nil nil;
-car = ?list[X] /cons .car;
-cdr = ?list[X] /cons .cdr;
+nil = {} | nil ? list[X];
+singleton = {() car, nil cdr} | cons ? list[X];
+cons = {.car car, .cdr cdr} | cons ? list[X];
+nil? = ? list[X] /nil nil;
+car = ? list[X] /cons .car;
+cdr = ? list[X] /cons .cdr;
 
 -- Decrement an integer and normalize (stripping leading zeros)
 pred_int = dec /'+' nat | '+';
 
 -- Concatenate two lists: {xs, ys} -> list
-concat = ?{list[X]=xs xs, xs ys} {.xs reverse xs, .ys acc} _reverse;
+concat = ? {list[X]=xs xs, xs ys} {.xs reverse xs, .ys acc} _reverse;
 
 -- Reverse a list: xs -> list
 reverse = ? list[X] {() xs, nil acc} _reverse;
@@ -36,7 +35,7 @@ _reverse = ? { list[X] xs, list[X] acc } <
 >;
 
 -- Length of a list: xs -> int
-length = {?list[(...)] xs, 0 int acc} _length;
+length = {? list[(...)] xs, 0 int acc} _length;
 _length = <
   {.xs /nil if, .acc then} .then,
   {.xs cdr xs, .acc inc acc} _length
@@ -97,7 +96,7 @@ gen_list_ = <
   {.n dec n, {.n car, .list cdr} cons list} gen_list_
 >;
 
--- Identity filter on {x, y} when x is greater than y: ?{X x, X y}=Y -> ?Y
+-- Identity filter on {x, y} when x is greater than y: ? {X x, X y}=Y -> ?Y
 gt? = ?  { int[] x, int[] y }
   <
     {.x/- if1, .y/+ if2, () then} .then,
@@ -134,12 +133,12 @@ merge = ? {list[X] xs, list[X] ys} <
 >;
 
 -- Sort a list in ascending order (merge sort): xs -> list
-sort = ?list[X] <
+sort = ? list[X] <
   /nil nil,
   /cons <
     {.cdr /nil if, .car singleton then} .then,
     |cons split {.first sort xs, .second sort ys} merge
   >
-> ?list[X];
+> ? list[X];
 
 

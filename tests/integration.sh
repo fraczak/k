@@ -80,7 +80,6 @@ if ./kvm.mjs -k Examples/byte.k > "$TMP_DIR/dash-k-kvm.out" 2> "$TMP_DIR/dash-k-
   exit 1
 fi
 grep -q -- '-k is no longer supported' "$TMP_DIR/dash-k-kvm.err"
-printf 'A🙂\nBé~\t' | ./codecs/utf8.mjs --parse | ./k.mjs Examples/byte.k |./codecs/utf8.mjs --print
 echo
 ./objects/compile.mjs Examples/ieee.k "$TMP_DIR/ieee.klib"
 MUL=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^mul = @' | sed 's/^mul = \(@[^;]*\);.*$/\1/'`

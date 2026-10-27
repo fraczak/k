@@ -108,33 +108,25 @@ djson[] = <
   btrie[J] object
 > = J;
 
-djson_btrie[] = djson[];
-
-json? = ? djson[];
-
 ---------------------------------------------------------------
 -- §2. Constructors and Projections
 ---------------------------------------------------------------
-
-bits? = ? bits[];
-str_list? = ? string[];
-trie? = ? btrie[V];
 
 0b = {} | _;
 0 = 0b | 0;
 1 = 0b | 1;
 
 nil = {} | nil;
-null = {} | null json?;
-true = {} | true | bool json?;
-false = {} | false | bool json?;
-number = | number json?;
-string = | string json?;
-bool = | bool json?;
-list = | list json?;
-object = | object json?;
-empty_list = nil | list json?;
-empty_object = nil | object json?;
+null = {} | null ?djson[];
+true = {} | true | bool ?djson[];
+false = {} | false | bool ?djson[];
+number = | number ?djson[];
+string = | string ?djson[];
+bool = | bool ?djson[];
+list = | list ?djson[];
+object = | object ?djson[];
+empty_list = nil | list ?djson[];
+empty_object = nil | object ?djson[];
 
 ---------------------------------------------------------------
 -- §3. Direct Binary Bit-Trie Traversal (Zero Equality Checks)
@@ -224,7 +216,7 @@ step_char = <
 ---------------------------------------------------------------
 
 -- Low-level lookup string key in object trie: { key, object } -> val
-dot = ?{ K key, T object } { .key str_list? key, .object trie? t } <
+dot = ?{ K key, T object } { .key ?string[] key, .object ?btrie[V] t } <
   { .key /nil if, .t /trie .val /val then } .then,
   {
     .key /cons .cdr key,
@@ -232,31 +224,31 @@ dot = ?{ K key, T object } { .key str_list? key, .object trie? t } <
   } dot
 >;
 
--- Low-level lookup bits? index in list trie: { index, list } -> val
-_nth = ?{ K index, T list } { .index bits? index, .list trie? t } <
-  { .index /_ if, .t /trie .val /val then } .then,
-  { .index /0 index, .t /trie .0 list } _nth,
-  { .index /1 index, .t /trie .1 list } _nth
+-- Low-level lookup ?bits[] index in list trie: { index, list } -> val
+_nth = ?{ bits[] index, btrie[V] list } <
+  { .index /_ if, .list /trie .val /val then } .then,
+  { .index /0 index, .list /trie .0 list } _nth,
+  { .index /1 index, .list /trie .1 list } _nth
 >;
 
--- Primary accessor: lookup string key in json? object -> json? val
-get = ?{ K key, json? json } {
-  .key str_list? key,
+-- Primary accessor: lookup string key in ?djson[] object -> ?djson[] val
+get = ?{ string[] key, djson[] json } {
+  .key key,
   .json /object object
 } dot;
 
--- Primary accessor: lookup bits? index in json? list -> json? elem
-nth = ?{ K index, json? json } {
-  .index bits? index,
+-- Primary accessor: lookup ?bits[] index in ?djson[] list -> ?djson[] elem
+nth = ?{ K index, djson[] json } {
+  .index ?bits[] index,
   .json /list list
 } _nth;
 
--- Filter: succeeds as identity if json? object contains string key
-has_key? = ?{ K key, json? json } { get if, () then } .then;
+-- Filter: succeeds as identity if ?djson[] object contains string key
+has_key? = { get if, () then } .then;
 has? = has_key?;
 
--- Filter: succeeds as identity if json? list contains index
-has_index? = ?{ K index, json? json } { nth if, () then } .then;
+-- Filter: succeeds as identity if ?djson[] list contains index
+has_index? = { nth if, () then } .then;
 has_nth? = has_index?;
 
 ---------------------------------------------------------------
@@ -266,7 +258,7 @@ has_nth? = has_index?;
 push_bit = ?{ < {} 0, {} 1 > b, < {} _, BITS 0, BITS 1 >=BITS acc } <
   { .b /0 if, .acc |0 then } .then,
   { .b /1 if, .acc |1 then } .then
-> bits?;
+> ?bits[];
 
 push_bits1 = { .x .0 b, .acc acc } push_bit;
 push_bits2 = { .x .1 b, { .x x, .acc acc } push_bits1 acc } push_bit;
@@ -289,20 +281,20 @@ push_bmp_common_hi = <
   { .hi /hFA_FB x, .acc acc } push_bits1 |1 |0 |1,
   { .hi /hFC_FD x, .acc acc } push_bits1 |0 |1 |1,
   { .hi /hFE_FF x, .acc acc } push_bits1 |1 |1 |1
-> bits?;
+> ?bits[];
 
 push_bmp_priv_hi = <
   { .hi /hE0_EF x, .acc acc } push_bits4 |0,
   { .hi /hF0_F7 x, .acc acc } push_bits3 |0 |1,
   { .hi /hF8 if, .acc |1 |1 then } .then
-> bits?;
+> ?bits[];
 
 push_plane2_16 = <
   { .p /p02_03 x, .acc acc } push_bits1 |0 |0,
   { .p /p04_07 x, .acc acc } push_bits2 |1 |0,
   { .p /p08_0F x, .acc acc } push_bits3 |0 |1,
   { .p /p10 if, .acc |1 |1 then } .then
-> bits?;
+> ?bits[];
 
 prepend_char_bits = <
   { .char /ascii x, .acc acc } push_bits7 |0,
@@ -326,20 +318,20 @@ prepend_char_bits = <
       { .char /supplementary_planes2_16 .lo x, .acc acc } push_bits8 acc
     } push_bits8 acc
   } push_plane2_16 |1 |1 |1 |1 |1
-> bits?;
+> ?bits[];
 
-str_to_bits = str_list? <
+str_to_bits = ?string[] <
   /nil 0b,
   /cons { .car char, .cdr str_to_bits acc } prepend_char_bits
-> bits?;
+> ?bits[];
 
-ensure_trie = trie? < /nil { nil val, nil 0, nil 1 }, /trie () >;
+ensure_trie = ?btrie[V] < /nil { nil val, nil 0, nil 1 }, /trie () >;
 
 -- Insert or replace { index, val, list } -> list
-put_nth = ?{ K index, V val, T list } {
-  .index bits? index,
+put_nth = ?{ K index, V val, T list } = X {
+  .index index,
   .val val,
-  .list trie? ensure_trie t
+  .list ensure_trie t
 } <
   {
     .index /_ if,
@@ -349,7 +341,7 @@ put_nth = ?{ K index, V val, T list } {
     .index /0 if,
     {
       .t .val val,
-      { .index /0 index, .val val, .t .0 list } put_nth 0,
+      { .index /0 index, .val val, .t .0 list } ?X put_nth 0,
       .t .1 1
     } |trie then
   } .then,
@@ -358,13 +350,14 @@ put_nth = ?{ K index, V val, T list } {
     {
       .t .val val,
       .t .0 0,
-      { .index /1 index, .val val, .t .1 list } put_nth 1
+      { .index /1 index, .val val, .t .1 list } ?X put_nth 1
     } |trie then
   } .then
-> trie?;
+> ?btrie[V];
 
--- Remove entry at bits? index from trie: { index, list } -> list
-remove_nth = ?{ K index, T list } { .index bits? index, .list trie? t } <
+-- Remove entry at ?bits[] index from trie: { index, list } -> list
+remove_nth = ?{ K index, T list } = X 
+  { .index index, .list t } <
   { .t /nil if, nil then } .then,
   {
     .index /_ if,
@@ -374,7 +367,7 @@ remove_nth = ?{ K index, T list } { .index bits? index, .list trie? t } <
     .index /0 if,
     {
       .t /trie .val val,
-      { .index /0 index, .t /trie .0 list } remove_nth 0,
+      { .index /0 index, .t /trie .0 list } ?X remove_nth 0,
       .t /trie .1 1
     } |trie then
   } .then,
@@ -383,10 +376,10 @@ remove_nth = ?{ K index, T list } { .index bits? index, .list trie? t } <
     {
       .t /trie .val val,
       .t /trie .0 0,
-      { .index /1 index, .t /trie .1 list } remove_nth 1
+      { .index /1 index, .t /trie .1 list } ?X remove_nth 1
     } |trie then
   } .then
-> trie?;
+> ?btrie[V];
 
 -- Insert or replace { key, val, object } -> object
 put = ?{ K key, V val, O object } {
@@ -401,31 +394,28 @@ remove = ?{ K key, O object } {
   .object list
 } remove_nth;
 
--- Set string key in json? object: { key, val, json } -> json
-set = ?{ K key, json? val, json? json } {
-  .key str_list? key,
-  .val val,
-  .json /object object
-} put |object json?;
+-- Set string key in ?djson[] object: { key, val, json } -> json
+set = {.key key, .val val, .json /object object} 
+  put |object ?djson[];
 
--- Remove string key from json? object: { key, json } -> json
-del = ?{ K key, json? json } {
-  .key str_list? key,
+-- Remove string key from ?djson[] object: { key, json } -> json
+del = ?{ string[] key, djson[] json } {
+  .key key,
   .json /object object
-} remove |object json?;
+} remove |object ?djson[];
 
--- Set element at bits? index in json? list: { index, val, json } -> json
-set_nth = ?{ K index, json? val, json? json } {
-  .index bits? index,
+-- Set element at ?bits[] index in ?djson[] list: { index, val, json } -> json
+set_nth = ?{ bits[] index, djson[] val, djson[] json } {
+  .index index,
   .val val,
   .json /list list
-} put_nth |list json?;
+} put_nth |list ?djson[];
 
--- Remove element at bits? index from json? list: { index, json } -> json
-del_nth = ?{ K index, json? json } {
-  .index bits? index,
+-- Remove element at ?bits[] index from ?djson[] list: { index, json } -> json
+del_nth = ?{ bits[] index, djson[] json } {
+  .index index,
   .json /list list
-} remove_nth |list json?;
+} remove_nth |list ?djson[];
 
 ---------------------------------------------------------------
 -- §6. Cardinality & Length Relations
@@ -435,12 +425,12 @@ _inv = ?{ < {} _, B 0, B 1 >=B x, B r } <
   { .x /_ if, .r then } .then,
   { .x /0 x, .r |0 r } _inv,
   { .x /1 x, .r |1 r } _inv
-> bits?;
+> ?bits[];
 _inc = ?{ < {} _, B 0, B 1 >=B x, B y } <
   { .x /_ if, .y |1 then } .then,
   { .x /0 x, .y |1 r } _inv,
   { .x /1 x, .y |0 y } _inc
-> bits?;
+> ?bits[];
 inc_nat = { { () x, 0b r } _inv x, 0b y } _inc;
 
 _trie_size = ?{
@@ -462,19 +452,19 @@ _trie_size = ?{
       { .t /trie .0 t, .acc inc_nat acc } _trie_size acc
     } _trie_size then
   } .then
-> bits?;
+> ?bits[];
 
-list_size = { trie? t, 0 acc } _trie_size;
-obj_size = { trie? t, 0 acc } _trie_size;
+list_size = { ?btrie[V] t, 0 acc } _trie_size;
+obj_size = { ?btrie[V] t, 0 acc } _trie_size;
 
 _str_len = ?{ string[] str, bits[] acc } <
   { .str /nil if, .acc then } .then,
   { .str /cons .cdr str, .acc inc_nat acc } _str_len
 > ? bits[];
-str_len = { str_list? str, 0 acc } _str_len;
+str_len = { ?string[] str, 0 acc } _str_len;
 
--- Count items in json? (object entries, list elements, or string chars)
-length_nat = json? <
+-- Count items in ?djson[] (object entries, list elements, or string chars)
+length_nat = ?djson[] <
   /object obj_size,
   /list list_size,
   /string str_len
@@ -596,18 +586,18 @@ _nat_step = ?{ bits[] bits, exponent[] exp, fraction[] frac } <
 
 inv_bits = { () x, 0b r } _inv;
 
-nat_to_float64 = bits? <
+nat_to_float64 = ?bits[] <
   /_ { pos_zero then } .then,
   /0 { pos_zero then } .then,
   /1 { () inv_bits bits, exp_bias exp, pos_zero .fraction frac } _nat_step
 >;
 
--- Count items in json? -> json? number
-length = length_nat nat_to_float64 |number json?;
+-- Count items in ?djson[] -> ?djson[] number
+length = length_nat nat_to_float64 |number ?djson[];
 
--- Append element to json? list: { val, json } -> json
-push = ?{ json? val, json? json } {
-  (.json /list list_size) index,
+-- Append element to ?djson[] list: { val, json } -> json
+push = ?{ djson[] val, djson[] json } {
+  .json /list list_size index,
   .val val,
   .json json
 } set_nth;
@@ -616,7 +606,7 @@ push = ?{ json? val, json? json } {
 -- §7. Keys & Values Extraction
 ---------------------------------------------------------------
 
-read_bit = bits? <
+read_bit = ?bits[] <
   /0 { {} |0 bit, () rest },
   /1 { {} |1 bit, () rest }
 >;
@@ -637,14 +627,14 @@ read_bits7 =
     .r0 .rest rest
   };
 
-read_char = bits? <
+read_char = ?bits[] <
   /0 read_bits7
 >;
 
-bits_to_str = bits? <
+bits_to_str = ?bits[] <
   /_ {} |nil,
   read_char { .val car, (.rest bits_to_str) cdr } |cons
-> str_list?;
+> ?string[];
 
 _collect_keys = ?{
   btrie[V] tree,
@@ -683,13 +673,13 @@ _collect_keys = ?{
 
 _obj_keys_raw = { () tree, 0b rev_path, {} |nil acc } _collect_keys;
 
--- Extract all keys from json? object as raw list: json? -> list[string[]]
-keys_raw = json? /object _obj_keys_raw;
+-- Extract all keys from ?djson[] object as raw list: ?djson[] -> list[string[]]
+keys_raw = ?djson[] /object _obj_keys_raw;
 
 _keys_to_trie = ?{
   list[string[]] klist,
   bits[] index,
-  btrie[djson_btrie[]] acc
+  btrie[V] acc
 } <
   { .klist /nil if, .acc then } .then,
   {
@@ -703,10 +693,10 @@ _keys_to_trie = ?{
   } _keys_to_trie
 >;
 
--- Extract all keys from json? object as a json? list: json? -> json?
-keys = json? /object _obj_keys_raw
+-- Extract all keys from ?djson[] object as a ?djson[] list: ?djson[] -> ?djson[]
+keys = ?djson[] /object _obj_keys_raw
   { () klist, 0 index, {} |nil acc } _keys_to_trie
-  |list json?;
+  |list ?djson[];
 
 _collect_values = ?{
   btrie[V] tree,
@@ -734,16 +724,16 @@ _collect_values = ?{
 
 _obj_values_raw = { () tree, {} |nil acc } _collect_values;
 
--- Extract all values from json? object or list as raw list
-values_raw = json? <
+-- Extract all values from ?djson[] object or list as raw list
+values_raw = ?djson[] <
   /object _obj_values_raw,
   /list _obj_values_raw
 >;
 
 _values_to_trie = ?{
-  list[djson_btrie[]] klist,
+  list[(...)] klist,
   bits[] index,
-  btrie[djson_btrie[]] acc
+  btrie[(...)] acc
 } <
   { .klist /nil if, .acc then } .then,
   {
@@ -757,29 +747,29 @@ _values_to_trie = ?{
   } _values_to_trie
 >;
 
--- Extract all values from json? as a json? list: json? -> json?
-values = <
-  json? /object _obj_values_raw
-    { () klist, 0 index, {} |nil acc } _values_to_trie
-    |list json?,
-  json? /list |list json?
+-- Extract all values from ?djson[] as a ?djson[] list: ?djson[] -> ?djson[]
+values =  
+<
+  /object _obj_values_raw
+    { () klist, 0 index, {} |nil acc } _values_to_trie |list,
+  ?djson[]
 >;
 
 ---------------------------------------------------------------
 -- §8. Type Predicates
 ---------------------------------------------------------------
 
-is_null? = json? /null ();
-is_bool? = json? /bool ();
-is_number? = json? /number ();
-is_string? = json? /string ();
-is_list? = json? /list ();
-is_object? = json? /object ();
+is_null? = ?djson[] {/null if, () then} .then;
+is_bool? = ?djson[] {/bool if, () then} .then;
+is_number? = ?djson[] {/number if, () then} .then;
+is_string? = ?djson[] {/string if, () then} .then;
+is_list? = ?djson[] {/list if, () then} .then;
+is_object? = ?djson[] {/object if, () then} .then;
 
 json_type[] = <
   {} null, {} bool, {} number, {} string, {} list, {} object
 >;
-type_of = json? <
+type_of = ?djson[] <
   /null {} |null,
   /bool {} |bool,
   /number {} |number,

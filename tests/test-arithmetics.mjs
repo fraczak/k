@@ -221,11 +221,11 @@ try {
     "--export", "gcd:gcd",
     "--export", "int:int",
     "--export", "4:four",
-    "--export", "0b:zero_b",
+    "--export", "_:zero_b",
     "{four x, zero_b y} gcd int"
   ], { input: dummyWire });
-  assertOk(resGcdZero, "gcd(4, 0b)");
-  assert.equal(printIntWire(resGcdZero.stdout, "gcd 0b"), "4");
+  assertOk(resGcdZero, "gcd(4, _)");
+  assert.equal(printIntWire(resGcdZero.stdout, "gcd _"), "4");
 
   const resLcm = run(node, [
     "k.mjs",

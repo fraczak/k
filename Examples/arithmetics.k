@@ -1,18 +1,16 @@
 -- Examples for defining arithmetic functions natively
-swap_yes_no = < /yes |no, /no |yes >;
-yes = {}|yes;
-no = yes swap_yes_no;
+yes_no[] = <{} yes, {} no>;
+yes = {}|yes ? yes_no[];
+no  = {}|no ? yes_no[];
+swap_yes_no = ? yes_no[] < /yes no, yes >;
+
 
 bits[] = < {} _, B 0, B 1 > = B;
 
-bit[] = < {} 0, {} 1 >;
+_ = {}|_ ?bits[];
+0 = _ |0 ?bits[];
 
-0b = {} | _;
--- |1 = | 1;
--- |0  = | 0;
-
-0 = 0b |0;
-succ = {inv x, 0b y} _inc;
+succ = {inv x, _ y} _inc;
 1 = 0 succ;
 2 = 1 succ;
 3 = 2 succ;
@@ -38,7 +36,7 @@ concat_ = ? { bits[] x, bits[] y }
       {.x /1 x, .y |1 y}
     > concat_ 
   >;
-inv = {()x, 0b r} _inv; 
+inv = {()x, _ r} _inv; 
 _inv = ? { bits[] x, bits[] r }
   < 
     {.x empty? if, .r then} .then,
@@ -70,9 +68,10 @@ int[] = < bits[] "+", bits[] "-" >;
 int? = ? int[];
 int_pair[] = { int[] x, int[] y };
 
-remove_leading_zeros = <
-  /0 remove_leading_zeros, 
-  ()
+remove_leading_zeros = ?bits[] <
+  /1 |1,
+  /_ |_,
+  /0 remove_leading_zeros
 >;
 nat = remove_leading_zeros <empty? 0, ()>;
 int = nat | '+';
@@ -84,9 +83,9 @@ zero_int? = {/'+' /0 empty? if, () then} .then;
 minus_one? = {/'-' /1 empty? if, () then} .then;
 
 inc = <
-  /'+' {inv x, 0b y} _inc nat |'+',
+  /'+' {inv x, _ y} _inc nat |'+',
   minus_one? 0 int,
-  /'-' {inv x, 0b y} _dec nat |'-'
+  /'-' {inv x, _ y} _dec nat |'-'
 >;
 
 _inc = ? { bits[] x, bits[] y } <
@@ -97,8 +96,8 @@ _inc = ? { bits[] x, bits[] y } <
 
 dec = <
   zero_int? 1 |'-',
-  /'+' {inv x, 0b y} _dec nat |'+',
-  /'-' {inv x, 0b y} _inc nat |'-'
+  /'+' {inv x, _ y} _dec nat |'+',
+  /'-' {inv x, _ y} _inc nat |'-'
 >;
 
 _dec = ? { bits[] x, bits[] y } <
@@ -106,6 +105,8 @@ _dec = ? { bits[] x, bits[] y } <
     {.x /0 x, .y |1 y} _dec
 >;
 
+
+carry[] = <{} 0,{} 1>;
 c0 = {}|0;
 c1 = {}|1;
 
@@ -128,11 +129,11 @@ swap_sign = <
 minus =
   {.x x, .y swap_sign y} plus;
 
-_plus = {.x x, .y y, .c c, 0b r} _plus_;
+_plus = {.x x, .y y, .c c, _ r} _plus_;
 
 _plus_ =
   -- least significant bit first addition with carry
-  ? { bits[] x, bits[] y, bit[] c, bits[] r }
+  ? { bits[] x, bits[] y, carry[] c, bits[] r } = X
   <
     {.x empty? if, .y empty? and, .c/0 c, .r inv then} .then,
     {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
@@ -152,15 +153,15 @@ _plus_ =
 
       {.x /1 x, .y /1 y, .c/0 c1 c, .r |0 r},
       {.x /1 x, .y /1 y, .c/1 c1 c, .r |1 r}
-    > _plus_
+    > ?X _plus_
   >
 ;
 
-_minus = {.x x, .y y, .c c, 0b r} _minus_;
+_minus = {.x x, .y y, .c c, _ r} _minus_;
 
 _minus_ =
   -- least significant bit first substraction with carry
-  ? { bits[] x, bits[] y, bit[] c, bits[] r }
+  ? { bits[] x, bits[] y, carry[] c, bits[] r } = X
   <
     {.y empty? if, .c/0 and, {.r x, .x r} _inv then} .then,
     <
@@ -175,7 +176,7 @@ _minus_ =
       {.x/1 x, .y/0   y, .c/1 c0 c, .r |0 r},
       {.x/1 x, .y/1   y, .c/0 c0 c, .r |0 r},
       {.x/1 x, .y/1   y, .c/1 c1 c, .r |1 r}
-    > _minus_
+    > ?X _minus_
   >
 ;
 
@@ -191,7 +192,7 @@ times =
       sign_minus
     > sign,
     {
-      0b result,
+      _ result,
       .x abs inv _x,
       .y abs y
     } _times result
@@ -203,7 +204,7 @@ times =
 ;
 
 _times =
-  ? { bits[] result, bits[] _x, bits[] y }
+  ? { bits[] result, bits[] _x, bits[] y } = X
   <
     { .y empty? if, .result then } .then,
     <
@@ -217,7 +218,7 @@ _times =
         ._x _x, 
         .y /1 y 
       }
-    > _times
+    > ?X _times
   >
 ;
 
@@ -274,13 +275,13 @@ _align_down = ? { bits[] x, bits[] y, bits[] _y }
 
     {
       .y empty? if,
-      {.x x, ._y _y, 0b steps} _pad_down then
+      {.x x, ._y _y, _ steps} _pad_down then
     } .then,
 
     {
       .x empty? if,
       .y empty? and,
-      {._y _y, 0b steps} then
+      {._y _y, _ steps} then
     } .then
   >;
 
@@ -375,12 +376,12 @@ div =
             .x x,
             .aligned._y _y,
             .aligned.steps steps,
-            0b q
+            _ q
           } _div_down then
         } .then,
         {
           .choice /restore if,
-          {.x x, .y y, 0 r, 0b q} _div_restoring then
+          {.x x, .y y, 0 r, _ q} _div_restoring then
         } .then
       > res
     }

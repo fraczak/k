@@ -1,12 +1,12 @@
 -- Examples/nat.k: Peano natural numbers arithmetic
 
-0 = {} | 0;
-0? = { /0 if, () then } .then;
-succ = | +1;
-pred = / +1;
-
 nat[] = < {} 0, N +1 > = N;
-nat? = ? nat[];
+
+0 = {} | 0 ?nat[];
+0? = ?nat[] { /0 if, () then } .then;
+succ = | +1 ?nat[];
+pred = / +1 ?nat[];
+
 nat_pair[] = { nat[] x, nat[] y };
 
 add = ? nat_pair[] <{.x pred x, .y succ y} add, .y>;

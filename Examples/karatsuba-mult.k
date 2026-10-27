@@ -6,13 +6,12 @@ yes = {} | yes;
 no = {} | no;
 
 bits[] = < {} _, B 0, B 1 > = B;
-bits? = ? bits[];
+
 0b = {} | _;
 0 = 0b |0;
 1 = 0b |1;
 
 int[] = < bits[] "+", bits[] "-" >;
-int? = ? int[];
 
 bits_pair[] = { bits[] x, bits[] y };
 inv_state[] = { bits[] x, bits[] r };
@@ -21,7 +20,7 @@ add_state[] = { bits[] x, bits[] y, carry_bit[] c, bits[] r };
 times_state[] = { bits[] result, bits[] _x, bits[] y };
 
 unat[] = < {} _, U 1 > = U;
-unat? = ? unat[];
+
 0u = {} | _;
 
 split_state[] = { bits[] x_rev, unat[] m, bits[] low };

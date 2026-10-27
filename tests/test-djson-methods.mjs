@@ -61,11 +61,14 @@ console.log("--> Test 1: Object Accessors (get, has?, set, del)");
   const kDoc = fromJsonValue(doc);
 
   // get "name"
+  console.log('name');
   const resName = fnGet(Value.product({
     key: textToStringValue("name"),
     json: kDoc
   }));
   assert.equal(toJsonValue(resName), "Alice");
+
+  console.log('age');
 
   // get "age"
   const resAge = fnGet(Value.product({
@@ -74,6 +77,7 @@ console.log("--> Test 1: Object Accessors (get, has?, set, del)");
   }));
   assert.equal(toJsonValue(resAge), 30);
 
+  console.log('tags');
   // has? hit
   const hit = fnHas(Value.product({
     key: textToStringValue("name"),
@@ -81,6 +85,7 @@ console.log("--> Test 1: Object Accessors (get, has?, set, del)");
   }));
   assert.ok(hit);
 
+  console.log('has? miss');
   // has? miss
   const miss = fnHas(Value.product({
     key: textToStringValue("missing"),
@@ -88,6 +93,7 @@ console.log("--> Test 1: Object Accessors (get, has?, set, del)");
   }));
   assert.equal(miss, undefined);
 
+  console.log('set "city" = "Paris"');
   // set "city" = "Paris"
   const withCity = fnSet(Value.product({
     key: textToStringValue("city"),
@@ -97,6 +103,7 @@ console.log("--> Test 1: Object Accessors (get, has?, set, del)");
   assert.equal(toJsonValue(withCity).city, "Paris");
   assert.equal(toJsonValue(withCity).name, "Alice");
 
+  console.log('set "age" = 31');
   // del "age"
   const withoutAge = fnDel(Value.product({
     key: textToStringValue("age"),

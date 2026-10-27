@@ -154,13 +154,13 @@ async function evalK(snippet) {
       } .then,
       {.xs car car, {.xs cdr xs, .ys ys} _merge cdr} cons
     >;
-    _sort = list? <
+    _sort = ? list[X] <
       /nil nil,
       /cons <
         {.cdr /nil if, .car singleton then} .then,
         |cons split {.first _sort xs, .second _sort ys} _merge
       >
-    > list?;
+    > ? list[X];
     l = {5 int car, {2 int car, {4 int car, {1 int car, {3 int car, nil cdr} cons cdr} cons cdr} cons cdr} cons cdr} cons;
     l _sort
   `);

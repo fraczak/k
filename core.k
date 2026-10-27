@@ -1,9 +1,9 @@
 -- core.k — the k standard core library
 --
 -- Defines:
---   1. bits? — canonical binary number / bit-path relation
---   2. string? — unicode strings relation (used for labels)
---   3. pattern? — pattern graph relation
+--   1. bits[] — canonical binary number / bit-path relation
+--   2. string[] — unicode strings relation (used for labels)
+--   3. pattern[] — pattern graph relation
 
 ---------------------------------------------------------------
 -- §1. Bits
@@ -11,14 +11,6 @@
 
 bit[] = < {} 0, {} 1 >;
 bits[] = < {} _, B 0, B 1 > = B;
-
-bit? = ? bit[];
-bits? = ? bits[];
-
-_ = {}|_;
-
-0 = _ |0;
-1 = _ |1;
 
 ---------------------------------------------------------------
 -- §2. Unicode and String
@@ -83,8 +75,6 @@ unicode[] = <
 -- Linked-list string: nil or (unicode car, string cdr).
 string[] = < {} nil, { unicode[] car, S cdr } cons > = S;
 
-string? = ? string[];
-
 ---------------------------------------------------------------
 -- §3. Pattern
 ---------------------------------------------------------------
@@ -112,6 +102,6 @@ node[] = <
 
 pattern[] = < {} nil, { node[] car, P cdr } cons > = P;
 
-pattern? = ? pattern[];
+---
 
-pattern?
+? pattern[]
