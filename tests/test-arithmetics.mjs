@@ -1,245 +1,55 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { withCompiledLibrary, runLibrary, integer, succeeds } from "./helpers/cli.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const node = process.execPath;
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-arithmetics-"));
-const libPath = path.join(tmpDir, "arithmetics.klib");
-const program = "{inc x, () y} o";
+const large = "11111112222223333334444444555555666666777777788888899999900000011111122222233333344444455555";
 
-const smallInput = "11111112222223333334444444555555666666777777788888899999900000011111122222233333344444455555";
-
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: root,
-    input: options.input,
-    encoding: options.encoding ?? null,
-    maxBuffer: 64 * 1024 * 1024
-  });
-  if (result.error && result.status == null) throw result.error;
-  return result;
-}
-
-function assertOk(result, label) {
-  if (result.status !== 0) {
-    const stderr = Buffer.isBuffer(result.stderr) ? result.stderr.toString("utf8") : String(result.stderr ?? "");
-    const stdout = Buffer.isBuffer(result.stdout) ? result.stdout.toString("utf8") : String(result.stdout ?? "");
-    assert.fail(`${label} failed with status ${result.status}\nSTDERR:\n${stderr}\nSTDOUT:\n${stdout}`);
-  }
-}
-
-function parseIntWire(text) {
-  const result = run(node, ["codecs/int.mjs", "--parse"], {
-    input: `${text}\n`
-  });
-  assertOk(result, `parse int ${text}`);
-  return result.stdout;
-}
-
-function printIntWire(wire, label) {
-  const result = run(node, ["codecs/int.mjs", "--print"], {
-    input: wire,
-    encoding: "utf8"
-  });
-  assertOk(result, `${label} print`);
-  return result.stdout.trim();
-}
-
-function runnerArgs(operation) {
-  return [
-    "--lib", libPath,
-    "--export", `${operation}:o`,
-    "--export", "inc",
-    program
-  ];
-}
-
-function runNative(operation, inputText) {
-  const wire = parseIntWire(inputText);
-  const result = run(node, ["k.mjs", ...runnerArgs(operation)], {
-    input: wire
-  });
-  assertOk(result, `native ${operation}(${inputText})`);
-  return printIntWire(result.stdout, `native ${operation}`);
-}
-
-function expected(operation, inputText) {
-  const n = BigInt(inputText);
-  if (operation === "plus") return (n + n + 1n).toString();
-  if (operation === "minus") return "1";
-  if (operation === "times") return (n * (n + 1n)).toString();
-  throw new Error(`Unknown operation: ${operation}`);
-}
-
-try {
-  assertOk(
-    run(node, ["objects/compile.mjs", "Examples/arithmetics.k", libPath], { encoding: "utf8" }),
-    "compile Examples/arithmetics.k"
-  );
-
-  for (const operation of ["plus", "minus", "times"]) {
-    assert.equal(
-      runNative(operation, smallInput),
-      expected(operation, smallInput),
-      `native ${operation} should match BigInt oracle`
-    );
+withCompiledLibrary("Examples/arithmetics.k", (library) => {
+  const run = (aliases, source, input) => runLibrary(library, aliases, source, input);
+  const n = BigInt(large);
+  for (const [op, expected] of [
+    ["plus", n + n + 1n], ["minus", 1n], ["times", n * (n + 1n)]
+  ]) {
+    assert.equal(integer(run([`${op}:o`, "inc"], "{inc x, () y} o", large), op),
+      String(expected), op);
   }
 
-  // Regression tests for inc/dec normalization and div
-  const resDec = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "dec:dec",
-    "--export", "zero_int?:zero_int?",
-    "dec dec zero_int?"
-  ], { input: parseIntWire("2") });
-  assertOk(resDec, "2 int dec dec zero_int? should succeed");
-
-  const divTestCases = [
-    { x: "0", yAlias: "7", yVal: 7n },
-    { x: "3", yAlias: "7", yVal: 7n },
-    { x: "4", yAlias: "1", yVal: 1n },
-    { x: "10", yAlias: "2", yVal: 2n },
-    { x: "12", yAlias: "3", yVal: 3n },
-    { x: "11", yAlias: "3", yVal: 3n },
-    { x: "12", yAlias: "12", yVal: 12n },
-    { x: "100", yAlias: "7", yVal: 7n },
-    { x: "-100", yAlias: "7", yVal: 7n },
-    { x: "1000", yAlias: "10", yVal: 10n }
-  ];
-
-  for (const { x, yAlias, yVal } of divTestCases) {
-    const xBig = BigInt(x);
-    const expectedDiv = (xBig / yVal).toString();
-    const xAbs = xBig < 0n ? -xBig : xBig;
-    const yAbs = yVal < 0n ? -yVal : yVal;
-    const expectedRem = (xAbs % yAbs).toString();
-
-    const wire = parseIntWire(x);
-
-    const resDiv = run(node, [
-      "k.mjs",
-      "--lib", libPath,
-      "--export", "div:div",
-      "--export", "int:int",
-      "--export", `${yAlias}:divisor`,
-      "{() x, divisor int y} div .div"
-    ], { input: wire });
-    assertOk(resDiv, `native div(${x}, ${yAlias}) quotient`);
-    const divOut = printIntWire(resDiv.stdout, `div quotient`);
-    assert.equal(divOut, expectedDiv, `div(${x}, ${yAlias}) quotient should match BigInt oracle`);
-
-    const resRem = run(node, [
-      "k.mjs",
-      "--lib", libPath,
-      "--export", "div:div",
-      "--export", "int:int",
-      "--export", `${yAlias}:divisor`,
-      "{() x, divisor int y} div .rem int"
-    ], { input: wire });
-    assertOk(resRem, `native div(${x}, ${yAlias}) remainder`);
-    const remOut = printIntWire(resRem.stdout, `div remainder`);
-    assert.equal(remOut, expectedRem, `div(${x}, ${yAlias}) remainder should match BigInt oracle`);
+  succeeds(run(["dec", "zero_int?"], "dec dec zero_int?", "2"),
+    "decrement normalization");
+  for (const [x, divisor] of [
+    ["0", "7"], ["3", "7"], ["4", "1"], ["10", "2"], ["12", "3"],
+    ["11", "3"], ["12", "12"], ["100", "7"], ["-100", "7"], ["1000", "10"]
+  ]) {
+    const a = BigInt(x), b = BigInt(divisor);
+    const aliases = ["div", "int", `${divisor}:divisor`];
+    for (const [projection, expected] of [
+      [".div", a / b], [".rem int", (a < 0n ? -a : a) % b]
+    ]) {
+      const source = `{() x, divisor int y} div ${projection}`;
+      assert.equal(integer(run(aliases, source, x), source), String(expected),
+        `div(${x}, ${divisor}) ${projection}`);
+    }
   }
 
-  // Regression tests for EQ
-  const dummyWire = parseIntWire("0");
-  const resEqTrue = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "EQ:EQ",
-    "--export", "int:int",
-    "--export", "2:two",
-    "{two x, two y} EQ .x int"
-  ], { input: dummyWire });
-  assertOk(resEqTrue, "{2, 2} EQ should succeed");
+  for (const [aliases, source] of [
+    [["EQ", "int", "2:two"], "{two x, two y} EQ .x int"],
+    [["pos?", "int", "2:two"], "two int pos?"]
+  ]) succeeds(run(aliases, source), source);
 
-  const resEqFalse = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "EQ:EQ",
-    "--export", "int:int",
-    "--export", "2:two",
-    "--export", "3:three",
-    "{two x, three y} EQ .x int"
-  ], { input: dummyWire });
-  assert.notEqual(resEqFalse.status, 0, "{2, 3} EQ should fail");
+  for (const [aliases, source] of [
+    [["EQ", "int", "2:two", "3:three"], "{two x, three y} EQ .x int"],
+    [["pos?", "int", "0:zero"], "zero int pos?"]
+  ]) {
+    const result = run(aliases, source);
+    assert.notEqual(result.status, 0, source);
+    assert.match(result.stderr.toString(), /undefined/, source);
+  }
 
-  // Regression tests for pos?
-  const resPosTrue = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "pos?:pos?",
-    "--export", "int:int",
-    "--export", "2:two",
-    "two int pos?"
-  ], { input: dummyWire });
-  assertOk(resPosTrue, "2 int pos? should succeed");
+  for (const [aliases, source, expected] of [
+    [["mod", "int", "10:ten", "3:three"], "{ten x, three y} mod int", "1"],
+    [["gcd", "int", "12:twelve", "8:eight"], "{twelve x, eight y} gcd int", "4"],
+    [["gcd", "int", "4:four", "_:zero_b"], "{four x, zero_b y} gcd int", "4"],
+    [["lcm", "int", "4:four", "6:six"], "{four x, six y} lcm int", "12"]
+  ]) assert.equal(integer(run(aliases, source), source), expected, source);
+});
 
-  const resPosZero = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "pos?:pos?",
-    "--export", "int:int",
-    "--export", "0:zero",
-    "zero int pos?"
-  ], { input: dummyWire });
-  assert.notEqual(resPosZero.status, 0, "0 int pos? should fail");
-
-  // Regression tests for mod, gcd, lcm
-  const resMod = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "mod:mod",
-    "--export", "int:int",
-    "--export", "10:ten",
-    "--export", "3:three",
-    "{ten x, three y} mod int"
-  ], { input: dummyWire });
-  assertOk(resMod, "10 % 3 mod");
-  assert.equal(printIntWire(resMod.stdout, "mod"), "1");
-
-  const resGcd = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "gcd:gcd",
-    "--export", "int:int",
-    "--export", "12:twelve",
-    "--export", "8:eight",
-    "{twelve x, eight y} gcd int"
-  ], { input: dummyWire });
-  assertOk(resGcd, "gcd(12, 8)");
-  assert.equal(printIntWire(resGcd.stdout, "gcd"), "4");
-
-  const resGcdZero = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "gcd:gcd",
-    "--export", "int:int",
-    "--export", "4:four",
-    "--export", "_:zero_b",
-    "{four x, zero_b y} gcd int"
-  ], { input: dummyWire });
-  assertOk(resGcdZero, "gcd(4, _)");
-  assert.equal(printIntWire(resGcdZero.stdout, "gcd _"), "4");
-
-  const resLcm = run(node, [
-    "k.mjs",
-    "--lib", libPath,
-    "--export", "lcm:lcm",
-    "--export", "int:int",
-    "--export", "4:four",
-    "--export", "6:six",
-    "{four x, six y} lcm int"
-  ], { input: dummyWire });
-  assertOk(resLcm, "lcm(4, 6)");
-  assert.equal(printIntWire(resLcm.stdout, "lcm"), "12");
-
-  console.log("OK");
-} finally {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-}
+console.log("arithmetic CLI and BigInt oracles: ok");

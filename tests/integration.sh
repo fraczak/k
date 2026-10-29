@@ -70,12 +70,12 @@ echo '-21' | node ./codecs/int.mjs --parse | node ./codecs/int.mjs --print | gre
 echo
 node ./codecs/unit.mjs --parse | node ./codecs/unit.mjs --print | grep -qx '{}'
 echo 
-if ./k.mjs -k Examples/byte.k > "$TMP_DIR/dash-k.out" 2> "$TMP_DIR/dash-k.err"; then
+if ./k.mjs -k Examples/nat.k > "$TMP_DIR/dash-k.out" 2> "$TMP_DIR/dash-k.err"; then
   echo "expected -k to fail" >&2
   exit 1
 fi
 grep -q -- '-k is no longer supported' "$TMP_DIR/dash-k.err"
-if ./kvm.mjs -k Examples/byte.k > "$TMP_DIR/dash-k-kvm.out" 2> "$TMP_DIR/dash-k-kvm.err"; then
+if ./kvm.mjs -k Examples/nat.k > "$TMP_DIR/dash-k-kvm.out" 2> "$TMP_DIR/dash-k-kvm.err"; then
   echo "expected k-vm -k to fail" >&2
   exit 1
 fi

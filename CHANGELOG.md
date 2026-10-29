@@ -5,6 +5,22 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.5.0] — 2026-10-28 — Documentation and Test Cleanup
+
+- Replace the obsolete book, duplicated paper rendering, design plans, and
+  completed work logs with a shorter documentation index, walkthrough, and
+  current language/tool references. Preserve the published paper source and PDF.
+- Consolidate repetitive test fixtures and derivation cases, replace print-only
+  checks with assertions, and include the paper examples in the main suite.
+  Paper tests now read examples from the LaTeX source.
+- Reuse compiled dynamic JSON library definitions and shared arithmetic CLI
+  setup while retaining numerical oracles and structural regression checks.
+- Correct benchmark defaults and remove the obsolete standalone Wasm demo.
+- Exclude generated browser VFS data and agent instructions from npm packages,
+  declare the Node.js runtime minimum, and include the declared ISC license.
+- Add package installation smoke checks, release CI, and a pre-publication test
+  gate. Parser generation now stops if either grammar fails.
+
 ## [8.4.1] — 2026-10-23 — Strict Pattern Validation & Autohook Removal
 
 ### Strict Pattern Template Validation & Variable Distinction

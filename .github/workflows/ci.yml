@@ -1,0 +1,39 @@
+name: Release checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install and generate parsers
+        run: npm install
+      - name: Main suite and browser build
+        run: npm test
+      - name: Backend suites
+        run: npm run test:backends
+      - name: Editor tests
+        run: npm --prefix k-vscode test
+      - name: Pack release
+        run: npm pack --pack-destination "$RUNNER_TEMP"
+      - name: Install production package and smoke test
+        run: |
+          version=$(node -p "require('./package.json').version")
+          mkdir "$RUNNER_TEMP/k-package"
+          npm install --prefix "$RUNNER_TEMP/k-package" --omit=dev "$RUNNER_TEMP/fraczak-k-$version.tgz"
+          npm run test:package -- "$RUNNER_TEMP/k-package/node_modules/@fraczak/k"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Check runtime compatibility on Node 18
+        run: node scripts/test-package.mjs "$RUNNER_TEMP/k-package/node_modules/@fraczak/k"

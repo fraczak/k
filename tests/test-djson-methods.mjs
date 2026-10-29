@@ -1,292 +1,81 @@
-// tests/test-djson-methods.mjs
-// Test suite for standard dynamic JSON methods working on json? type.
-
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import k from "../index.mjs";
 import { Value } from "../Value.mjs";
-import {
-  fromJsonValue,
-  toJsonValue
-} from "../codecs/djson.mjs";
-import {
-  textToStringValue,
-  stringValueToText
-} from "../codecs/runtime/unicode-string.mjs";
+import { compileLibrary, loadLibrary } from "../object.mjs";
+import { fromJsonValue, toJsonValue } from "../codecs/djson.mjs";
+import { textToStringValue, stringValueToText } from "../codecs/runtime/unicode-string.mjs";
+import { parse as parseInt } from "../codecs/int.mjs";
 
-const root = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  ".."
-);
-const libPath = path.join(root, "Examples", "djson.k");
-const djsonK = readFileSync(libPath, "utf8");
+const source = readFileSync(new URL("../Examples/djson.k", import.meta.url), "utf8");
+const library = loadLibrary(compileLibrary(source));
+const run = (op, value) => k.compile(library.relAlias[op], { libraries: [library] })(value);
 
-function compileOp(op) {
-  return k.compile(`${djsonK}\n${op}\n`);
+function method(op, json, { key, index, val } = {}) {
+  const fields = { json: fromJsonValue(json) };
+  if (key !== undefined) fields.key = textToStringValue(key);
+  if (index !== undefined) fields.index = parseInt(String(index)).value;
+  if (val !== undefined) fields.val = fromJsonValue(val);
+  return run(op, Value.product(fields));
 }
+const result = (...args) => toJsonValue(method(...args));
 
-function makeIndex(n) {
-  if (n === 0) {
-    return Value.variant(
-      "0",
-      Value.variant("_", Value.product({}))
-    );
-  }
-  const s = n.toString(2);
-  let v = Value.variant("_", Value.product({}));
-  for (let i = s.length - 1; i >= 0; i--) {
-    v = Value.variant(s[i], v);
-  }
-  return v;
+// Object access, missing keys, updates and preservation.
+const doc = { name: "Alice", age: 30, tags: ["developer", "k"] };
+for (const key of ["name", "age"]) {
+  assert.equal(result("get", doc, { key }), doc[key], key);
 }
+assert.ok(method("has?", doc, { key: "name" }));
+assert.equal(method("has?", doc, { key: "missing" }), undefined);
+const withCity = result("set", doc, { key: "city", val: "Paris" });
+assert.deepEqual(withCity, { ...doc, city: "Paris" });
+const withoutAge = result("del", withCity, { key: "age" });
+assert.deepEqual(withoutAge, { name: "Alice", tags: doc.tags, city: "Paris" });
 
-console.log("==> Running Dynamic JSON (json?) Methods Test Suite");
-
-// Test 1: Object Accessors (get, has?, set, del)
-console.log("--> Test 1: Object Accessors (get, has?, set, del)");
-{
-  const fnGet = compileOp("get");
-  const fnHas = compileOp("has?");
-  const fnSet = compileOp("set");
-  const fnDel = compileOp("del");
-
-  const doc = {
-    name: "Alice",
-    age: 30,
-    tags: ["developer", "k"]
-  };
-  const kDoc = fromJsonValue(doc);
-
-  // get "name"
-  console.log('name');
-  const resName = fnGet(Value.product({
-    key: textToStringValue("name"),
-    json: kDoc
-  }));
-  assert.equal(toJsonValue(resName), "Alice");
-
-  console.log('age');
-
-  // get "age"
-  const resAge = fnGet(Value.product({
-    key: textToStringValue("age"),
-    json: kDoc
-  }));
-  assert.equal(toJsonValue(resAge), 30);
-
-  console.log('tags');
-  // has? hit
-  const hit = fnHas(Value.product({
-    key: textToStringValue("name"),
-    json: kDoc
-  }));
-  assert.ok(hit);
-
-  console.log('has? miss');
-  // has? miss
-  const miss = fnHas(Value.product({
-    key: textToStringValue("missing"),
-    json: kDoc
-  }));
-  assert.equal(miss, undefined);
-
-  console.log('set "city" = "Paris"');
-  // set "city" = "Paris"
-  const withCity = fnSet(Value.product({
-    key: textToStringValue("city"),
-    val: fromJsonValue("Paris"),
-    json: kDoc
-  }));
-  assert.equal(toJsonValue(withCity).city, "Paris");
-  assert.equal(toJsonValue(withCity).name, "Alice");
-
-  console.log('set "age" = 31');
-  // del "age"
-  const withoutAge = fnDel(Value.product({
-    key: textToStringValue("age"),
-    json: withCity
-  }));
-  assert.equal(toJsonValue(withoutAge).age, undefined);
-  assert.equal(toJsonValue(withoutAge).city, "Paris");
-
-  console.log("    Passed: Object get, has?, set, del on json?.");
+// Array lookup and sparse index membership after deletion.
+const list = [10, 20, 30];
+for (const [index, expected] of list.entries()) {
+  assert.equal(result("nth", list, { index }), expected, `index ${index}`);
 }
+assert.ok(method("has_index?", list, { index: 1 }));
+assert.equal(method("has_index?", list, { index: 99 }), undefined);
+const updated = method("set_nth", list, { index: 1, val: 99 });
+assert.deepEqual(toJsonValue(updated), [10, 99, 30]);
+const deleted = run("del_nth", Value.product({
+  json: updated, index: parseInt("1").value
+}));
+assert.deepEqual(toJsonValue(deleted), [10, 30]);
+assert.equal(run("has_index?", Value.product({
+  json: deleted, index: parseInt("1").value
+})), undefined);
+assert.deepEqual(result("push", list, { val: 40 }), [10, 20, 30, 40]);
 
-// Test 2: List Accessors (nth, has_index?, set_nth, del_nth, push)
-console.log("--> Test 2: List Accessors (nth, set_nth, del_nth, push)");
-{
-  const fnNth = compileOp("nth");
-  const fnHasIdx = compileOp("has_index?");
-  const fnSetNth = compileOp("set_nth");
-  const fnDelNth = compileOp("del_nth");
-  const fnPush = compileOp("push");
-
-  const list = [10, 20, 30];
-  const kList = fromJsonValue(list);
-
-  // nth 0, 1, 2
-  assert.equal(
-    toJsonValue(fnNth(Value.product({
-      index: makeIndex(0),
-      json: kList
-    }))),
-    10
-  );
-  assert.equal(
-    toJsonValue(fnNth(Value.product({
-      index: makeIndex(1),
-      json: kList
-    }))),
-    20
-  );
-  assert.equal(
-    toJsonValue(fnNth(Value.product({
-      index: makeIndex(2),
-      json: kList
-    }))),
-    30
-  );
-
-  // has_index? hit and miss
-  assert.ok(fnHasIdx(Value.product({
-    index: makeIndex(1),
-    json: kList
-  })));
-  assert.equal(
-    fnHasIdx(Value.product({
-      index: makeIndex(99),
-      json: kList
-    })),
-    undefined
-  );
-
-  // set_nth 1 -> 99
-  const updatedList = fnSetNth(Value.product({
-    index: makeIndex(1),
-    val: fromJsonValue(99),
-    json: kList
-  }));
-  assert.deepEqual(toJsonValue(updatedList), [10, 99, 30]);
-
-  // del_nth 1
-  const delList = fnDelNth(Value.product({
-    index: makeIndex(1),
-    json: updatedList
-  }));
-  assert.deepEqual(toJsonValue(delList), [10, 30]);
-  assert.equal(
-    fnHasIdx(Value.product({
-      index: makeIndex(1),
-      json: delList
-    })),
-    undefined
-  );
-
-  // push 40
-  const pushed = fnPush(Value.product({
-    val: fromJsonValue(40),
-    json: kList
-  }));
-  assert.deepEqual(toJsonValue(pushed), [10, 20, 30, 40]);
-
-  console.log("    Passed: List nth, set_nth, del_nth, push on json?.");
+// Ordered keys/values, including the raw cons-list boundary.
+const record = fromJsonValue({ b: 2, a: 1, c: 3 });
+assert.deepEqual(toJsonValue(run("keys", record)), ["a", "b", "c"]);
+const keys = [];
+let cursor = run("keys_raw", record);
+while (cursor.tag === "cons") {
+  keys.push(stringValueToText(cursor.value.product.car));
+  cursor = cursor.value.product.cdr;
 }
+assert.equal(cursor.tag, "nil");
+assert.deepEqual(keys, ["a", "b", "c"]);
+assert.deepEqual(toJsonValue(run("values", record)), [1, 2, 3]);
+assert.deepEqual(toJsonValue(run("values", fromJsonValue([100, 200]))), [100, 200]);
 
-// Test 3: Keys and Values (keys, keys_raw, values, values_raw)
-console.log("--> Test 3: Keys and Values (keys, values)");
-{
-  const fnKeys = compileOp("keys");
-  const fnKeysRaw = compileOp("keys_raw");
-  const fnValues = compileOp("values");
-  const fnValuesRaw = compileOp("values_raw");
+for (const [value, expected] of [
+  [{ x: 1, y: 2, z: 3, w: 4 }, 4], [["a", "b", "c"], 3], ["hello", 5]
+]) assert.equal(toJsonValue(run("length", fromJsonValue(value))), expected);
 
-  const doc = { b: 2, a: 1, c: 3 };
-  const kDoc = fromJsonValue(doc);
-
-  // keys (json? list of string)
-  const resKeys = fnKeys(kDoc);
-  assert.deepEqual(toJsonValue(resKeys), ["a", "b", "c"]);
-
-  // keys_raw (raw K cons-list of strings)
-  const resKeysRaw = fnKeysRaw(kDoc);
-  const rawKeyStrings = [];
-  let curr = resKeysRaw;
-  while (curr && curr.type === "<>" && curr.tag === "cons") {
-    rawKeyStrings.push(stringValueToText(curr.value.product.car));
-    curr = curr.value.product.cdr;
-  }
-  assert.deepEqual(rawKeyStrings, ["a", "b", "c"]);
-
-  // values on object (json? list of values)
-  const resValues = fnValues(kDoc);
-  assert.deepEqual(toJsonValue(resValues), [1, 2, 3]);
-
-  // values on list (json? identity)
-  const listJson = fromJsonValue([100, 200]);
-  assert.deepEqual(toJsonValue(fnValues(listJson)), [100, 200]);
-
-  console.log("    Passed: Keys and values extraction on json?.");
+for (const [type, value] of [
+  ["object", { a: 1 }], ["list", [1, 2]], ["string", "hi"],
+  ["number", 3.14], ["bool", true], ["null", null]
+]) {
+  const input = fromJsonValue(value);
+  assert.equal(run("type_of", input).tag, type);
+  assert.ok(run(`is_${type}?`, input), type);
 }
-
-// Test 4: Cardinality and Length (length, length_nat)
-console.log("--> Test 4: Cardinality and Length (length, length_nat)");
-{
-  const fnLength = compileOp("length");
-
-  const kObj = fromJsonValue({ x: 1, y: 2, z: 3, w: 4 });
-  const kArr = fromJsonValue(["a", "b", "c"]);
-  const kStr = fromJsonValue("hello");
-
-  // length returns json? number (float64)
-  assert.equal(toJsonValue(fnLength(kObj)), 4);
-  assert.equal(toJsonValue(fnLength(kArr)), 3);
-  assert.equal(toJsonValue(fnLength(kStr)), 5);
-
-  console.log(
-    "    Passed: Length queries on json? object, list, string."
-  );
-}
-
-// Test 5: Type Predicates and type_of
-console.log("--> Test 5: Type Predicates and type_of");
-{
-  const fnTypeOf = compileOp("type_of");
-  const fnIsObj = compileOp("is_object?");
-  const fnIsList = compileOp("is_list?");
-  const fnIsStr = compileOp("is_string?");
-  const fnIsNum = compileOp("is_number?");
-  const fnIsBool = compileOp("is_bool?");
-  const fnIsNull = compileOp("is_null?");
-
-  const kObj = fromJsonValue({ a: 1 });
-  const kArr = fromJsonValue([1, 2]);
-  const kStr = fromJsonValue("hi");
-  const kNum = fromJsonValue(3.14);
-  const kBool = fromJsonValue(true);
-  const kNull = fromJsonValue(null);
-
-  assert.equal(fnTypeOf(kObj).tag, "object");
-  assert.equal(fnTypeOf(kArr).tag, "list");
-  assert.equal(fnTypeOf(kStr).tag, "string");
-  assert.equal(fnTypeOf(kNum).tag, "number");
-  assert.equal(fnTypeOf(kBool).tag, "bool");
-  assert.equal(fnTypeOf(kNull).tag, "null");
-
-  assert.ok(fnIsObj(kObj));
-  assert.equal(fnIsObj(kArr), undefined);
-
-  assert.ok(fnIsList(kArr));
-  assert.equal(fnIsList(kObj), undefined);
-
-  assert.ok(fnIsStr(kStr));
-  assert.ok(fnIsNum(kNum));
-  assert.ok(fnIsBool(kBool));
-  assert.ok(fnIsNull(kNull));
-
-  console.log("    Passed: Type predicates and type_of inspection.");
-}
-
-console.log("==> All Dynamic JSON Methods Tests Passed Successfully!");
+assert.equal(run("is_object?", fromJsonValue([1, 2])), undefined);
+assert.equal(run("is_list?", fromJsonValue({ a: 1 })), undefined);
+console.log("dynamic JSON methods: ok");

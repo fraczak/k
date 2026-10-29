@@ -1,270 +1,131 @@
-# Type Derivation Algorithm
+# Contract derivation
 
-## 1. Overview
+The compiler derives an input/output pattern graph for each relation.
+The graph constrains schemas accepted and produced by an expression; shared
+nodes express equality of schema constraints across positions.
 
-This algorithm infers type constraints for programs consisting of
-mutually recursive partial functions over algebraic data types
-(products and unions).
+A contract does not prove execution termination or that a shared-schema output
+is the same payload as an input.
 
-**Input:** AST of a `k` program, consisting of function definitions
-(expressions), which can be seen as a set of recursive equations.
-**Output:** Annotated AST with type patterns (also called filters).
+## Pattern representation
 
-All types and relations are canonically identified by immutable
-content-addressed hashes (`@hash`). Human-readable names are local
-aliases.
+During derivation, `TypePatternGraph` uses representative nodes and labeled
+edges. Patterns can be unconstrained, open/closed products, open/closed unions,
+or references to canonical closed schemas.
 
-## 2. Patterns
+`find` resolves representatives; `unify` combines compatible constraints;
+`clone` imports a callee's input/output graph together, retaining sharing;
+`compact` reduces the graph and registers fully determined schemas.
 
-A **pattern** represents a set of types:
+Unification refines constraints:
 
-| Notation | Meaning | Fields |
-|----------|---------|--------|
-| `(...)` | Open unknown | Any |
-| `{...}` | Open product | At least specified |
-| `<...>` | Open union | At least specified |
-| `{}` | Closed product | Exactly specified |
-| `<>` | Closed union | Exactly specified |
-| `T` | Named type | From type definition |
+- two open structures combine their required labels;
+- an open structure can unify with a closed one only when its requirements
+  fit the closed structure;
+- closed structures must agree on their fields/tags and child constraints;
+- product and union kinds are incompatible;
+- a free variable can be constrained to a compatible structure.
 
-**Fields:** Each pattern has associated field labels. For open patterns,
-additional fields may exist. For closed patterns, the field set is exact.
-Unknown-kind patterns have only the open form `(...)`; a closed filter
-must choose product `{...}`/`{}` or union `<...>`/`<>`.
+Schema variables and recursive knots must retain their shared-node meaning.
+Canonicalizing a closed schema and linearizing a named-pattern skeleton have
+different purposes; see [patterns](PATTERNS.md).
 
-A type pattern is a singleton pattern, i.e., only one type is captured
-by such a pattern.
+## Local constraints
 
-## 3. Pattern Graph - A Data Structure Used During Type Derivation
+For expression `e`, write `in(e)` and `out(e)` for its pattern roots.
 
-**Nodes:** Patterns organized in a "reps" (representatives) forest,
-similar to union-find. However, a union of two (or more) different trees
-always produces a new "rep" (root) node, joining the trees.
-**Edges:** Labeled by field names, pointing to other patterns.
-**Representatives:** Root nodes (called reps) represent equivalence
-classes.
+| Expression | Constraints |
+| --- | --- |
+| `()` | Input and output are the same node |
+| `{}` | Output is unit; input is unconstrained |
+| `(f g)` | `out(f)` unifies with `in(g)` |
+| `{f a, g b}` | Both branches share the input; output is a product of branch outputs |
+| `\|tag` | Output union has `tag` leading to the input |
+| `.field` | Input product requires `field` leading to the output |
+| `/tag` | Input union requires `tag` leading to the output |
+| `<f, g>` | Branch input constraints unify, as do branch output constraints |
+| `?P` | Input and output unify with `P` |
+| Relation reference | Clone the callee boundary graph and unify with the reference boundaries |
 
-**Operations:**
+An empty union is undefined. Ordered choice retains its source order at runtime;
+contract unification does not change that ordering.
 
-- `find(p)` - get representative of pattern `p`
-- `unify(p₁, ..., pₙ)` - merge patterns into equivalence class,
-  potentially adding a new rep (root); the rep gathers all edges of
-  their children
-- `clone(p₁, ..., pₙ)` - generate a copy of the pattern graph connected
-  to the patterns
-- `compact()` - discovers all singleton patterns and replaces them by
-  named canonical types
+## Dependency groups and convergence
 
-## 4. Unification
+`compiler.mjs` initializes constraints and builds a graph of relation references.
+It processes strongly connected components (SCCs) in dependency order.
 
-`unify(p₁, ..., pₙ)` computes the least upper bound (most specific
-common pattern); it may add a new node (rep) into the reps forest, but
-it does not modify any existing pattern node.
+- An acyclic singleton uses `single_pass`: import already derived callee
+  boundaries and compact once.
+- A recursive component uses `fixed_point`: clone/unify callee boundaries,
+  compact, and compare signatures until they stabilize or the budget is exhausted.
 
-**Rules:**
+The default fixed-point budget is `2 + SCC size`. A relation that does not
+converge can retain a `not-converged` status and produce a warning; optimized
+execution paths have their own eligibility checks.
 
-- **Open + Open:** Merge field sets, stay open
-- **Open + Closed:** Check field inclusion, then become closed
-- **Closed + Closed:** Check field equality, then stay closed
-- **Product ⊥ Union:** Error (incompatible)
-- **Type T:** Unique (canonical `@hash` name)
+A recursive structural witness can make derivation converge:
 
-**Algorithm:**
-
-```text
-1. Find representatives of all patterns
-2. If the set of reps is a singleton, return it as the result
-3. Compute merged pattern descriptor
-4. Create new representative node
-5. Migrate edges from old representatives
-6. Recursively unify edge destinations for each field name
+```k
+peel = ?X < /+1 ?X peel, /0 |0 >;
+peel
 ```
 
-## 5. Local Typing Rules
+The repeated `X` connects the input to the recursively processed payload.
+Without that connection the engine can keep expanding an open union chain.
 
-For each expression type, define input/output pattern constraints:
+Convergence is a property of these constraints. For example, derivation can
+converge for a self-calling relation even though execution never returns.
 
-### Composition `(e₁ e₂ ... eₙ)`
+## API options and statistics
 
-```text
-in((e₁ e₂ ... eₙ)) = in(e₁)
-out(eᵢ) = in(eᵢ₊₁)  for i = 1..n-1
-out((e₁ e₂ ... eₙ)) = out(eₙ)
+`annotate`, `compile`, and `run` from `index.mjs` accept:
+
+```js
+{
+  convergence: {
+    strategy: "auto", // "auto", "single_pass", or "fixed_point"
+    maxIterations: 20
+  }
+}
 ```
 
-When `n=0`, the composition is the identity, `()`.
+`auto` selects the strategy by SCC shape. Explicit `single_pass` is intended
+for acyclic relations and rejects multi-member components. `annotate` exposes
+statistics:
 
-```text
-in(()) = out(())
+```js
+import { annotate } from "@fraczak/k";
+
+const result = annotate("f = .x; f");
+console.log(result.compileStats.sccCount);
+console.log(result.compileStats.sccs);
 ```
 
-### Product `{e₁ l₁, ..., eₙ lₙ}`
+Each SCC entry records its members, selected strategy, iteration count, and
+whether it converged.
 
-```text
-in(e₁) = ... = in(eₙ) = in({e₁ l₁, ..., eₙ lₙ})
-out({e₁ l₁, ..., eₙ lₙ}) = {} with edges lᵢ → out(eᵢ)
-```
+## Stored and specialized contracts
 
-### Variant constructor `|l`
+Objects store derivation status on each relation as
+`typeDerivation: { status }`. Loading uses the stored graphs rather than
+rederiving source contracts.
 
-```text
-out(|l) = <...> with edge l → in(|l)
-```
+KIR-P envelope specialization can deliberately run derivation again under an
+input constraint. kVM specialization instead uses the lowered template and
+principal patterns. See [architecture](ARCHITECTURE.md) and
+[KIR-P](KIR_V1.md).
 
-### Union `<e₁, ..., eₙ>`
+## Implementation and verification
 
-```text
-in(e₁) = ... = in(eₙ) = in(<e₁, ..., eₙ>)
-out(e₁) = ... = out(eₙ) = out(<e₁, ..., eₙ>)
-```
+| File | Responsibility |
+| --- | --- |
+| [augmentation.mjs](../augmentation.mjs) | Local expression constraints |
+| [TypePatternGraph.mjs](../TypePatternGraph.mjs), [typing.mjs](../typing.mjs) | Graph operations and unification |
+| [compiler.mjs](../compiler.mjs) | Relation dependencies, SCC processing, and naming |
+| [convergence.mjs](../convergence.mjs) | Strategy choice, fixed points, signatures, and budgets |
+| [codes.mjs](../codes.mjs) | Closed schema normalization |
 
-### Projection
-
-#### Dot `.l`
-
-```text
-in(.l) = {...} with edge l → out(.l)
-```
-
-#### Div `/t`
-
-```text
-in(/t) = <...> with edge t → out(/t)
-```
-
-### Function reference `f`
-
-```text
-in(f) = LOOKUP(in(f))
-out(f) = LOOKUP(out(f))
-```
-
-Once the type derivation for the defining expression for `f` is done, the
-input and output patterns are stored and will be used.
-
-### Filter `? F`
-
-```text
-in(? F) = out(? F) = pattern(F)
-```
-
-A filter expression `? F` describes pattern graphs, acting as an identity filter that constrains inputs and outputs to pattern `F`.
-
-## 6. Global Algorithm
-
-### Phase 1: Initialization
-
-```text
-For each function definition:
-  1. Create empty pattern graph
-  2. Traverse expression AST
-  3. Create [input, output] pattern pair per node of the AST
-  4. Apply local typing rules
-```
-
-### Phase 2: Dependency Analysis
-
-```text
-1. Build dependency graph (function → referenced functions)
-2. Compute strongly connected components (SCCs)
-3. Topologically sort SCCs (bottom-up)
-```
-
-### Phase 3: Fixed-Point Iteration
-
-```text
-For each SCC (in topological order):
-  Repeat until convergence (max 10 iterations):
-    For each function `f` in SCC:
-      1. Compact `f`'s pattern graph
-      2. For each occurrence `o` of `g` in `f`, clone(in(g), out(g))
-         and unify input and output patterns of `o` with the
-         corresponding cloned patterns
-
-    If pattern graphs unchanged: break
-```
-
-## 7. Compaction
-
-**Purpose:** Replace all pattern nodes with their reps and replace all
-singleton patterns with types.
-
-**Algorithm:**
-
-```text
-1. Build a new graph only on reps (keep the mappings from pattern
-   node to its rep)
-2. Identify singleton patterns (closed patterns with no open ancestors)
-3. Register singletons as named types and use them as type pattern nodes
-```
-
-## 8. Convergence
-
-**Criterion:** Pattern graph structure unchanged between iterations
-
-**Measured by:**
-1. Representative forest structure (parent pointers)
-2. Edge sets for each representative
-3. Pattern descriptors for each representative
-
-**Algorithm:**
-```text
-For each function f in SCC:
-  1. Serialize reps forest: {nodeId → parentId}
-  2. Serialize edge structure: {repId → {label → [targetReps]}}
-  3. Serialize pattern info: {repId → {pattern, fields, type}}
-  4. Combine into canonical form
-
-Converged = (current_state == previous_state)
-```
-
-**Guarantee:** Monotonic refinement + iteration bound ensures
-termination.
-
-## 9. Error Handling
-
-**Unification errors include:**
-
-- Product vs Union
-- Closed pattern field mismatch
-- Two distinct type patterns (types with different canonical `@hash`
-  names) are always incompatible
-
-**Other errors:**
-
-- Undefined function reference
-- Iteration limit exceeded
-
-**Error reporting should include:**
-
-- Source location
-- Expression type
-- Conflicting patterns
-- Unification trace
-
-## 10. Implementation Notes
-
-- Use reps forest for performing and tracing unification
-- Compact only at the end of an iteration to keep unification reasons
-  for error messages
-
-## 11. Role in Ahead-Of-Time (AOT) Compilation
-
-This type derivation algorithm forms the core of Ahead-Of-Time (AOT)
-type checking in `k`.
-
-When compiling `.k` source code into an executable object (`.ko`),
-a library (`.klib`), or a polymorphic kVM template (`.kvm`), type
-derivation converges all principal type graphs beforehand. The resulting
-artifacts store fully derived principal pattern graphs, allowing
-downstream execution and linking to bypass cold-start type derivation
-entirely.
-
-## Further Reading
-
-- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) — guide to
-  .k, .ko, .klib, and .kvm formats
-- [DOCS/CONVERGENCE.md](./CONVERGENCE.md) — convergence strategies
-- [DOCS/OBJECT_FILE_AND_PATTERN.md](./OBJECT_FILE_AND_PATTERN.md) —
-  object format and pattern encoding
-- [DOCS/DICTIONARY.md](./DICTIONARY.md) — concept names and terminology
+[tests/code-derivation/](../tests/code-derivation/) covers syntax, convergence
+strategies, recursive constraints, and envelopes. Named-pattern tests cover
+template validation and routing. Run `npm test` from the repository root.

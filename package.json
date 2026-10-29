@@ -1,6 +1,6 @@
 {
     "name": "@fraczak/k",
-    "version": "8.4.1",
+    "version": "8.5.0",
     "description": "k — a language for content-addressable schemas and data transformations over algebraic data types (products and tagged unions); includes runtime, contract derivation, REPL, and codec toolchain",
     "publishConfig": {
         "access": "public"
@@ -11,7 +11,7 @@
         "./*": "./*"
     },
     "scripts": {
-        "prepare": "jiwson -m es6 parser.jison -o parser.mjs; jiwson -m es6 valueParser.jison -o valueParser.mjs; ",
+        "prepare": "jiwson -m es6 parser.jison -o parser.mjs && jiwson -m es6 valueParser.jison -o valueParser.mjs",
         "test": "node scripts/run-tests.mjs",
         "test:backends": "node backends/llvm/scripts/run-tests.mjs && node backends/wasm/scripts/run-tests.mjs",
         "test:llvm": "node backends/llvm/scripts/run-tests.mjs",
@@ -36,7 +36,9 @@
         "perf:idempotency": "node scripts/benchmark-idempotency.mjs",
         "deps:graph": "node scripts/generate-dependency-graph.mjs",
         "compare": "node harness/cli.mjs",
-        "build:repl-html": "node scripts/build-repl-html.mjs"
+        "build:repl-html": "node scripts/build-repl-html.mjs",
+        "prepublishOnly": "npm test",
+        "test:package": "node scripts/test-package.mjs"
     },
     "repository": {
         "type": "git",
@@ -77,5 +79,8 @@
     "devDependencies": {
         "esbuild": "^0.28.2",
         "jiwson": "^0.1.2"
+    },
+    "engines": {
+        "node": ">=18"
     }
 }

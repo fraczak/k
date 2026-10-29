@@ -60,7 +60,7 @@ unions).
 ```bash
 cd k-vscode
 npm install
-npx vsce package --no-dependencies  # produces k-language-0.2.0.vsix
+npx vsce package --no-dependencies  # produces k-language-<version>.vsix
 ```
 
 Then in VS Code: **Extensions → ⋯ → Install from VSIX…** and select the generated file.

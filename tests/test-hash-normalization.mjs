@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { annotate } from "../index.mjs";
 import { hash } from "../hash.mjs";
+import codes, { encodeCodeToString } from "../codes.mjs";
 
 const nameRegex = /^[a-zA-Z0-9_+][a-zA-Z0-9_?!+]*$/;
 
@@ -129,4 +130,24 @@ y
   );
 }
 
-console.log("test-hash-normalization: ok");
+const codeDefs = {
+  bits: { code: "union", union: { "0": "bits", "1": "bits", "_": "{}" } },
+  nat: { code: "union", union: { zero: "{}", succ: "nat" } },
+  pair: { code: "product", product: { x: "nat", y: "nat" } },
+  b: { code: "product", product: { x: "bits", y: "bits" } },
+  tree: { code: "union", union: {
+    binary: "binNode",
+    leaf: "nat",
+    unary: "unNode"
+  } },
+  binNode: { code: "product", product: { value: "nat", left: "tree", right: "tree" } },
+  unNode: { code: "product", product: { value: "nat", tree: "tree" } },
+  "{}": { code: "product", product: {} }
+};
+
+for (const [name, representative] of Object.entries(codes.register(codeDefs))) {
+  assert.equal(hash(encodeCodeToString(representative)), representative,
+    `canonical code fingerprint: ${name}`);
+}
+
+console.log("hash normalization and code fingerprints: ok");

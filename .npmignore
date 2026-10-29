@@ -11,6 +11,8 @@ package-lock.json
 
 # CI/CD and repo configuration
 .github/
+AGENTS.md
+CLAUDE.md
 
 # VS Code extension (packaged and published separately)
 k-vscode/
@@ -29,3 +31,4 @@ k_compiler/
 # Standalone browser builds, benchmark HTML reports, and benchmark raw data
 *.html
 benchmark-results.json
+browser/vfs-data.mjs

@@ -1,104 +1,86 @@
-# Polymorphic K Intermediate Representation (PKIR)
+# Polymorphic IR (PKIR)
 
-## 1. Overview
+PKIR is an experimental execution representation in [pkir.mjs](../pkir.mjs).
+It uses schema states and structural access profiles to navigate values through
+layout witnesses.
 
-PKIR (Polymorphic K Intermediate Representation) is the target execution
-contract for polymorphic `k` relations.
+It is separate from [KIR-P](KIR_V1.md), the portable object export, and from
+[kVM](KVM_EXECUTION_MODEL.md), the register execution representation used by
+the backends.
 
-Unlike the high-level relational AST or traditional bytecode that
-relies on runtime string lookups for field names and variant tags, PKIR
-is a **state-indexed, slot-addressed intermediate representation**.
+## Relation artifact
 
-PKIR operates in two cooperating execution modes:
-1. **Generic Polymorphic Mode**: Instructions execute against a
-   precomputed `AccessTable` (Layout Witness), accessing fields and
-   variants via static slot numbers and array lookups with zero string
-   comparisons.
-2. **Specialized Monomorphic Mode**: Given an `AccessTable`, a fast linear
-   pass (`specializePKIR`) inlines offsets directly into immediate machine
-   instructions, pruning unreachable union branches for peak LLVM/Wasm
-   performance.
-
----
-
-## 2. Core Concepts
-
-### 2.1 The Structural Access Profile
-
-Every PKIR relation is accompanied by an **Access Profile** derived from
-its pattern graph:
-- For every product pattern node $u$: a list of accessed field labels
-  defining dense, zero-based **logical slots**:
-  $$\text{fields}(u) = [ f_0, f_1, \dots, f_{k-1} ]$$
-  where slot $i$ corresponds to field $f_i$.
-- For every union pattern node $u$: a list of matched variant tags
-  defining dense **branch targets**:
-  $$\text{variants}(u) = [ v_0, v_1, \dots, v_{m-1} ]$$
-  where branch $j$ corresponds to variant $v_j$.
-
-### 2.2 Dual-Form Values (`KVal`)
-
-Values in PKIR conform to the hybrid representation:
-- **Serialized (Wire Slice)**: A pointer into an immutable prefix-free
-  bitstream, carrying a bit offset and schema state.
-- **Materialized (Arena Node)**: An allocated record in memory containing
-  word-aligned pointers to child values.
-
----
-
-## 3. Instruction Set
-
-PKIR instructions operate over a register file (`%v0`, `%v1`, ...):
-
-### 3.1 Field & Variant Operations
-
-- **`project_slot dest, src, state, slot`**:
-  Projects field at logical `slot` of pattern `state` from `src`.
-  At runtime with `AccessTable`:
-  ```c
-  dest.ptr = src.ptr + table[src.state].slotToByteOffset[slot];
-  dest.state = table[src.state].slotToChildState[slot];
-  ```
-- **`match_tag src, state, branches`**:
-  Evaluates variant discriminator of `src` against pattern `state`.
-  At runtime with `AccessTable`:
-  ```c
-  branch_idx = table[src.state].branchMap[src.tag];
-  dest.state = table[src.state].childStateMap[src.tag];
-  jump branches[branch_idx];
-  ```
-- **`make_variant dest, src, tag_id`**:
-  Wraps `src` into a tagged union with discriminator `tag_id`.
-- **`make_product dest, [src0, src1, ...]`**:
-  Allocates a product node whose fields are registers `[src0, src1, ...]`.
-
-### 3.2 Memory & Control Operations
-
-- **`promote_spine dest, src`**:
-  If `src` is in serialized wire form, materializes only its immediate
-  outer record in the arena; children remain serialized wire slices.
-  If `src` is already materialized, acts as identity.
-- **`dup dest1, dest2, src`**:
-  Zero-copy duplication of a value handle.
-- **`call_rel dest, rel_name, src`**:
-  Invokes relation `rel_name` with input `src`.
-- **`id dest, src`**:
-  Identity move.
-- **`fail`**:
-  Signals partial function failure (backtracking or branch exit).
-
----
-
-## 4. Execution Pipeline
+`compileRelationToPKIR(relDef, name)` creates:
 
 ```text
-[AOT Phase]
-k source -> AST -> Type Pattern Graph -> PKIR Relation
-
-[Runtime Invocation with (Schema S, Payload V)]
-  1. AccessTable = buildAccessTable(S, PKIR.patternGraph)
-  2. Choose execution tier:
-     - Tier 0 (Interpreter): executePKIR(PKIR, V, AccessTable)
-     - Tier 1 (Specialized AOT/JIT): specializePKIR(PKIR, AccessTable)
-       -> direct emission to LLVM / WebAssembly
+format: "pk-ir"
+version: 1
+name
+inputReg / outputReg
+inputPattern / outputPattern
+patternGraph
+accessProfile
+instructions
 ```
+
+The pattern graph supplies relation constraints; the access profile records
+which fields and variants each state uses. `.pkir` is the JSON artifact
+extension accepted by target tools.
+
+## Access tables and values
+
+`buildAccessTable(schema, pattern)` in
+[access-table.mjs](../access-table.mjs) connects an input schema to the relation's
+pattern graph. Descriptors map structural accesses to physical slots, child
+states, tag identities, and offsets.
+
+The JavaScript adapter `valueToKVal` creates materialized records with
+`repr`, `state`, `tag`, and `words`; product records also retain field names.
+`kvalToValue` converts these records back to `Value`. The execution code also
+has support for serialized representations; use the adapter/codec contracts
+rather than assuming that every PKIR value is a native pointer.
+
+## Current instructions
+
+| Instruction | Role |
+| --- | --- |
+| `id` | Forward a register |
+| `fail` | Partial failure |
+| `project_slot` | Project a product field through schema/layout information |
+| `match_variant` | Extract a matching variant payload |
+| `make_variant` | Construct a tagged value |
+| `product` | Construct fields through nested instruction streams |
+| `union` | Ordered branch selection |
+| `call_rel` | Relation call, including recursion |
+| `project_offset` | Specialized product access with a resolved offset |
+| `match_tag_imm` | Specialized tag match with resolved discriminator information |
+
+Instruction records retain labels/tags where needed for generic adapters.
+Do not assume that generic execution universally eliminates string operations.
+
+## Specialization and target lowering
+
+`specializePKIR(pkir, table)` resolves product accesses to `project_offset`,
+resolves variant matches to `match_tag_imm`, and removes branches whose
+leading operation is known to fail. It returns an artifact with
+`isSpecialized: true`.
+
+`executePKIR` interprets generic or specialized instructions with the required
+access table and relation context. `lowerPKIRToKVM` adapts instructions for
+backend lowering. The shared [backend API](../backend-api.mjs) exports these
+functions plus `compileWasmArtifactFromPKIR` and
+`compileLLVMArtifactFromPKIR`.
+
+The target CLIs accept `.pkir` files or `--pkir` for compiling source through
+this path. See [WebAssembly](../backends/wasm/README.md) and
+[LLVM](../backends/llvm/README.md).
+
+Performance depends on the workload, adapter, and execution target. Use the
+[benchmark guide](PROFILING_AND_TRACING.md) for measurements rather than
+treating historical timings as interface guarantees.
+
+## Verification
+
+`tests/test-access-table.mjs` exercises descriptors and layout mapping.
+`tests/test-pkir.mjs` checks execution, specialization, opaque payloads,
+partial failure, and target integration. Both are registered in `npm test`.

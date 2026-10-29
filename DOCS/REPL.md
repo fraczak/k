@@ -1,425 +1,148 @@
-# k Interpreter
+# REPL
 
-`repl.mjs` is the interactive k interpreter. After linking or installing
-the package, start it with `k-repl`.
+Run `node repl.mjs` from the repository root, or `k-repl` after `npm link`.
+The [walkthrough](GETTING_STARTED.md) introduces language evaluation.
 
-The interpreter keeps a live `.klib`-style state in memory:
+## Input and state
 
-- registered codes
-- compiled relations
-- human aliases for relations
-- metadata origins used to recover aliases
-- the current value flowing through the session
+The current input begins as unit, `{}`. An expression transforms it, and a
+successful result becomes the next input. An undefined result is printed
+without replacing the current input.
 
-Raw k snippets compile on top of that state. You can also export the
-active library closure as a `.klib` file or compile an executable `.ko`
-object from an expression in the session context.
+Relation definitions (`name = expression;`) and named patterns
+(`name[X] = pattern;`) extend session state. Definitions-only input reports
+compilation timing; it does not evaluate a new value.
 
-## Prompt Model
+Input is buffered until a complete program is available. A trailing `\` forces
+continuation. A line ending in `;` followed only by spaces closes the snippet.
 
-There are two kinds of input:
-
-- commands, starting with `:`
-- raw k source
-
-Commands execute immediately, but only when there is no open raw snippet
-in the buffer.
-
-Raw k source is accumulated until the interpreter can decide the snippet
-is complete.
+Evaluated values print in native k notation followed by the carried envelope.
+Loaded codecs add external renderings when they recognize the value. Timing
+shows compilation and execution costs for the selected engine.
 
 ## Commands
 
-| Command | Meaning |
+| Command | Purpose |
 | --- | --- |
-| `:help` | Show command summary |
-| `:engine [wasm\|pkir\|js]` | Display or switch evaluation engine (`wasm`, `pkir`, or `js`) |
-| `:wasm` / `:pkir` / `:js` | Shortcut to switch engine |
-| `:rel name` | Show relation definition |
-| `:rels` | List relation aliases |
-| `:pattern name` | Show canonical definition of pattern (alias: `:pat`) |
-| `:patterns` | List pattern aliases as `alias = @hash` (alias: `:pats`) |
-| `:limit [num\|none]` | Set maximum characters for value output (default: 4096) |
-| `:codec load file` | Load a codec from an ES module file (e.g. `:codec load codecs/int.mjs`) |
-| `:codec unload name` | Unload a registered codec |
-| `:codec list` | List loaded REPL codecs (alias: `:codecs`) |
-| `:input <codec.mjs> [text]` | Read next input line or parse inline text using specified codec |
-| `:load [--no-alias] file` | Load `.k` source or `.klib` into the current state |
-| `:klib file` | Export the active relation closure as a `.klib` library |
-| `:ko file expr` | Export a `.ko` executable with `expr` as main |
-| `:reset` | Reset interpreter state |
-| `:quit` / `:exit` | Exit |
+| `:help` | Show command help |
+| `:rel name` / `:rels` | Inspect a relation / list relation aliases |
+| `:pat name` / `:pats` | Inspect a pattern / list pattern aliases |
+| `:pattern` / `:patterns` | Long forms of the preceding pattern commands |
+| `:load [--no-alias] file` | Load source or a compiled library |
+| `:codec load file` | Register a codec module |
+| `:codec unload name` | Remove a codec |
+| `:codec list` / `:codecs` | List registered codecs |
+| `:input codec.mjs [text]` | Parse inline text, or prompt for the next input line |
+| `:engine [wasm\|pkir\|js]` | Show or select the evaluation engine |
+| `:wasm` / `:pkir` / `:js` | Engine shortcuts |
+| `:limit [number\|none]` | Show or change the output limit (default: 4096 characters) |
+| `:klib file` | Export the current library |
+| `:ko file expression` | Export an executable object |
+| `:reset` | Clear session state |
+| `:quit` / `:exit` | Exit the terminal REPL |
 
-## Raw Snippets
+Regular evaluations include timing; there is no separate timing command.
 
-Raw input is compiled as k source on top of the current state.
-Both relation definitions (`name = expr;`) and named pattern templates
-(`name[...] = filter;`) can be introduced incrementally.
-
-Examples:
-
-```k
-> {} |ok
-```
-
-```k
-> bool[] = < {} true, {} false >;
-> bool? = ? bool[];
-```
-
-```k
-> list[X] = < {} nil, { X car, Y cdr } cons > = Y;
-> ? list[bool[]]
-```
-
-```k
-> not = ? bool[] < /true | false, /false | true >;
-  {} |true not
-```
-
-The interpreter uses these rules, in order:
-
-1. If the line ends with `\` followed only by spaces, keep buffering.
-2. If the line ends with `;` followed only by spaces, that line
-   definitively closes the snippet.
-3. Otherwise, try to parse the buffered snippet:
-   - if it is a complete k program, compile it now
-   - if it is a valid prefix, wait for more input
-   - otherwise report the parse error immediately
-
-After a snippet is accepted:
-
-- if it has a terminal expression, compile it and evaluate it on the
-  current value
-- if it is definitions only, compile it into the current state and print
-  nothing on success
-
-This makes raw snippets useful both for interactive evaluation and for
-growing the live library context.
-
-## State
-
-The interpreter keeps:
-
-- `rels`: canonical compiled relations
-- `relAliases`: human relation names to canonical hashes
-- `patterns`: defined named pattern templates
-- `value`: current value, initially `{}`
-
-Definitions are content-addressed. Rebinding an alias changes the
-name-to-hash mapping, but older canonical definitions remain available
-by hash. They stay available in the live session, but `:klib` omits
-historical relations that are no longer reachable from an active
-relation alias.
-
-## Alias Resolution
-
-Before compiling user input, the interpreter injects an alias preamble
-so human names can be reused naturally:
-
-```k
-nat = @...;
-succ = @...;
-<user snippet>
-```
-
-Relation aliases use `name = @hash;`.
-
-Diagnostic locations are remapped back to the visible user snippet, so
-error line numbers do not count the hidden preamble.
-
-## Completion
-
-Tab completion covers:
-
-- command names after `:`
-- file paths for `:load`, `:klib`, and `:ko`
-- relation aliases
-- canonical names beginning with `@`
-
-For codec commands, completion covers `:codec load`, `:codec unload`,
-`:codec list`, file paths after `:codec load`, and codec names after
-`:input`.
-
-## Loading
-
-### `:load [--no-alias] file.k`
-
-Compiles the source in the current library context, merges the resulting
-codes and relations into the session, and recovers aliases from
-user-defined names in the file unless `--no-alias` is used.
-
-### `:load [--no-alias] file.klib`
-
-Reads the plain-JSON library file and merges its codes, relations,
-aliases, and metadata into the session. Aliases are recovered from
-`meta[hash].origins[]` unless `--no-alias` is used.
-
-## Pattern Inspection
-
-### `:patterns` (or `:pats`)
-
-Lists all defined named pattern aliases and their canonical `@hash`
-addresses (formatted as `alias = @hash`, matching `:rels`):
+## Loading and aliases
 
 ```text
-> :pats
-bit = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg
-list = @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe
-pair = @KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm
+:load Examples/arithmetics.k
+:load Examples/poly.k
 ```
 
-### `:pattern <name>` (or `:pat <name>`, `:pat @hash`)
+Libraries are loaded explicitly. `poly.k` depends on definitions in
+`arithmetics.k`, so load them in that order. Loading a codec does not
+automatically load its corresponding k library.
 
-Displays the **canonical definition** of a named pattern template:
+`:load` compiles a `.k` file in the current library context or loads a plain
+JSON `.klib`. It recovers relation and pattern aliases unless `--no-alias`
+is specified. Source libraries' terminal expressions are not run by `:load`.
+
+Names are local aliases for canonical definitions. Rebinding a relation alias
+leaves older definitions addressable by hash in the live session.
+`:klib` includes relations reachable from current aliases rather than all
+historical relations retained by the session.
+
+## Pattern inspection
 
 ```text
-> pair[A, B] = { A first, B second };
-> :pat pair
-pair[X0, X1] = {X0 first, X1 second};  -- @...
-
-> c[X,Y] = {X x, Y y};d[Y,X] = {X x, Y y};
-> :pat c
-c[X0, X1] = {X0 x, X1 y};  -- @NPSHm9...
-> :pat d
-d[X1, X0] = {X0 x, X1 y};  -- @NPSHm9...
-
-> list[T] = < {} nil, { T car, Y cdr } cons > = Y;
-> :pat list
-list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- @...
-
-> same_pair[T] = { T first, T second };
-> :pat same_pair
-same_pair[X0] = {X0 first, X0 second};  -- @...
+pair[A, B] = { A first, B second };
+same_pair[T] = { T first, T second };
+:pats
+:pat same_pair
 ```
 
-Listing defined pattern aliases with `:pats` shows how each pattern's
-parameters map into the canonical template's slots, using `(...)` for
-any unexposed pattern holes:
+`:pats` shows each template header, skeleton hash, and routing arguments.
+The aliases above share a skeleton; their arguments are `[A,B]` and `[T,T]`.
+
+`:pat alias` shows the alias definition with its canonical hash/routing
+annotation. `:pat @hash` inspects a registered canonical template.
+Inspecting an alias need not erase its author-chosen parameter names.
+See [patterns and canonical identity](PATTERNS.md).
+
+## Codecs
 
 ```text
-> a[]= {X x, Y y}; b[X] = {X x, Y y};
-> c[X,Y] = {X x, Y y}; d[Y,X] = {X x, Y y};
-> :pats
-a[] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[(...),(...)]
-b[X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,(...)]
-c[X,Y] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
-d[Y,X] = @NPSHm9HbPgXmGHVGMJGJFq7rq4LiFiavPX27mUwyE26x[X,Y]
+:codec load codecs/int.mjs
+:input int.mjs 42
+inc
 ```
 
-Note: In `a[] = {X x, Y y}`, `X` and `Y` are bare identifiers and thus
-treated as existential type variables. If an author writes `missing[]`,
-the REPL rejects the definition with an error
-(`Unknown pattern template 'missing[]'`). Undefined pattern applications
-are never treated as open variables or leaves.
+Load `Examples/arithmetics.k` before using `inc`. The codec supplies the
+integer value; the library supplies the relation.
 
-Rather than echoing the syntax used to construct the template, the
-canonical definition decompiles the underlying minimal finite tree
-automaton. Local parameter and knot names chosen by the author are
-erased; instead, the canonical definition introduces its own variables
-(`X0`, `X1`, `X2`, ...) in deterministic traversal (discovery) order:
-
-- **External Ports**: Open type holes (`(...)`) are recorded as
-  canonical parameters in the template header (`[X0, X1]`, `[X1]`, etc.)
-  in discovery order.
-- **Recursive Knots**: Cycles back to existing nodes are bound using
-  knot variables (`=X0`).
-- **Content Hash**: Every canonical definition is annotated with its
-  deterministic content-addressed hash (`-- @hash`).
-
-Lookup by canonical hash is also supported: `:pattern @hash`.
-
-## Codecs and Numerical Values
-
-In `k`, there are no primitive numbers or built-in numerical literals.
-Values such as integers are represented as algebraic bit trees (e.g.
-`bits? = ?< {} _, B 0, B 1 > = B;`).
-
-A codec translates between external text and enveloped *k* values:
-- `parse(text)`: parses an external string into an enveloped *k* value.
-- `print(value)`: serializes an enveloped *k* value to external string,
-  throwing an `Error` if the value is not representable.
-
-Codecs can define a family of target patterns (e.g. `int` parses/prints
-single integers as well as lists like `[0,1,2]`).
-
-For printing in the REPL, every value is printed with the standard *k*
-envelope representation, followed by lines for all loaded codecs that can
-format it:
-
-```text
-> :input int.mjs 42
-{}|_|0|1|0|1|0|1|+ ?<{} _, ...>
-int.mjs: 42
-```
-
-For a complete guide to writing a new codec module, see
-[`CODECS.md`](./CODECS.md).
-
-### `:codec load file`
-
-Loads a codec module from an ES module file (e.g.
-`:codec load codecs/int.mjs`). Codecs are identified by their file name,
-and export `parse(text)` and `print(value)` functions.
-
-### `:codec unload name`
-
-Unloads a previously loaded codec by name (e.g. `:codec unload int.mjs`).
-
-### `:codec list` (or `:codecs`)
-
-Lists all currently loaded codecs and their source files.
-
-### `:input <codec.mjs> [text]`
-
-Parses external input using the specified codec file.
-
-- **Interactive mode**: `:input <codec.mjs>` switches the REPL prompt
-  to `<codec.mjs>> `, and the next input line is parsed using that codec:
-  ```text
-  > :input json.mjs
-  json.mjs> {"hello": "world"}
-  {...} ?<{...}>
-  json.mjs: {"hello":"world"}
-  ```
-
-- **One-line mode**: `:input <codec.mjs> <text>` immediately parses
-  `<text>`:
-  ```text
-  > :input int.mjs 42
-  {}|_|0|1|0|1|0|1|+ ?<{} _, ...>
-  int.mjs: 42
-
-  > :input int.mjs [0,1,2]
-  {...} ?<{...}>
-  int.mjs: [0,1,2]
-  ```
-
-Entering `:input` with no arguments displays usage and a list of loaded
+Codecs export `parse` and `print`. Input uses the codec explicitly selected
+with `:input`. When the text is omitted, the next line is parsed as external
+input rather than k source. `:input` without arguments shows usage and loaded
 codecs.
 
-## Evaluation Engines: WASM and JS
+After evaluation, each loaded codec attempts to print the result. Successful
+renderings appear as `codec.mjs: text`; failed renderings are suppressed.
+Use module `--help` for codec documentation, for example
+`node codecs/int.mjs --help`. The REPL's `:help` displays general command help.
 
-The REPL supports two evaluation engines:
+See [writing codecs](CODECS.md) for the module contract.
 
-- **`wasm`** (default): Compiles k expressions into WebAssembly
-  bytecode via polymorphic kVM lowering. Provides near-native execution
-  speed, tail-call optimization (TCO), and stack safety on deep recursion.
-- **`js`**: The tree-walking JavaScript interpreter. Provides near-zero
-  compilation latency (interprets parsed definitions directly) and
-  convenient runtime inspection.
+## Engines and output
 
-### Engine Commands
+The terminal REPL provides:
 
-- `:engine` — displays active engine (`wasm` or `js`)
-- `:engine wasm` (or `:wasm`) — switches to the WebAssembly engine
-- `:engine js` (or `:js`) — switches to the JavaScript engine
+- `wasm` (default): compile and execute through WebAssembly;
+- `pkir`: execute through the experimental polymorphic IR;
+- `js`: use the envelope-aware JavaScript reference evaluator.
 
-### CLI Options
+Choose an engine or output limit at startup:
 
-When starting `k-repl`, choose the engine or output limit with:
-
-```bash
-k-repl --engine=js    # or k-repl --js
-k-repl --engine=pkir  # or k-repl --pkir
-k-repl --engine=wasm  # or k-repl --wasm (default)
-k-repl --limit=8192   # set max characters for rendered output
+```sh
+node repl.mjs --engine=js
+node repl.mjs --engine=pkir
+node repl.mjs --engine=wasm --limit=8192
 ```
 
-## Timing and Profiling
+Large values are rendered iteratively and truncated at the configured limit.
+Use `:limit none` to disable truncation.
 
-Timing reporting is enabled by default for all evaluations, reporting
-elapsed time broken down into compilation and runtime execution,
-annotated with the active engine:
-
-```text
-> {10 int x, 5 int y} plus
-{}|_|1|1|1|1|+ ?<{} _, ...>
-/* comp: 12.4ms, exec: 0.8ms (wasm) */
-```
-
-## Web REPL (Studio)
-
-The repository provides a standalone, single-file browser REPL:
-`repl.html`.
-
-- **Zero-install in-browser execution**: Powered by WebAssembly
-  (`wasm-in-process`) and virtual filesystem (VFS).
-- **Interactive UI**: Tab autocompletion, persistent text selection,
-  execution timing badges (`comp: Xms | exec: Yms`), interactive Codecs
-  management modal, and interactive `:input` popup modal.
-- **Build**: Generate `repl.html` locally using:
-  ```bash
-  npm run build:repl-html
-  ```
-- **Live Demo**: Automatically deployed to GitHub Pages via
-  `.github/workflows/pages.yml`.
+Tab completion includes commands, file paths, relation aliases, codec names,
+and canonical references.
 
 ## Export
 
-The REPL can export session state to ahead-of-time (AOT) compiled
-artifacts. For full details on all formats, see
-[`DOCS/FILE_FORMATS.md`](./FILE_FORMATS.md).
-
-### `:klib file`
-
-Writes a plain-JSON `.klib` library rooted at the current relation
-aliases. Relations referenced by those aliases are included
-transitively. Historical relations retained in the live session are
-omitted when no active alias depends on them. The registered code
-snapshot is included. The library has `main: null`; it has no binary
-header and no object payload version.
-
-### `:ko file expr`
-
-Compiles `expr` as the main expression (`main: "__main__"`) in the
-current interpreter context and writes the resulting executable `.ko`
-object container (prefixed by magic header `KOBJ\n`). Running this `.ko`
-skips parsing and type derivation for instant execution.
-
-## Output
-
-Evaluated values print in k syntax together with the inferred envelope:
-
 ```text
-{}|0|+1 ?<<{} 0, ...> +1, ...>
+:klib session.klib
+:ko increment.ko inc
 ```
 
-Large values are rendered iteratively and truncated at `maxChars`
-(default: `4096` characters) so deeply nested or large values print
-instantly without exhausting stack or terminal buffers. Use
-`:limit <num>` or `:limit none` to adjust or disable the limit.
+The second command requires `inc` in the active session. Libraries store
+definitions and aliases with `main: null`. Executable objects have a main
+relation and a `KOBJ\n` container header.
+See [file formats](FILE_FORMATS.md) for inspection, validation, and CLI execution.
 
-`undefined` prints as:
+## Browser REPL
 
-```text
-... undefined
-```
+`npm run build:repl-html` creates a self-contained `repl.html` with an
+in-process WebAssembly backend, bundled libraries/codecs, and a virtual
+filesystem. It is also [hosted online](https://fraczak.github.io/k/).
 
-`valueToK`, `propertyListToFilter`, and `valueWithEnvelopeToK` from
-`codecs/runtime/show-value.mjs` are used for rendering.
-
-## Example Session
-
-```text
-> nat? = ?< {} 0, N +1 > = N;
-> inc = | +1;
-> {} | 0
-{}|0 ?<{} 0, ...>
-> :rel inc
-inc = | +1;  -- @...
-> pair[A, B] = { A first, B second };
-> :pat pair
-pair[X0, X1] = {X0 first, X1 second};  -- @...
-> :klib nat.klib
-saved nat.klib
-> :ko inc.ko inc
-saved inc.ko (inc)
-```
-
-## Further Reading
-
-- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) —
-  guide to .k, .ko, .klib, and .kvm formats
-- [DOCS/DICTIONARY.md](./DICTIONARY.md) — concept names and terminology
-- [DOCS/CODECS.md](./CODECS.md) — guide to writing codecs
+The browser adds file loading, codec management, interactive input dialogs, and
+value-tree inspection. Uploaded and exported files use the virtual filesystem
+and browser downloads rather than the terminal's filesystem access.

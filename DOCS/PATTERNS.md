@@ -1,188 +1,205 @@
-# Schemas and Pattern Graphs
+# Patterns and relations
 
-In `k`, an algebraic **schema** describes the shape of payload trees
-that may flow through a relation. In compiler artifacts and
-serialization, schemas are represented as property-list arrays of
-automata nodes. Schemas are used by:
+k source defines relations, named patterns, and a terminal expression.
+The terminal expression is the entry relation when executing a source file.
+The REPL also accepts definitions on their own.
 
-- the contract-derivation engine
-- the binary codec
-- runtime framed values `(schema, payload)`
-- filter expressions (`?schema` or `?name[...]`)
+## Core relations
 
-## Pattern Kinds
+Every expression denotes a first-order partial function over product/variant
+values.
 
-The exported canonical pattern form is a property-list array of nodes.
+| Syntax | Meaning |
+| --- | --- |
+| `()` | Identity |
+| `{}` | Constant unit |
+| `<>` | Always undefined |
+| `.field` | Project a product field |
+| `/tag` | Extract a matching variant payload |
+| `\|tag` | Wrap the input in a variant |
+| `(f g)` | Apply `f`, then `g` |
+| `{f a, g b}` | Apply both relations to the same input and construct fields `a` and `b` |
+| `<f, g>` | Try `f`, then `g` if `f` is undefined |
+| `?P` | Constrain the schema to pattern `P` without changing the payload |
+| `name` or `@hash` | Reference a relation |
 
-Each node has the form:
+Composition can omit parentheses when grouping is unambiguous.
+A product is undefined if a field computation is undefined. Choice preserves
+source priority; an earlier nonterminating branch does not fall through.
 
-```text
-[kind, edges]
-```
+Definitions use `name = expression;`. There are no builtin numeric or string
+values in relation syntax: a numeric identifier such as `5` is a relation
+name, and quoted strings in label positions are labels. Use
+[codecs](../codecs/README.md) for external numbers, text, or JSON.
 
-where `kind` is one of:
+Relations can refer to other definitions in the same source, including recursive
+references. Labels can be identifiers or quoted strings with escapes. Line
+comments use `--`, `//`, `#`, or `%`; block comments use `/* ... */`.
 
-- `"any"`
-- `"open-product"`
-- `"open-union"`
-- `"closed-product"`
-- `"closed-union"`
+## Pattern syntax
 
-and `edges` is a list of:
+Patterns describe schema constraints rather than computations:
 
-```text
-[label, targetNodeId]
-```
+| Pattern | Constraint |
+| --- | --- |
+| `(...)` or an unbound variable `X` | An unconstrained schema position |
+| `{P a, Q b}` | A product with exactly the listed fields |
+| `{P a, ...}` | A product with at least the listed fields |
+| `<P a, Q b>` | A union with exactly the listed tags |
+| `<P a, ...>` | A union allowing additional tags |
+| `{}` | Empty product schema |
+| `<>` | Empty union schema |
+| `P = X` | Bind the pattern node as `X`, allowing recursive references |
+| `name[P, Q]` | Instantiate a named pattern |
 
-Example:
+The distinction between open and closed union schemas concerns the schema's
+available tags. A variant payload still selects one tag.
 
-```json
-[
-  ["closed-union", [["nil", 1], ["cons", 2]]],
-  ["closed-product", []],
-  ["closed-product", [["car", 3], ["cdr", 0]]],
-  ["closed-union", [["_", 1], ["0", 3], ["1", 3]]]
-]
-```
-
-This is not the wire format. It is the canonical readable export form.
-
-## Named Patterns and Templates
-
-Named patterns define reusable, modular regular tree grammars using
-square brackets `[...]`:
+Repeated variables express equality of schema constraints:
 
 ```k
-name[ P1, P2, ... Pn ] = filter;
+?{ X first, X second }
 ```
 
-For 0-arity patterns (no parameters), empty brackets `[]` are used:
+The two fields must have compatible shared schema constraints; their payloads
+need not be equal. Anonymous wildcards do not impose that sharing:
 
 ```k
-bit[]  = < {} 0, {} 1 >;
+?{ (...) first, (...) second }
+```
+
+Pattern variables in a relation have relation-definition scope.
+
+## Named patterns
+
+Square brackets distinguish reusable templates from bare variables:
+
+```k
+bit[] = < {} 0, {} 1 >;
 bits[] = < {} _, B 0, B 1 > = B;
-byte[] = {
-  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
-  bit[] 4, bit[] 5, bit[] 6, bit[] 7
+pair[A, B] = { A first, B second };
+list[X] = < {} nil, { X car, Y cdr } cons > = Y;
+```
+
+A filter applies a template:
+
+```k
+?pair[bit[], bits[]]
+```
+
+Template applications can be nested inside patterns, including arguments such
+as `list[pair[A, B]]`. Every application must resolve in scope and have the
+declared arity.
+
+Variables have three roles:
+
+- Parameters in a header such as `[X]` are supplied by callers.
+- Other free variables are private existential constraints. Repeated uses share
+  a constraint; different instantiations receive fresh private names.
+- Bound variables such as `= Y` are internal cycle knots.
+
+Knots cannot be parameters. For example,
+`list[X, Y] = <{} nil, {X car, Y cdr} cons> = Y;` is rejected.
+Template dependency cycles are also rejected: recursion uses a knot inside a
+template, rather than the template calling itself. Undefined templates and
+arity mismatches are rejected even in unused definitions.
+
+## Filters and contracts
+
+A relation can combine structural guards with ordinary computation:
+
+```k
+bool[] = < {} false, {} true >;
+not = ?bool[] < /false |true, /true |false > ?bool[];
+```
+
+Both boundaries have the boolean schema, although the relation changes the
+payload. Shared contract nodes describe schema relationships, not a separate
+proof of preservation of the original data.
+
+Explicit recursive patterns can make contract derivation converge. This is a
+compiler property, not a guarantee of execution termination. See
+[contract derivation](TYPE_DERIVATION.md).
+
+In the envelope-aware runtime, constraints intersect the carried pattern and
+contradictions raise type errors. Optimized execution may erase guards proved
+by specialization. Ordinary partial failure remains distinct from a schema
+contradiction.
+
+## Canonical identity and routing
+
+Relations are hashed from normalized definitions; that does not decide general
+semantic equality of programs.
+
+Named patterns factor into a canonical linear skeleton and alias arguments.
+Every open leaf slot of the skeleton has its own port:
+
+```k
+pair[A, B] = { A first, B second };
+same_pair[T] = { T first, T second };
+closed_same_pair[] = { T first, T second };
+any_pair[] = { (...) first, (...) second };
+```
+
+All four use the skeleton:
+
+```k
+@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[X0, X1] = {
+  X0 first, X1 second
 };
 ```
 
-Parameterized patterns declare external ports in the bracket list:
+Their arguments retain the differences:
 
-```k
-list[X] = < {} nil, { X car, Y cdr } cons > = Y;
-pair[A, B] = { A first, B second };
+| Alias | Skeleton arguments |
+| --- | --- |
+| `pair[A, B]` | `[A, B]` |
+| `same_pair[T]` | `[T, T]` |
+| `closed_same_pair[]` | `[T, T]`, with a fresh private `T` per instantiation |
+| `any_pair[]` | `[(...), (...)]` |
+
+Formal parameters route to their supplied arguments. A repeated private
+variable routes the same fresh variable to multiple slots. A private variable
+used only once becomes a wildcard. Knots remain internal to the graph.
+
+Consequently, the skeleton hash alone does not identify all constraints of an
+alias: its routing arguments matter too. Structural canonicalization also
+does not identify every graph accepting the same finite-tree language; for
+example, the current implementation distinguishes different unproductive
+recursive structures.
+
+## Inspection and persistence
+
+In the REPL, `:pats` lists aliases with parameters, skeleton hashes, and routing
+arguments. `:pat name` shows the alias definition; `:pat @hash` inspects a
+registered canonical pattern. Hash-addressed patterns can also be defined or
+instantiated directly, with all canonical arguments supplied.
+
+Object and library containers preserve:
+
+- `patterns[hash]`: canonical template parameters and filter AST;
+- `patternAlias[name]`: alias-to-skeleton hash;
+- `meta[hash].origins[]`: original alias parameters and `aliasArgs` routing.
+
+Repeated existential variables must survive export and loading. The
+[file-format reference](FILE_FORMATS.md) describes the complete container.
+
+For a host-side pattern export, use:
+
+```sh
+printf '%s\n' '?< {} nil, { {} car, X cdr } cons > = X' |
+  node patterns/from-k.mjs
 ```
 
-Callers instantiate a named pattern:
-- As a standalone filter: `? list[X]` or `? bits[]`
-- Within relation guards: `?{ nat[] = N x, ... }`
-- As template arguments: `list[byte[]]` or `pair[A, B]`
-
-Inside a definition, knot identifiers (`= Y`) close internal recursive
-loops. Recursive loops are private and alpha-renamed during expansion.
-Direct or mutual recursion among templates (`bits[]` calling `bits[]`)
-is disallowed to ensure every template dependency graph is an acyclic
-DAG, guaranteeing finite regular tree automaton compilation.
-
-In the interactive REPL, inspecting a pattern with `:pattern <name>` (or
-`:pat <name>`) displays its canonical decompiled form with newly
-introduced variables in discovery order (e.g.
-`list[X1] = <{X1 car, X0 cdr} cons, {} nil>=X0;  -- @...`).
-
-### Template Applications vs. Type Variables
-
-Identifiers with square brackets (`name[...]`) are strictly pattern
-template applications. A referenced pattern template must exist in scope
-or in an imported library. An undefined template lookup raises an
-`Unknown pattern template` error immediately and is **never** silently
-treated as an open variable or leaf.
-
-In contrast, bare identifiers without brackets in pattern positions (e.g.
-`X`, `T`, `Y`) represent formal parameters, cycle knots (`= Y`), or
-existential type variables asserting type equality across fields.
-
-Pattern definitions are validated eagerly at compile time: undefined
-references, cyclic template dependencies, and arity mismatches are
-rejected before code generation or canonical hashing.
-
-## Filters and Terminal Positions
-
-A k script can describe a pattern through:
-
-- a relation in terminal position
-- a filter expression in terminal position
-- a named pattern invocation (`? name[...]`)
-
-Examples:
-
-```k
-bits[] = < {} _, B 0, B 1 > = B;
-list[X] = < {} nil, { X car, Y cdr } cons > = Y;
-list? = ? list[bits[]];
-list?
-```
-
-Or anonymously:
-
-```k
-? list[bits[]]
-```
-
-In all cases, the compiler derives a root pattern from `__main__`.
-
-## Pattern Export Helper
-
-`patterns/from-k.mjs` extracts that root pattern from a k script. It is a
-repository helper, not an installed `package.json` binary.
-
-It:
-
-1. reads a k script from stdin or a file argument
-2. runs `k.annotate(...)`
-3. resolves `__main__`
-4. requires `__main__` to be either:
-   - a filter expression
-   - a relation name
-5. exports the corresponding root pattern
-6. prints it as the canonical property-list array
-
-Example:
-
-```bash
-echo '?< {} nil, { {} car, X cdr } cons > = X' | \
-  node ./patterns/from-k.mjs
-```
-
-Typical output:
+Run this from the repository root. The canonical property-list result is:
 
 ```json
 [
-  ["closed-union", [["nil", 1], ["cons", 2]]],
-  ["closed-product", []],
-  ["closed-product", [["car", 1], ["cdr", 0]]]
+  ["closed-union", [["cons", 1], ["nil", 2]]],
+  ["closed-product", [["car", 2], ["cdr", 0]]],
+  ["closed-product", []]
 ]
 ```
 
-## Schemas in the Codec
-
-The active wire format is:
-
-```text
-encode(schema_value : schema) encode(payload : decoded_schema)
-```
-
-So the property-list array printed by `patterns/from-k.mjs` is a
-readable externalization of the same schema information carried in the
-wire stream.
-
-`k-parse --input-pattern ...` produces the root schema used to interpret
-textual values.
-
-## See Also
-
-- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) — guide to
-  .k, .ko, .klib, and .kvm formats
-- [DOCS/TEXTUAL_VALUES.md](./TEXTUAL_VALUES.md)
-- [codecs/README.md](../codecs/README.md)
-- [DOCS/OBJECT_FILE_AND_PATTERN.md](./OBJECT_FILE_AND_PATTERN.md)
+This is an inspection representation. The [wire format](../codecs/WIRE_FORMAT.md)
+encodes the graph as an ordinary value under the fixed `pattern[]` schema.

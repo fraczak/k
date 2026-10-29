@@ -38,7 +38,7 @@ const tests = [
     ["tests/test-named-patterns.mjs"]
   ],
   ...derivationTests,
-  ["tests/test-fingerprint.mjs", node, ["tests/test-fingerprint.mjs"]],
+  ["tests/test-paper-examples.mjs", node, ["tests/test-paper-examples.mjs"]],
   ["tests/test-hash-fuzz.mjs", node, ["tests/test-hash-fuzz.mjs"]],
   ["tests/test-hash-normalization.mjs", node, ["tests/test-hash-normalization.mjs"]],
   ["tests/test-structural-values.mjs", node, ["tests/test-structural-values.mjs"]],

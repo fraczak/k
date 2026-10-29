@@ -1,11 +1,9 @@
-# KIR v1
+# KIR-P export (version 1)
 
-KIR v1 is the first backend-facing artifact contract for compiled k
-objects. It is an inspection and export contract, not a replacement
-for the current `.ko` and `.klib` containers.
+KIR-P is the portable backend export contract for compiled k objects.
+It does not replace the stored `.ko` and `.klib` containers.
 
-The first layer is **KIR-P**, the portable polymorphic relation format.
-KIR-P keeps the same pattern-carrying semantics as current object
+The format keeps the same pattern-carrying semantics as current object
 execution, but normalizes names and graph IDs so backends can consume
 object contents without depending on parser-shaped fields, current
 object storage, or `TypePatternGraph` internals.
@@ -24,7 +22,7 @@ KIR v1 defines:
 
 KIR v1 does not define:
 
-- KIR-M layout and ABI decisions;
+- execution layouts and target ABI decisions;
 - LLVM, Wasm, C, or native runtime layout;
 - a new stored object format;
 - a required physical encoding.
@@ -81,9 +79,9 @@ Rules:
   `patternGraph`.
 - Valid type-derivation statuses are `converged`, `not-converged`, and
   `unknown`.
-- LLVM and optimized Wasm backends should reject relations whose status
-  is not `converged`, unless they intentionally implement an
-  envelope-aware reference mode.
+- Export validity alone does not establish backend eligibility. Code generators
+  must establish the contracts needed by their execution path, using stored
+  derivation status and input-envelope specialization as appropriate.
 - `sourceNodeMap` maps original object pattern graph representative IDs
   to KIR node IDs. It exists for inspection and debugging, not as a
   semantic contract.
@@ -149,8 +147,7 @@ Rules:
 - `union.items` preserve source branch priority.
 - `product.fields` preserve the relation body field list. Backends may
   sort or lay out fields later only after preserving observable semantics.
-- `filter.filter` currently preserves the stored filter tree. A later KIR
-  revision may normalize filter internals.
+- `filter.filter` preserves the stored filter tree.
 
 ## Current Tooling
 
@@ -179,31 +176,24 @@ validate KIR-P export for deterministic fixtures:
 npm run conformance
 ```
 
-## Backend Path
+## Backend path
 
-The intended backend pipeline remains:
+The current kVM lowerer consumes KIR-P relation bodies directly:
 
 ```text
-k source
-  -> .ko / .klib object
-  -> KIR-P
-  -> envelope-specialized KIR-P for an input envelope
-  -> KIR-M / kVM (.kvm)
-  -> LLVM / Wasm / C / other backend
+k source -> .ko / .klib -> KIR-P -> kVM template
+                                      + input envelope
+                                      -> specialized kVM -> interpreter / Wasm / LLVM
 ```
 
-KIR-P is the shared semantic object contract. Envelope Specialization
-produces another KIR-P object whose entry relation is specialized by an
-input envelope. KIR-M remains a separate backend contract and should not
-be encoded by overloading KIR-P fields. The current kVM lowerer consumes
-KIR-P relation bodies directly.
+KIR-P envelope specialization is also available as a separate derivation pass,
+producing another KIR-P object. It is distinct from specialization of a lowered
+kVM template. See [compiler architecture](ARCHITECTURE.md).
 
 ## Envelope Specialization
 
-The current API `retypeObjectRelation(object, relationName, inputPattern)`
-exports envelope-specialized KIR-P. The `retype...` spelling is
-legacy/current implementation naming; new public names should use
-envelope specialization. The pass re-runs existing type derivation as
+The API `retypeObjectRelation(object, relationName, inputPattern)` exports
+envelope-specialized KIR-P. The pass re-runs contract derivation as
 if the entry program were:
 
 ```k
@@ -219,14 +209,13 @@ The result is a normal KIR-P executable object:
   relation's `patternGraph`;
 - ordinary KIR relation bodies in `rels`.
 
-This is the safe baseline: it preserves envelope-aware execution
-semantics while making the specialized entry pattern explicit through
-ordinary KIR-P relation typing. Relation/input-pattern cache keys and
+The specialized entry pattern is explicit through ordinary KIR-P relation typing.
+Relation/input-pattern cache keys and
 call-site worklists are local compiler data; they are not part of the
 serialized KIR artifact.
 
 - [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) —
-  guide to .k, .ko, .klib, and .kvm formats
+  source, object, library, kVM, and PKIR workflows
 - [DOCS/KVM_EXECUTION_MODEL.md](./KVM_EXECUTION_MODEL.md) —
   kVM execution model and bytecode design
 - [DOCS/DICTIONARY.md](./DICTIONARY.md) — concept names and terminology

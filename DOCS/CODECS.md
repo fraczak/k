@@ -1,121 +1,62 @@
-# Writing Codecs
+# Writing codecs
 
-A codec is an ES module that translates between an external domain format
-and enveloped **k** `Value` objects `(P, v)`. The same module serves two
-entry points:
+A codec converts an external representation into an enveloped k `Value` and
+back again. The common runner makes the same module usable from a shell pipeline
+and the [REPL](REPL.md).
 
-- a standalone command-line filter supporting `--parse`, `--print`,
-  and `--help`,
-- a REPL module loaded with `:codec load <file.mjs>`.
+## Module contract
 
-The command-line entry point reads or writes the binary pattern+value
-stream. The REPL entry point provides interactive parsing
-(`:input <codec.mjs>`) and multi-codec output formatting.
+A standard text codec exports:
 
-## Architecture & Mental Model
+- `parse(text)`: return a `Value` with a pattern; throw on invalid input.
+- `print(value)`: return external text; throw when the value cannot be represented.
+- `doc`: optional help text describing syntax and representation.
 
-In `k`, there are no primitive numbers, strings, or built-in numerical
-literals. All data is represented as algebraic shapes (e.g. bits, units,
-products, and tagged unions). A codec bridges external formats with
-these structural *k* values:
+The REPL identifies a codec by its file name. Input uses a selected codec;
+output tries all loaded codecs and displays each successful rendering.
 
-- `parse(text)` translates external text to an enveloped *k* value (a
-  `Value` with an associated closed pattern envelope `(P, v)`).
-- `print(value)` translates an enveloped *k* value into formatted
-  external text, throwing an `Error` if the value is not representable.
-- `doc` (optional string) documents the accepted syntax and semantic
-  representation.
+Import helpers from `codecs/runtime/codec-sdk.mjs`:
 
-Codecs are identified directly by their file name. They do not export
-artificial identifiers like `name` or pattern registries like
-`patterns = [...]`.
+| Helper | Purpose |
+| --- | --- |
+| `Value.product` / `Value.variant` | Construct structural values |
+| `isProduct` / `isVariant` | Recognize values structurally |
+| `withPattern` | Attach a pattern to a value |
+| `patternFromFilter` | Derive a normalized pattern from k source |
+| `encodeToWire` / `decodeWire` | Convert enveloped values to/from binary streams |
+| `decodeWireLazy` | Decode with bitstream-backed value access |
+| `runCodecCLI` | Entrypoint detection, flags, stdin/stdout, and wire conversion |
 
-In the REPL:
-- **Input**: The user explicitly chooses which codec to parse with:
-  - Interactive mode: `:input <codec.mjs>` sets the prompt to
-    `<codec.mjs>> `, and the next entered line is parsed with that codec.
-  - One-line mode: `:input <codec.mjs> <text>` immediately parses
-    `<text>` using that codec.
-- **Output**: Any evaluated *k* value is displayed in its standard *k*
-  envelope representation, followed by formatting from **all loaded
-  codecs** that can represent it:
-  ```text
-  > :input int.mjs 42
-  {}|_|0|1|0|1|0|1|+ ?<{} _, ...>
-  int.mjs: 42
-  ```
-  Every loaded codec attempts `codec.print(value)`. If it succeeds, the
-  REPL prints `<codec.mjs>: <formatted>`. If it throws, the codec is
-  silently ignored for that value.
+Derive fixed schemas through `patternFromFilter` rather than maintaining a
+duplicate handwritten graph. Codecs whose structure depends on external input,
+such as JSON, can derive document-specific patterns.
 
-## Module Interface
+## Complete example
 
-A codec module exports:
-
-```js
-export const doc = "Description of syntax and usage.";
-
-export function parse(text) {
-  // parse text into an enveloped k Value (P, v) using
-  // withPattern(value, pattern)
-}
-
-export function print(value) {
-  // return formatted text
-  // throw Error if value is not representable
-}
-```
-
-`parse` should throw an `Error` for invalid external text. `print` should
-throw when the value is not representable by the external format. REPL
-output suppresses `print` errors so loaded codecs only output when they
-recognize the value.
-
-## The Codec SDK & Runner
-
-To eliminate CLI stream boilerplate, codecs import from
-`./runtime/codec-sdk.mjs` and invoke `runCodecCLI`:
-
-```js
-import { Value, isVariant, withPattern, runCodecCLI } from "./runtime/codec-sdk.mjs";
-```
-
-`runCodecCLI(import.meta.url, { parse, print, doc })` automatically
-handles:
-1. Entrypoint detection (no-op when loaded as a module or in browsers).
-2. `-h` and `--help` CLI flag handling.
-3. `--parse` and `--print` stream piping and wire encoding/decoding.
-
-## Minimal Type-Specific Codec Example
-
-This codec accepts `yes` and `no` for the type `<{} false, {} true>`.
-Patterns are derived by `k` from filter expressions via
-`patternFromFilter`:
+Save this as `codecs/yesno.mjs`. It maps `yes`/`no` to unit variants under
+the boolean schema:
 
 ```js
 #!/usr/bin/env node
-
-import { Value, isVariant, withPattern, patternFromFilter, runCodecCLI } from "./runtime/codec-sdk.mjs";
+import {
+  Value, isProduct, isVariant, withPattern, patternFromFilter, runCodecCLI
+} from "./runtime/codec-sdk.mjs";
 
 const BOOL_PATTERN = patternFromFilter("?< {} false, {} true >");
-
-export const doc = `
-Boolean codec: accepts 'yes' and 'no'.
-`;
+export const doc = "Boolean codec: accepts yes or no.";
 
 export function parse(text) {
   const word = text.trim();
-  if (word === "yes") {
-    return withPattern(Value.variant("true", Value.product({})), BOOL_PATTERN);
-  }
-  if (word === "no") {
-    return withPattern(Value.variant("false", Value.product({})), BOOL_PATTERN);
-  }
-  throw new Error("expected yes or no");
+  const tag = word === "yes" ? "true" : word === "no" ? "false" : null;
+  if (!tag) throw new Error("expected yes or no");
+  return withPattern(Value.variant(tag, Value.product({})), BOOL_PATTERN);
 }
 
 export function print(value) {
-  if (!isVariant(value)) throw new Error("expected bool variant");
+  if (!isVariant(value) || !isProduct(value.value) ||
+      Object.keys(value.value.product).length !== 0) {
+    throw new Error("expected a boolean unit variant");
+  }
   if (value.tag === "true") return "yes";
   if (value.tag === "false") return "no";
   throw new Error("expected true or false");
@@ -124,122 +65,70 @@ export function print(value) {
 runCodecCLI(import.meta.url, { parse, print, doc });
 ```
 
-### Using in the REPL:
-
-```text
-> :codec load ./codecs/yesno.mjs
-loaded codec yesno.mjs
-> :input yesno.mjs yes
-{}|true ?<{} false, {} true>
-yesno.mjs: yes
-```
-
-### Using as a CLI Pipeline Filter:
+From the repository root:
 
 ```sh
-printf 'yes\n' | ./codecs/yesno.mjs --parse | ./codecs/yesno.mjs --print
-# Output: yes
-```
-
-## Built-in Codecs
-
-The `codecs/` directory provides the following standard codecs:
-
-- **`int.mjs` (`k-int`)**: Decimal integers and bracketed integer lists
-  (e.g. `42`, `-15`, `[1, 2, 3]`) mapped to signed binary bit trees and
-  `cons`/`nil` lists.
-- **`ieee.mjs` (`k-ieee`)**: IEEE 754 64-bit floating-point numbers
-  (`sign`, `exponent`, `fraction`).
-- **`utf8.mjs` (`k-utf8`) & `utf16.mjs` (`k-utf16`)**: Unicode strings
-  encoded as `cons`/`nil` code-point lists (`str` in `core.k`).
-- **`unit.mjs` (`k-unit`)**: The unit value `{}`.
-- **`json.mjs` (`k-json`) — Schema-Specializing JSON**:
-  Derives a document-specific pattern for each JSON value:
-  - JSON objects map directly to products `{ field: val, ... }`.
-  - JSON arrays map to indexed products `{ "0": a0, "1": a1, ... }`.
-  - Ideal for record-oriented projection (e.g. `.user .name`).
-- **`djson.mjs` (`k-djson`) — Universal Dynamic JSON (Binary Bit-Trie)**:
-  Maps every JSON document to a single universal recursive named
-  pattern `djson[]`:
-  ```k
-  btrie[V] = < {} nil, { opt[V] val, T 0, T 1 } trie > = T;
-
-  djson[] = <
-    number[] number,
-    string[] string,
-    bool[] bool,
-    {} null,
-    btrie[J] list,
-    btrie[J] object
-  > = J;
-  ```
-  Uses a unified 27-node binary bit-trie for both arrays and objects.
-  Array indices (`bits?`) and string keys are stored along MSB-to-LSB
-  bit paths, enabling $O(|K|)$ lookup via direct `.0`/`.1` projections
-  with zero allocations and zero character-equality loops.
-  Accompanied by a complete standard library on `json?` in
-  [`Examples/djson.k`](../Examples/djson.k) (`get`, `nth`, `has?`,
-  `has_index?`, `set`, `del`, `set_nth`, `del_nth`, `push`, `keys`,
-  `keys_raw`, `values`, `values_raw`, `length`, `length_nat`,
-  `type_of`).
-
-## Testing a Codec
-
-For CLI codecs, test both directions in a pipeline:
-
-```sh
-printf 'yes\n' | node codecs/yesno.mjs --parse | \
+printf 'yes\n' | node codecs/yesno.mjs --parse |
   node codecs/yesno.mjs --print
 ```
 
-For REPL codecs, add a focused case to
-[`../tests/test-repl.mjs`](../tests/test-repl.mjs):
+This prints `yes`. In the REPL:
 
-```js
-const state = createState();
-let output = await evaluateInput(":codec load ./codecs/yesno.mjs", state);
-assert.match(output[0], /^loaded codec yesno\.mjs/);
-output = await evaluateInput(":input yesno.mjs", state);
-assert.equal(promptForState(state), "yesno.mjs> ");
-output = await evaluateInput("yes", state);
-assert.match(output[0], /yesno\.mjs: yes/);
-output = await evaluateInput(":input yesno.mjs no", state);
-assert.match(output[0], /yesno\.mjs: no/);
+```text
+:codec load codecs/yesno.mjs
+:input yesno.mjs yes
 ```
 
-Then run the full suite before committing:
+The REPL displays the structural value and `yesno.mjs: yes`.
 
-```sh
-npm test
-```
+## CLI behavior
 
-## Web REPL (VFS) Bundling
+`runCodecCLI(import.meta.url, { parse, print, doc })` acts only when the module
+is invoked as the entrypoint:
 
-When `repl.html` is generated (`npm run build:repl-html`):
-- Codecs (`int.mjs`, `json.mjs`, `djson.mjs`, `utf8.mjs`, `unit.mjs`,
-  `ieee.mjs`) are bundled into 100% self-contained ES modules with zero
-  imports.
-- `runCodecCLI` is shimmed as a no-op, and `Value` helpers are directly
-  inlined.
-- In the browser, the VFS serves these self-contained modules directly to
-  native dynamic `import(blobUrl)`. No runtime helper files
-  (`codecs/runtime/*`) need to be included in the VFS or exposed as
-  globals.
+- `--parse` reads external input and writes a binary schema+payload stream.
+- `--print` reads that stream and writes the external rendering.
+- `-h` / `--help` writes usage and `doc`.
+- Errors go to stderr and cause a nonzero exit.
 
-## Checklist
+Text rendering normally adds a newline. Modules handling binary external input
+can set `readBuffer: true`; `addNewline: false` suppresses the output newline.
+A zero-argument `parse` can produce a value without reading stdin, as the unit
+codec does.
 
-- Return an enveloped `Value` from `parse` using
-  `withPattern(val, pattern)`.
-- Keep `parse` and `print` deterministic and free of side effects.
-- Validate shapes in `print` and throw clear errors when not
-  representable.
-- Use `runCodecCLI(import.meta.url, { parse, print, doc })` for CLI
-  execution.
-- No artificial `name` or `patterns` exports required.
-- Add `-h` and `--help` support via `runCodecCLI`.
+The pattern is selected from the parsed value, a module-supplied pattern, or
+witness derivation. General wire semantics are specified in
+[WIRE_FORMAT.md](../codecs/WIRE_FORMAT.md).
 
-- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) —
-  guide to .k, .ko, .klib, and .kvm formats
-- [DOCS/CODEC_ARCHITECTURE.md](./CODEC_ARCHITECTURE.md) —
-  codec architectural design
-- [DOCS/REPL.md](./REPL.md) — interactive interpreter and codec commands
+## Existing codecs
+
+| Module / installed command | Representation |
+| --- | --- |
+| `int.mjs` / `k-int` | Decimal integers and integer lists as signed bit trees |
+| `ieee.mjs` / `k-ieee` | Binary64 floats as sign/exponent/fraction records |
+| `utf8.mjs` / `k-utf8` | UTF-8 text as the Unicode scalar list `string[]` from core.k |
+| `utf16.mjs` / `k-utf16` | UTF-16 external bytes mapped to the same string structure |
+| `unit.mjs` / `k-unit` | Unit |
+| `json.mjs` / `k-json` | Document-specific schemas: objects as products, arrays as indexed products |
+| `djson.mjs` / `k-djson` | One recursive JSON representation using binary tries for objects and arrays |
+
+`Examples/djson.k` supplies operations such as `get`, `nth`, `set`,
+`del`, `push`, `keys`, and `values`. The specializing JSON codec and dynamic
+JSON codec serve different schemas; they are not interchangeable encodings.
+
+`k-parse` and `k-print` use [textual k values](TEXTUAL_VALUES.md), rather than
+the external integer/string/JSON interpretations above.
+
+## Browser bundling and verification
+
+`scripts/build-repl-html.mjs` bundles a curated set of codecs as self-contained
+ES modules in the virtual filesystem. The browser shim supplies pattern
+derivation and disables CLI entrypoint behavior. It loads modules through Blob
+URLs without exposing codec runtime helper files in the VFS.
+
+A new codec needs explicit inclusion in that build to be available in the
+standalone browser REPL.
+
+Check valid and invalid input, round trips, shape rejection in `print`, CLI
+help, and REPL loading. Existing examples are in `tests/test-codecs.mjs` and
+`tests/test-repl.mjs`. Run `npm test` after changing codec behavior.

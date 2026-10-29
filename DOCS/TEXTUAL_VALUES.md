@@ -1,113 +1,85 @@
-# Textual k Values
+# Textual k values
 
-`k-parse` and `k-print` work with a textual notation for k values.
+`k-parse` and `k-print` translate between readable trees and the binary
+[schema+payload stream](../codecs/WIRE_FORMAT.md).
 
-It looks like JSON because products print as JSON objects, but
-semantically it is not a generic JSON format. It is a readable
-notation for values built from the two k data constructors:
+This boundary notation is separate from relation source syntax. It resembles
+JSON, but its leaves and numeric-looking tokens represent structural k data;
+use `k-json`, `k-int`, or the other [codecs](../codecs/README.md) for external
+JSON and numeric meanings.
 
-- product
-- tagged union
+## Trees and shorthand
 
-## The Value Model
+Products map labels to child values; variants select one tag and its payload.
+The empty product `{}` is the unit leaf.
 
-A k value is a tree.
-
-- A product is a mapping from field labels to child values.
-- A union is a single chosen tag together with its payload value.
-
-There are no primitive leaves or built-in numbers. The base leaf is
-the empty product (the unit):
+Accepted forms include:
 
 ```text
 {}
-```
-
-## Textual Notation
-
-The textual notation used by `k-parse` and `k-print` is:
-
-- `{}` for the empty product
-- `{"field": value, ...}` for a product
-- `{"tag": value}` for a union
-
-The last form is why the notation only looks like JSON. Syntactically,
-a single-entry object is ambiguous in plain JSON, but in k it is
-interpreted through the inferred or supplied pattern.
-
-Examples:
-
-```text
-{}
-```
-
-```text
-{"point":{"x":{},"y":{}}}
-```
-
-```text
+{"x":{},"y":{}}
 {"succ":{"succ":{"zero":{}}}}
 ```
 
-The last example is the k value usually written in native notation as:
+An atomic label such as `zero` or `"zero"` abbreviates a unit variant.
+The last tree can therefore be written:
 
-```k
-{}|zero|succ|succ
+```text
+{"succ":{"succ":"zero"}}
 ```
 
-## Relation to Native k Notation
+Square-bracket notation such as `[a,b]` abbreviates a tree with numeric labels
+`0` and `1`. It is an indexed product, not the `cons`/`nil` list representation;
+a one-element array has the same singleton ambiguity described below.
 
-The native k notation is more explicit for interactive work:
+In relation source, the corresponding constructor expression is:
 
-- product construction: `{ v field, w other }`
-- union introduction: `v |tag`
+```k
+{} |zero |succ |succ
+```
 
-`k-print` does not emit that native notation. It emits the JSON-like
-tree notation because it is easy to pipe, inspect, and round-trip
-through standard text tooling.
+`k-print` emits boundary notation, with shorthand where available.
+The REPL renders the relation-style value and its envelope instead.
 
-## `k-parse`
+## Singleton ambiguity
 
-`k-parse`:
+A single-child tree such as `{"item":{}}` could mean either a singleton
+product or a variant. Its pattern decides which.
 
-1. reads textual k values
-2. optionally takes an input type or input pattern
-3. produces the binary `pattern + value` stream
+Without an explicit pattern, witness derivation treats:
 
-When no explicit pattern or type is supplied, `k-parse` derives a
-witness pattern from the textual tree.
+- empty nodes as closed products;
+- multiple-child nodes as closed products;
+- single-child nodes as open unions.
 
-## `k-print`
+Use an open product filter when you need to convert the parsed singleton into
+a product. Fully closed patterns validate the existing product/variant kind
+without that conversion.
 
-`k-print`:
+## Commands
 
-1. reads the binary `pattern + value` stream
-2. decodes it to a runtime value with its carried pattern
-3. prints the value tree in JSON-like notation
+From the repository root:
 
-So `k-print` is not a JSON decoder in the general sense. It is a
-renderer from k runtime values to a JSON-shaped textual notation.
+```sh
+printf '%s\n' '{"x":{},"y":{}}' |
+  node codecs/k-parse.mjs | node codecs/k-print.mjs
+```
 
-## Ambiguity and Patterns
+For a singleton product:
 
-The textual tree alone does not always determine whether a single-child
-node is meant as a union or a singleton product. That is why patterns
-matter.
+```sh
+printf '%s\n' '{"item":{}}' |
+  node codecs/k-parse.mjs --input-type '?{ {} item, ... }' |
+  node codecs/k-print.mjs
+```
 
-When `k-parse` has no explicit input pattern, it applies the current
-witness rule:
+`--input-type` accepts a filter script or file.
+`--input-pattern` accepts a property-list pattern as JSON or a file.
+Choose one of those options. `k-parse` also accepts an input value filename;
+otherwise it reads stdin.
 
-- empty node => closed product
-- node with multiple children => closed product
-- node with one child => open union by default
+`k-print` decodes the carried pattern and payload before rendering.
+The text by itself may not retain all envelope distinctions, so compare
+patterns as well as rendered payloads when checking conformance.
 
-An explicit input pattern or input type can force a different
-interpretation.
-
-## See Also
-
-- [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) — guide to
-  .k, .ko, .klib, and .kvm formats
-- [codecs/README.md](../codecs/README.md)
-- [DOCS/PATTERNS.md](./PATTERNS.md)
-- [DOCS/OBJECT_FILE_AND_PATTERN.md](./OBJECT_FILE_AND_PATTERN.md)
+For source programs and compiled artifacts, see [file formats](FILE_FORMATS.md).

@@ -1,97 +1,119 @@
-# k WebAssembly Backend
+# WebAssembly backend
 
-`@fraczak/k-wasm` is the experimental WebAssembly backend for
-[`@fraczak/k`](https://github.com/fraczak/k). It lowers typed k programs through
-the kVM representation, emits standard `.wasm` modules with WABT, and provides
-a Node.js runner for the binary `pattern + value` streams used by the k codec
-toolchain.
+The experimental Wasm backend compiles k relations to standard WebAssembly
+modules using kVM and WABT. The terminal and browser REPLs also use its
+in-process execution path.
 
-## Install
+Commands are provided by the root package. From the repository root:
 
-Install dependencies from the monorepo root:
-
-```bash
+```sh
 npm install
 ```
 
-Optionally expose the three backend commands on your path:
+Run the modules directly as below, or use `npm link` at the root to expose
+`k-wasm`, `k-wasm-compile`, and `k-wasm-run`.
 
-```bash
-npm link
+## Compile and run
+
+```sh
+node backends/wasm/bin/k-wasm-compile.mjs '?{} {} |ok' /tmp/k-ok.wasm
+node codecs/unit.mjs --parse |
+  node backends/wasm/bin/k-wasm-run.mjs /tmp/k-ok.wasm |
+  node codecs/k-print.mjs
 ```
 
-## Quick Start
+This prints `"ok"`. Compilation and execution in one step:
 
-Compile an expression into a standalone WebAssembly artifact:
-
-```bash
-node ./bin/k-wasm-compile.mjs '|ok' /tmp/ok.wasm
+```sh
+node codecs/unit.mjs --parse |
+  node backends/wasm/bin/k-wasm.mjs '|ok' |
+  node codecs/k-print.mjs
 ```
 
-Run it over the unit value and print the decoded result:
-
-```bash
-node ../../codecs/unit.mjs --parse |
-  node ./bin/k-wasm-run.mjs /tmp/ok.wasm |
-  node ../../codecs/k-print.mjs
-```
-
-Expected output:
-
-```json
-"ok"
-```
-
-With the backend and k codec commands on your path, the equivalent shorter
-form is:
-
-```bash
-k-wasm-compile '|ok' /tmp/ok.wasm
-k-unit --parse | k-wasm-run /tmp/ok.wasm | k-print
-```
-
-## Commands
+## Inputs and libraries
 
 | Command | Purpose |
 | --- | --- |
-| `k-wasm` | Compile k source, `.ko`, or `.kvm` input in memory and run it immediately |
-| `k-wasm-compile` | Compile k source, `.ko`, or `.kvm` input into a `.wasm` artifact |
-| `k-wasm-run` | Run an existing `.wasm` artifact over a binary input stream |
+| `k-wasm` | Compile and execute a source expression/file, `.ko`, `.kvm`, or `.pkir` |
+| `k-wasm-compile` | Produce a `.wasm` artifact from those program forms |
+| `k-wasm-run` | Execute a previously compiled `.wasm` artifact |
 
-All commands accept `--help`. The compile commands follow the `k-compile`
-input convention: pass inline source, an existing source path, a `.ko` object,
-or a `.kvm` program. They also accept one `--lib` option for a `.klib`
-dependency and repeated `--export` options to bring library aliases into the
-source scope. Existing paths are treated as files; non-existing names with
-`.k`, `.ko`, `.kvm`, `.klib`, or `.wasm` extensions are treated as missing
-files; other arguments are treated as inline source. The runners read a binary
-input stream from standard input unless an input file is given.
+The runners read binary schema+payload data from stdin or an optional input
+filename. Compile tools read source from stdin when the program is omitted.
+Source files need a terminal expression; a `.klib` alone is not an executable
+input.
 
-## Artifacts
+Compile commands accept one `--lib file` and repeated `--export alias` or
+`--export libraryAlias:localAlias` options before the program. Libraries can
+be `.k` source or `.klib` objects. `--pkir` chooses the experimental PKIR
+lowering path; `-o` / `--output` selects an output path.
 
-The compiler produces a standard WebAssembly binary module containing the
-reachable relations, the arena runtime, and a `k.metadata` custom section. The
-metadata stores the entry point and the pattern information needed to encode
-and decode values. A compiled artifact can be run later without its original k
-source, object, kVM, or `.klib` files.
+Existing paths are read as files. Recognized missing filenames are errors;
+other program arguments are treated as inline source.
 
-The current host runner targets Node.js. It is still needed to bridge between
-WebAssembly linear memory and k binary streams.
+For a library example using only a small definition:
 
-## Development
-
-Run the test suite:
-
-```bash
-npm test
+```sh
+node objects/compile.mjs 'greet = {} |hello;' /tmp/k-demo.klib
+node backends/wasm/bin/k-wasm-compile.mjs --lib /tmp/k-demo.klib   --export greet '?{} greet' /tmp/k-greet.wasm
+node codecs/unit.mjs --parse |
+  node backends/wasm/bin/k-wasm-run.mjs /tmp/k-greet.wasm |
+  node codecs/k-print.mjs
 ```
 
-Run the comparative IEEE benchmark:
+The result is `"hello"`. The library is required at compilation time; the
+module can subsequently run without the original source/library files.
 
-```bash
-npm run perf:ieee
+## Artifact and execution contract
+
+A module contains the reachable functions, the arena runtime from
+[runtime.wat](runtime.wat), and one `k.metadata` custom section.
+
+| Metadata field | Meaning |
+| --- | --- |
+| `format` / `version` | `"k-wasm"` / `1` |
+| `abi` | `"arena-v1"` |
+| `entry` | Exported function called by the runner |
+| `inputPattern` / `outputPattern` | Patterns used by the arena adapters |
+| `tags` | Statically known variant tags and their IDs |
+
+The entry ABI is `(input_pointer i32) -> (output_pointer i32, ok i32)`.
+`ok = 1` means a defined result; `ok = 0` means ordinary partial failure.
+
+The host decodes a wire value, writes it into linear memory, invokes the
+entry, reads the result under its output pattern, and writes a wire value.
+`instantiateWasmArtifact` also exposes `executeValue` for in-memory `Value`
+input/output and optional phase tracing.
+
+`k-wasm` can use the arriving input envelope while compiling. A precompiled
+module runs with its stored metadata; `k-wasm-run` does not rerun derivation
+on the original relation graph. Use one-step compilation when an input-specific
+contract is needed.
+
+## Limits and implementation
+
+A `.wasm` file still needs a host that understands the arena ABI and metadata.
+The CLI host is Node.js; the browser REPL bundles its own in-process adapter.
+
+Allocation uses a bump arena. Runners reset it between completed runs; selected
+tail-loop paths also compact live state. Temporary allocation within successful
+non-tail calls can still increase peak memory. The host translates exported
+out-of-memory flags into diagnostics.
+
+The implementation lives in [src/wasm.mjs](src/wasm.mjs) and
+[src/kvm2wasm.mjs](src/kvm2wasm.mjs). See
+[compiler architecture](../../DOCS/ARCHITECTURE.md) and
+[kVM](../../DOCS/KVM_EXECUTION_MODEL.md) for shared layers.
+
+## Verification and profiling
+
+From the repository root:
+
+```sh
+npm run test:wasm
+npm run build:repl-html
 ```
 
-See [DOCS/USE-WEB-ASSEMBLY.md](DOCS/USE-WEB-ASSEMBLY.md) for the artifact
-format, source-file and library examples, profiling options, and current
-limitations.
+For performance measurements, use `npm run perf:ieee` or
+`npm run perf:poly:trace`. The [profiling guide](../../DOCS/PROFILING_AND_TRACING.md)
+explains execution lanes and boundary costs.

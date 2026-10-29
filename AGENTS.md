@@ -1,35 +1,43 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-- Root `.mjs` files hold the core runtime and library entry points (e.g., `index.mjs`, `run.mjs`, `codes.mjs`, `typing.mjs`).
-- `k_compiler/` contains the Python prototype compiler and supporting modules.
-- `type_registry/` houses registry experiments and grammar artifacts.
-- `Examples/` and `DOCS/` provide sample programs and design notes.
-- Tests live in `tests/`, with type-derivation cases in `tests/code-derivation/`.
+## Project structure
 
-## Build, Test, and Development Commands
-- `npm install` installs dev dependencies and runs `prepare` to generate parsers.
-- `npm run prepare` regenerates `parser.mjs` and `valueParser.mjs` from `.jison` grammars.
-- `npm test` runs the full suite through `scripts/run-tests.mjs`.
-- `node repl.mjs` (or `k-repl`) starts the interactive REPL.
-- `./k.mjs <file.k>` executes a k source/object file on binary pattern+value stream input from stdin or a file; if the argument is not an existing file, it is treated as an inline k expression.
+- Root `.mjs` files contain the parser interface, compiler, runtime, and library API.
+- `parser.jison` and `valueParser.jison` are the grammar sources.
+- `Examples/` contains teaching examples and libraries; `core.k` defines core schemas.
+- `codecs/` and `objects/` contain stream codecs and artifact tools.
+- `backends/` contains the LLVM and WebAssembly implementations.
+- `browser/` and `scripts/build-repl-html.mjs` implement the standalone Web REPL.
+- `tests/` contains the main suites, including `tests/code-derivation/`.
+- `conformance/` contains shared fixtures; `k-vscode/` has separate editor tests.
+- `DOCS/README.md` is the documentation index; `paper/` holds the published paper.
 
-## Coding Style & Naming Conventions
-- JavaScript uses ES modules (`.mjs`) with 2-space indentation and semicolons.
-- Prefer `const`/`let`, small focused modules, and descriptive lower-case filenames.
-- Python modules in `k_compiler/` follow 4-space indentation and standard snake_case.
-- Grammar sources are `parser.jison` and `valueParser.jison`; generated files should not be hand-edited.
+See [the compiler guide](DOCS/ARCHITECTURE.md) for the implementation map.
 
-## Testing Guidelines
-- Add runtime tests alongside `tests/test.mjs` or new `tests/test-*.mjs` files.
-- Add type-derivation coverage in `tests/code-derivation/` (one case per file is typical).
-- Verify locally with `npm test` before opening a PR.
+## Commands
 
-## Commit & Pull Request Guidelines
-- Commits use short, imperative, sentence-case summaries (e.g., "Improve type derivation").
-- PRs should include: a clear description, the commands run (`npm test` or specific subsets), and any relevant examples or docs updates.
-- If changes touch parsing or grammars, note whether `npm run prepare` was run.
+Use Node.js 22+ for development and browser tests.
 
-## Configuration Notes
-- Requires Node.js 18+.
-- The REPL and CLI binaries are `k-repl` and `k` (see `package.json` for mappings).
+- `npm install` installs dependencies and generates parsers.
+- `npm run prepare` regenerates `parser.mjs` and `valueParser.mjs`.
+- `npm test` runs the main registered suites, including shell and Web REPL checks.
+- `npm run test:backends` runs the separate LLVM and WebAssembly suites.
+- `npm --prefix k-vscode test` runs editor tests.
+- `node tests/test-paper-examples.mjs` runs the paper examples alone; they also run under `npm test`.
+- `node repl.mjs` starts the REPL.
+- `node k.mjs <file-or-expression>` transforms a binary schema+payload input.
+
+[Test requirements and registration](tests/README.md) describe the suite boundaries.
+
+## Style and verification
+
+JavaScript uses ES modules, two-space indentation, semicolons, `const`/`let`,
+and small focused modules. Edit grammar sources rather than generated parsers.
+
+Keep tests with the relevant runtime or derivation suite. Root test files need
+an entry in `scripts/run-tests.mjs`; derivation files are discovered by directory.
+Run `npm test` before opening a PR, plus the relevant backend/editor suites.
+
+Commits use short, imperative, sentence-case summaries. PRs explain the behavior
+change, commands run, and relevant documentation updates. Mention
+`npm run prepare` when grammars change.

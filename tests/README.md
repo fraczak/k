@@ -1,46 +1,66 @@
-# k Test Suite
+# Tests
 
-This directory contains automated tests, type-derivation validation
-cases, and integration test scripts for the `k` compiler and runtime.
+Run commands below from the repository root after `npm install`.
+Use Node.js 22+ for development: browser verification uses the global WebSocket
+client. The source parser and runtime can run without a browser.
 
-## Running the Tests
+## Suite commands
 
-### 1. Run Unit and Integration Test Suite
-To run all core unit tests, type-derivation checks, and integration tests:
-```bash
-npm test
-```
-This executes `node scripts/run-tests.mjs`, which discovers and runs the
-test scripts sequentially.
+| Command | Coverage |
+| --- | --- |
+| `npm test` | Registered runtime, patterns, paper examples, codecs, hashes, objects, REPL, browser, kVM, PKIR, library, and shell suites |
+| `npm run conformance` | Shared source/object/KIR-P fixtures |
+| `npm run test:wasm` | Wasm runtime/lowering and backend shell integration |
+| `npm run test:llvm` | LLVM runtime/lowering, field-layout regression, shell integration, and shared fixtures |
+| `npm run test:backends` | Both backend suites |
+| `npm --prefix k-vscode test` | Editor grammar and expression-background tests |
+| `node tests/test-paper-examples.mjs` | Publication examples, including canonical hashes and the half adder |
+| `npm run test:package -- /path/to/installed/@fraczak/k` | Packed installation, API, command help, codec pipeline, objects, and Wasm |
 
-## Test Directory Structure
+The backend and editor suites are separate commands; `npm test` does not run
+every suite in this table. The paper command is also available as a focused check.
 
-### Core Test Files
-- **[test.mjs](test.mjs)**: Verifies basic parser and runtime
-  execution behavior.
-- **[test-kvm.mjs](test-kvm.mjs)**: Conformance testing for the kVM
-  register compiler and interpreter in envelope-aware and envelope-free
-  modes.
-- **[test-kvm-polymorphic.mjs](test-kvm-polymorphic.mjs)**: Tests for
-  polymorphic `.kvm` templates (`layer: "KVM-P"`) and runtime input
-  envelope specialization (`specializeKVM`).
-- **[test-ieee-arithmetic.mjs](test-ieee-arithmetic.mjs)**: Verifies
-  IEEE-754 double precision float arithmetic (`Examples/ieee.k`).
-- **[test-repl.mjs](test-repl.mjs)**: Tests interactive REPL commands,
-  state transitions, imports, `.klib` and `.ko` exports.
-- **[test-k-object.mjs](test-k-object.mjs)**: Tests serialization,
-  compilation, and loading of `.ko` binary objects and `.klib` libraries.
-- **[test-fingerprint.mjs](test-fingerprint.mjs)**: Tests semantic
-  expression and relation hashing/fingerprinting (`@hash`).
-- **[test-hash-normalization.mjs](test-hash-normalization.mjs)**:
-  Verifies consistent normalization of type pattern graphs and hashes.
-- **[test-hash-fuzz.mjs](test-hash-fuzz.mjs)**: Fuzzes expression and
-  relation hashing to guard against collisions.
+The main runner executes suites sequentially, prints durations, and stops at
+the first failure. Browser tests build `repl.html` and perform headless
+verification if Chromium is found. Without Chromium, that browser execution
+portion is skipped. LLVM execution checks require Clang; individual optional
+checks report skips when their toolchain is unavailable.
 
-### Type Derivation Suites
-- **[code-derivation/](code-derivation/)**: Individual files validating
-  type-derivation convergence and pattern-envelope generation.
+## Registration and organization
 
-### Integration Scripts
-- **[integration.sh](integration.sh)**: Shell script checking boundary
-  data pipelines (`k-parse`, `k-show`, `k-print`) against binary outputs.
+Root suites are explicitly registered in
+[scripts/run-tests.mjs](../scripts/run-tests.mjs).
+Files ending in `.mjs` under [code-derivation/](code-derivation/) are discovered
+automatically. The compact `core.mjs` table groups the elementary derivation
+cases; shared helpers live outside the discovered directory.
+
+| Area | Representative suites |
+| --- | --- |
+| Templates and routing | `test-named-patterns.mjs` |
+| Derivation and envelope propagation | `code-derivation/` |
+| Canonical identities | `test-hash-normalization.mjs` (including code fingerprints), `test-hash-fuzz.mjs` |
+| Wire values and codecs | `test-codecs.mjs`, `test-deep-wire-value.mjs`, `test-structural-values.mjs` |
+| Objects and portable export | `test-k-object.mjs`, `test-kir.mjs`, `test-validate-object.mjs` |
+| Interactive state and browser UI | `test-repl.mjs`, `test-repl-html.mjs`, `test-tree-view.mjs` |
+| Execution layers | `test-kvm.mjs`, `test-kvm-polymorphic.mjs`, `test-access-table.mjs`, `test-pkir.mjs` |
+| Libraries | Arithmetic, IEEE, list, Karatsuba, and dynamic JSON suites |
+
+`test-hash-fuzz.mjs` uses a deterministic generator to check renaming and
+definition-order invariance; it is not a general cryptographic collision test.
+
+The [conformance fixtures](../conformance/) provide programs, input values,
+expected values, and case descriptions reused by supported execution paths.
+A rendered payload alone can hide envelope differences, so keep pattern
+comparisons when checking structural correctness.
+
+Arithmetic and Karatsuba tests share CLI setup in `helpers/cli.mjs`. They still
+run the library through `k.mjs` and compare numerical results with BigInt;
+codec modules prepare and decode the wire values in process. The dedicated
+codec and shell suites cover the codec command-line boundary.
+
+## Adding coverage
+
+Use assertions for expected values, schemas, and failures. Register a new
+root suite explicitly, or add a derivation case in the discovered directory.
+Run the main suite and the relevant backend/editor checks. Grammar edits also
+require `npm run prepare`; generated parser files should not be hand-edited.

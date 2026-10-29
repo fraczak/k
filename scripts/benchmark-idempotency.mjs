@@ -8,8 +8,7 @@ import { performance } from "node:perf_hooks";
 
 const DEFAULT_EXAMPLES = [
   "Examples/nat.k",
-  "Examples/byte.k",
-  "Examples/bnat.k",
+  "Examples/list.k",
   "Examples/arithmetics.k",
   "Examples/ieee.k"
 ];
@@ -24,7 +23,7 @@ for K source files through the .klib object format.
 Arguments:
   example.k ...
       One or more .k source files to benchmark.
-      (default: Examples/nat.k Examples/byte.k Examples/bnat.k
+      (default: Examples/nat.k Examples/list.k
                 Examples/arithmetics.k Examples/ieee.k)
 
 Options:
@@ -51,6 +50,7 @@ function run(args) {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"]
   });
+  if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`${args.join(" ")} failed\n${result.stderr || result.stdout}`);
   }
