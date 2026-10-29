@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -50,25 +51,36 @@ const chromiumBin = ["google-chrome", "chromium-browser", "chromium"].find(bin =
 
 if (chromiumBin) {
   console.log(`3. Running browser verification with ${chromiumBin}...`);
-  const tmpDir = `/tmp/chrome-test-${Date.now()}`;
-  fs.mkdirSync(tmpDir, { recursive: true });
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-browser-test-"));
 
-  const cdpPort = 9333 + Math.floor(Math.random() * 500);
   const chrome = spawn(chromiumBin, [
     "--headless=new",
     "--disable-gpu",
-    `--remote-debugging-port=${cdpPort}`,
+    "--remote-debugging-port=0",
     "--no-sandbox",
     "--disable-extensions",
     `--user-data-dir=${tmpDir}`,
     `file://${replHtmlPath}`
-  ]);
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  let launchError;
+  let diagnostics = "";
+  chrome.on("error", error => { launchError = error; });
+  chrome.stderr.setEncoding("utf8");
+  chrome.stderr.on("data", chunk => { diagnostics = (diagnostics + chunk).slice(-16384); });
 
   try {
     let wsUrl = null;
-    for (let i = 0; i < 30; i++) {
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      if (launchError) throw launchError;
+      if (chrome.exitCode !== null || chrome.signalCode !== null) {
+        throw new Error(`Chrome exited before startup (${chrome.exitCode ?? chrome.signalCode})\n${diagnostics}`);
+      }
       try {
-        const res = await fetch(`http://127.0.0.1:${cdpPort}/json/list`);
+        const cdpPort = fs.readFileSync(path.join(tmpDir, "DevToolsActivePort"), "utf8").split("\n")[0];
+        const res = await fetch(`http://127.0.0.1:${cdpPort}/json/list`, {
+          signal: AbortSignal.timeout(1000)
+        });
         const list = await res.json();
         const page = list.find(item => item.url && item.url.includes("repl.html"));
         if (page && page.webSocketDebuggerUrl) {
@@ -79,7 +91,7 @@ if (chromiumBin) {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    assert(wsUrl, `Could not connect to Chromium CDP on port ${cdpPort}`);
+    assert(wsUrl, `Chrome debugging connection was not ready within 30 seconds\n${diagnostics}`);
 
     const ws = new WebSocket(wsUrl);
     await new Promise(r => ws.onopen = r);
