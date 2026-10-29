@@ -20,6 +20,7 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   declare the Node.js runtime minimum, and include the declared ISC license.
 - Add package installation smoke checks, release CI, and a pre-publication test
   gate. Parser generation now stops if either grammar fails.
+- Prefer Chrome for browser tests and skip unavailable browser launchers.
 
 ## [8.4.1] — 2026-10-23 — Strict Pattern Validation & Autohook Removal
 

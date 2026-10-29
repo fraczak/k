@@ -43,8 +43,8 @@ assert(!html.includes("input-popup-modal"), "repl.html must NOT contain input po
 console.log("   repl.html is valid, self-contained, and has size:", (html.length / 1024).toFixed(1), "KB");
 
 // 3. If Chromium is available, run end-to-end browser test
-const chromiumBin = ["chromium-browser", "chromium", "google-chrome"].find(bin => {
-  const res = spawnSync("which", [bin], { stdio: "ignore" });
+const chromiumBin = ["google-chrome", "chromium-browser", "chromium"].find(bin => {
+  const res = spawnSync(bin, ["--version"], { stdio: "ignore" });
   return res.status === 0;
 });
 
