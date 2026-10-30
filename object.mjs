@@ -866,7 +866,8 @@ function decompileObject(object) {
   const relAliases = hydrated.relAlias || {};
   const aliases = shortestUniqueAliases([
     ...Object.keys(hydrated.codes),
-    ...Object.values(relAliases)
+    ...Object.values(relAliases),
+    ...Object.keys(rels).map((name) => relAliases[name] || name)
   ]);
 
   const emittedRelAliases = new Set();

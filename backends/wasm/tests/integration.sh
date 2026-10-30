@@ -167,7 +167,8 @@ printf '{"x":{"a":{}},"y":{"b":{}}}\n' |
   node "$K_ROOT/codecs/k-print.mjs" |
   grep -qx '"b"'
 
-node "$K_ROOT/objects/compile.mjs" "$K_ROOT/Examples/ieee.k" "$TMP_DIR/ieee.klib"
+node "$K_ROOT/objects/compile.mjs" --lib "$K_ROOT/core.k" "$K_ROOT/Examples/ieee.k" "$TMP_DIR/ieee-types.klib"
+node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/ieee-types.klib" "$K_ROOT/Examples/ieee-arithmetics.k" "$TMP_DIR/ieee.klib"
 if node ./bin/k-wasm-compile.mjs --lib "$TMP_DIR/ieee.klib" --lib "$TMP_DIR/ieee.klib" --export mul:times "{()x,()y} times .result" "$TMP_DIR/repeated-lib.wasm" >/dev/null 2>&1; then
   echo "--lib unexpectedly accepted more than once" >&2
   exit 1

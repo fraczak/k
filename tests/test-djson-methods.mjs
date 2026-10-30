@@ -8,7 +8,17 @@ import { textToStringValue, stringValueToText } from "../codecs/runtime/unicode-
 import { parse as parseInt } from "../codecs/int.mjs";
 
 const source = readFileSync(new URL("../Examples/djson.k", import.meta.url), "utf8");
-const library = loadLibrary(compileLibrary(source));
+const core = loadLibrary(compileLibrary(readFileSync(new URL("../core.k", import.meta.url), "utf8")));
+const ieee = loadLibrary(compileLibrary(readFileSync(new URL("../Examples/ieee.k", import.meta.url), "utf8"), {
+  libraries: [core]
+}));
+// Resolve dependencies by hash even when the provider's friendly aliases are absent.
+const canonicalTypes = {
+  ...ieee,
+  patternAlias: {},
+  patterns: Object.fromEntries(Object.entries(ieee.patterns).filter(([name]) => name.startsWith("@")))
+};
+const library = loadLibrary(compileLibrary(source, { libraries: [canonicalTypes] }));
 const run = (op, value) => k.compile(library.relAlias[op], { libraries: [library] })(value);
 
 function method(op, json, { key, index, val } = {}) {

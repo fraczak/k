@@ -3,14 +3,15 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 
 const DEFAULT_EXAMPLES = [
   "Examples/nat.k",
   "Examples/list.k",
   "Examples/arithmetics.k",
-  "Examples/ieee.k"
+  "Examples/ieee.k",
+  "Examples/ieee-arithmetics.k"
 ];
 
 function printHelp() {
@@ -24,7 +25,8 @@ Arguments:
   example.k ...
       One or more .k source files to benchmark.
       (default: Examples/nat.k Examples/list.k
-                Examples/arithmetics.k Examples/ieee.k)
+                Examples/arithmetics.k Examples/ieee.k
+                Examples/ieee-arithmetics.k)
 
 Options:
   -h, --help
@@ -52,7 +54,7 @@ function run(args) {
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(`${args.join(" ")} failed\n${result.stderr || result.stdout}`);
+    throw new Error(`${args.join(" ")} failed (${result.status ?? result.signal})\n${result.stderr || result.stdout}`);
   }
 }
 
@@ -81,8 +83,21 @@ for (const example of benchmarkExamples) {
   for (let i = 0; i < iterations; i++) {
     const out = mkdtempSync(join(tmpdir(), `k-idempotency-bench-${example.replaceAll("/", "_")}-`));
     try {
+      const isIEEE = resolve(example) === resolve("Examples/ieee.k");
+      const isArithmetic = resolve(example) === resolve("Examples/ieee-arithmetics.k");
+      let dependency;
+      if (isIEEE || isArithmetic) {
+        dependency = join(out, "core.klib");
+        run(["objects/compile.mjs", "core.k", dependency]);
+      }
+      if (isArithmetic) {
+        const ieee = join(out, "ieee.klib");
+        run(["objects/compile.mjs", "--lib", dependency, "Examples/ieee.k", ieee]);
+        dependency = ieee;
+      }
+      const library = dependency ? ["--lib", dependency] : [];
       const t0 = performance.now();
-      run(["objects/compile.mjs", example, join(out, "1.klib")]);
+      run(["objects/compile.mjs", ...library, example, join(out, "1.klib")]);
       run(["objects/decompile.mjs", join(out, "1.klib"), join(out, "1.k")]);
       run(["objects/compile.mjs", join(out, "1.k"), join(out, "2.klib")]);
       run(["objects/decompile.mjs", join(out, "2.klib"), join(out, "2.k")]);

@@ -27,7 +27,10 @@ import {
 } from "../backend-api.mjs";
 import { parse as parseIntValue } from "../codecs/int.mjs";
 import { parse as parseFloatValue } from "../codecs/ieee.mjs";
+import { composePattern, edgeSubpattern } from "../Value.mjs";
 import {
+  compileLibrary,
+  loadLibrary,
   compileObjectBuffer as compileBackendObjectBuffer,
   decodeObject as decodeBackendObject
 } from "../object.mjs";
@@ -45,7 +48,9 @@ const scriptPath = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(scriptPath), "..");
 const kRoot = root;
 const llvmRoot = path.join(root, "backends/llvm");
-const resultsPath = path.join(root, "benchmark-results.json");
+const resultsPath = process.env.K_BENCHMARK_RESULT_PATH
+  ? path.resolve(process.env.K_BENCHMARK_RESULT_PATH)
+  : path.join(root, "benchmark-results.json");
 
 const bigA = "1234567890".repeat(22);
 const bigB = "9876543210".repeat(22);
@@ -146,11 +151,23 @@ function sha256() {
 }
 
 function suiteSourcePath(suite) {
-  return path.join(kRoot, suite === "ieee" ? "Examples/ieee.k" : "Examples/arithmetics.k");
+  return path.join(kRoot, sourceNameForSuite(suite));
 }
 
 function sourceNameForSuite(suite) {
-  return suite === "ieee" ? "Examples/ieee.k" : "Examples/arithmetics.k";
+  return suite === "ieee" ? "Examples/ieee-arithmetics.k" : "Examples/arithmetics.k";
+}
+
+let ieeeDependencies;
+function dependenciesForSuite(suite) {
+  if (suite !== "ieee") return [];
+  if (!ieeeDependencies) {
+    const core = loadLibrary(compileLibrary(fs.readFileSync(path.join(kRoot, "core.k"), "utf8")));
+    ieeeDependencies = [loadLibrary(compileLibrary(fs.readFileSync(path.join(kRoot, "Examples/ieee.k"), "utf8"), {
+      libraries: [core]
+    }))];
+  }
+  return ieeeDependencies;
 }
 
 function stripTrailingUnitMain(source) {
@@ -174,7 +191,7 @@ function canonicalPattern(propertyList) {
 }
 
 function wireInput(inputVal, relDef) {
-  const inputPattern = relationPattern(relDef, 0);
+  const inputPattern = inputVal.pattern || relationPattern(relDef, 0);
   const inputWire = encodeToWire(inputVal, inputPattern);
   return { inputPattern, inputWire };
 }
@@ -182,7 +199,8 @@ function wireInput(inputVal, relDef) {
 function backendObjectForCase(testCase) {
   const source = sourceForCase(testCase);
   return decodeBackendObject(compileBackendObjectBuffer(source, {
-    source: `${sourceNameForSuite(testCase.suite)}#${testCase.rel}`
+    source: `${sourceNameForSuite(testCase.suite)}#${testCase.rel}`,
+    libraries: dependenciesForSuite(testCase.suite)
   }));
 }
 
@@ -454,15 +472,24 @@ async function prepareBackendRunner(job, relation, inputVal, state) {
 
 async function prepareState(suite) {
   const state = createState();
+  if (suite === "ieee") {
+    await evaluateInput(`:load ${path.join(kRoot, "core.k")}`, state);
+    await evaluateInput(`:load ${path.join(kRoot, "Examples/ieee.k")}`, state);
+  }
   await evaluateInput(`:load ${suiteSourcePath(suite)}`, state);
   return state;
 }
 
 function ieeeInput(testCase, state) {
-  return Value.product({
+  return typedProduct({
     x: parseFloatValue(testCase.input.x),
     y: parseFloatValue(testCase.input.y)
   });
+}
+
+function typedProduct(fields) {
+  return Value.product(fields, composePattern("closed-product",
+    Object.entries(fields).map(([label, value]) => [label, value.pattern])));
 }
 
 function arithmeticInput(testCase) {
@@ -471,16 +498,21 @@ function arithmeticInput(testCase) {
     return parseIntValue(testCase.input.x);
   }
   if (shape === "int-pair") {
-    return Value.product({
+    return typedProduct({
       x: parseIntValue(testCase.input.x),
       y: parseIntValue(testCase.input.y)
     });
   }
   if (shape === "bits-pair") {
+    const x = parseIntValue(testCase.input.x);
+    const y = parseIntValue(testCase.input.y);
     return Value.product({
-      x: parseIntValue(testCase.input.x).value,
-      y: parseIntValue(testCase.input.y).value
-    });
+      x: x.value,
+      y: y.value
+    }, composePattern("closed-product", [
+      ["x", edgeSubpattern(x.pattern, x.tag)],
+      ["y", edgeSubpattern(y.pattern, y.tag)]
+    ]));
   }
   throw new Error(`Unknown arithmetic input shape '${shape}'`);
 }

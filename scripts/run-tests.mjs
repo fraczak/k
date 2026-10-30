@@ -48,6 +48,8 @@ const tests = [
     node,
     ["tests/test-djson-methods.mjs"]
   ],
+  ["tests/test-parse-json.mjs", node, ["tests/test-parse-json.mjs"]],
+  ["tests/test-ieee-text.mjs", node, ["tests/test-ieee-text.mjs"]],
   ["tests/test-deep-wire-value.mjs", node, ["tests/test-deep-wire-value.mjs"]],
   ["tests/test-k-object.mjs", node, ["tests/test-k-object.mjs"]],
   ["tests/test-kir.mjs", node, ["tests/test-kir.mjs"]],

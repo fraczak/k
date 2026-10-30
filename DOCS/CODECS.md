@@ -116,6 +116,60 @@ witness derivation. General wire semantics are specified in
 `del`, `push`, `keys`, and `values`. The specializing JSON codec and dynamic
 JSON codec serve different schemas; they are not interchangeable encodings.
 
+The library references core and IEEE types by their canonical hashes, as
+`poly.k` references the integer type. Its `number[]` is the IEEE `float64[]`;
+the sign, exponent, and fraction schemas are shared too. In the REPL, load
+`core.k`, `Examples/ieee.k`, then `Examples/djson.k`. When compiling, build the
+IEEE library with core first so it carries both sets of types.
+
+`Examples/ieee.k` contains the binary64 representation, small constructors and
+predicates, and text conversion. Heavy add/subtract/multiply/divide definitions
+are in `Examples/ieee-arithmetics.k`; load that file after `core.k` and `ieee.k`
+when arithmetic is needed. JSON parsing uses the lightweight library alone.
+
+`parseFloat64`: `string[]` → `float64[]` accepts JSON-style decimal syntax,
+an optional leading `+`, surrounding ASCII JSON whitespace, and the words
+`Infinity` and `NaN` with optional signs. Overflow yields signed infinity;
+underflow preserves signed zero. Invalid text is undefined.
+`printFloat64`: `float64[]` → `string[]` produces an exact decimal expansion
+for finite values, preserving signed zero. It prints infinities as `Infinity`
+or `-Infinity`, and all NaNs as `NaN`. Parsing NaN text selects one canonical
+payload; NaN payloads are not preserved through text.
+The printer prioritizes exact round-trips over shortest formatting: `0.1`
+prints as `0.1000000000000000055511151231257827021181583404541015625`.
+
+The library also defines `parseJson`: `string[]` → `djson[]`, entirely in k.
+It consumes one complete JSON document, including nested containers, Unicode
+escapes, and decimal numbers rounded to binary64. Invalid JSON, unpaired
+surrogate escapes, and numbers that overflow to infinity are undefined.
+For example, decode UTF-8 to a k string, then parse that string in k:
+
+```sh
+node objects/compile.mjs --lib core.k Examples/ieee.k /tmp/ieee-core.klib
+node objects/compile.mjs --lib /tmp/ieee-core.klib Examples/djson.k /tmp/djson.klib
+printf '%s' '{"answer":42}' | node codecs/utf8.mjs --parse |
+  node k.mjs --lib /tmp/djson.klib --export parseJson 'parseJson' |
+  node codecs/djson.mjs --print
+```
+
+This prints `{"answer":42}`. Exact conversion near binary64 limits is expensive
+in the envelope-aware JavaScript interpreter; the Wasm backend runs the same
+relation with much less overhead.
+
+The compiled IEEE library also supports a complete text round-trip in k:
+
+```sh
+printf '%s' '1.5' | node codecs/utf8.mjs --parse |
+  node k.mjs --lib /tmp/ieee-core.klib --export parseFloat64 --export printFloat64 'parseFloat64 printFloat64' |
+  node codecs/utf8.mjs --print
+```
+
+For arithmetic, compile the optional layer against the same IEEE library:
+
+```sh
+node objects/compile.mjs --lib /tmp/ieee-core.klib Examples/ieee-arithmetics.k /tmp/ieee-arithmetics.klib
+```
+
 `k-parse` and `k-print` use [textual k values](TEXTUAL_VALUES.md), rather than
 the external integer/string/JSON interpretations above.
 

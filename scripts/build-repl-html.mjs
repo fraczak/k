@@ -82,6 +82,7 @@ if (fs.existsSync(coreKPath)) {
 const verifiedExamples = [
   "arithmetics.k",
   "ieee.k",
+  "ieee-arithmetics.k",
   "poly.k",
   "karatsuba-mult.k",
   "djson.k"
@@ -1691,6 +1692,7 @@ const htmlContent = `<!DOCTYPE html>
               <option value="core.k">core.k</option>
               <option value="arithmetics.k">arithmetics.k</option>
               <option value="ieee.k">ieee.k</option>
+              <option value="ieee-arithmetics.k">ieee-arithmetics.k</option>
               <option value="poly.k">poly.k</option>
               <option value="karatsuba-mult.k">karatsuba-mult.k</option>
               <option value="djson.k">djson.k</option>

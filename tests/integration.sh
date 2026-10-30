@@ -81,7 +81,8 @@ if ./kvm.mjs -k Examples/nat.k > "$TMP_DIR/dash-k-kvm.out" 2> "$TMP_DIR/dash-k-k
 fi
 grep -q -- '-k is no longer supported' "$TMP_DIR/dash-k-kvm.err"
 echo
-./objects/compile.mjs Examples/ieee.k "$TMP_DIR/ieee.klib"
+./objects/compile.mjs --lib core.k Examples/ieee.k "$TMP_DIR/ieee-types.klib"
+./objects/compile.mjs --lib "$TMP_DIR/ieee-types.klib" Examples/ieee-arithmetics.k "$TMP_DIR/ieee.klib"
 MUL=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^mul = @' | sed 's/^mul = \(@[^;]*\);.*$/\1/'`
 DIV=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^div = @' | sed 's/^div = \(@[^;]*\);.*$/\1/'`
 ARG=0.12

@@ -1,0 +1,7187 @@
+-- IEEE binary64 arithmetic. Load core.k, then ieee.k first.
+
+bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
+sign[] = @F7RNp9YbYnUXpfZBQViADi6LZyXYYuiJHc9KckfZtDvm[];
+exp11[] = @F2KGfE24DhFGChv6pVAb4pkC9YWvt5izpnnwFDTLfG2h[];
+frac52[] = @ziwtSeiWqhQZjbpnB2TpWhSJCDTWfX2QzGvPd3DdVJCZ[];
+float64[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
+
+-- Shared constructors and predicates.
++ = @7rHQSPwedgnq3zPpQgdudpvwzxgbmDXhK9nVRCYciJpX;
++? = @AR9HjW5Z2eFguBG27zFTaPN7VNRfyLabDXh87LWYBYS7;
+- = @2Zn83TkHQiN5MgeFFLzYx2a9UYi22MsXzR8rD5VusHsh;
+-? = @qHsFhcAZcrrUtCtwBRCtRG63hBJKjm25P5DbK4GfdWHe;
+0 = @EHvJE7XLDHFp85gcBQGN5j3EDqUi3ChEdMtByVxF7mk9;
+0? = @iWMq26enaf96q83ZGSaDJrwRrUeZy7MSdjFeHny9s65T;
+1 = @yhn2hGiP2VyS2BeYjrSrtrucugXJNDqWpNEYGMCjQQqV;
+1? = @QcpWEGasV6mVAmjKK2EkHVEjgqnHXkFPjx7hKkzyB8US;
+all_ones_exponent? = @D94T2PqQtaQ6zbc7ZsSsT5DjMuQ83AvDTvWLu4K44BRV;
+exp0 = @bRQ4ZvHQXXY3VVfwBLZWKzvGNAP7D9JibenqJnZxDaiQ;
+exp_all1 = @7cjX9nvDtU2kSnV3FeECiYLnwXzg7rJU6zVjSWXY8LQi;
+finite_float64? = @pAX8ruNaFXEAPtKeYvVA6kLmqYhNE7QCAKy2TEFehnwn;
+flip_sign = @62TQ4YFyRxFkS4aYddwGfHtdLyJRsvtYf36yin4sYHpK;
+frac0 = @6ExeHyCJJTX5VGjj2eaBMdmhzbQskAcLRh6F2gfveRTv;
+frac_lsb1 = @SHVHXMWgxF5dtgfJ82EvXtPijJC6rN37kiBp3Be4kbyD;
+inf_float64? = @Y6xGQMWvpRfjFpF9NUWL6YyWt2sFgbUungbUKAZdi7Mg;
+nan_float64? = @YMDkVKABJpjwg2xVnBsx5g7ZPFY55UsMgJsgn2CWLb4e;
+neg_inf = @MMMiyGD9arLJG7wpKGLrtCUTuztHxQMH4VA6WnvW6wuH;
+neg_zero = @6VEsHQvx5xFgfCCWx4KaGFJbcnftj78kzsFrW5tRQcby;
+negate_float64 = @sMkB3vmeN4gSAQ5pr4U5UMg3q9DLMJD9MEL9AQhEfQ7M;
+nonzero_fraction? = @erLhmi7hnwEL289kdxCj2u3aerDvRANeRTCAcBpTykMA;
+not_all_ones_exponent? = @SmXhp95kpzNYTedsE4VMZMFX2iGtibwZZgFvnRcfbQGc;
+pos_inf = @d3CmJs8Qj28u5BYE85RGXbTYZmq2PKmuMsHzsuSY8hqt;
+pos_zero = @rQxnu7QhXpmG8eUL2J2BjjBCchkR3jrUcfwTPyU42n9c;
+qnan = @uCkX6kYtVDKncnu76BiCCb4brTWUcy4wJkqxPCEyGK5K;
+zero_exponent? = @uwBaQweqzUV2xKEig2iVcgiqYAGwT3f6apruvpFcj4PJ;
+zero_float64? = @KKcAchrf3dLQeHJEyezjvThe5wpMF9DUU5M5XHCJHdwm;
+zero_fraction? = @H8gDjZnbeRty3D5sR9ChhRZXQxwUbeWUCxFJfBgztc96;
+
+// Arithmetic-specific patterns and ripple-carry helpers.
+
+// Small utility products for pairing bits or signs.
+bit_pair[] = { bit[] x, bit[] y };
+sign_pair[] = { sign[] x, sign[] y };
+
+// Comparator states and result lattice (accounts for NaN unordered case).
+cmp_state[] = < {} eq, {} gt, {} lt >;
+cmp[] = < {} eq_exact, {} eq_zero, {} gt, {} lt, {} unordered_nan >;
+
+// Rounding and exception flags per operation.
+
+flags_add[] = <
+  {} none, {} invalid, {} overflow, {} underflow, {} inexact
+>;
+flags_sub[] = <
+  {} none, {} invalid, {} overflow, {} underflow, {} inexact
+>;
+flags_mul[] = <
+  {} none, {} invalid, {} overflow, {} underflow, {} inexact
+>;
+flags_div[] = <
+  {} none, {} invalid, {} div_by_zero,
+  {} overflow, {} underflow, {} inexact
+>;
+
+// Bundles pairing an arithmetic result with its raised flags.
+add_result[] = { float64[] result, flags_add[] flags };
+sub_result[] = { float64[] result, flags_sub[] flags };
+mul_result[] = { float64[] result, flags_mul[] flags };
+div_result[] = { float64[] result, flags_div[] flags };
+
+// Common products for operand pairs and extended significands.
+float_pair[] = { float64[] x, float64[] y };
+sig53[] = {
+  bit[] 0,  bit[] 1,  bit[] 2,  bit[] 3,  bit[] 4,  bit[] 5,
+  bit[] 6,  bit[] 7,  bit[] 8,  bit[] 9,  bit[] 10, bit[] 11,
+  bit[] 12, bit[] 13, bit[] 14, bit[] 15, bit[] 16, bit[] 17,
+  bit[] 18, bit[] 19, bit[] 20, bit[] 21, bit[] 22, bit[] 23,
+  bit[] 24, bit[] 25, bit[] 26, bit[] 27, bit[] 28, bit[] 29,
+  bit[] 30, bit[] 31, bit[] 32, bit[] 33, bit[] 34, bit[] 35,
+  bit[] 36, bit[] 37, bit[] 38, bit[] 39, bit[] 40, bit[] 41,
+  bit[] 42, bit[] 43, bit[] 44, bit[] 45, bit[] 46, bit[] 47,
+  bit[] 48, bit[] 49, bit[] 50, bit[] 51, bit[] 52
+};
+sig56[] = {
+  bit[] 0,  bit[] 1,  bit[] 2,  bit[] 3,  bit[] 4,  bit[] 5,
+  bit[] 6,  bit[] 7,  bit[] 8,  bit[] 9,  bit[] 10, bit[] 11,
+  bit[] 12, bit[] 13, bit[] 14, bit[] 15, bit[] 16, bit[] 17,
+  bit[] 18, bit[] 19, bit[] 20, bit[] 21, bit[] 22, bit[] 23,
+  bit[] 24, bit[] 25, bit[] 26, bit[] 27, bit[] 28, bit[] 29,
+  bit[] 30, bit[] 31, bit[] 32, bit[] 33, bit[] 34, bit[] 35,
+  bit[] 36, bit[] 37, bit[] 38, bit[] 39, bit[] 40, bit[] 41,
+  bit[] 42, bit[] 43, bit[] 44, bit[] 45, bit[] 46, bit[] 47,
+  bit[] 48, bit[] 49, bit[] 50, bit[] 51, bit[] 52, bit[] 53,
+  bit[] 54, bit[] 55
+};
+
+// Helper shapes for ripple-carry adders and small shifts.
+exp_sum[] = { exp11[] sum, bit[] carry };
+sig56_sum[] = { sig56[] sum, bit[] carry };
+adder_out[] = { bit[] sum, bit[] carry };
+shift6[] = { bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4, bit[] 5 };
+
+// Pairings used during exponent/fraction comparisons.
+exp_pair[]  = { exp11[] x, exp11[] y };
+frac_pair[] = { frac52[] x, frac52[] y };
+
+// Comparator pipelines carry current state alongside bit pairs.
+cmp_step_in[]  = { bit_pair[] bits, cmp_state[] state };
+cmp_exp_ctx[]  = { exp_pair[] pair, cmp_state[] state };
+cmp_frac_ctx[] = { frac_pair[] pair, cmp_state[] state };
+
+// Flag constructors for exception enums.
+none = {} |none;
+invalid = {} |invalid;
+overflow = {} |overflow;
+underflow = {} |underflow;
+inexact = {} |inexact;
+div_by_zero = {} |div_by_zero;
+
+// Primitive boolean operators and a 3-input XOR helper.
+not_bit =  </0 1, 0>;
+or_bit =  <.x/1 1, .y/1 1, 0> ;
+and_bit =  <.x/0 0, .y/0 0, 1> ;
+xor_bit =  <{.x/0 if, .y then} .then, .y not_bit> ;
+xor_abc =
+  {{.a x, .b y} xor_bit x, .c y} xor_bit;
+
+// Single-bit full adder: sum plus carry-out.
+full_adder =
+  {
+    {.a a, .b b, .c_in c} xor_abc sum,
+    {
+      {.a x, .b y} and_bit x,
+      {{.a x, .b y} xor_bit x, .c_in y} and_bit y
+    } or_bit carry
+  } ;
+
+// Bitwise inversion across the 11-bit exponent field.
+exp11_not =  {
+  .0 not_bit 0,
+  .1 not_bit 1,
+  .2 not_bit 2,
+  .3 not_bit 3,
+  .4 not_bit 4,
+  .5 not_bit 5,
+  .6 not_bit 6,
+  .7 not_bit 7,
+  .8 not_bit 8,
+  .9 not_bit 9,
+  .10 not_bit 10
+} ;
+
+// Ripple-carry add for two exp11 fields with an incoming carry.
+exp11_add_cin =
+  {
+    .x x,
+    .y y,
+    .c_in c_in,
+    {.x .0 a, .y .0 b, .c_in c_in} full_adder fa0
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    {.x .1 a, .y .1 b, .fa0.carry c_in} full_adder fa1
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    {.x .2 a, .y .2 b, .fa1.carry c_in} full_adder fa2
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    {.x .3 a, .y .3 b, .fa2.carry c_in} full_adder fa3
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    {.x .4 a, .y .4 b, .fa3.carry c_in} full_adder fa4
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    {.x .5 a, .y .5 b, .fa4.carry c_in} full_adder fa5
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    {.x .6 a, .y .6 b, .fa5.carry c_in} full_adder fa6
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    {.x .7 a, .y .7 b, .fa6.carry c_in} full_adder fa7
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    {.x .8 a, .y .8 b, .fa7.carry c_in} full_adder fa8
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    .fa8 fa8,
+    {.x .9 a, .y .9 b, .fa8.carry c_in} full_adder fa9
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    .fa8 fa8,
+    .fa9 fa9,
+    {.x .10 a, .y .10 b, .fa9.carry c_in} full_adder fa10
+  }
+  {
+    {.fa0.sum 0, .fa1.sum 1, .fa2.sum 2, .fa3.sum 3, .fa4.sum 4, .fa5.sum 5, .fa6.sum 6, .fa7.sum 7, .fa8.sum 8, .fa9.sum 9, .fa10.sum 10} sum,
+    .fa10.carry carry
+  } ;
+
+// Unsigned add of two exp11 values; exposes carry-out.
+exp11_add =  {.x x, .y y, 0 c_in} exp11_add_cin ;
+
+// Two's-complement subtract for exp11 (x - y).
+exp11_sub =
+  {.x x, (.y exp11_not) y, 1 c_in}
+  exp11_add_cin
+  ;
+
+// Convenience projection: subtract and return only the exponent sum.
+exp11_sub_sum =
+  {.x x, .y y} exp11_sub .sum
+  ;
+
+// Bitwise inversion over a 56-bit significand slice.
+sig56_not =  {
+  .0 not_bit 0,
+  .1 not_bit 1,
+  .2 not_bit 2,
+  .3 not_bit 3,
+  .4 not_bit 4,
+  .5 not_bit 5,
+  .6 not_bit 6,
+  .7 not_bit 7,
+  .8 not_bit 8,
+  .9 not_bit 9,
+  .10 not_bit 10,
+  .11 not_bit 11,
+  .12 not_bit 12,
+  .13 not_bit 13,
+  .14 not_bit 14,
+  .15 not_bit 15,
+  .16 not_bit 16,
+  .17 not_bit 17,
+  .18 not_bit 18,
+  .19 not_bit 19,
+  .20 not_bit 20,
+  .21 not_bit 21,
+  .22 not_bit 22,
+  .23 not_bit 23,
+  .24 not_bit 24,
+  .25 not_bit 25,
+  .26 not_bit 26,
+  .27 not_bit 27,
+  .28 not_bit 28,
+  .29 not_bit 29,
+  .30 not_bit 30,
+  .31 not_bit 31,
+  .32 not_bit 32,
+  .33 not_bit 33,
+  .34 not_bit 34,
+  .35 not_bit 35,
+  .36 not_bit 36,
+  .37 not_bit 37,
+  .38 not_bit 38,
+  .39 not_bit 39,
+  .40 not_bit 40,
+  .41 not_bit 41,
+  .42 not_bit 42,
+  .43 not_bit 43,
+  .44 not_bit 44,
+  .45 not_bit 45,
+  .46 not_bit 46,
+  .47 not_bit 47,
+  .48 not_bit 48,
+  .49 not_bit 49,
+  .50 not_bit 50,
+  .51 not_bit 51,
+  .52 not_bit 52,
+  .53 not_bit 53,
+  .54 not_bit 54,
+  .55 not_bit 55
+} ;
+
+// 56-bit ripple-carry add with optional incoming carry.
+// 14-bit ripple-carry adder
+sig14[] = {
+  bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4, bit[] 5, bit[] 6,
+  bit[] 7, bit[] 8, bit[] 9, bit[] 10, bit[] 11, bit[] 12, bit[] 13
+};
+sig14_sum[] = { sig14[] sum, bit[] carry };
+sig14_add_cin =
+  {
+    .x x,
+    .y y,
+    .c_in c_in,
+    {.x .0 a, .y .0 b, .c_in c_in} full_adder fa0
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    {.x .1 a, .y .1 b, .fa0.carry c_in} full_adder fa1
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    {.x .2 a, .y .2 b, .fa1.carry c_in} full_adder fa2
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    {.x .3 a, .y .3 b, .fa2.carry c_in} full_adder fa3
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    {.x .4 a, .y .4 b, .fa3.carry c_in} full_adder fa4
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    {.x .5 a, .y .5 b, .fa4.carry c_in} full_adder fa5
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    {.x .6 a, .y .6 b, .fa5.carry c_in} full_adder fa6
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    {.x .7 a, .y .7 b, .fa6.carry c_in} full_adder fa7
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    {.x .8 a, .y .8 b, .fa7.carry c_in} full_adder fa8
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    .fa8 fa8,
+    {.x .9 a, .y .9 b, .fa8.carry c_in} full_adder fa9
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    .fa8 fa8,
+    .fa9 fa9,
+    {.x .10 a, .y .10 b, .fa9.carry c_in} full_adder fa10
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    .fa8 fa8,
+    .fa9 fa9,
+    .fa10 fa10,
+    {.x .11 a, .y .11 b, .fa10.carry c_in} full_adder fa11
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    .fa8 fa8,
+    .fa9 fa9,
+    .fa10 fa10,
+    .fa11 fa11,
+    {.x .12 a, .y .12 b, .fa11.carry c_in} full_adder fa12
+  }
+  {
+    .x x,
+    .y y,
+    .fa0 fa0,
+    .fa1 fa1,
+    .fa2 fa2,
+    .fa3 fa3,
+    .fa4 fa4,
+    .fa5 fa5,
+    .fa6 fa6,
+    .fa7 fa7,
+    .fa8 fa8,
+    .fa9 fa9,
+    .fa10 fa10,
+    .fa11 fa11,
+    .fa12 fa12,
+    {.x .13 a, .y .13 b, .fa12.carry c_in} full_adder fa13
+  }
+  {
+    {.fa0.sum 0, .fa1.sum 1, .fa2.sum 2, .fa3.sum 3, .fa4.sum 4, .fa5.sum 5, .fa6.sum 6, .fa7.sum 7, .fa8.sum 8, .fa9.sum 9, .fa10.sum 10, .fa11.sum 11, .fa12.sum 12, .fa13.sum 13} sum,
+    .fa13.carry carry
+  } ;
+
+// 56-bit adder composed of 4x 14-bit adders
+sig56_add_cin =
+  {
+    .x x,
+    .y y,
+    {
+      {.x .0 0, .x .1 1, .x .2 2, .x .3 3, .x .4 4, .x .5 5, .x .6 6, .x .7 7, .x .8 8, .x .9 9, .x .10 10, .x .11 11, .x .12 12, .x .13 13} x,
+      {.y .0 0, .y .1 1, .y .2 2, .y .3 3, .y .4 4, .y .5 5, .y .6 6, .y .7 7, .y .8 8, .y .9 9, .y .10 10, .y .11 11, .y .12 12, .y .13 13} y,
+      .c_in c_in
+    } sig14_add_cin b0
+  }
+  {
+    .x x,
+    .y y,
+    .b0 b0,
+    {
+      {.x .14 0, .x .15 1, .x .16 2, .x .17 3, .x .18 4, .x .19 5, .x .20 6, .x .21 7, .x .22 8, .x .23 9, .x .24 10, .x .25 11, .x .26 12, .x .27 13} x,
+      {.y .14 0, .y .15 1, .y .16 2, .y .17 3, .y .18 4, .y .19 5, .y .20 6, .y .21 7, .y .22 8, .y .23 9, .y .24 10, .y .25 11, .y .26 12, .y .27 13} y,
+      .b0.carry c_in
+    } sig14_add_cin b1
+  }
+  {
+    .x x,
+    .y y,
+    .b0 b0,
+    .b1 b1,
+    {
+      {.x .28 0, .x .29 1, .x .30 2, .x .31 3, .x .32 4, .x .33 5, .x .34 6, .x .35 7, .x .36 8, .x .37 9, .x .38 10, .x .39 11, .x .40 12, .x .41 13} x,
+      {.y .28 0, .y .29 1, .y .30 2, .y .31 3, .y .32 4, .y .33 5, .y .34 6, .y .35 7, .y .36 8, .y .37 9, .y .38 10, .y .39 11, .y .40 12, .y .41 13} y,
+      .b1.carry c_in
+    } sig14_add_cin b2
+  }
+  {
+    .b0 b0,
+    .b1 b1,
+    .b2 b2,
+    {
+      {.x .42 0, .x .43 1, .x .44 2, .x .45 3, .x .46 4, .x .47 5, .x .48 6, .x .49 7, .x .50 8, .x .51 9, .x .52 10, .x .53 11, .x .54 12, .x .55 13} x,
+      {.y .42 0, .y .43 1, .y .44 2, .y .45 3, .y .46 4, .y .47 5, .y .48 6, .y .49 7, .y .50 8, .y .51 9, .y .52 10, .y .53 11, .y .54 12, .y .55 13} y,
+      .b2.carry c_in
+    } sig14_add_cin b3
+  }
+  {
+    {
+      .b0.sum.0 0, .b0.sum.1 1, .b0.sum.2 2, .b0.sum.3 3, .b0.sum.4 4, .b0.sum.5 5, .b0.sum.6 6, .b0.sum.7 7, .b0.sum.8 8, .b0.sum.9 9, .b0.sum.10 10, .b0.sum.11 11, .b0.sum.12 12, .b0.sum.13 13,
+      .b1.sum.0 14, .b1.sum.1 15, .b1.sum.2 16, .b1.sum.3 17, .b1.sum.4 18, .b1.sum.5 19, .b1.sum.6 20, .b1.sum.7 21, .b1.sum.8 22, .b1.sum.9 23, .b1.sum.10 24, .b1.sum.11 25, .b1.sum.12 26, .b1.sum.13 27,
+      .b2.sum.0 28, .b2.sum.1 29, .b2.sum.2 30, .b2.sum.3 31, .b2.sum.4 32, .b2.sum.5 33, .b2.sum.6 34, .b2.sum.7 35, .b2.sum.8 36, .b2.sum.9 37, .b2.sum.10 38, .b2.sum.11 39, .b2.sum.12 40, .b2.sum.13 41,
+      .b3.sum.0 42, .b3.sum.1 43, .b3.sum.2 44, .b3.sum.3 45, .b3.sum.4 46, .b3.sum.5 47, .b3.sum.6 48, .b3.sum.7 49, .b3.sum.8 50, .b3.sum.9 51, .b3.sum.10 52, .b3.sum.11 53, .b3.sum.12 54, .b3.sum.13 55
+    } sum,
+    .b3.carry carry
+  } ;
+sig56_add =  {.x x, .y y, 0 c_in} sig56_add_cin ;
+
+// Two's-complement subtract for sig56 (x - y).
+sig56_sub =
+  {.x x, (.y sig56_not) y, 1 c_in}
+  sig56_add_cin
+  ;
+
+// Convenience projection: subtract and return only the significand sum.
+sig56_sub_sum =
+  {.x x, .y y} sig56_sub .sum
+  ;
+
+// Compare sig56 >= by inspecting subtract carry.
+sig56_ge_bit =
+  {.x x, .y y} sig56_sub .carry
+  ;
+
+// 1-bit mux controlled by sel.
+mux_bit =
+  <
+    {.sel 0? if, .a then} .then,
+    {.sel 1? if, .b then} .then
+  > ;
+
+# --- sig112 helpers (mul/div) ------------------------------------------------
+// Wide 112-bit slice used for intermediate mul/div significands.
+sig112[] = {
+  bit[] 0,   bit[] 1,   bit[] 2,   bit[] 3,   bit[] 4,   bit[] 5,
+  bit[] 6,   bit[] 7,   bit[] 8,   bit[] 9,   bit[] 10,  bit[] 11,
+  bit[] 12,  bit[] 13,  bit[] 14,  bit[] 15,  bit[] 16,  bit[] 17,
+  bit[] 18,  bit[] 19,  bit[] 20,  bit[] 21,  bit[] 22,  bit[] 23,
+  bit[] 24,  bit[] 25,  bit[] 26,  bit[] 27,  bit[] 28,  bit[] 29,
+  bit[] 30,  bit[] 31,  bit[] 32,  bit[] 33,  bit[] 34,  bit[] 35,
+  bit[] 36,  bit[] 37,  bit[] 38,  bit[] 39,  bit[] 40,  bit[] 41,
+  bit[] 42,  bit[] 43,  bit[] 44,  bit[] 45,  bit[] 46,  bit[] 47,
+  bit[] 48,  bit[] 49,  bit[] 50,  bit[] 51,  bit[] 52,  bit[] 53,
+  bit[] 54,  bit[] 55,  bit[] 56,  bit[] 57,  bit[] 58,  bit[] 59,
+  bit[] 60,  bit[] 61,  bit[] 62,  bit[] 63,  bit[] 64,  bit[] 65,
+  bit[] 66,  bit[] 67,  bit[] 68,  bit[] 69,  bit[] 70,  bit[] 71,
+  bit[] 72,  bit[] 73,  bit[] 74,  bit[] 75,  bit[] 76,  bit[] 77,
+  bit[] 78,  bit[] 79,  bit[] 80,  bit[] 81,  bit[] 82,  bit[] 83,
+  bit[] 84,  bit[] 85,  bit[] 86,  bit[] 87,  bit[] 88,  bit[] 89,
+  bit[] 90,  bit[] 91,  bit[] 92,  bit[] 93,  bit[] 94,  bit[] 95,
+  bit[] 96,  bit[] 97,  bit[] 98,  bit[] 99,  bit[] 100, bit[] 101,
+  bit[] 102, bit[] 103, bit[] 104, bit[] 105, bit[] 106, bit[] 107,
+  bit[] 108, bit[] 109, bit[] 110, bit[] 111
+};
+// Helper shape: sum and carry for wide 112-bit arithmetic.
+sig112_sum[] = { sig112[] sum, bit[] carry };
+// Bitwise inversion across the 112-bit extended significand.
+sig112_not =  {
+  .0 not_bit 0,
+  .1 not_bit 1,
+  .2 not_bit 2,
+  .3 not_bit 3,
+  .4 not_bit 4,
+  .5 not_bit 5,
+  .6 not_bit 6,
+  .7 not_bit 7,
+  .8 not_bit 8,
+  .9 not_bit 9,
+  .10 not_bit 10,
+  .11 not_bit 11,
+  .12 not_bit 12,
+  .13 not_bit 13,
+  .14 not_bit 14,
+  .15 not_bit 15,
+  .16 not_bit 16,
+  .17 not_bit 17,
+  .18 not_bit 18,
+  .19 not_bit 19,
+  .20 not_bit 20,
+  .21 not_bit 21,
+  .22 not_bit 22,
+  .23 not_bit 23,
+  .24 not_bit 24,
+  .25 not_bit 25,
+  .26 not_bit 26,
+  .27 not_bit 27,
+  .28 not_bit 28,
+  .29 not_bit 29,
+  .30 not_bit 30,
+  .31 not_bit 31,
+  .32 not_bit 32,
+  .33 not_bit 33,
+  .34 not_bit 34,
+  .35 not_bit 35,
+  .36 not_bit 36,
+  .37 not_bit 37,
+  .38 not_bit 38,
+  .39 not_bit 39,
+  .40 not_bit 40,
+  .41 not_bit 41,
+  .42 not_bit 42,
+  .43 not_bit 43,
+  .44 not_bit 44,
+  .45 not_bit 45,
+  .46 not_bit 46,
+  .47 not_bit 47,
+  .48 not_bit 48,
+  .49 not_bit 49,
+  .50 not_bit 50,
+  .51 not_bit 51,
+  .52 not_bit 52,
+  .53 not_bit 53,
+  .54 not_bit 54,
+  .55 not_bit 55,
+  .56 not_bit 56,
+  .57 not_bit 57,
+  .58 not_bit 58,
+  .59 not_bit 59,
+  .60 not_bit 60,
+  .61 not_bit 61,
+  .62 not_bit 62,
+  .63 not_bit 63,
+  .64 not_bit 64,
+  .65 not_bit 65,
+  .66 not_bit 66,
+  .67 not_bit 67,
+  .68 not_bit 68,
+  .69 not_bit 69,
+  .70 not_bit 70,
+  .71 not_bit 71,
+  .72 not_bit 72,
+  .73 not_bit 73,
+  .74 not_bit 74,
+  .75 not_bit 75,
+  .76 not_bit 76,
+  .77 not_bit 77,
+  .78 not_bit 78,
+  .79 not_bit 79,
+  .80 not_bit 80,
+  .81 not_bit 81,
+  .82 not_bit 82,
+  .83 not_bit 83,
+  .84 not_bit 84,
+  .85 not_bit 85,
+  .86 not_bit 86,
+  .87 not_bit 87,
+  .88 not_bit 88,
+  .89 not_bit 89,
+  .90 not_bit 90,
+  .91 not_bit 91,
+  .92 not_bit 92,
+  .93 not_bit 93,
+  .94 not_bit 94,
+  .95 not_bit 95,
+  .96 not_bit 96,
+  .97 not_bit 97,
+  .98 not_bit 98,
+  .99 not_bit 99,
+  .100 not_bit 100,
+  .101 not_bit 101,
+  .102 not_bit 102,
+  .103 not_bit 103,
+  .104 not_bit 104,
+  .105 not_bit 105,
+  .106 not_bit 106,
+  .107 not_bit 107,
+  .108 not_bit 108,
+  .109 not_bit 109,
+  .110 not_bit 110,
+  .111 not_bit 111
+} ;
+// 112-bit ripple-carry add with optional incoming carry.
+// 112-bit adder composed of 2x 56-bit adders
+sig112_add_cin =
+  {
+    .x x,
+    .y y,
+    {
+      {.x .0 0, .x .1 1, .x .2 2, .x .3 3, .x .4 4, .x .5 5, .x .6 6, .x .7 7, .x .8 8, .x .9 9, .x .10 10, .x .11 11, .x .12 12, .x .13 13, .x .14 14, .x .15 15, .x .16 16, .x .17 17, .x .18 18, .x .19 19, .x .20 20, .x .21 21, .x .22 22, .x .23 23, .x .24 24, .x .25 25, .x .26 26, .x .27 27, .x .28 28, .x .29 29, .x .30 30, .x .31 31, .x .32 32, .x .33 33, .x .34 34, .x .35 35, .x .36 36, .x .37 37, .x .38 38, .x .39 39, .x .40 40, .x .41 41, .x .42 42, .x .43 43, .x .44 44, .x .45 45, .x .46 46, .x .47 47, .x .48 48, .x .49 49, .x .50 50, .x .51 51, .x .52 52, .x .53 53, .x .54 54, .x .55 55} x,
+      {.y .0 0, .y .1 1, .y .2 2, .y .3 3, .y .4 4, .y .5 5, .y .6 6, .y .7 7, .y .8 8, .y .9 9, .y .10 10, .y .11 11, .y .12 12, .y .13 13, .y .14 14, .y .15 15, .y .16 16, .y .17 17, .y .18 18, .y .19 19, .y .20 20, .y .21 21, .y .22 22, .y .23 23, .y .24 24, .y .25 25, .y .26 26, .y .27 27, .y .28 28, .y .29 29, .y .30 30, .y .31 31, .y .32 32, .y .33 33, .y .34 34, .y .35 35, .y .36 36, .y .37 37, .y .38 38, .y .39 39, .y .40 40, .y .41 41, .y .42 42, .y .43 43, .y .44 44, .y .45 45, .y .46 46, .y .47 47, .y .48 48, .y .49 49, .y .50 50, .y .51 51, .y .52 52, .y .53 53, .y .54 54, .y .55 55} y,
+      .c_in c_in
+    } sig56_add_cin b0
+  }
+  {
+    .b0 b0,
+    {
+      {.x .56 0, .x .57 1, .x .58 2, .x .59 3, .x .60 4, .x .61 5, .x .62 6, .x .63 7, .x .64 8, .x .65 9, .x .66 10, .x .67 11, .x .68 12, .x .69 13, .x .70 14, .x .71 15, .x .72 16, .x .73 17, .x .74 18, .x .75 19, .x .76 20, .x .77 21, .x .78 22, .x .79 23, .x .80 24, .x .81 25, .x .82 26, .x .83 27, .x .84 28, .x .85 29, .x .86 30, .x .87 31, .x .88 32, .x .89 33, .x .90 34, .x .91 35, .x .92 36, .x .93 37, .x .94 38, .x .95 39, .x .96 40, .x .97 41, .x .98 42, .x .99 43, .x .100 44, .x .101 45, .x .102 46, .x .103 47, .x .104 48, .x .105 49, .x .106 50, .x .107 51, .x .108 52, .x .109 53, .x .110 54, .x .111 55} x,
+      {.y .56 0, .y .57 1, .y .58 2, .y .59 3, .y .60 4, .y .61 5, .y .62 6, .y .63 7, .y .64 8, .y .65 9, .y .66 10, .y .67 11, .y .68 12, .y .69 13, .y .70 14, .y .71 15, .y .72 16, .y .73 17, .y .74 18, .y .75 19, .y .76 20, .y .77 21, .y .78 22, .y .79 23, .y .80 24, .y .81 25, .y .82 26, .y .83 27, .y .84 28, .y .85 29, .y .86 30, .y .87 31, .y .88 32, .y .89 33, .y .90 34, .y .91 35, .y .92 36, .y .93 37, .y .94 38, .y .95 39, .y .96 40, .y .97 41, .y .98 42, .y .99 43, .y .100 44, .y .101 45, .y .102 46, .y .103 47, .y .104 48, .y .105 49, .y .106 50, .y .107 51, .y .108 52, .y .109 53, .y .110 54, .y .111 55} y,
+      .b0.carry c_in
+    } sig56_add_cin b1
+  }
+  {
+    {
+      .b0.sum.0 0, .b0.sum.1 1, .b0.sum.2 2, .b0.sum.3 3, .b0.sum.4 4, .b0.sum.5 5, .b0.sum.6 6, .b0.sum.7 7, .b0.sum.8 8, .b0.sum.9 9, .b0.sum.10 10, .b0.sum.11 11, .b0.sum.12 12, .b0.sum.13 13, .b0.sum.14 14, .b0.sum.15 15, .b0.sum.16 16, .b0.sum.17 17, .b0.sum.18 18, .b0.sum.19 19, .b0.sum.20 20, .b0.sum.21 21, .b0.sum.22 22, .b0.sum.23 23, .b0.sum.24 24, .b0.sum.25 25, .b0.sum.26 26, .b0.sum.27 27, .b0.sum.28 28, .b0.sum.29 29, .b0.sum.30 30, .b0.sum.31 31, .b0.sum.32 32, .b0.sum.33 33, .b0.sum.34 34, .b0.sum.35 35, .b0.sum.36 36, .b0.sum.37 37, .b0.sum.38 38, .b0.sum.39 39, .b0.sum.40 40, .b0.sum.41 41, .b0.sum.42 42, .b0.sum.43 43, .b0.sum.44 44, .b0.sum.45 45, .b0.sum.46 46, .b0.sum.47 47, .b0.sum.48 48, .b0.sum.49 49, .b0.sum.50 50, .b0.sum.51 51, .b0.sum.52 52, .b0.sum.53 53, .b0.sum.54 54, .b0.sum.55 55,
+      .b1.sum.0 56, .b1.sum.1 57, .b1.sum.2 58, .b1.sum.3 59, .b1.sum.4 60, .b1.sum.5 61, .b1.sum.6 62, .b1.sum.7 63, .b1.sum.8 64, .b1.sum.9 65, .b1.sum.10 66, .b1.sum.11 67, .b1.sum.12 68, .b1.sum.13 69, .b1.sum.14 70, .b1.sum.15 71, .b1.sum.16 72, .b1.sum.17 73, .b1.sum.18 74, .b1.sum.19 75, .b1.sum.20 76, .b1.sum.21 77, .b1.sum.22 78, .b1.sum.23 79, .b1.sum.24 80, .b1.sum.25 81, .b1.sum.26 82, .b1.sum.27 83, .b1.sum.28 84, .b1.sum.29 85, .b1.sum.30 86, .b1.sum.31 87, .b1.sum.32 88, .b1.sum.33 89, .b1.sum.34 90, .b1.sum.35 91, .b1.sum.36 92, .b1.sum.37 93, .b1.sum.38 94, .b1.sum.39 95, .b1.sum.40 96, .b1.sum.41 97, .b1.sum.42 98, .b1.sum.43 99, .b1.sum.44 100, .b1.sum.45 101, .b1.sum.46 102, .b1.sum.47 103, .b1.sum.48 104, .b1.sum.49 105, .b1.sum.50 106, .b1.sum.51 107, .b1.sum.52 108, .b1.sum.53 109, .b1.sum.54 110, .b1.sum.55 111
+    } sum,
+    .b1.carry carry
+  } ;
+sig112_add =  {.x x, .y y, 0 c_in} sig112_add_cin ;
+
+sig112_sub =
+  {.x x, (.y sig112_not) y, 1 c_in}
+  sig112_add_cin
+  ;
+sig112_zero = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55, 0 56, 0 57, 0 58, 0 59, 0 60, 0 61, 0 62, 0 63, 0 64, 0 65, 0 66, 0 67, 0 68, 0 69, 0 70, 0 71, 0 72, 0 73, 0 74, 0 75, 0 76, 0 77, 0 78, 0 79, 0 80, 0 81, 0 82, 0 83, 0 84, 0 85, 0 86, 0 87, 0 88, 0 89, 0 90, 0 91, 0 92, 0 93, 0 94, 0 95, 0 96, 0 97, 0 98, 0 99, 0 100, 0 101, 0 102, 0 103, 0 104, 0 105, 0 106, 0 107, 0 108, 0 109, 0 110, 0 111} ;
+sig112_shift_left1 =
+  {
+    0 0,
+    .0 1,
+    .1 2,
+    .2 3,
+    .3 4,
+    .4 5,
+    .5 6,
+    .6 7,
+    .7 8,
+    .8 9,
+    .9 10,
+    .10 11,
+    .11 12,
+    .12 13,
+    .13 14,
+    .14 15,
+    .15 16,
+    .16 17,
+    .17 18,
+    .18 19,
+    .19 20,
+    .20 21,
+    .21 22,
+    .22 23,
+    .23 24,
+    .24 25,
+    .25 26,
+    .26 27,
+    .27 28,
+    .28 29,
+    .29 30,
+    .30 31,
+    .31 32,
+    .32 33,
+    .33 34,
+    .34 35,
+    .35 36,
+    .36 37,
+    .37 38,
+    .38 39,
+    .39 40,
+    .40 41,
+    .41 42,
+    .42 43,
+    .43 44,
+    .44 45,
+    .45 46,
+    .46 47,
+    .47 48,
+    .48 49,
+    .49 50,
+    .50 51,
+    .51 52,
+    .52 53,
+    .53 54,
+    .54 55,
+    .55 56,
+    .56 57,
+    .57 58,
+    .58 59,
+    .59 60,
+    .60 61,
+    .61 62,
+    .62 63,
+    .63 64,
+    .64 65,
+    .65 66,
+    .66 67,
+    .67 68,
+    .68 69,
+    .69 70,
+    .70 71,
+    .71 72,
+    .72 73,
+    .73 74,
+    .74 75,
+    .75 76,
+    .76 77,
+    .77 78,
+    .78 79,
+    .79 80,
+    .80 81,
+    .81 82,
+    .82 83,
+    .83 84,
+    .84 85,
+    .85 86,
+    .86 87,
+    .87 88,
+    .88 89,
+    .89 90,
+    .90 91,
+    .91 92,
+    .92 93,
+    .93 94,
+    .94 95,
+    .95 96,
+    .96 97,
+    .97 98,
+    .98 99,
+    .99 100,
+    .100 101,
+    .101 102,
+    .102 103,
+    .103 104,
+    .104 105,
+    .105 106,
+    .106 107,
+    .107 108,
+    .108 109,
+    .109 110,
+    .110 111
+  } ;
+sig112_shift_right1 =
+  {
+    .1 0,
+    .2 1,
+    .3 2,
+    .4 3,
+    .5 4,
+    .6 5,
+    .7 6,
+    .8 7,
+    .9 8,
+    .10 9,
+    .11 10,
+    .12 11,
+    .13 12,
+    .14 13,
+    .15 14,
+    .16 15,
+    .17 16,
+    .18 17,
+    .19 18,
+    .20 19,
+    .21 20,
+    .22 21,
+    .23 22,
+    .24 23,
+    .25 24,
+    .26 25,
+    .27 26,
+    .28 27,
+    .29 28,
+    .30 29,
+    .31 30,
+    .32 31,
+    .33 32,
+    .34 33,
+    .35 34,
+    .36 35,
+    .37 36,
+    .38 37,
+    .39 38,
+    .40 39,
+    .41 40,
+    .42 41,
+    .43 42,
+    .44 43,
+    .45 44,
+    .46 45,
+    .47 46,
+    .48 47,
+    .49 48,
+    .50 49,
+    .51 50,
+    .52 51,
+    .53 52,
+    .54 53,
+    .55 54,
+    .56 55,
+    .57 56,
+    .58 57,
+    .59 58,
+    .60 59,
+    .61 60,
+    .62 61,
+    .63 62,
+    .64 63,
+    .65 64,
+    .66 65,
+    .67 66,
+    .68 67,
+    .69 68,
+    .70 69,
+    .71 70,
+    .72 71,
+    .73 72,
+    .74 73,
+    .75 74,
+    .76 75,
+    .77 76,
+    .78 77,
+    .79 78,
+    .80 79,
+    .81 80,
+    .82 81,
+    .83 82,
+    .84 83,
+    .85 84,
+    .86 85,
+    .87 86,
+    .88 87,
+    .89 88,
+    .90 89,
+    .91 90,
+    .92 91,
+    .93 92,
+    .94 93,
+    .95 94,
+    .96 95,
+    .97 96,
+    .98 97,
+    .99 98,
+    .100 99,
+    .101 100,
+    .102 101,
+    .103 102,
+    .104 103,
+    .105 104,
+    .106 105,
+    .107 106,
+    .108 107,
+    .109 108,
+    .110 109,
+    .111 110,
+    0 111
+  } ;
+sig112_from_sig56 =
+  {
+    .0 0,
+    .1 1,
+    .2 2,
+    .3 3,
+    .4 4,
+    .5 5,
+    .6 6,
+    .7 7,
+    .8 8,
+    .9 9,
+    .10 10,
+    .11 11,
+    .12 12,
+    .13 13,
+    .14 14,
+    .15 15,
+    .16 16,
+    .17 17,
+    .18 18,
+    .19 19,
+    .20 20,
+    .21 21,
+    .22 22,
+    .23 23,
+    .24 24,
+    .25 25,
+    .26 26,
+    .27 27,
+    .28 28,
+    .29 29,
+    .30 30,
+    .31 31,
+    .32 32,
+    .33 33,
+    .34 34,
+    .35 35,
+    .36 36,
+    .37 37,
+    .38 38,
+    .39 39,
+    .40 40,
+    .41 41,
+    .42 42,
+    .43 43,
+    .44 44,
+    .45 45,
+    .46 46,
+    .47 47,
+    .48 48,
+    .49 49,
+    .50 50,
+    .51 51,
+    .52 52,
+    .53 53,
+    .54 54,
+    .55 55,
+    0 56,
+    0 57,
+    0 58,
+    0 59,
+    0 60,
+    0 61,
+    0 62,
+    0 63,
+    0 64,
+    0 65,
+    0 66,
+    0 67,
+    0 68,
+    0 69,
+    0 70,
+    0 71,
+    0 72,
+    0 73,
+    0 74,
+    0 75,
+    0 76,
+    0 77,
+    0 78,
+    0 79,
+    0 80,
+    0 81,
+    0 82,
+    0 83,
+    0 84,
+    0 85,
+    0 86,
+    0 87,
+    0 88,
+    0 89,
+    0 90,
+    0 91,
+    0 92,
+    0 93,
+    0 94,
+    0 95,
+    0 96,
+    0 97,
+    0 98,
+    0 99,
+    0 100,
+    0 101,
+    0 102,
+    0 103,
+    0 104,
+    0 105,
+    0 106,
+    0 107,
+    0 108,
+    0 109,
+    0 110,
+    0 111
+  } ;
+sig112_from_sig56_shift55 =
+  {
+    0 0,
+    0 1,
+    0 2,
+    0 3,
+    0 4,
+    0 5,
+    0 6,
+    0 7,
+    0 8,
+    0 9,
+    0 10,
+    0 11,
+    0 12,
+    0 13,
+    0 14,
+    0 15,
+    0 16,
+    0 17,
+    0 18,
+    0 19,
+    0 20,
+    0 21,
+    0 22,
+    0 23,
+    0 24,
+    0 25,
+    0 26,
+    0 27,
+    0 28,
+    0 29,
+    0 30,
+    0 31,
+    0 32,
+    0 33,
+    0 34,
+    0 35,
+    0 36,
+    0 37,
+    0 38,
+    0 39,
+    0 40,
+    0 41,
+    0 42,
+    0 43,
+    0 44,
+    0 45,
+    0 46,
+    0 47,
+    0 48,
+    0 49,
+    0 50,
+    0 51,
+    0 52,
+    0 53,
+    0 54,
+    .0 55,
+    .1 56,
+    .2 57,
+    .3 58,
+    .4 59,
+    .5 60,
+    .6 61,
+    .7 62,
+    .8 63,
+    .9 64,
+    .10 65,
+    .11 66,
+    .12 67,
+    .13 68,
+    .14 69,
+    .15 70,
+    .16 71,
+    .17 72,
+    .18 73,
+    .19 74,
+    .20 75,
+    .21 76,
+    .22 77,
+    .23 78,
+    .24 79,
+    .25 80,
+    .26 81,
+    .27 82,
+    .28 83,
+    .29 84,
+    .30 85,
+    .31 86,
+    .32 87,
+    .33 88,
+    .34 89,
+    .35 90,
+    .36 91,
+    .37 92,
+    .38 93,
+    .39 94,
+    .40 95,
+    .41 96,
+    .42 97,
+    .43 98,
+    .44 99,
+    .45 100,
+    .46 101,
+    .47 102,
+    .48 103,
+    .49 104,
+    .50 105,
+    .51 106,
+    .52 107,
+    .53 108,
+    .54 109,
+    .55 110,
+    0 111
+  } ;
+sig112_low56 =
+  {
+    .0 0,
+    .1 1,
+    .2 2,
+    .3 3,
+    .4 4,
+    .5 5,
+    .6 6,
+    .7 7,
+    .8 8,
+    .9 9,
+    .10 10,
+    .11 11,
+    .12 12,
+    .13 13,
+    .14 14,
+    .15 15,
+    .16 16,
+    .17 17,
+    .18 18,
+    .19 19,
+    .20 20,
+    .21 21,
+    .22 22,
+    .23 23,
+    .24 24,
+    .25 25,
+    .26 26,
+    .27 27,
+    .28 28,
+    .29 29,
+    .30 30,
+    .31 31,
+    .32 32,
+    .33 33,
+    .34 34,
+    .35 35,
+    .36 36,
+    .37 37,
+    .38 38,
+    .39 39,
+    .40 40,
+    .41 41,
+    .42 42,
+    .43 43,
+    .44 44,
+    .45 45,
+    .46 46,
+    .47 47,
+    .48 48,
+    .49 49,
+    .50 50,
+    .51 51,
+    .52 52,
+    .53 53,
+    .54 54,
+    .55 55
+  } ;
+sig112_low56_any1 =
+  sig112_low56 sig56_any1
+  ;
+sig112_any1 =
+  {{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit x, .11 y} or_bit x, .12 y} or_bit x, .13 y} or_bit x, .14 y} or_bit x, .15 y} or_bit x, .16 y} or_bit x, .17 y} or_bit x, .18 y} or_bit x, .19 y} or_bit x, .20 y} or_bit x, .21 y} or_bit x, .22 y} or_bit x, .23 y} or_bit x, .24 y} or_bit x, .25 y} or_bit x, .26 y} or_bit x, .27 y} or_bit x, .28 y} or_bit x, .29 y} or_bit x, .30 y} or_bit x, .31 y} or_bit x, .32 y} or_bit x, .33 y} or_bit x, .34 y} or_bit x, .35 y} or_bit x, .36 y} or_bit x, .37 y} or_bit x, .38 y} or_bit x, .39 y} or_bit x, .40 y} or_bit x, .41 y} or_bit x, .42 y} or_bit x, .43 y} or_bit x, .44 y} or_bit x, .45 y} or_bit x, .46 y} or_bit x, .47 y} or_bit x, .48 y} or_bit x, .49 y} or_bit x, .50 y} or_bit x, .51 y} or_bit x, .52 y} or_bit x, .53 y} or_bit x, .54 y} or_bit x, .55 y} or_bit x, .56 y} or_bit x, .57 y} or_bit x, .58 y} or_bit x, .59 y} or_bit x, .60 y} or_bit x, .61 y} or_bit x, .62 y} or_bit x, .63 y} or_bit x, .64 y} or_bit x, .65 y} or_bit x, .66 y} or_bit x, .67 y} or_bit x, .68 y} or_bit x, .69 y} or_bit x, .70 y} or_bit x, .71 y} or_bit x, .72 y} or_bit x, .73 y} or_bit x, .74 y} or_bit x, .75 y} or_bit x, .76 y} or_bit x, .77 y} or_bit x, .78 y} or_bit x, .79 y} or_bit x, .80 y} or_bit x, .81 y} or_bit x, .82 y} or_bit x, .83 y} or_bit x, .84 y} or_bit x, .85 y} or_bit x, .86 y} or_bit x, .87 y} or_bit x, .88 y} or_bit x, .89 y} or_bit x, .90 y} or_bit x, .91 y} or_bit x, .92 y} or_bit x, .93 y} or_bit x, .94 y} or_bit x, .95 y} or_bit x, .96 y} or_bit x, .97 y} or_bit x, .98 y} or_bit x, .99 y} or_bit x, .100 y} or_bit x, .101 y} or_bit x, .102 y} or_bit x, .103 y} or_bit x, .104 y} or_bit x, .105 y} or_bit x, .106 y} or_bit x, .107 y} or_bit x, .108 y} or_bit x, .109 y} or_bit x, .110 y} or_bit x, .111 y} or_bit
+  ;
+mux_sig112 =
+  {
+    {.sel sel, .a .0 a, .b .0 b} mux_bit 0,
+    {.sel sel, .a .1 a, .b .1 b} mux_bit 1,
+    {.sel sel, .a .2 a, .b .2 b} mux_bit 2,
+    {.sel sel, .a .3 a, .b .3 b} mux_bit 3,
+    {.sel sel, .a .4 a, .b .4 b} mux_bit 4,
+    {.sel sel, .a .5 a, .b .5 b} mux_bit 5,
+    {.sel sel, .a .6 a, .b .6 b} mux_bit 6,
+    {.sel sel, .a .7 a, .b .7 b} mux_bit 7,
+    {.sel sel, .a .8 a, .b .8 b} mux_bit 8,
+    {.sel sel, .a .9 a, .b .9 b} mux_bit 9,
+    {.sel sel, .a .10 a, .b .10 b} mux_bit 10,
+    {.sel sel, .a .11 a, .b .11 b} mux_bit 11,
+    {.sel sel, .a .12 a, .b .12 b} mux_bit 12,
+    {.sel sel, .a .13 a, .b .13 b} mux_bit 13,
+    {.sel sel, .a .14 a, .b .14 b} mux_bit 14,
+    {.sel sel, .a .15 a, .b .15 b} mux_bit 15,
+    {.sel sel, .a .16 a, .b .16 b} mux_bit 16,
+    {.sel sel, .a .17 a, .b .17 b} mux_bit 17,
+    {.sel sel, .a .18 a, .b .18 b} mux_bit 18,
+    {.sel sel, .a .19 a, .b .19 b} mux_bit 19,
+    {.sel sel, .a .20 a, .b .20 b} mux_bit 20,
+    {.sel sel, .a .21 a, .b .21 b} mux_bit 21,
+    {.sel sel, .a .22 a, .b .22 b} mux_bit 22,
+    {.sel sel, .a .23 a, .b .23 b} mux_bit 23,
+    {.sel sel, .a .24 a, .b .24 b} mux_bit 24,
+    {.sel sel, .a .25 a, .b .25 b} mux_bit 25,
+    {.sel sel, .a .26 a, .b .26 b} mux_bit 26,
+    {.sel sel, .a .27 a, .b .27 b} mux_bit 27,
+    {.sel sel, .a .28 a, .b .28 b} mux_bit 28,
+    {.sel sel, .a .29 a, .b .29 b} mux_bit 29,
+    {.sel sel, .a .30 a, .b .30 b} mux_bit 30,
+    {.sel sel, .a .31 a, .b .31 b} mux_bit 31,
+    {.sel sel, .a .32 a, .b .32 b} mux_bit 32,
+    {.sel sel, .a .33 a, .b .33 b} mux_bit 33,
+    {.sel sel, .a .34 a, .b .34 b} mux_bit 34,
+    {.sel sel, .a .35 a, .b .35 b} mux_bit 35,
+    {.sel sel, .a .36 a, .b .36 b} mux_bit 36,
+    {.sel sel, .a .37 a, .b .37 b} mux_bit 37,
+    {.sel sel, .a .38 a, .b .38 b} mux_bit 38,
+    {.sel sel, .a .39 a, .b .39 b} mux_bit 39,
+    {.sel sel, .a .40 a, .b .40 b} mux_bit 40,
+    {.sel sel, .a .41 a, .b .41 b} mux_bit 41,
+    {.sel sel, .a .42 a, .b .42 b} mux_bit 42,
+    {.sel sel, .a .43 a, .b .43 b} mux_bit 43,
+    {.sel sel, .a .44 a, .b .44 b} mux_bit 44,
+    {.sel sel, .a .45 a, .b .45 b} mux_bit 45,
+    {.sel sel, .a .46 a, .b .46 b} mux_bit 46,
+    {.sel sel, .a .47 a, .b .47 b} mux_bit 47,
+    {.sel sel, .a .48 a, .b .48 b} mux_bit 48,
+    {.sel sel, .a .49 a, .b .49 b} mux_bit 49,
+    {.sel sel, .a .50 a, .b .50 b} mux_bit 50,
+    {.sel sel, .a .51 a, .b .51 b} mux_bit 51,
+    {.sel sel, .a .52 a, .b .52 b} mux_bit 52,
+    {.sel sel, .a .53 a, .b .53 b} mux_bit 53,
+    {.sel sel, .a .54 a, .b .54 b} mux_bit 54,
+    {.sel sel, .a .55 a, .b .55 b} mux_bit 55,
+    {.sel sel, .a .56 a, .b .56 b} mux_bit 56,
+    {.sel sel, .a .57 a, .b .57 b} mux_bit 57,
+    {.sel sel, .a .58 a, .b .58 b} mux_bit 58,
+    {.sel sel, .a .59 a, .b .59 b} mux_bit 59,
+    {.sel sel, .a .60 a, .b .60 b} mux_bit 60,
+    {.sel sel, .a .61 a, .b .61 b} mux_bit 61,
+    {.sel sel, .a .62 a, .b .62 b} mux_bit 62,
+    {.sel sel, .a .63 a, .b .63 b} mux_bit 63,
+    {.sel sel, .a .64 a, .b .64 b} mux_bit 64,
+    {.sel sel, .a .65 a, .b .65 b} mux_bit 65,
+    {.sel sel, .a .66 a, .b .66 b} mux_bit 66,
+    {.sel sel, .a .67 a, .b .67 b} mux_bit 67,
+    {.sel sel, .a .68 a, .b .68 b} mux_bit 68,
+    {.sel sel, .a .69 a, .b .69 b} mux_bit 69,
+    {.sel sel, .a .70 a, .b .70 b} mux_bit 70,
+    {.sel sel, .a .71 a, .b .71 b} mux_bit 71,
+    {.sel sel, .a .72 a, .b .72 b} mux_bit 72,
+    {.sel sel, .a .73 a, .b .73 b} mux_bit 73,
+    {.sel sel, .a .74 a, .b .74 b} mux_bit 74,
+    {.sel sel, .a .75 a, .b .75 b} mux_bit 75,
+    {.sel sel, .a .76 a, .b .76 b} mux_bit 76,
+    {.sel sel, .a .77 a, .b .77 b} mux_bit 77,
+    {.sel sel, .a .78 a, .b .78 b} mux_bit 78,
+    {.sel sel, .a .79 a, .b .79 b} mux_bit 79,
+    {.sel sel, .a .80 a, .b .80 b} mux_bit 80,
+    {.sel sel, .a .81 a, .b .81 b} mux_bit 81,
+    {.sel sel, .a .82 a, .b .82 b} mux_bit 82,
+    {.sel sel, .a .83 a, .b .83 b} mux_bit 83,
+    {.sel sel, .a .84 a, .b .84 b} mux_bit 84,
+    {.sel sel, .a .85 a, .b .85 b} mux_bit 85,
+    {.sel sel, .a .86 a, .b .86 b} mux_bit 86,
+    {.sel sel, .a .87 a, .b .87 b} mux_bit 87,
+    {.sel sel, .a .88 a, .b .88 b} mux_bit 88,
+    {.sel sel, .a .89 a, .b .89 b} mux_bit 89,
+    {.sel sel, .a .90 a, .b .90 b} mux_bit 90,
+    {.sel sel, .a .91 a, .b .91 b} mux_bit 91,
+    {.sel sel, .a .92 a, .b .92 b} mux_bit 92,
+    {.sel sel, .a .93 a, .b .93 b} mux_bit 93,
+    {.sel sel, .a .94 a, .b .94 b} mux_bit 94,
+    {.sel sel, .a .95 a, .b .95 b} mux_bit 95,
+    {.sel sel, .a .96 a, .b .96 b} mux_bit 96,
+    {.sel sel, .a .97 a, .b .97 b} mux_bit 97,
+    {.sel sel, .a .98 a, .b .98 b} mux_bit 98,
+    {.sel sel, .a .99 a, .b .99 b} mux_bit 99,
+    {.sel sel, .a .100 a, .b .100 b} mux_bit 100,
+    {.sel sel, .a .101 a, .b .101 b} mux_bit 101,
+    {.sel sel, .a .102 a, .b .102 b} mux_bit 102,
+    {.sel sel, .a .103 a, .b .103 b} mux_bit 103,
+    {.sel sel, .a .104 a, .b .104 b} mux_bit 104,
+    {.sel sel, .a .105 a, .b .105 b} mux_bit 105,
+    {.sel sel, .a .106 a, .b .106 b} mux_bit 106,
+    {.sel sel, .a .107 a, .b .107 b} mux_bit 107,
+    {.sel sel, .a .108 a, .b .108 b} mux_bit 108,
+    {.sel sel, .a .109 a, .b .109 b} mux_bit 109,
+    {.sel sel, .a .110 a, .b .110 b} mux_bit 110,
+    {.sel sel, .a .111 a, .b .111 b} mux_bit 111
+  } ;
+sig112_add_if =
+  {
+    .acc acc,
+    .add add,
+    .sel sel,
+    {.acc x, .add y} sig112_add sum
+  }
+  {
+    .acc acc,
+    .sum sum,
+    .sel sel,
+    {.sel sel, .acc a, .sum.sum b} mux_sig112 out
+  }
+  .out ;
+sig56_mul_unsigned =
+  {
+    (.x sig112_from_sig56) add,
+    () sig112_zero acc,
+    .y y
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .0 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .1 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .2 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .3 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .4 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .5 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .6 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .7 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .8 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .9 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .10 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .11 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .12 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .13 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .14 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .15 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .16 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .17 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .18 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .19 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .20 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .21 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .22 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .23 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .24 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .25 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .26 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .27 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .28 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .29 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .30 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .31 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .32 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .33 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .34 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .35 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .36 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .37 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .38 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .39 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .40 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .41 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .42 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .43 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .44 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .45 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .46 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .47 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .48 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .49 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .50 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .51 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .52 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .53 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .54 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  {
+    .y y,
+    {.acc acc, .add add, .y .55 sel} sig112_add_if acc,
+    (.add sig112_shift_left1) add
+  }
+  .acc
+  ;
+sig56_div_unsigned =
+  {
+    (.x sig112_from_sig56_shift55) rem0,
+    (.y sig112_from_sig56_shift55) div0
+  }
+  {
+    .rem0 rem0,
+    .div0 div0,
+    {.rem0 x, .div0 y} sig112_sub sub55
+  }
+  {
+    {.sub55.carry sel, .rem0 a, .sub55.sum b} mux_sig112 rem1,
+    (.div0 sig112_shift_right1) div1,
+    .sub55.carry b55
+  }
+  {
+    .rem1 rem1,
+    .div1 div1,
+    .b55 b55,
+    {.rem1 x, .div1 y} sig112_sub sub54
+  }
+  {
+    .b55 b55,
+    {.sub54.carry sel, .rem1 a, .sub54.sum b} mux_sig112 rem2,
+    (.div1 sig112_shift_right1) div2,
+    .sub54.carry b54
+  }
+  {
+    .rem2 rem2,
+    .div2 div2,
+    .b55 b55,
+    .b54 b54,
+    {.rem2 x, .div2 y} sig112_sub sub53
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    {.sub53.carry sel, .rem2 a, .sub53.sum b} mux_sig112 rem3,
+    (.div2 sig112_shift_right1) div3,
+    .sub53.carry b53
+  }
+  {
+    .rem3 rem3,
+    .div3 div3,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    {.rem3 x, .div3 y} sig112_sub sub52
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    {.sub52.carry sel, .rem3 a, .sub52.sum b} mux_sig112 rem4,
+    (.div3 sig112_shift_right1) div4,
+    .sub52.carry b52
+  }
+  {
+    .rem4 rem4,
+    .div4 div4,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    {.rem4 x, .div4 y} sig112_sub sub51
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    {.sub51.carry sel, .rem4 a, .sub51.sum b} mux_sig112 rem5,
+    (.div4 sig112_shift_right1) div5,
+    .sub51.carry b51
+  }
+  {
+    .rem5 rem5,
+    .div5 div5,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    {.rem5 x, .div5 y} sig112_sub sub50
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    {.sub50.carry sel, .rem5 a, .sub50.sum b} mux_sig112 rem6,
+    (.div5 sig112_shift_right1) div6,
+    .sub50.carry b50
+  }
+  {
+    .rem6 rem6,
+    .div6 div6,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    {.rem6 x, .div6 y} sig112_sub sub49
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    {.sub49.carry sel, .rem6 a, .sub49.sum b} mux_sig112 rem7,
+    (.div6 sig112_shift_right1) div7,
+    .sub49.carry b49
+  }
+  {
+    .rem7 rem7,
+    .div7 div7,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    {.rem7 x, .div7 y} sig112_sub sub48
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    {.sub48.carry sel, .rem7 a, .sub48.sum b} mux_sig112 rem8,
+    (.div7 sig112_shift_right1) div8,
+    .sub48.carry b48
+  }
+  {
+    .rem8 rem8,
+    .div8 div8,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    {.rem8 x, .div8 y} sig112_sub sub47
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    {.sub47.carry sel, .rem8 a, .sub47.sum b} mux_sig112 rem9,
+    (.div8 sig112_shift_right1) div9,
+    .sub47.carry b47
+  }
+  {
+    .rem9 rem9,
+    .div9 div9,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    {.rem9 x, .div9 y} sig112_sub sub46
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    {.sub46.carry sel, .rem9 a, .sub46.sum b} mux_sig112 rem10,
+    (.div9 sig112_shift_right1) div10,
+    .sub46.carry b46
+  }
+  {
+    .rem10 rem10,
+    .div10 div10,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    {.rem10 x, .div10 y} sig112_sub sub45
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    {.sub45.carry sel, .rem10 a, .sub45.sum b} mux_sig112 rem11,
+    (.div10 sig112_shift_right1) div11,
+    .sub45.carry b45
+  }
+  {
+    .rem11 rem11,
+    .div11 div11,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    {.rem11 x, .div11 y} sig112_sub sub44
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    {.sub44.carry sel, .rem11 a, .sub44.sum b} mux_sig112 rem12,
+    (.div11 sig112_shift_right1) div12,
+    .sub44.carry b44
+  }
+  {
+    .rem12 rem12,
+    .div12 div12,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    {.rem12 x, .div12 y} sig112_sub sub43
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    {.sub43.carry sel, .rem12 a, .sub43.sum b} mux_sig112 rem13,
+    (.div12 sig112_shift_right1) div13,
+    .sub43.carry b43
+  }
+  {
+    .rem13 rem13,
+    .div13 div13,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    {.rem13 x, .div13 y} sig112_sub sub42
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    {.sub42.carry sel, .rem13 a, .sub42.sum b} mux_sig112 rem14,
+    (.div13 sig112_shift_right1) div14,
+    .sub42.carry b42
+  }
+  {
+    .rem14 rem14,
+    .div14 div14,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    {.rem14 x, .div14 y} sig112_sub sub41
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    {.sub41.carry sel, .rem14 a, .sub41.sum b} mux_sig112 rem15,
+    (.div14 sig112_shift_right1) div15,
+    .sub41.carry b41
+  }
+  {
+    .rem15 rem15,
+    .div15 div15,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    {.rem15 x, .div15 y} sig112_sub sub40
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    {.sub40.carry sel, .rem15 a, .sub40.sum b} mux_sig112 rem16,
+    (.div15 sig112_shift_right1) div16,
+    .sub40.carry b40
+  }
+  {
+    .rem16 rem16,
+    .div16 div16,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    {.rem16 x, .div16 y} sig112_sub sub39
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    {.sub39.carry sel, .rem16 a, .sub39.sum b} mux_sig112 rem17,
+    (.div16 sig112_shift_right1) div17,
+    .sub39.carry b39
+  }
+  {
+    .rem17 rem17,
+    .div17 div17,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    {.rem17 x, .div17 y} sig112_sub sub38
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    {.sub38.carry sel, .rem17 a, .sub38.sum b} mux_sig112 rem18,
+    (.div17 sig112_shift_right1) div18,
+    .sub38.carry b38
+  }
+  {
+    .rem18 rem18,
+    .div18 div18,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    {.rem18 x, .div18 y} sig112_sub sub37
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    {.sub37.carry sel, .rem18 a, .sub37.sum b} mux_sig112 rem19,
+    (.div18 sig112_shift_right1) div19,
+    .sub37.carry b37
+  }
+  {
+    .rem19 rem19,
+    .div19 div19,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    {.rem19 x, .div19 y} sig112_sub sub36
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    {.sub36.carry sel, .rem19 a, .sub36.sum b} mux_sig112 rem20,
+    (.div19 sig112_shift_right1) div20,
+    .sub36.carry b36
+  }
+  {
+    .rem20 rem20,
+    .div20 div20,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    {.rem20 x, .div20 y} sig112_sub sub35
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    {.sub35.carry sel, .rem20 a, .sub35.sum b} mux_sig112 rem21,
+    (.div20 sig112_shift_right1) div21,
+    .sub35.carry b35
+  }
+  {
+    .rem21 rem21,
+    .div21 div21,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    {.rem21 x, .div21 y} sig112_sub sub34
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    {.sub34.carry sel, .rem21 a, .sub34.sum b} mux_sig112 rem22,
+    (.div21 sig112_shift_right1) div22,
+    .sub34.carry b34
+  }
+  {
+    .rem22 rem22,
+    .div22 div22,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    {.rem22 x, .div22 y} sig112_sub sub33
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    {.sub33.carry sel, .rem22 a, .sub33.sum b} mux_sig112 rem23,
+    (.div22 sig112_shift_right1) div23,
+    .sub33.carry b33
+  }
+  {
+    .rem23 rem23,
+    .div23 div23,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    {.rem23 x, .div23 y} sig112_sub sub32
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    {.sub32.carry sel, .rem23 a, .sub32.sum b} mux_sig112 rem24,
+    (.div23 sig112_shift_right1) div24,
+    .sub32.carry b32
+  }
+  {
+    .rem24 rem24,
+    .div24 div24,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    {.rem24 x, .div24 y} sig112_sub sub31
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    {.sub31.carry sel, .rem24 a, .sub31.sum b} mux_sig112 rem25,
+    (.div24 sig112_shift_right1) div25,
+    .sub31.carry b31
+  }
+  {
+    .rem25 rem25,
+    .div25 div25,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    {.rem25 x, .div25 y} sig112_sub sub30
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    {.sub30.carry sel, .rem25 a, .sub30.sum b} mux_sig112 rem26,
+    (.div25 sig112_shift_right1) div26,
+    .sub30.carry b30
+  }
+  {
+    .rem26 rem26,
+    .div26 div26,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    {.rem26 x, .div26 y} sig112_sub sub29
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    {.sub29.carry sel, .rem26 a, .sub29.sum b} mux_sig112 rem27,
+    (.div26 sig112_shift_right1) div27,
+    .sub29.carry b29
+  }
+  {
+    .rem27 rem27,
+    .div27 div27,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    {.rem27 x, .div27 y} sig112_sub sub28
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    {.sub28.carry sel, .rem27 a, .sub28.sum b} mux_sig112 rem28,
+    (.div27 sig112_shift_right1) div28,
+    .sub28.carry b28
+  }
+  {
+    .rem28 rem28,
+    .div28 div28,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    {.rem28 x, .div28 y} sig112_sub sub27
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    {.sub27.carry sel, .rem28 a, .sub27.sum b} mux_sig112 rem29,
+    (.div28 sig112_shift_right1) div29,
+    .sub27.carry b27
+  }
+  {
+    .rem29 rem29,
+    .div29 div29,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    {.rem29 x, .div29 y} sig112_sub sub26
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    {.sub26.carry sel, .rem29 a, .sub26.sum b} mux_sig112 rem30,
+    (.div29 sig112_shift_right1) div30,
+    .sub26.carry b26
+  }
+  {
+    .rem30 rem30,
+    .div30 div30,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    {.rem30 x, .div30 y} sig112_sub sub25
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    {.sub25.carry sel, .rem30 a, .sub25.sum b} mux_sig112 rem31,
+    (.div30 sig112_shift_right1) div31,
+    .sub25.carry b25
+  }
+  {
+    .rem31 rem31,
+    .div31 div31,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    {.rem31 x, .div31 y} sig112_sub sub24
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    {.sub24.carry sel, .rem31 a, .sub24.sum b} mux_sig112 rem32,
+    (.div31 sig112_shift_right1) div32,
+    .sub24.carry b24
+  }
+  {
+    .rem32 rem32,
+    .div32 div32,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    {.rem32 x, .div32 y} sig112_sub sub23
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    {.sub23.carry sel, .rem32 a, .sub23.sum b} mux_sig112 rem33,
+    (.div32 sig112_shift_right1) div33,
+    .sub23.carry b23
+  }
+  {
+    .rem33 rem33,
+    .div33 div33,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    {.rem33 x, .div33 y} sig112_sub sub22
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    {.sub22.carry sel, .rem33 a, .sub22.sum b} mux_sig112 rem34,
+    (.div33 sig112_shift_right1) div34,
+    .sub22.carry b22
+  }
+  {
+    .rem34 rem34,
+    .div34 div34,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    {.rem34 x, .div34 y} sig112_sub sub21
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    {.sub21.carry sel, .rem34 a, .sub21.sum b} mux_sig112 rem35,
+    (.div34 sig112_shift_right1) div35,
+    .sub21.carry b21
+  }
+  {
+    .rem35 rem35,
+    .div35 div35,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    {.rem35 x, .div35 y} sig112_sub sub20
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    {.sub20.carry sel, .rem35 a, .sub20.sum b} mux_sig112 rem36,
+    (.div35 sig112_shift_right1) div36,
+    .sub20.carry b20
+  }
+  {
+    .rem36 rem36,
+    .div36 div36,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    {.rem36 x, .div36 y} sig112_sub sub19
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    {.sub19.carry sel, .rem36 a, .sub19.sum b} mux_sig112 rem37,
+    (.div36 sig112_shift_right1) div37,
+    .sub19.carry b19
+  }
+  {
+    .rem37 rem37,
+    .div37 div37,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    {.rem37 x, .div37 y} sig112_sub sub18
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    {.sub18.carry sel, .rem37 a, .sub18.sum b} mux_sig112 rem38,
+    (.div37 sig112_shift_right1) div38,
+    .sub18.carry b18
+  }
+  {
+    .rem38 rem38,
+    .div38 div38,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    {.rem38 x, .div38 y} sig112_sub sub17
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    {.sub17.carry sel, .rem38 a, .sub17.sum b} mux_sig112 rem39,
+    (.div38 sig112_shift_right1) div39,
+    .sub17.carry b17
+  }
+  {
+    .rem39 rem39,
+    .div39 div39,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    {.rem39 x, .div39 y} sig112_sub sub16
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    {.sub16.carry sel, .rem39 a, .sub16.sum b} mux_sig112 rem40,
+    (.div39 sig112_shift_right1) div40,
+    .sub16.carry b16
+  }
+  {
+    .rem40 rem40,
+    .div40 div40,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    {.rem40 x, .div40 y} sig112_sub sub15
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    {.sub15.carry sel, .rem40 a, .sub15.sum b} mux_sig112 rem41,
+    (.div40 sig112_shift_right1) div41,
+    .sub15.carry b15
+  }
+  {
+    .rem41 rem41,
+    .div41 div41,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    {.rem41 x, .div41 y} sig112_sub sub14
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    {.sub14.carry sel, .rem41 a, .sub14.sum b} mux_sig112 rem42,
+    (.div41 sig112_shift_right1) div42,
+    .sub14.carry b14
+  }
+  {
+    .rem42 rem42,
+    .div42 div42,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    {.rem42 x, .div42 y} sig112_sub sub13
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    {.sub13.carry sel, .rem42 a, .sub13.sum b} mux_sig112 rem43,
+    (.div42 sig112_shift_right1) div43,
+    .sub13.carry b13
+  }
+  {
+    .rem43 rem43,
+    .div43 div43,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    {.rem43 x, .div43 y} sig112_sub sub12
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    {.sub12.carry sel, .rem43 a, .sub12.sum b} mux_sig112 rem44,
+    (.div43 sig112_shift_right1) div44,
+    .sub12.carry b12
+  }
+  {
+    .rem44 rem44,
+    .div44 div44,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    {.rem44 x, .div44 y} sig112_sub sub11
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    {.sub11.carry sel, .rem44 a, .sub11.sum b} mux_sig112 rem45,
+    (.div44 sig112_shift_right1) div45,
+    .sub11.carry b11
+  }
+  {
+    .rem45 rem45,
+    .div45 div45,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    {.rem45 x, .div45 y} sig112_sub sub10
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    {.sub10.carry sel, .rem45 a, .sub10.sum b} mux_sig112 rem46,
+    (.div45 sig112_shift_right1) div46,
+    .sub10.carry b10
+  }
+  {
+    .rem46 rem46,
+    .div46 div46,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    {.rem46 x, .div46 y} sig112_sub sub9
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    {.sub9.carry sel, .rem46 a, .sub9.sum b} mux_sig112 rem47,
+    (.div46 sig112_shift_right1) div47,
+    .sub9.carry b9
+  }
+  {
+    .rem47 rem47,
+    .div47 div47,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    {.rem47 x, .div47 y} sig112_sub sub8
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    {.sub8.carry sel, .rem47 a, .sub8.sum b} mux_sig112 rem48,
+    (.div47 sig112_shift_right1) div48,
+    .sub8.carry b8
+  }
+  {
+    .rem48 rem48,
+    .div48 div48,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    {.rem48 x, .div48 y} sig112_sub sub7
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    {.sub7.carry sel, .rem48 a, .sub7.sum b} mux_sig112 rem49,
+    (.div48 sig112_shift_right1) div49,
+    .sub7.carry b7
+  }
+  {
+    .rem49 rem49,
+    .div49 div49,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    {.rem49 x, .div49 y} sig112_sub sub6
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    {.sub6.carry sel, .rem49 a, .sub6.sum b} mux_sig112 rem50,
+    (.div49 sig112_shift_right1) div50,
+    .sub6.carry b6
+  }
+  {
+    .rem50 rem50,
+    .div50 div50,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    {.rem50 x, .div50 y} sig112_sub sub5
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    {.sub5.carry sel, .rem50 a, .sub5.sum b} mux_sig112 rem51,
+    (.div50 sig112_shift_right1) div51,
+    .sub5.carry b5
+  }
+  {
+    .rem51 rem51,
+    .div51 div51,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    {.rem51 x, .div51 y} sig112_sub sub4
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    {.sub4.carry sel, .rem51 a, .sub4.sum b} mux_sig112 rem52,
+    (.div51 sig112_shift_right1) div52,
+    .sub4.carry b4
+  }
+  {
+    .rem52 rem52,
+    .div52 div52,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    .b4 b4,
+    {.rem52 x, .div52 y} sig112_sub sub3
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    .b4 b4,
+    {.sub3.carry sel, .rem52 a, .sub3.sum b} mux_sig112 rem53,
+    (.div52 sig112_shift_right1) div53,
+    .sub3.carry b3
+  }
+  {
+    .rem53 rem53,
+    .div53 div53,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    .b4 b4,
+    .b3 b3,
+    {.rem53 x, .div53 y} sig112_sub sub2
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    .b4 b4,
+    .b3 b3,
+    {.sub2.carry sel, .rem53 a, .sub2.sum b} mux_sig112 rem54,
+    (.div53 sig112_shift_right1) div54,
+    .sub2.carry b2
+  }
+  {
+    .rem54 rem54,
+    .div54 div54,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    .b4 b4,
+    .b3 b3,
+    .b2 b2,
+    {.rem54 x, .div54 y} sig112_sub sub1
+  }
+  {
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    .b4 b4,
+    .b3 b3,
+    .b2 b2,
+    {.sub1.carry sel, .rem54 a, .sub1.sum b} mux_sig112 rem55,
+    .sub1.carry b1
+  }
+  {
+    .rem55 rem55,
+    .b55 b55,
+    .b54 b54,
+    .b53 b53,
+    .b52 b52,
+    .b51 b51,
+    .b50 b50,
+    .b49 b49,
+    .b48 b48,
+    .b47 b47,
+    .b46 b46,
+    .b45 b45,
+    .b44 b44,
+    .b43 b43,
+    .b42 b42,
+    .b41 b41,
+    .b40 b40,
+    .b39 b39,
+    .b38 b38,
+    .b37 b37,
+    .b36 b36,
+    .b35 b35,
+    .b34 b34,
+    .b33 b33,
+    .b32 b32,
+    .b31 b31,
+    .b30 b30,
+    .b29 b29,
+    .b28 b28,
+    .b27 b27,
+    .b26 b26,
+    .b25 b25,
+    .b24 b24,
+    .b23 b23,
+    .b22 b22,
+    .b21 b21,
+    .b20 b20,
+    .b19 b19,
+    .b18 b18,
+    .b17 b17,
+    .b16 b16,
+    .b15 b15,
+    .b14 b14,
+    .b13 b13,
+    .b12 b12,
+    .b11 b11,
+    .b10 b10,
+    .b9 b9,
+    .b8 b8,
+    .b7 b7,
+    .b6 b6,
+    .b5 b5,
+    .b4 b4,
+    .b3 b3,
+    .b2 b2,
+    .b1 b1,
+    (.rem55 sig112_any1) sticky
+  }
+  {
+    .rem55 rem,
+    .sticky sticky,
+    {.b55 55, .b54 54, .b53 53, .b52 52, .b51 51, .b50 50, .b49 49, .b48 48, .b47 47, .b46 46, .b45 45, .b44 44, .b43 43, .b42 42, .b41 41, .b40 40, .b39 39, .b38 38, .b37 37, .b36 36, .b35 35, .b34 34, .b33 33, .b32 32, .b31 31, .b30 30, .b29 29, .b28 28, .b27 27, .b26 26, .b25 25, .b24 24, .b23 23, .b22 22, .b21 21, .b20 20, .b19 19, .b18 18, .b17 17, .b16 16, .b15 15, .b14 14, .b13 13, .b12 12, .b11 11, .b10 10, .b9 9, .b8 8, .b7 7, .b6 6, .b5 5, .b4 4, .b3 3, .b2 2, .b1 1, .sticky 0} sig
+  }
+  .sig ;
+sig56_from_sig112_shift55 =
+  {
+    .110 55,
+    .109 54,
+    .108 53,
+    .107 52,
+    .106 51,
+    .105 50,
+    .104 49,
+    .103 48,
+    .102 47,
+    .101 46,
+    .100 45,
+    .99 44,
+    .98 43,
+    .97 42,
+    .96 41,
+    .95 40,
+    .94 39,
+    .93 38,
+    .92 37,
+    .91 36,
+    .90 35,
+    .89 34,
+    .88 33,
+    .87 32,
+    .86 31,
+    .85 30,
+    .84 29,
+    .83 28,
+    .82 27,
+    .81 26,
+    .80 25,
+    .79 24,
+    .78 23,
+    .77 22,
+    .76 21,
+    .75 20,
+    .74 19,
+    .73 18,
+    .72 17,
+    .71 16,
+    .70 15,
+    .69 14,
+    .68 13,
+    .67 12,
+    .66 11,
+    .65 10,
+    .64 9,
+    .63 8,
+    .62 7,
+    .61 6,
+    .60 5,
+    .59 4,
+    .58 3,
+    .57 2,
+    .56 1,
+    sig112_low56_any1 0
+  } ;
+sig56_from_sig112_shift56 =
+  {
+    .111 55,
+    .110 54,
+    .109 53,
+    .108 52,
+    .107 51,
+    .106 50,
+    .105 49,
+    .104 48,
+    .103 47,
+    .102 46,
+    .101 45,
+    .100 44,
+    .99 43,
+    .98 42,
+    .97 41,
+    .96 40,
+    .95 39,
+    .94 38,
+    .93 37,
+    .92 36,
+    .91 35,
+    .90 34,
+    .89 33,
+    .88 32,
+    .87 31,
+    .86 30,
+    .85 29,
+    .84 28,
+    .83 27,
+    .82 26,
+    .81 25,
+    .80 24,
+    .79 23,
+    .78 22,
+    .77 21,
+    .76 20,
+    .75 19,
+    .74 18,
+    .73 17,
+    .72 16,
+    .71 15,
+    .70 14,
+    .69 13,
+    .68 12,
+    .67 11,
+    .66 10,
+    .65 9,
+    .64 8,
+    .63 7,
+    .62 6,
+    .61 5,
+    .60 4,
+    .59 3,
+    .58 2,
+    .57 1,
+    { .56 x, sig112_low56_any1 y } or_bit 0
+  } ;
+
+shift_right_sig56_1 =
+  {
+    {.0 x, .1 y} or_bit 0,
+    .2 1,
+    .3 2,
+    .4 3,
+    .5 4,
+    .6 5,
+    .7 6,
+    .8 7,
+    .9 8,
+    .10 9,
+    .11 10,
+    .12 11,
+    .13 12,
+    .14 13,
+    .15 14,
+    .16 15,
+    .17 16,
+    .18 17,
+    .19 18,
+    .20 19,
+    .21 20,
+    .22 21,
+    .23 22,
+    .24 23,
+    .25 24,
+    .26 25,
+    .27 26,
+    .28 27,
+    .29 28,
+    .30 29,
+    .31 30,
+    .32 31,
+    .33 32,
+    .34 33,
+    .35 34,
+    .36 35,
+    .37 36,
+    .38 37,
+    .39 38,
+    .40 39,
+    .41 40,
+    .42 41,
+    .43 42,
+    .44 43,
+    .45 44,
+    .46 45,
+    .47 46,
+    .48 47,
+    .49 48,
+    .50 49,
+    .51 50,
+    .52 51,
+    .53 52,
+    .54 53,
+    .55 54,
+    0 55
+  } ;
+
+shift_right_sig56_2 =
+  {
+    {{.0 x, .1 y} or_bit x, .2 y} or_bit 0,
+    .3 1,
+    .4 2,
+    .5 3,
+    .6 4,
+    .7 5,
+    .8 6,
+    .9 7,
+    .10 8,
+    .11 9,
+    .12 10,
+    .13 11,
+    .14 12,
+    .15 13,
+    .16 14,
+    .17 15,
+    .18 16,
+    .19 17,
+    .20 18,
+    .21 19,
+    .22 20,
+    .23 21,
+    .24 22,
+    .25 23,
+    .26 24,
+    .27 25,
+    .28 26,
+    .29 27,
+    .30 28,
+    .31 29,
+    .32 30,
+    .33 31,
+    .34 32,
+    .35 33,
+    .36 34,
+    .37 35,
+    .38 36,
+    .39 37,
+    .40 38,
+    .41 39,
+    .42 40,
+    .43 41,
+    .44 42,
+    .45 43,
+    .46 44,
+    .47 45,
+    .48 46,
+    .49 47,
+    .50 48,
+    .51 49,
+    .52 50,
+    .53 51,
+    .54 52,
+    .55 53,
+    0 54,
+    0 55
+  } ;
+
+shift_right_sig56_4 =
+  {
+    {{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit 0,
+    .5 1,
+    .6 2,
+    .7 3,
+    .8 4,
+    .9 5,
+    .10 6,
+    .11 7,
+    .12 8,
+    .13 9,
+    .14 10,
+    .15 11,
+    .16 12,
+    .17 13,
+    .18 14,
+    .19 15,
+    .20 16,
+    .21 17,
+    .22 18,
+    .23 19,
+    .24 20,
+    .25 21,
+    .26 22,
+    .27 23,
+    .28 24,
+    .29 25,
+    .30 26,
+    .31 27,
+    .32 28,
+    .33 29,
+    .34 30,
+    .35 31,
+    .36 32,
+    .37 33,
+    .38 34,
+    .39 35,
+    .40 36,
+    .41 37,
+    .42 38,
+    .43 39,
+    .44 40,
+    .45 41,
+    .46 42,
+    .47 43,
+    .48 44,
+    .49 45,
+    .50 46,
+    .51 47,
+    .52 48,
+    .53 49,
+    .54 50,
+    .55 51,
+    0 52,
+    0 53,
+    0 54,
+    0 55
+  } ;
+
+shift_right_sig56_8 =
+  {
+    {{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit 0,
+    .9 1,
+    .10 2,
+    .11 3,
+    .12 4,
+    .13 5,
+    .14 6,
+    .15 7,
+    .16 8,
+    .17 9,
+    .18 10,
+    .19 11,
+    .20 12,
+    .21 13,
+    .22 14,
+    .23 15,
+    .24 16,
+    .25 17,
+    .26 18,
+    .27 19,
+    .28 20,
+    .29 21,
+    .30 22,
+    .31 23,
+    .32 24,
+    .33 25,
+    .34 26,
+    .35 27,
+    .36 28,
+    .37 29,
+    .38 30,
+    .39 31,
+    .40 32,
+    .41 33,
+    .42 34,
+    .43 35,
+    .44 36,
+    .45 37,
+    .46 38,
+    .47 39,
+    .48 40,
+    .49 41,
+    .50 42,
+    .51 43,
+    .52 44,
+    .53 45,
+    .54 46,
+    .55 47,
+    0 48,
+    0 49,
+    0 50,
+    0 51,
+    0 52,
+    0 53,
+    0 54,
+    0 55
+  } ;
+
+shift_right_sig56_16 =
+  {
+    {{{{{{{{{{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit x, .11 y} or_bit x, .12 y} or_bit x, .13 y} or_bit x, .14 y} or_bit x, .15 y} or_bit x, .16 y} or_bit 0,
+    .17 1,
+    .18 2,
+    .19 3,
+    .20 4,
+    .21 5,
+    .22 6,
+    .23 7,
+    .24 8,
+    .25 9,
+    .26 10,
+    .27 11,
+    .28 12,
+    .29 13,
+    .30 14,
+    .31 15,
+    .32 16,
+    .33 17,
+    .34 18,
+    .35 19,
+    .36 20,
+    .37 21,
+    .38 22,
+    .39 23,
+    .40 24,
+    .41 25,
+    .42 26,
+    .43 27,
+    .44 28,
+    .45 29,
+    .46 30,
+    .47 31,
+    .48 32,
+    .49 33,
+    .50 34,
+    .51 35,
+    .52 36,
+    .53 37,
+    .54 38,
+    .55 39,
+    0 40,
+    0 41,
+    0 42,
+    0 43,
+    0 44,
+    0 45,
+    0 46,
+    0 47,
+    0 48,
+    0 49,
+    0 50,
+    0 51,
+    0 52,
+    0 53,
+    0 54,
+    0 55
+  } ;
+
+shift_right_sig56_32 =
+  {
+    {{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit x, .11 y} or_bit x, .12 y} or_bit x, .13 y} or_bit x, .14 y} or_bit x, .15 y} or_bit x, .16 y} or_bit x, .17 y} or_bit x, .18 y} or_bit x, .19 y} or_bit x, .20 y} or_bit x, .21 y} or_bit x, .22 y} or_bit x, .23 y} or_bit x, .24 y} or_bit x, .25 y} or_bit x, .26 y} or_bit x, .27 y} or_bit x, .28 y} or_bit x, .29 y} or_bit x, .30 y} or_bit x, .31 y} or_bit x, .32 y} or_bit 0,
+    .33 1,
+    .34 2,
+    .35 3,
+    .36 4,
+    .37 5,
+    .38 6,
+    .39 7,
+    .40 8,
+    .41 9,
+    .42 10,
+    .43 11,
+    .44 12,
+    .45 13,
+    .46 14,
+    .47 15,
+    .48 16,
+    .49 17,
+    .50 18,
+    .51 19,
+    .52 20,
+    .53 21,
+    .54 22,
+    .55 23,
+    0 24,
+    0 25,
+    0 26,
+    0 27,
+    0 28,
+    0 29,
+    0 30,
+    0 31,
+    0 32,
+    0 33,
+    0 34,
+    0 35,
+    0 36,
+    0 37,
+    0 38,
+    0 39,
+    0 40,
+    0 41,
+    0 42,
+    0 43,
+    0 44,
+    0 45,
+    0 46,
+    0 47,
+    0 48,
+    0 49,
+    0 50,
+    0 51,
+    0 52,
+    0 53,
+    0 54,
+    0 55
+  } ;
+
+mux_sig56 =
+  {
+    {.sel sel, .a .0 a, .b .0 b} mux_bit 0,
+    {.sel sel, .a .1 a, .b .1 b} mux_bit 1,
+    {.sel sel, .a .2 a, .b .2 b} mux_bit 2,
+    {.sel sel, .a .3 a, .b .3 b} mux_bit 3,
+    {.sel sel, .a .4 a, .b .4 b} mux_bit 4,
+    {.sel sel, .a .5 a, .b .5 b} mux_bit 5,
+    {.sel sel, .a .6 a, .b .6 b} mux_bit 6,
+    {.sel sel, .a .7 a, .b .7 b} mux_bit 7,
+    {.sel sel, .a .8 a, .b .8 b} mux_bit 8,
+    {.sel sel, .a .9 a, .b .9 b} mux_bit 9,
+    {.sel sel, .a .10 a, .b .10 b} mux_bit 10,
+    {.sel sel, .a .11 a, .b .11 b} mux_bit 11,
+    {.sel sel, .a .12 a, .b .12 b} mux_bit 12,
+    {.sel sel, .a .13 a, .b .13 b} mux_bit 13,
+    {.sel sel, .a .14 a, .b .14 b} mux_bit 14,
+    {.sel sel, .a .15 a, .b .15 b} mux_bit 15,
+    {.sel sel, .a .16 a, .b .16 b} mux_bit 16,
+    {.sel sel, .a .17 a, .b .17 b} mux_bit 17,
+    {.sel sel, .a .18 a, .b .18 b} mux_bit 18,
+    {.sel sel, .a .19 a, .b .19 b} mux_bit 19,
+    {.sel sel, .a .20 a, .b .20 b} mux_bit 20,
+    {.sel sel, .a .21 a, .b .21 b} mux_bit 21,
+    {.sel sel, .a .22 a, .b .22 b} mux_bit 22,
+    {.sel sel, .a .23 a, .b .23 b} mux_bit 23,
+    {.sel sel, .a .24 a, .b .24 b} mux_bit 24,
+    {.sel sel, .a .25 a, .b .25 b} mux_bit 25,
+    {.sel sel, .a .26 a, .b .26 b} mux_bit 26,
+    {.sel sel, .a .27 a, .b .27 b} mux_bit 27,
+    {.sel sel, .a .28 a, .b .28 b} mux_bit 28,
+    {.sel sel, .a .29 a, .b .29 b} mux_bit 29,
+    {.sel sel, .a .30 a, .b .30 b} mux_bit 30,
+    {.sel sel, .a .31 a, .b .31 b} mux_bit 31,
+    {.sel sel, .a .32 a, .b .32 b} mux_bit 32,
+    {.sel sel, .a .33 a, .b .33 b} mux_bit 33,
+    {.sel sel, .a .34 a, .b .34 b} mux_bit 34,
+    {.sel sel, .a .35 a, .b .35 b} mux_bit 35,
+    {.sel sel, .a .36 a, .b .36 b} mux_bit 36,
+    {.sel sel, .a .37 a, .b .37 b} mux_bit 37,
+    {.sel sel, .a .38 a, .b .38 b} mux_bit 38,
+    {.sel sel, .a .39 a, .b .39 b} mux_bit 39,
+    {.sel sel, .a .40 a, .b .40 b} mux_bit 40,
+    {.sel sel, .a .41 a, .b .41 b} mux_bit 41,
+    {.sel sel, .a .42 a, .b .42 b} mux_bit 42,
+    {.sel sel, .a .43 a, .b .43 b} mux_bit 43,
+    {.sel sel, .a .44 a, .b .44 b} mux_bit 44,
+    {.sel sel, .a .45 a, .b .45 b} mux_bit 45,
+    {.sel sel, .a .46 a, .b .46 b} mux_bit 46,
+    {.sel sel, .a .47 a, .b .47 b} mux_bit 47,
+    {.sel sel, .a .48 a, .b .48 b} mux_bit 48,
+    {.sel sel, .a .49 a, .b .49 b} mux_bit 49,
+    {.sel sel, .a .50 a, .b .50 b} mux_bit 50,
+    {.sel sel, .a .51 a, .b .51 b} mux_bit 51,
+    {.sel sel, .a .52 a, .b .52 b} mux_bit 52,
+    {.sel sel, .a .53 a, .b .53 b} mux_bit 53,
+    {.sel sel, .a .54 a, .b .54 b} mux_bit 54,
+    {.sel sel, .a .55 a, .b .55 b} mux_bit 55
+  } ;
+
+shift_right_sig56 =
+  {.x x, .s s, (.x shift_right_sig56_1) sh1}
+  {.s s, {.s .0 sel, .x a, .sh1 b} mux_sig56 st1}
+  {.s s, .st1 st1, (.st1 shift_right_sig56_2) sh2}
+  {.s s, {.s .1 sel, .st1 a, .sh2 b} mux_sig56 st2}
+  {.s s, .st2 st2, (.st2 shift_right_sig56_4) sh4}
+  {.s s, {.s .2 sel, .st2 a, .sh4 b} mux_sig56 st3}
+  {.s s, .st3 st3, (.st3 shift_right_sig56_8) sh8}
+  {.s s, {.s .3 sel, .st3 a, .sh8 b} mux_sig56 st4}
+  {.s s, .st4 st4, (.st4 shift_right_sig56_16) sh16}
+  {.s s, {.s .4 sel, .st4 a, .sh16 b} mux_sig56 st5}
+  {.s s, .st5 st5, (.st5 shift_right_sig56_32) sh32}
+  {.s s, {.s .5 sel, .st5 a, .sh32 b} mux_sig56 st6}
+  .st6 ;
+
+mux_exp11 =
+  {
+    {.sel sel, .a .0 a, .b .0 b} mux_bit 0,
+    {.sel sel, .a .1 a, .b .1 b} mux_bit 1,
+    {.sel sel, .a .2 a, .b .2 b} mux_bit 2,
+    {.sel sel, .a .3 a, .b .3 b} mux_bit 3,
+    {.sel sel, .a .4 a, .b .4 b} mux_bit 4,
+    {.sel sel, .a .5 a, .b .5 b} mux_bit 5,
+    {.sel sel, .a .6 a, .b .6 b} mux_bit 6,
+    {.sel sel, .a .7 a, .b .7 b} mux_bit 7,
+    {.sel sel, .a .8 a, .b .8 b} mux_bit 8,
+    {.sel sel, .a .9 a, .b .9 b} mux_bit 9,
+    {.sel sel, .a .10 a, .b .10 b} mux_bit 10
+  } ;
+
+exp1 = {} {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} ;
+
+# exponent = 1023 (bias): 0b01111111111
+exp_1023 = {}
+  { 0 10,
+    1 9, 1 8, 1 7, 1 6, 1 5, 1 4, 1 3, 1 2, 1 1, 1 0
+  } ;
+
+exp11_add_sum =
+  {.x x, .y y} exp11_add .sum
+  ;
+
+exp11_inc =
+  {() x, () exp1 y} exp11_add_sum
+  ;
+
+exp11_dec =
+  {() x, () exp1 y} exp11_sub_sum
+  ;
+
+exp_nonzero_bit =
+  <
+    {zero_exponent? if, 0 then} .then,
+    1
+  > ;
+
+shift_left_sig56_1 =
+  {
+    0 0,
+    .0 1,
+    .1 2,
+    .2 3,
+    .3 4,
+    .4 5,
+    .5 6,
+    .6 7,
+    .7 8,
+    .8 9,
+    .9 10,
+    .10 11,
+    .11 12,
+    .12 13,
+    .13 14,
+    .14 15,
+    .15 16,
+    .16 17,
+    .17 18,
+    .18 19,
+    .19 20,
+    .20 21,
+    .21 22,
+    .22 23,
+    .23 24,
+    .24 25,
+    .25 26,
+    .26 27,
+    .27 28,
+    .28 29,
+    .29 30,
+    .30 31,
+    .31 32,
+    .32 33,
+    .33 34,
+    .34 35,
+    .35 36,
+    .36 37,
+    .37 38,
+    .38 39,
+    .39 40,
+    .40 41,
+    .41 42,
+    .42 43,
+    .43 44,
+    .44 45,
+    .45 46,
+    .46 47,
+    .47 48,
+    .48 49,
+    .49 50,
+    .50 51,
+    .51 52,
+    .52 53,
+    .53 54,
+    .54 55
+  } ;
+
+sig56_any1 =
+  {{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{.0 x, .1 y} or_bit x, .2 y} or_bit x, .3 y} or_bit x, .4 y} or_bit x, .5 y} or_bit x, .6 y} or_bit x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit x, .11 y} or_bit x, .12 y} or_bit x, .13 y} or_bit x, .14 y} or_bit x, .15 y} or_bit x, .16 y} or_bit x, .17 y} or_bit x, .18 y} or_bit x, .19 y} or_bit x, .20 y} or_bit x, .21 y} or_bit x, .22 y} or_bit x, .23 y} or_bit x, .24 y} or_bit x, .25 y} or_bit x, .26 y} or_bit x, .27 y} or_bit x, .28 y} or_bit x, .29 y} or_bit x, .30 y} or_bit x, .31 y} or_bit x, .32 y} or_bit x, .33 y} or_bit x, .34 y} or_bit x, .35 y} or_bit x, .36 y} or_bit x, .37 y} or_bit x, .38 y} or_bit x, .39 y} or_bit x, .40 y} or_bit x, .41 y} or_bit x, .42 y} or_bit x, .43 y} or_bit x, .44 y} or_bit x, .45 y} or_bit x, .46 y} or_bit x, .47 y} or_bit x, .48 y} or_bit x, .49 y} or_bit x, .50 y} or_bit x, .51 y} or_bit x, .52 y} or_bit x, .53 y} or_bit x, .54 y} or_bit x, .55 y} or_bit
+  ;
+
+sig56_zero_bit =
+  <
+    {sig56_any1 /0 if, 1 then} .then,
+    0
+  > ;
+
+frac52_from_sig56 =
+  { .3 0, .4 1, .5 2, .6 3, .7 4, .8 5, .9 6, .10 7, .11 8, .12 9,
+    .13 10, .14 11, .15 12, .16 13, .17 14, .18 15, .19 16, .20 17, .21 18, .22 19,
+    .23 20, .24 21, .25 22, .26 23, .27 24, .28 25, .29 26, .30 27, .31 28, .32 29,
+    .33 30, .34 31, .35 32, .36 33, .37 34, .38 35, .39 36, .40 37, .41 38, .42 39,
+    .43 40, .44 41, .45 42, .46 43, .47 44, .48 45, .49 46, .50 47, .51 48, .52 49,
+    .53 50, .54 51 }
+  ;
+
+normalize_left_step =
+  {
+    .sig sig,
+    .exp exp,
+    (.sig shift_left_sig56_1) sh,
+    (.exp exp11_dec) exp_dec,
+    (.exp exp_nonzero_bit) exp_nz,
+    .sig .55 msb
+  }
+  {
+    .sig sig,
+    .exp exp,
+    .sh sh,
+    .exp_dec exp_dec,
+    .exp_nz exp_nz,
+    (.msb not_bit) msb0
+  }
+  {
+    .sig sig,
+    .exp exp,
+    .exp_dec exp_dec,
+    .msb0 msb0,
+    .exp_nz exp_nz,
+    .sh sh,
+    {.msb0 x, .exp_nz y} and_bit shift_en
+  }
+  {
+    .exp exp,
+    .sh sh,
+    .exp_dec exp_dec,
+    .shift_en shift_en,
+    {.shift_en sel, .sig a, .sh b} mux_sig56 sig_out
+  }
+  {
+    .exp_dec exp_dec,
+    .shift_en shift_en,
+    .sig_out sig_out,
+    {.shift_en sel, .exp a, .exp_dec b} mux_exp11 exp_out
+  }
+  { .sig_out sig, .exp_out exp }
+  ;
+
+normalize_left =
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  normalize_left_step
+  ;
+
+shift6_from_exp11 =
+  {
+    {{{{.6 x, .7 y} or_bit x, .8 y} or_bit x, .9 y} or_bit x, .10 y} or_bit high,
+    .0 b0, .1 b1, .2 b2, .3 b3, .4 b4, .5 b5
+  }
+  <
+    {.high 1? if, {1 0, 1 1, 1 2, 1 3, 1 4, 1 5} then} .then,
+    {.high 0? if, {.b0 0, .b1 1, .b2 2, .b3 3, .b4 4, .b5 5} then} .then
+  >
+  ;
+
+sig56_from_float64 =
+  <
+    {.exponent zero_exponent? if,
+     {
+       0 55,
+       .fraction .51 54,
+       .fraction .50 53,
+       .fraction .49 52,
+       .fraction .48 51,
+       .fraction .47 50,
+       .fraction .46 49,
+       .fraction .45 48,
+       .fraction .44 47,
+       .fraction .43 46,
+       .fraction .42 45,
+       .fraction .41 44,
+       .fraction .40 43,
+       .fraction .39 42,
+       .fraction .38 41,
+       .fraction .37 40,
+       .fraction .36 39,
+       .fraction .35 38,
+       .fraction .34 37,
+       .fraction .33 36,
+       .fraction .32 35,
+       .fraction .31 34,
+       .fraction .30 33,
+       .fraction .29 32,
+       .fraction .28 31,
+       .fraction .27 30,
+       .fraction .26 29,
+       .fraction .25 28,
+       .fraction .24 27,
+       .fraction .23 26,
+       .fraction .22 25,
+       .fraction .21 24,
+       .fraction .20 23,
+       .fraction .19 22,
+       .fraction .18 21,
+       .fraction .17 20,
+       .fraction .16 19,
+       .fraction .15 18,
+       .fraction .14 17,
+       .fraction .13 16,
+       .fraction .12 15,
+       .fraction .11 14,
+       .fraction .10 13,
+       .fraction .9 12,
+       .fraction .8 11,
+       .fraction .7 10,
+       .fraction .6 9,
+       .fraction .5 8,
+       .fraction .4 7,
+       .fraction .3 6,
+       .fraction .2 5,
+       .fraction .1 4,
+       .fraction .0 3,
+       0 2, 0 1, 0 0
+     } then} .then,
+    { {
+       1 55,
+       .fraction .51 54,
+       .fraction .50 53,
+       .fraction .49 52,
+       .fraction .48 51,
+       .fraction .47 50,
+       .fraction .46 49,
+       .fraction .45 48,
+       .fraction .44 47,
+       .fraction .43 46,
+       .fraction .42 45,
+       .fraction .41 44,
+       .fraction .40 43,
+       .fraction .39 42,
+       .fraction .38 41,
+       .fraction .37 40,
+       .fraction .36 39,
+       .fraction .35 38,
+       .fraction .34 37,
+       .fraction .33 36,
+       .fraction .32 35,
+       .fraction .31 34,
+       .fraction .30 33,
+       .fraction .29 32,
+       .fraction .28 31,
+       .fraction .27 30,
+       .fraction .26 29,
+       .fraction .25 28,
+       .fraction .24 27,
+       .fraction .23 26,
+       .fraction .22 25,
+       .fraction .21 24,
+       .fraction .20 23,
+       .fraction .19 22,
+       .fraction .18 21,
+       .fraction .17 20,
+       .fraction .16 19,
+       .fraction .15 18,
+       .fraction .14 17,
+       .fraction .13 16,
+       .fraction .12 15,
+       .fraction .11 14,
+       .fraction .10 13,
+       .fraction .9 12,
+       .fraction .8 11,
+       .fraction .7 10,
+       .fraction .6 9,
+       .fraction .5 8,
+       .fraction .4 7,
+       .fraction .3 6,
+       .fraction .2 5,
+       .fraction .1 4,
+       .fraction .0 3,
+       0 2, 0 1, 0 0
+     } then} .then
+  > ;
+
+exp11_max =
+  <
+    {gt_exponent? if, .x then} .then,
+    {lt_exponent? if, .y then} .then,
+    {eq_exponent? if, .x then} .then
+  > ;
+
+exp11_abs_diff =
+  <
+    {gt_exponent? if, {.x x, .y y} exp11_sub_sum then} .then,
+    {lt_exponent? if, {.y x, .x y} exp11_sub_sum then} .then,
+    {eq_exponent? if, exp0 then} .then
+  > ;
+
+exp11_adjust =
+  {exp_nonzero_bit sel, exp1 a, () b}
+  mux_exp11
+  ;
+
+exp_gt_bit =
+  <
+    {cmp_exponent /gt if, 1 then} .then,
+    0
+  > ;
+
+exp_lt_bit =
+  <
+    {cmp_exponent /lt if, 1 then} .then,
+    0
+  > ;
+
+mag_gt_bit =
+  <
+    {gt_magnitude_float64? if, 1 then} .then,
+    0
+  > ;
+
+mag_eq_bit =
+  <
+    {{.x .exponent x, .y .exponent y} eq_exponent? ife,
+     {.x .fraction x, .y .fraction y} eq_fraction? iff,
+     1 then} .then,
+    0
+  > ;
+
+sig56_shift_right_carry =
+  {
+    .sum sum,
+    .carry carry,
+    {.sum .1 x, .sum .0 y} or_bit bit0
+  }
+  {
+    .carry 55,
+    .sum .55 54,
+    .sum .54 53,
+    .sum .53 52,
+    .sum .52 51,
+    .sum .51 50,
+    .sum .50 49,
+    .sum .49 48,
+    .sum .48 47,
+    .sum .47 46,
+    .sum .46 45,
+    .sum .45 44,
+    .sum .44 43,
+    .sum .43 42,
+    .sum .42 41,
+    .sum .41 40,
+    .sum .40 39,
+    .sum .39 38,
+    .sum .38 37,
+    .sum .37 36,
+    .sum .36 35,
+    .sum .35 34,
+    .sum .34 33,
+    .sum .33 32,
+    .sum .32 31,
+    .sum .31 30,
+    .sum .30 29,
+    .sum .29 28,
+    .sum .28 27,
+    .sum .27 26,
+    .sum .26 25,
+    .sum .25 24,
+    .sum .24 23,
+    .sum .23 22,
+    .sum .22 21,
+    .sum .21 20,
+    .sum .20 19,
+    .sum .19 18,
+    .sum .18 17,
+    .sum .17 16,
+    .sum .16 15,
+    .sum .15 14,
+    .sum .14 13,
+    .sum .13 12,
+    .sum .12 11,
+    .sum .11 10,
+    .sum .10 9,
+    .sum .9 8,
+    .sum .8 7,
+    .sum .7 6,
+    .sum .6 5,
+    .sum .5 4,
+    .sum .4 3,
+    .sum .3 2,
+    .sum .2 1,
+    .bit0 0
+  } ;
+
+sig56_drop_grs =
+  {
+    0 0,
+    0 1,
+    0 2,
+    .3 3,
+    .4 4,
+    .5 5,
+    .6 6,
+    .7 7,
+    .8 8,
+    .9 9,
+    .10 10,
+    .11 11,
+    .12 12,
+    .13 13,
+    .14 14,
+    .15 15,
+    .16 16,
+    .17 17,
+    .18 18,
+    .19 19,
+    .20 20,
+    .21 21,
+    .22 22,
+    .23 23,
+    .24 24,
+    .25 25,
+    .26 26,
+    .27 27,
+    .28 28,
+    .29 29,
+    .30 30,
+    .31 31,
+    .32 32,
+    .33 33,
+    .34 34,
+    .35 35,
+    .36 36,
+    .37 37,
+    .38 38,
+    .39 39,
+    .40 40,
+    .41 41,
+    .42 42,
+    .43 43,
+    .44 44,
+    .45 45,
+    .46 46,
+    .47 47,
+    .48 48,
+    .49 49,
+    .50 50,
+    .51 51,
+    .52 52,
+    .53 53,
+    .54 54,
+    .55 55
+  } ;
+
+sig56_ulp = {} { 0 0, 0 1, 0 2, 1 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55 } ;
+
+flags_add_from_bits =
+  <
+    {.overflow 1? if, overflow then} .then,
+    {.underflow 1? if, underflow then} .then,
+    {.inexact 1? if, inexact then} .then,
+    none
+  > ;
+
+flags_sub_from_bits =
+  <
+    {.overflow 1? if, overflow then} .then,
+    {.underflow 1? if, underflow then} .then,
+    {.inexact 1? if, inexact then} .then,
+    none
+  > ;
+
+flags_mul_from_bits =
+  <
+    {.overflow 1? if, overflow then} .then,
+    {.underflow 1? if, underflow then} .then,
+    {.inexact 1? if, inexact then} .then,
+    none
+  > ;
+
+flags_div_from_bits =
+  <
+    {.div_by_zero 1? if, div_by_zero then} .then,
+    {.overflow 1? if, overflow then} .then,
+    {.underflow 1? if, underflow then} .then,
+    {.inexact 1? if, inexact then} .then,
+    none
+  > ;
+
+flags_sub_from_add =
+  <
+    {/none if, none then} .then,
+    {/invalid if, invalid then} .then,
+    {/overflow if, overflow then} .then,
+    {/underflow if, underflow then} .then,
+    {/inexact if, inexact then} .then
+  > ;
+
+exp_all_ones_bit =
+  <
+    {all_ones_exponent? if, 1 then} .then,
+    0
+  > ;
+
+exp_zero_bit =
+  <
+    {zero_exponent? if, 1 then} .then,
+    0
+  > ;
+
+underflow_bit_of =
+  <
+    {.exp zero_exponent? ife, .inexact 1? ifi, 1 then} .then,
+    0
+  > ;
+
+sign_eq_bit =
+  <
+    {eq_sign? if, 1 then} .then,
+    0
+  > ;
+
+mux_sign =
+  <
+    {.sel 0? if, .a then} .then,
+    {.sel 1? if, .b then} .then
+  > ;
+
+round_sig56 =
+  {
+    .sig sig,
+    .exp exp,
+    .sig .2 guard,
+    .sig .1 round,
+    .sig .0 sticky
+  }
+  {
+    .sig sig,
+    .exp exp,
+    .guard guard,
+    .round round,
+    .sticky sticky,
+    {.guard x, {{.round x, .sticky y} or_bit x, .sig .3 y} or_bit y} and_bit inc,
+    {.guard x, {.round x, .sticky y} or_bit y} or_bit inexact
+  }
+  {
+    .sig sig,
+    .exp exp,
+    .inc inc,
+    .inexact inexact,
+    (.sig sig56_drop_grs) trunc,
+    () sig56_ulp ulp
+  }
+  {
+    .exp exp,
+    .inc inc,
+    .inexact inexact,
+    .trunc trunc,
+    .ulp ulp,
+    {.trunc x, .ulp y} sig56_add sum1
+  }
+  {
+    .exp exp,
+    .inc inc,
+    .inexact inexact,
+    .trunc trunc,
+    .sum1 sum1,
+    {.inc sel, .trunc a, .sum1.sum b} mux_sig56 sig_inc,
+    .sum1.carry carry_inc,
+    (.exp exp11_inc) exp_inc
+  }
+  {
+    .sig_inc sig_inc,
+    .exp exp,
+    .inexact inexact,
+    .carry_inc carry_inc,
+    .exp_inc exp_inc,
+    {.carry_inc sel, .sig_inc a, {.sig_inc sum, .carry_inc carry} sig56_shift_right_carry b} mux_sig56 sig_out,
+    {.carry_inc sel, .exp a, .exp_inc b} mux_exp11 exp_out
+  }
+  { .sig_out sig, .exp_out exp, .inexact inexact }
+  ;
+
+eq = {} |eq ;
+gt = {} |gt ;
+lt = {} |lt ;
+
+eq_exact_cmp      = {} |eq_exact ;
+eq_zero_cmp       = {} |eq_zero ;
+gt_cmp            = {} |gt ;
+lt_cmp            = {} |lt ;
+unordered_nan_cmp = {} |unordered_nan ;
+
+eq_bit? =
+  <
+    {.x 0? ifx, .y 0? ify, () then} .then,
+    {.x 1? ifx, .y 1? ify, () then} .then
+  > ;
+
+gt_bit? =
+  {.x 1? ifx, .y 0? ify, () then} .then
+  ;
+
+lt_bit? =
+  {.x 0? ifx, .y 1? ify, () then} .then
+  ;
+
+eq_sign? =
+  <
+    {.x +? ifx, .y +? ify, () then} .then,
+    {.x -? ifx, .y -? ify, () then} .then
+  > ;
+
+ordered_float64? =
+  <finite_float64?, inf_float64?>
+  ;
+
+cmp_step =
+  <
+    {.state /gt if, gt then} .then,
+    {.state /lt if, lt then} .then,
+    {.state /eq if,
+      <
+        {.bits gt_bit? if, gt then} .then,
+        {.bits lt_bit? if, lt then} .then,
+        {.bits eq_bit? if, eq then} .then
+      > then
+    } .then
+  > ;
+
+stepE10 =  {{.state state, {.pair .x .10 x, .pair .y .10 y} bits} cmp_step state, .pair pair} ;
+stepE9  =  {{.state state, {.pair .x .9  x, .pair .y .9  y} bits} cmp_step state, .pair pair} ;
+stepE8  =  {{.state state, {.pair .x .8  x, .pair .y .8  y} bits} cmp_step state, .pair pair} ;
+stepE7  =  {{.state state, {.pair .x .7  x, .pair .y .7  y} bits} cmp_step state, .pair pair} ;
+stepE6  =  {{.state state, {.pair .x .6  x, .pair .y .6  y} bits} cmp_step state, .pair pair} ;
+stepE5  =  {{.state state, {.pair .x .5  x, .pair .y .5  y} bits} cmp_step state, .pair pair} ;
+stepE4  =  {{.state state, {.pair .x .4  x, .pair .y .4  y} bits} cmp_step state, .pair pair} ;
+stepE3  =  {{.state state, {.pair .x .3  x, .pair .y .3  y} bits} cmp_step state, .pair pair} ;
+stepE2  =  {{.state state, {.pair .x .2  x, .pair .y .2  y} bits} cmp_step state, .pair pair} ;
+stepE1  =  {{.state state, {.pair .x .1  x, .pair .y .1  y} bits} cmp_step state, .pair pair} ;
+stepE0  =  {{.state state, {.pair .x .0  x, .pair .y .0  y} bits} cmp_step state, .pair pair} ;
+
+cmp_exponent =
+  {eq state, () pair}
+  stepE10 stepE9 stepE8 stepE7 stepE6 stepE5 stepE4 stepE3 stepE2 stepE1 stepE0
+  .state
+  ;
+
+gt_exponent? =  {cmp_exponent /gt if, () then} .then ;
+eq_exponent? =  {cmp_exponent /eq if, () then} .then ;
+lt_exponent? =  {cmp_exponent /lt if, () then} .then ;
+
+stepF51 =  {{.state state, {.pair .x .51 x, .pair .y .51 y} bits} cmp_step state, .pair pair} ;
+stepF50 =  {{.state state, {.pair .x .50 x, .pair .y .50 y} bits} cmp_step state, .pair pair} ;
+stepF49 =  {{.state state, {.pair .x .49 x, .pair .y .49 y} bits} cmp_step state, .pair pair} ;
+stepF48 =  {{.state state, {.pair .x .48 x, .pair .y .48 y} bits} cmp_step state, .pair pair} ;
+stepF47 =  {{.state state, {.pair .x .47 x, .pair .y .47 y} bits} cmp_step state, .pair pair} ;
+stepF46 =  {{.state state, {.pair .x .46 x, .pair .y .46 y} bits} cmp_step state, .pair pair} ;
+stepF45 =  {{.state state, {.pair .x .45 x, .pair .y .45 y} bits} cmp_step state, .pair pair} ;
+stepF44 =  {{.state state, {.pair .x .44 x, .pair .y .44 y} bits} cmp_step state, .pair pair} ;
+stepF43 =  {{.state state, {.pair .x .43 x, .pair .y .43 y} bits} cmp_step state, .pair pair} ;
+stepF42 =  {{.state state, {.pair .x .42 x, .pair .y .42 y} bits} cmp_step state, .pair pair} ;
+stepF41 =  {{.state state, {.pair .x .41 x, .pair .y .41 y} bits} cmp_step state, .pair pair} ;
+stepF40 =  {{.state state, {.pair .x .40 x, .pair .y .40 y} bits} cmp_step state, .pair pair} ;
+stepF39 =  {{.state state, {.pair .x .39 x, .pair .y .39 y} bits} cmp_step state, .pair pair} ;
+stepF38 =  {{.state state, {.pair .x .38 x, .pair .y .38 y} bits} cmp_step state, .pair pair} ;
+stepF37 =  {{.state state, {.pair .x .37 x, .pair .y .37 y} bits} cmp_step state, .pair pair} ;
+stepF36 =  {{.state state, {.pair .x .36 x, .pair .y .36 y} bits} cmp_step state, .pair pair} ;
+stepF35 =  {{.state state, {.pair .x .35 x, .pair .y .35 y} bits} cmp_step state, .pair pair} ;
+stepF34 =  {{.state state, {.pair .x .34 x, .pair .y .34 y} bits} cmp_step state, .pair pair} ;
+stepF33 =  {{.state state, {.pair .x .33 x, .pair .y .33 y} bits} cmp_step state, .pair pair} ;
+stepF32 =  {{.state state, {.pair .x .32 x, .pair .y .32 y} bits} cmp_step state, .pair pair} ;
+stepF31 =  {{.state state, {.pair .x .31 x, .pair .y .31 y} bits} cmp_step state, .pair pair} ;
+stepF30 =  {{.state state, {.pair .x .30 x, .pair .y .30 y} bits} cmp_step state, .pair pair} ;
+stepF29 =  {{.state state, {.pair .x .29 x, .pair .y .29 y} bits} cmp_step state, .pair pair} ;
+stepF28 =  {{.state state, {.pair .x .28 x, .pair .y .28 y} bits} cmp_step state, .pair pair} ;
+stepF27 =  {{.state state, {.pair .x .27 x, .pair .y .27 y} bits} cmp_step state, .pair pair} ;
+stepF26 =  {{.state state, {.pair .x .26 x, .pair .y .26 y} bits} cmp_step state, .pair pair} ;
+stepF25 =  {{.state state, {.pair .x .25 x, .pair .y .25 y} bits} cmp_step state, .pair pair} ;
+stepF24 =  {{.state state, {.pair .x .24 x, .pair .y .24 y} bits} cmp_step state, .pair pair} ;
+stepF23 =  {{.state state, {.pair .x .23 x, .pair .y .23 y} bits} cmp_step state, .pair pair} ;
+stepF22 =  {{.state state, {.pair .x .22 x, .pair .y .22 y} bits} cmp_step state, .pair pair} ;
+stepF21 =  {{.state state, {.pair .x .21 x, .pair .y .21 y} bits} cmp_step state, .pair pair} ;
+stepF20 =  {{.state state, {.pair .x .20 x, .pair .y .20 y} bits} cmp_step state, .pair pair} ;
+stepF19 =  {{.state state, {.pair .x .19 x, .pair .y .19 y} bits} cmp_step state, .pair pair} ;
+stepF18 =  {{.state state, {.pair .x .18 x, .pair .y .18 y} bits} cmp_step state, .pair pair} ;
+stepF17 =  {{.state state, {.pair .x .17 x, .pair .y .17 y} bits} cmp_step state, .pair pair} ;
+stepF16 =  {{.state state, {.pair .x .16 x, .pair .y .16 y} bits} cmp_step state, .pair pair} ;
+stepF15 =  {{.state state, {.pair .x .15 x, .pair .y .15 y} bits} cmp_step state, .pair pair} ;
+stepF14 =  {{.state state, {.pair .x .14 x, .pair .y .14 y} bits} cmp_step state, .pair pair} ;
+stepF13 =  {{.state state, {.pair .x .13 x, .pair .y .13 y} bits} cmp_step state, .pair pair} ;
+stepF12 =  {{.state state, {.pair .x .12 x, .pair .y .12 y} bits} cmp_step state, .pair pair} ;
+stepF11 =  {{.state state, {.pair .x .11 x, .pair .y .11 y} bits} cmp_step state, .pair pair} ;
+stepF10 =  {{.state state, {.pair .x .10 x, .pair .y .10 y} bits} cmp_step state, .pair pair} ;
+stepF9  =  {{.state state, {.pair .x .9  x, .pair .y .9  y} bits} cmp_step state, .pair pair} ;
+stepF8  =  {{.state state, {.pair .x .8  x, .pair .y .8  y} bits} cmp_step state, .pair pair} ;
+stepF7  =  {{.state state, {.pair .x .7  x, .pair .y .7  y} bits} cmp_step state, .pair pair} ;
+stepF6  =  {{.state state, {.pair .x .6  x, .pair .y .6  y} bits} cmp_step state, .pair pair} ;
+stepF5  =  {{.state state, {.pair .x .5  x, .pair .y .5  y} bits} cmp_step state, .pair pair} ;
+stepF4  =  {{.state state, {.pair .x .4  x, .pair .y .4  y} bits} cmp_step state, .pair pair} ;
+stepF3  =  {{.state state, {.pair .x .3  x, .pair .y .3  y} bits} cmp_step state, .pair pair} ;
+stepF2  =  {{.state state, {.pair .x .2  x, .pair .y .2  y} bits} cmp_step state, .pair pair} ;
+stepF1  =  {{.state state, {.pair .x .1  x, .pair .y .1  y} bits} cmp_step state, .pair pair} ;
+stepF0  =  {{.state state, {.pair .x .0  x, .pair .y .0  y} bits} cmp_step state, .pair pair} ;
+
+cmp_fraction =
+  {eq state, () pair}
+  stepF51 stepF50 stepF49 stepF48 stepF47 stepF46 stepF45 stepF44 stepF43 stepF42 stepF41 stepF40 stepF39 stepF38 stepF37 stepF36 stepF35 stepF34 stepF33 stepF32 stepF31 stepF30
+  stepF29 stepF28 stepF27 stepF26 stepF25 stepF24 stepF23 stepF22 stepF21 stepF20 stepF19 stepF18 stepF17 stepF16 stepF15 stepF14 stepF13 stepF12 stepF11 stepF10 stepF9 stepF8 stepF7 stepF6 stepF5 stepF4 stepF3 stepF2 stepF1 stepF0
+  .state
+  ;
+
+gt_fraction? =  {cmp_fraction /gt if, () then} .then ;
+eq_fraction? =  {cmp_fraction /eq if, () then} .then ;
+
+gt_magnitude_float64? =
+  <
+    {{.x .exponent x, .y .exponent y} gt_exponent? if, () then} .then,
+    {{.x .exponent x, .y .exponent y} eq_exponent? ife, {.x .fraction x, .y .fraction y} gt_fraction? iff, () then} .then
+  > ;
+
+cmp_float64 =
+  <
+    {<.x nan_float64?, .y nan_float64?> if, unordered_nan_cmp then} .then,
+    {.x zero_float64? ifx, .y zero_float64? ify, eq_zero_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify,
+     {.x .sign x, .y .sign y} eq_sign? ifs,
+     {.x .exponent x, .y .exponent y} eq_exponent? ife,
+     {.x .fraction x, .y .fraction y} eq_fraction? iff,
+     eq_exact_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign +? ifsx, .y .sign -? ifsy, gt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign -? ifsx, .y .sign +? ifsy, lt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign +? ifsx, .y .sign +? ifsy, gt_magnitude_float64? ifm, gt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign +? ifsx, .y .sign +? ifsy, {.y x, .x y} gt_magnitude_float64? ifm, lt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign -? ifsx, .y .sign -? ifsy, {.y x, .x y} gt_magnitude_float64? ifm, gt_cmp then} .then,
+    {.x ordered_float64? ifx, .y ordered_float64? ify, .x .sign -? ifsx, .y .sign -? ifsy, gt_magnitude_float64? ifm, lt_cmp then} .then
+  > ;
+
+eq_float64? =  {<cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then ;
+gt_float64? =  {cmp_float64 /gt if, () then} .then ;
+lt_float64? =  {cmp_float64 /lt if, () then} .then ;
+le_float64? =  {<cmp_float64 /lt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then ;
+ge_float64? =  {<cmp_float64 /gt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> if, () then} .then ;
+
+xor_sign =
+  <
+    {.x +? ifx, .y +? ify, {} |+  then} .then,
+    {.x +? ifx, .y -? ify, {} |-  then} .then,
+    {.x -? ifx, .y +? ify, {} |-  then} .then,
+    {.x -? ifx, .y -? ify, {} |+  then} .then
+  > ;
+
+opp_sign? =
+  <
+    {.x +? ifx, .y -? ify, () then} .then,
+    {.x -? ifx, .y +? ify, () then} .then
+  > ;
+
+inf_of_sign =
+  <
+    {+? if, pos_inf then} .then,
+    {-? if, neg_inf then} .then
+  > ;
+
+zero_of_sign =
+  <
+    {+? if, pos_zero then} .then,
+    {-? if, neg_zero then} .then
+  > ;
+
+pair_signs =
+  {.x .sign x, .y .sign y}
+  ;
+
+xor_sign_of_pair =
+  pair_signs xor_sign
+  ;
+
+opp_signs_of_pair? =
+  pair_signs opp_sign?
+  ;
+
+inf_from_pair_sign =
+  xor_sign_of_pair inf_of_sign
+  ;
+
+zero_from_pair_sign =
+  xor_sign_of_pair zero_of_sign
+  ;
+
+add_float64 =
+  float64_add
+  .result
+  ;
+
+float64_from_parts =
+  {.sign sign, .exponent exponent, (.sig frac52_from_sig56) fraction}
+  ;
+
+add_same_sign =
+  {
+    .exp exp,
+    .sign sign,
+    {.x x, .y y} sig56_add sum1
+  }
+  {
+    .exp exp,
+    .sign sign,
+    .sum1 sum1,
+    (.exp exp11_inc) exp_inc
+  }
+  {
+    .sign sign,
+    {.sum1.carry sel, .exp a, .exp_inc b} mux_exp11 exp_pre,
+    {.sum1.carry sel, .sum1.sum a, {.sum1.sum sum, .sum1.carry carry} sig56_shift_right_carry b} mux_sig56 sig_pre
+  }
+  {
+    .sign sign,
+    .sig_pre sig_pre,
+    .exp_pre exp_pre,
+    { .sig_pre sig, .exp_pre exp } round_sig56 round_out
+  }
+  {
+    .sign sign,
+    .round_out .sig sig_round,
+    .round_out .exp exp_round,
+    .round_out .inexact inexact
+  }
+  {
+    .sign sign,
+    .sig_round sig_round,
+    .exp_round exp_round,
+    .inexact inexact,
+    (.exp_round exp_all_ones_bit) overflow,
+    { .exp_round exp, .inexact inexact} underflow_bit_of underflow
+  }
+  {
+    .sign sign,
+    .sig_round sig_round,
+    .exp_round exp_round,
+    .inexact inexact,
+    .overflow overflow,
+    .underflow underflow,
+    {.overflow x, .inexact y} or_bit inexact_final
+  }
+  { .sig_round sig, .exp_round exp, .inexact_final inexact, .overflow overflow, .underflow underflow, .sign sign }
+  ;
+
+sub_same_sign =
+  {
+    .exp exp,
+    .sign sign,
+    {.big x, .small y} sig56_sub_sum diff
+  }
+  {
+    .exp exp,
+    .sign sign,
+    .diff diff,
+    { .diff sig, .exp exp } normalize_left norm
+  }
+  {
+    .sign sign,
+    .norm norm,
+    .norm .sig sig_norm,
+    .norm .exp exp_norm
+  }
+  {
+    .sign sign,
+    .sig_norm sig_norm,
+    .exp_norm exp_norm,
+    { .sig_norm sig, .exp_norm exp } round_sig56 round_out
+  }
+  {
+    .sign sign,
+    .round_out .sig sig_round,
+    .round_out .exp exp_round,
+    .round_out .inexact inexact
+  }
+  {
+    .sign sign,
+    .sig_round sig_round,
+    .exp_round exp_round,
+    .inexact inexact,
+    (.exp_round exp_all_ones_bit) overflow,
+    { .exp_round exp, .inexact inexact} underflow_bit_of underflow
+  }
+  {
+    .sign sign,
+    .sig_round sig_round,
+    .exp_round exp_round,
+    .inexact inexact,
+    .overflow overflow,
+    .underflow underflow,
+    {.overflow x, .inexact y} or_bit inexact_final
+  }
+  { .sig_round sig, .exp_round exp, .inexact_final inexact, .overflow overflow, .underflow underflow, .sign sign }
+  ;
+
+float64_add_finite =
+  {
+    .x x,
+    .y y,
+    (.x sig56_from_float64) sigx,
+    (.y sig56_from_float64) sigy,
+    {.x .exponent x, .y .exponent y} exp_pair,
+    {.x .sign x, .y .sign y} sign_pair,
+    .x .sign sign_x,
+    .y .sign sign_y,
+    {.x x, .y y} mag_gt_bit mag_gt,
+    {.x x, .y y} mag_eq_bit mag_eq
+  }
+  {
+    .sigx sigx,
+    .sigy sigy,
+    (.exp_pair exp11_max) exp_max,
+    (.exp_pair exp11_abs_diff) exp_diff,
+    (.exp_pair exp_gt_bit) exp_gt,
+    (.exp_pair exp_lt_bit) exp_lt,
+    (.sign_pair sign_eq_bit) sign_eq,
+    .sign_x sign_x,
+    .sign_y sign_y,
+    .mag_gt mag_gt,
+    .mag_eq mag_eq
+  }
+  {
+    .sigx sigx,
+    .sigy sigy,
+    .exp_max exp_max,
+    (.exp_diff shift6_from_exp11) shamt,
+    .exp_gt exp_gt,
+    .exp_lt exp_lt,
+    .sign_eq sign_eq,
+    .sign_x sign_x,
+    .sign_y sign_y,
+    .mag_gt mag_gt,
+    .mag_eq mag_eq
+  }
+  {
+    .sigx sigx,
+    .sigy sigy,
+    .exp_max exp_max,
+    .exp_gt exp_gt,
+    .exp_lt exp_lt,
+    .sign_eq sign_eq,
+    .sign_x sign_x,
+    .sign_y sign_y,
+    .mag_gt mag_gt,
+    .mag_eq mag_eq,
+    {.sigx x, .shamt s} shift_right_sig56 shx,
+    {.sigy x, .shamt s} shift_right_sig56 shy
+  }
+  {
+    .exp_max exp_max,
+    .sign_eq sign_eq,
+    .sign_x sign_x,
+    .sign_y sign_y,
+    .mag_gt mag_gt,
+    .mag_eq mag_eq,
+    {.exp_lt sel, .sigx a, .shx b} mux_sig56 sigx_al,
+    {.exp_gt sel, .sigy a, .shy b} mux_sig56 sigy_al
+  }
+  <
+    {.sign_eq 1? if,
+     {
+       .sign_x sign_x,
+       {.sigx_al x, .sigy_al y, .exp_max exp, .sign_x sign} add_same_sign out
+     }
+     {
+       .sign_x sign_x,
+       .out out,
+       .out .sig sig_round,
+       .out .exp exp_round,
+       .out .inexact inexact,
+       .out .overflow overflow,
+       .out .underflow underflow
+     }
+     {
+       .sign_x sign_x,
+       .sig_round sig_round,
+       .exp_round exp_round,
+       .overflow overflow,
+       {.overflow overflow, .underflow underflow, .inexact inexact} flags_add_from_bits flags,
+       (.sign_x inf_of_sign) inf_res
+     }
+     {
+       .flags flags,
+       .overflow overflow,
+       .inf_res inf_res,
+       {.sign_x sign, .exp_round exponent, (.sig_round frac52_from_sig56) fraction} float_res
+     }
+     <
+       {.overflow 1? if, {.inf_res result, .flags flags} then} .then,
+       {.overflow 0? if, {.float_res result, .flags flags} then} .then
+     > then} .then,
+    {.sign_eq 0? if,
+     <
+       {.mag_eq 1? if, {pos_zero result, none flags} then} .then,
+       {.mag_eq 0? if,
+        {
+          .exp_max exp_max,
+          {.mag_gt sel, .sigy_al a, .sigx_al b} mux_sig56 big,
+          {.mag_gt sel, .sigx_al a, .sigy_al b} mux_sig56 small,
+          {.mag_gt sel, .sign_y a, .sign_x b} mux_sign sign_out
+        }
+        {
+          .sign_out sign_out,
+          {.big big, .small small, .exp_max exp, .sign_out sign} sub_same_sign out
+        }
+        {
+          .sign_out sign_out,
+          .out out,
+          .out .sig sig_round,
+          .out .exp exp_round,
+          .out .inexact inexact,
+          .out .overflow overflow,
+          .out .underflow underflow
+        }
+        {
+          .sign_out sign_out,
+          .sig_round sig_round,
+          .exp_round exp_round,
+          .overflow overflow,
+          {.overflow overflow, .underflow underflow, .inexact inexact} flags_add_from_bits flags,
+          (.sign_out inf_of_sign) inf_res
+        }
+        {
+          .flags flags,
+          .overflow overflow,
+          .inf_res inf_res,
+          {.sign_out sign, .exp_round exponent, (.sig_round frac52_from_sig56) fraction} float_res
+        }
+        <
+          {.overflow 1? if, {.inf_res result, .flags flags} then} .then,
+          {.overflow 0? if, {.float_res result, .flags flags} then} .then
+        > then} .then
+     > then} .then
+  > ;
+
+float64_add =
+  <
+    {.x nan_float64? ifx, {qnan result, none flags} then} .then,
+    {.y nan_float64? ify, {qnan result, none flags} then} .then,
+    {.x inf_float64? ifx, .y inf_float64? ify, opp_signs_of_pair? ifs, {qnan result, invalid flags} then} .then,
+    {.x inf_float64? ifx, {.x result, none flags} then} .then,
+    {.y inf_float64? ify, {.y result, none flags} then} .then,
+    {.x zero_float64? ifx, .y zero_float64? ify, {pos_zero result, none flags} then} .then,
+    {.x zero_float64? ifx, {.y result, none flags} then} .then,
+    {.y zero_float64? ify, {.x result, none flags} then} .then,
+    {.x finite_float64? ifx, .y finite_float64? ify, float64_add_finite then} .then
+  > ;
+
+negate_y_pair =
+  {.x x, (.y negate_float64) y}
+  ;
+
+sub_float64 =
+  negate_y_pair
+  add_float64
+  ;
+
+float64_sub =
+  negate_y_pair
+  float64_add
+  { .result result, (.flags flags_sub_from_add) flags }
+  ;
+
+float64_mul_finite =
+  { {.x x, .y y} args }
+  { .args args, {.args .x .sign x, .args .y .sign y} xor_sign sign_out }
+  { .args args, .sign_out sign_out, .args .x .exponent exp_x }
+  { .args args, .sign_out sign_out, .exp_x exp_x, .args .y .exponent exp_y }
+  { .args args, .sign_out sign_out, .exp_x exp_x, .exp_y exp_y, {.exp_x x, .exp_y y} exp11_add_sum exp_sum }
+  { .args args, .sign_out sign_out, .exp_sum exp_sum, (.args .x sig56_from_float64) sigx }
+  { .sign_out sign_out, .exp_sum exp_sum, .sigx sigx, (.args .y sig56_from_float64) sigy }
+  { .sign_out sign_out, .sigx sigx, .sigy sigy, .exp_sum exp_sum, {.exp_sum x, () exp_1023 y} exp11_sub_sum exp_pre }
+  { .sign_out sign_out, .exp_pre exp_pre, .sigx sigx, .sigy sigy, {.sigx x, .sigy y} sig56_mul_unsigned prod }
+  { .sign_out sign_out, .exp_pre exp_pre, .prod prod, .prod .111 msb111 }
+  { .sign_out sign_out, .exp_pre exp_pre, .prod prod, .msb111 msb111, (.exp_pre exp11_inc) exp_inc }
+  { .sign_out sign_out, .exp_pre exp_pre, .prod prod, .msb111 msb111, .exp_inc exp_inc, (.prod sig56_from_sig112_shift55) sig_pre0 }
+  { .sign_out sign_out, .exp_pre exp_pre, .msb111 msb111, .exp_inc exp_inc, .sig_pre0 sig_pre0, (.prod sig56_from_sig112_shift56) sig_pre1 }
+  { .sign_out sign_out, .msb111 msb111, .exp_pre exp_pre, .exp_inc exp_inc, .sig_pre0 sig_pre0, .sig_pre1 sig_pre1, {.msb111 sel, .exp_pre a, .exp_inc b} mux_exp11 exp_norm }
+  { .sign_out sign_out, .exp_norm exp_norm, .msb111 msb111, .sig_pre0 sig_pre0, .sig_pre1 sig_pre1, {.msb111 sel, .sig_pre0 a, .sig_pre1 b} mux_sig56 sig_pre }
+  { .sign_out sign_out, .exp_norm exp_norm, .sig_pre sig_pre, { .sig_pre sig, .exp_norm exp } round_sig56 round_out }
+  { .sign_out sign_out, .round_out round_out, .round_out .sig sig_round }
+  { .sign_out sign_out, .round_out round_out, .sig_round sig_round, .round_out .exp exp_round }
+  { .sign_out sign_out, .sig_round sig_round, .exp_round exp_round, .round_out .inexact inexact }
+  { .sign_out sign_out, .sig_round sig_round, .exp_round exp_round, .inexact inexact, (.exp_round exp_all_ones_bit) overflow }
+  { .sign_out sign_out, .sig_round sig_round, .exp_round exp_round, .overflow overflow, .inexact inexact, { .exp_round exp, .inexact inexact} underflow_bit_of underflow }
+  { .sign_out sign_out, .sig_round sig_round, .exp_round exp_round, .overflow overflow, .underflow underflow, .inexact inexact, {.overflow x, .inexact y} or_bit inexact_final }
+  { .sign_out sign_out, .sig_round sig_round, .exp_round exp_round, .overflow overflow, .underflow underflow, .inexact_final inexact_final, {.overflow overflow, .underflow underflow, .inexact_final inexact} flags_mul_from_bits flags }
+  { .sign_out sign_out, .sig_round sig_round, .exp_round exp_round, .overflow overflow, .flags flags, (.sign_out inf_of_sign) inf_res }
+  { .overflow overflow, .flags flags, .inf_res inf_res, {.sign_out sign, .exp_round exponent, (.sig_round frac52_from_sig56) fraction} float_res }
+  { .overflow overflow, .flags flags, .inf_res inf_res, .float_res float_res }
+  <
+    {.overflow 1? if, {.inf_res result, .flags flags} then} .then,
+    {.overflow 0? if, {.float_res result, .flags flags} then} .then
+  > ;
+
+float64_mul =
+  <
+    {.x nan_float64? ifx, {qnan result, none flags} then} .then,
+    {.y nan_float64? ify, {qnan result, none flags} then} .then,
+    {.x inf_float64? ifx, .y zero_float64? ify, {qnan result, invalid flags} then} .then,
+    {.x zero_float64? ifx, .y inf_float64? ify, {qnan result, invalid flags} then} .then,
+    {.x inf_float64? ifx, .y ordered_float64? ify, {inf_from_pair_sign result, none flags} then} .then,
+    {.y inf_float64? ify, .x ordered_float64? ifx, {inf_from_pair_sign result, none flags} then} .then,
+    {.x zero_float64? ifx, .y ordered_float64? ify, {zero_from_pair_sign result, none flags} then} .then,
+    {.y zero_float64? ify, .x ordered_float64? ifx, {zero_from_pair_sign result, none flags} then} .then,
+    {.x finite_float64? ifx, .y finite_float64? ify, float64_mul_finite then} .then
+  > ;
+
+mul_float64 =
+  float64_mul
+  .result
+  ;
+
+float64_div_finite =
+  {
+    (.x sig56_from_float64) sigx,
+    (.y sig56_from_float64) sigy,
+    {.x .sign x, .y .sign y} xor_sign sign_out,
+    {.x .exponent x, .y .exponent y} exp11_sub_sum exp_diff
+  }
+  {
+    .sign_out sign_out,
+    .sigx sigx,
+    .sigy sigy,
+    {.exp_diff x, () exp_1023 y} exp11_add_sum exp_pre
+  }
+  {
+    .sign_out sign_out,
+    .exp_pre exp_pre,
+    {.sigx x, .sigy y} sig56_div_unsigned quot
+  }
+  {
+    .sign_out sign_out,
+    .exp_pre exp_pre,
+    .quot quot,
+    .quot .55 msb55,
+    (.exp_pre exp11_dec) exp_dec,
+    (.quot shift_left_sig56_1) quot_sh
+  }
+  {
+    .sign_out sign_out,
+    {.msb55 sel, .exp_dec a, .exp_pre b} mux_exp11 exp_adj,
+    {.msb55 sel, .quot_sh a, .quot b} mux_sig56 sig_pre
+  }
+  {
+    .sign_out sign_out,
+    .exp_adj exp_adj,
+    .sig_pre sig_pre,
+    { .sig_pre sig, .exp_adj exp } round_sig56 round_out
+  }
+  {
+    .sign_out sign_out,
+    .round_out .sig sig_round,
+    .round_out .exp exp_round,
+    .round_out .inexact inexact
+  }
+  {
+    .sign_out sign_out,
+    .sig_round sig_round,
+    .exp_round exp_round,
+    .inexact inexact,
+    (.exp_round exp_all_ones_bit) overflow
+  }
+  {
+    .sign_out sign_out,
+    .sig_round sig_round,
+    .exp_round exp_round,
+    .inexact inexact,
+    .overflow overflow,
+    { .exp_round exp, .inexact inexact} underflow_bit_of underflow
+  }
+  {
+    .sign_out sign_out,
+    .sig_round sig_round,
+    .exp_round exp_round,
+    .overflow overflow,
+    .underflow underflow,
+    .inexact inexact,
+    {.overflow x, .inexact y} or_bit inexact_final
+  }
+  {
+    .sign_out sign_out,
+    .sig_round sig_round,
+    .exp_round exp_round,
+    .overflow overflow,
+    .underflow underflow,
+    .inexact_final inexact_final,
+    {0 div_by_zero, .overflow overflow, .underflow underflow, .inexact_final inexact} flags_div_from_bits flags,
+    (.sign_out inf_of_sign) inf_res,
+    {.sign_out sign, .exp_round exponent, (.sig_round frac52_from_sig56) fraction} float_res
+  }
+  {
+    .flags flags,
+    .overflow overflow,
+    .inf_res inf_res,
+    .float_res float_res
+  }
+  <
+    {.overflow 1? if, {.inf_res result, .flags flags} then} .then,
+    {.overflow 0? if, {.float_res result, .flags flags} then} .then
+  > ;
+
+float64_div =
+  <
+    {.x nan_float64? ifx, {qnan result, none flags} then} .then,
+    {.y nan_float64? ify, {qnan result, none flags} then} .then,
+    {.x zero_float64? ifx, .y zero_float64? ify, {qnan result, invalid flags} then} .then,
+    {.x inf_float64? ifx, .y inf_float64? ify, {qnan result, invalid flags} then} .then,
+    {.x inf_float64? ifx, .y ordered_float64? ify, {inf_from_pair_sign result, none flags} then} .then,
+    {.x ordered_float64? ifx, .y inf_float64? ify, {zero_from_pair_sign result, none flags} then} .then,
+    {.x ordered_float64? ifx, .y zero_float64? ify, {inf_from_pair_sign result, div_by_zero flags} then} .then,
+    {.x zero_float64? ifx, .y ordered_float64? ify, {zero_from_pair_sign result, none flags} then} .then,
+    {.x finite_float64? ifx, .y finite_float64? ify, float64_div_finite then} .then
+  > ;
+
+div_float64 =
+  float64_div
+  .result
+  ;
+
+# -----------------------------------------------------------------------------
+# Public API
+# -----------------------------------------------------------------------------
+# Operations return a product with:
+#   result : float64
+#   flags  : operation-specific exception flags
+#
+# Use `add .result`, `mul .result`, etc. when only the numeric result is needed.
+
+add = float64_add;
+sub = float64_sub;
+mul = float64_mul;
+div = float64_div;
+
+cmp = cmp_float64;
+eq? = eq_float64?;
+lt? = lt_float64?;
+le? = le_float64?;
+gt? = gt_float64?;
+ge? = ge_float64?;
+
+neg = negate_float64;
+
+# --- useful float64 constants (IEEE-754 binary64) ---
+
+# 1.0  exponent = 1023 = 0b01111111111
+exp_1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 0 10} ;
+
+# 10.0 exponent = 1026 = 1023 + 3 = 0b10000000010
+exp_10 = {} {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 1 10} ;
+
+# 10.0 significand = 1.01b => fraction bit 50 = 1 (2^-2), everything else 0
+frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
+              0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
+              0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
+              0 48, 0 49, 1 50, 0 51} ;
+
+# signed zeros (aliases)
+0f = pos_zero;
+-0f = neg_zero;
+
+# 1.0, -1.0, 10.0
+1f  = {} {+ sign,  exp_1  exponent, frac0   fraction} ;
+-1f = {} {- sign,  exp_1  exponent, frac0   fraction} ;
+10f = {} {+ sign,  exp_10 exponent, frac_10 fraction} ;

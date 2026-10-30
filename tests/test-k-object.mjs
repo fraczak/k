@@ -9,6 +9,7 @@ import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
 import {
   compileObjectBuffer,
   compileLibraryBuffer,
+  loadLibrary,
   decodeObject,
   objectToFunction,
   runConvergedObject,
@@ -109,6 +110,14 @@ const arithmeticsRoundTripSource = decompileObjectBuffer(
   compileLibraryBuffer(arithmeticsDecompiledSource, { source: "Examples/arithmetics.decompiled.k" })
 );
 assert.equal(arithmeticsRoundTripSource, arithmeticsDecompiledSource);
+
+// Imported relations have canonical keys without local aliases. They still
+// need legal definition names when the complete library is decompiled.
+const imported = loadLibrary(decodeObject(compileLibraryBuffer("leaf = {} |leaf;")));
+const derived = compileLibraryBuffer(`wrap = ${imported.relAlias.leaf} |wrapped;`, { libraries: [imported] });
+const importedSource = decompileObjectBuffer(derived);
+const importedRoundTrip = decompileObjectBuffer(compileLibraryBuffer(importedSource));
+assert.equal(importedRoundTrip, importedSource);
 
 assert.throws(() => k.compile("@A = (); @A"), /Parse error/);
 assert.throws(() => k.compile("$ @A = {}; $@A"), /Lexical error/);

@@ -53,6 +53,7 @@ const CURATED_VFS_FILES = [
   "core.k",
   "arithmetics.k",
   "ieee.k",
+  "ieee-arithmetics.k",
   "poly.k",
   "karatsuba-mult.k",
   "json.mjs",

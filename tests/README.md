@@ -44,6 +44,8 @@ cases; shared helpers live outside the discovered directory.
 | Interactive state and browser UI | `test-repl.mjs`, `test-repl-html.mjs`, `test-tree-view.mjs` |
 | Execution layers | `test-kvm.mjs`, `test-kvm-polymorphic.mjs`, `test-access-table.mjs`, `test-pkir.mjs` |
 | Libraries | Arithmetic, IEEE, list, Karatsuba, and dynamic JSON suites |
+| JSON text parsing | `test-parse-json.mjs`: grammar, Unicode escapes, binary64 boundaries, Wasm, and CLI |
+| IEEE text conversion | `test-ieee-text.mjs`: parsing, exact printing, special values, and binary64 round-trips |
 
 `test-hash-fuzz.mjs` uses a deterministic generator to check renaming and
 definition-order invariance; it is not a general cryptographic collision test.

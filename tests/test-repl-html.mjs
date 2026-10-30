@@ -155,6 +155,7 @@ if (chromiumBin) {
       "djson.k",
       "djson.mjs",
       "ieee.k",
+      "ieee-arithmetics.k",
       "ieee.mjs",
       "int.mjs",
       "json.mjs",

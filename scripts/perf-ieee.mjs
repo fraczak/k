@@ -53,7 +53,7 @@ function printHelp() {
   console.log(`Usage: node scripts/perf-ieee.mjs [options]
 
 IEEE 754 Floating-Point Arithmetic Benchmark Harness.
-Benchmarks add, sub, mul, and div on Examples/ieee.k across
+Benchmarks add, sub, mul, and div on Examples/ieee-arithmetics.k across
 Native JS, kVM interpreter, LLVM, Wasm, and PKIR backends.
 
 Options:
@@ -221,10 +221,11 @@ function pkirLaneName() {
   return "PKIR (Wasm persistent)";
 }
 
-console.log("==> Initializing state and loading @fraczak/k/Examples/ieee.k");
+console.log("==> Initializing IEEE types and arithmetic");
 const state = createState();
-const ieeePath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/ieee.k"));
-await evaluateInput(`:load ${ieeePath}`, state);
+for (const name of ["core.k", "Examples/ieee.k", "Examples/ieee-arithmetics.k"]) {
+  await evaluateInput(`:load ${fileURLToPath(import.meta.resolve(`@fraczak/k/${name}`))}`, state);
+}
 
 function generatePerfK(values) {
   const lines = [];
@@ -253,17 +254,9 @@ function generatePerfK(values) {
 const perfKSource = generatePerfK(values);
 await evaluateInput(perfKSource, state);
 
-const ieeeRaw = fs.readFileSync(ieeePath, "utf8");
-// Exclude trailing unassigned expression and comment block to ensure
-// clean parse.
-const endIdx = ieeeRaw.indexOf("\n()\n");
-const ieeeBase = endIdx !== -1 ? ieeeRaw.slice(0, endIdx) : ieeeRaw;
-const fullSource = `${ieeeBase}\n${perfKSource}\nperf_ieee`;
-
 console.log("==> Preparing relation perf_ieee");
 const relation = prepareRelation(state, "perf_ieee", {
-  source: fullSource,
-  sourceLabel: "@fraczak/k/Examples/ieee.k#perf_ieee"
+  sourceLabel: "@fraczak/k/Examples/ieee-arithmetics.k#perf_ieee"
 });
 codes.load(state.codes);
 
@@ -296,7 +289,7 @@ if (runLLVM) {
       relHash: relation.relHash,
       inputPattern,
       cacheDir,
-      sourceLabel: "@fraczak/k/Examples/ieee.k#perf_ieee",
+      sourceLabel: "@fraczak/k/Examples/ieee-arithmetics.k#perf_ieee",
       runtimeMode: llvmRuntimeMode,
       clangOpt: opt,
       usePKIR: false
@@ -327,7 +320,7 @@ if (runLLVMPKIR) {
       relHash: relation.relHash,
       inputPattern,
       cacheDir,
-      sourceLabel: "@fraczak/k/Examples/ieee.k#perf_ieee",
+      sourceLabel: "@fraczak/k/Examples/ieee-arithmetics.k#perf_ieee",
       runtimeMode: llvmRuntimeMode,
       clangOpt: opt,
       usePKIR: true
@@ -446,7 +439,7 @@ function printBenchmarkDescription() {
   if (runPKIR) lanes.push(pkirLaneName());
 
   console.log("==> Benchmark description");
-  console.log("    source: @fraczak/k/Examples/ieee.k#perf_ieee (single program)");
+  console.log("    source: @fraczak/k/Examples/ieee-arithmetics.k#perf_ieee (single program)");
   console.log(`    operations: ${ops.join(", ")}`);
   console.log(`    values: ${values.join(", ")}`);
   console.log(`    evaluation: 1 program call evaluating all ${totalOps} operations`);

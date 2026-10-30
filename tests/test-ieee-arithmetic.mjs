@@ -7,7 +7,9 @@ import { parse as parseFloat64, print as printFloat64 } from "../codecs/ieee.mjs
 import { closedPatternToCodeHash, valueForCode } from "../repl-codecs.mjs";
 
 const state = createState({ engine: "js" });
+await evaluateInput(":load core.k", state);
 await evaluateInput(":load Examples/ieee.k", state);
+await evaluateInput(":load Examples/ieee-arithmetics.k", state);
 
 for (const name of ["add", "sub", "mul", "div"]) {
   assert.ok(state.relAliases[name], `Expected public IEEE relation '${name}'`);
@@ -59,7 +61,7 @@ async function assertOperation({ op, x, y, result, flags = null, projection = fa
 }
 
 const cases = [
-  // Keep this as a fast smoke matrix. Examples/ieee.k has detailed relation-level coverage.
+  // Keep this as a smoke matrix over the separate arithmetic library.
   { op: "add", x: "0.5", y: "0.25", result: "0.75", flags: "none", projection: true },
   { op: "add", x: "Infinity", y: "-Infinity", result: "NaN", flags: "invalid" },
 

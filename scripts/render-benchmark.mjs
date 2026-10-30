@@ -45,7 +45,7 @@ const rowOrder = [
 const columnGroups = [
   {
     title: "ieee",
-    source: "Examples/ieee.k",
+    source: "Examples/ieee-arithmetics.k",
     columns: [
       { key: "ieee.add", label: "add" },
       { key: "ieee.div", label: "div" },

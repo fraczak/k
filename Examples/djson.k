@@ -1,90 +1,54 @@
 -- Examples/djson.k: Universal dynamic JSON schema and standard methods
 -- Works with codecs/djson.mjs (k-djson) and codecs/utf8.mjs (k-utf8).
+-- Load core.k and Examples/ieee.k first; shared types use canonical hashes.
 
 ---------------------------------------------------------------
 -- §1. Named Pattern Definitions & Component Schemas
 ---------------------------------------------------------------
 
-bit[] = < {} 0, {} 1 >;
+bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
+bits[] = @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb[];
+unicode[] = @AhRir67FipnHnJfDU7fSQ3Xhcg6BTJYwtq6HGsWwZtbi[];
+string[] = @Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[];
 
-sign[] = < {} "+", {} "-" >;
+-- IEEE sign[], exp11[], frac52[], and float64[], respectively.
+sign[] = @F7RNp9YbYnUXpfZBQViADi6LZyXYYuiJHc9KckfZtDvm[];
+exponent[] = @F2KGfE24DhFGChv6pVAb4pkC9YWvt5izpnnwFDTLfG2h[];
+fraction[] = @ziwtSeiWqhQZjbpnB2TpWhSJCDTWfX2QzGvPd3DdVJCZ[];
+number[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
 
-exponent[] = {
-  bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4,
-  bit[] 5, bit[] 6, bit[] 7, bit[] 8, bit[] 9, bit[] 10
-};
-
-fraction[] = {
-  bit[] 0,  bit[] 1,  bit[] 2,  bit[] 3,  bit[] 4,  bit[] 5,
-  bit[] 6,  bit[] 7,  bit[] 8,  bit[] 9,  bit[] 10, bit[] 11,
-  bit[] 12, bit[] 13, bit[] 14, bit[] 15, bit[] 16, bit[] 17,
-  bit[] 18, bit[] 19, bit[] 20, bit[] 21, bit[] 22, bit[] 23,
-  bit[] 24, bit[] 25, bit[] 26, bit[] 27, bit[] 28, bit[] 29,
-  bit[] 30, bit[] 31, bit[] 32, bit[] 33, bit[] 34, bit[] 35,
-  bit[] 36, bit[] 37, bit[] 38, bit[] 39, bit[] 40, bit[] 41,
-  bit[] 42, bit[] 43, bit[] 44, bit[] 45, bit[] 46, bit[] 47,
-  bit[] 48, bit[] 49, bit[] 50, bit[] 51
-};
-
-number[] = {
-  sign[] sign,
-  exponent[] exponent,
-  fraction[] fraction
-};
-
-byte[] = {
-  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
-  bit[] 4, bit[] 5, bit[] 6, bit[] 7
-};
-
-ascii[] = {
-  bit[] 0, bit[] 1, bit[] 2, bit[] 3,
-  bit[] 4, bit[] 5, bit[] 6
-};
-
-bmp_hi_common[] = <
-  { bit[] 0, bit[] 1, bit[] 2 } h08_0F,
-  ascii[] h10_7F,
-  ascii[] h80_CF,
-  { bit[] 0, bit[] 1, bit[] 2 } hD0_D7,
-  {} hF9,
-  { bit[] 0 } hFA_FB,
-  { bit[] 0 } hFC_FD,
-  { bit[] 0 } hFE_FF
->;
-
-bmp_hi_private_use[] = <
-  { bit[] 0, bit[] 1, bit[] 2, bit[] 3 } hE0_EF,
-  { bit[] 0, bit[] 1, bit[] 2 } hF0_F7,
-  {} hF8
->;
-
-plane0[] = {
-  bit[] 0, bit[] 1, bit[] 2, bit[] 3, bit[] 4,
-  bit[] 5, bit[] 6, bit[] 7, bit[] 8, bit[] 9, bit[] 10
-};
-
-plane_02_10[] = <
-  { bit[] 0 } p02_03,
-  { bit[] 0, bit[] 1 } p04_07,
-  { bit[] 0, bit[] 1, bit[] 2 } p08_0F,
-  {} p10
->;
-
-unicode[] = <
-  ascii[] ascii,
-  { bmp_hi_common[] hi, byte[] lo } bmp_common,
-  { bmp_hi_private_use[] hi, byte[] lo } bmp_private_use,
-  plane0[] plane0,
-  { byte[] mid, byte[] lo } supplementary_plane1,
-  { plane_02_10[] plane, byte[] mid, byte[] lo } supplementary_planes2_16
->;
-
-string[] = < {} nil, { unicode[] car, S cdr } cons > = S;
+-- Shared numeric and bit operations from ieee.k.
+0b = @9sQsLXUsbMiGLXkQgJ6yaTLUBQGLgViQjKE3hXAYyRyv;
+_json_add = @7Ti3bPstMgbE646YTPFA5hhRjUYMMqw2Js2v9P2DYcj7;
+_json_c1023 = @6QziDQ3acyiQV7XQsX77uhPbTDvpdVGALzKAcxhwj5zQ;
+_json_code = @tCRYGsCvqqxP8RuPMArp9RCmNcPx8Db8kByPsELybCEs;
+_json_digit = @6z6ZqEvuwhZUXy8MNWJTMjkiKuQyPx6yBg3Dt8fq28nN;
+_json_e = @u4iFEcWSuTUp8FTaJzGdzDxbL3yeHDPHDUf6FUyN9tXB;
+_json_field7 = @SFuC8GpSvwemLh82Kz4t6h9Bar5ieF4v28ibNZjQb48a;
+_json_finite_float64 = @pAX8ruNaFXEAPtKeYvVA6kLmqYhNE7QCAKy2TEFehnwn;
+_json_lt = @7QSUgraQEgC36r98QNGtWniC4gmMH2d3EhFCQtsf5f9z;
+_json_minus = @3dfy8mG53Ma2bm2JfsJkLyWB3ZZLrEeySSjYqwxgMeuB;
+_json_reverse_bits = @L8Qs2DUkpsfceEf6JTPqQq5isKixewAkH59LQNFcjSXT;
+_json_scan_float64 = @g5LXvDiuKsRN2PpcGkV9yyqKVvKR7hAZcidYZxshJTqz;
+_json_small1 = @97jK2UDSQYuQAMcUFtHmdcD8ps35BFcS9JtDYUBDDv3n;
+_json_small2 = @WhYQVxriUH2hMkkEvnqqakR6KzN98s5j7Grcx3FfKGhM;
+_json_small3 = @6RdPhiu8dmAUde9dLnQxry2kDWp467iGakS2Nme48Av9;
+_json_small4 = @weJhuSPJmJVMuxsZRtR9Bx2qvMb5VT2ScxVEpQbpqx3y;
+_json_small7 = @2TWZiDJ49k6mUU3asYgw4t9wVhgS9QBM5sQLe5XrW7Sg;
+_json_sub = @7WsmrsjvuEnSm4GgTLYbSrkbAjneZVwQhjLHmQunHawV;
+_json_trim = @A63sgVq6WwqxwiRPkvYc7T3ciLh5KSvgFMBEhs9P7E4u;
+_json_unpack16 = @FXa3B3fvZvwLsh8aApBh4peYmQvG5H8VWr89Vb6yvjXx;
+inc_nat = @FgRFGHftiMfrwxja43xTRMYqhUmKS3KVhWTWEecvACnT;
+inv_bits = @L8Qs2DUkpsfceEf6JTPqQq5isKixewAkH59LQNFcjSXT;
+nat_to_float64 = @sru5LbMj5K3EsA7Y5i5vcXGBGwPjMx8hzBUii6jvsUHK;
+push_bit = @kjzD5wy3vVihSyEmpqUTiiQaTc2vikejKC66D7s5DfE2;
+push_bits1 = @5xxBWEQkTGDnHkuyA4hPaqswq6DDymPR53Z6vX6DANyn;
+push_bits2 = @agFtk8Zs8KrTR6zu9Nx5KDJCHTU8biAR6LyhGdd9gGqR;
+push_bits3 = @B9yHHLyYAyUfQfvXzghbPutyN852tXraqbhbPpCBHRmW;
+push_bits4 = @iz9bg6NQF7RXzM6ibW3MfBrUAYYXyUKhFWTHJjHn9Fvy;
+push_bits7 = @ey5ZakdvsDjpijiwa4pmsv9Nvi7uhyvZU2HpCfT2PJqk;
 
 bool[] = < {} true, {} false >;
-
-bits[] = < {} _, B 0, B 1 > = B;
 
 list[X] = < {} nil, { X car, L cdr } cons > = L;
 
@@ -112,7 +76,6 @@ djson[] = <
 -- §2. Constructors and Projections
 ---------------------------------------------------------------
 
-0b = {} | _;
 0 = 0b | 0;
 1 = 0b | 1;
 
@@ -255,18 +218,6 @@ has_nth? = has_index?;
 -- §5. Trie Update & Removal (put, remove, put_nth, remove_nth)
 ---------------------------------------------------------------
 
-push_bit = ?{ < {} 0, {} 1 > b, < {} _, BITS 0, BITS 1 >=BITS acc } <
-  { .b /0 if, .acc |0 then } .then,
-  { .b /1 if, .acc |1 then } .then
-> ?bits[];
-
-push_bits1 = { .x .0 b, .acc acc } push_bit;
-push_bits2 = { .x .1 b, { .x x, .acc acc } push_bits1 acc } push_bit;
-push_bits3 = { .x .2 b, { .x x, .acc acc } push_bits2 acc } push_bit;
-push_bits4 = { .x .3 b, { .x x, .acc acc } push_bits3 acc } push_bit;
-push_bits5 = { .x .4 b, { .x x, .acc acc } push_bits4 acc } push_bit;
-push_bits6 = { .x .5 b, { .x x, .acc acc } push_bits5 acc } push_bit;
-push_bits7 = { .x .6 b, { .x x, .acc acc } push_bits6 acc } push_bit;
 push_bits8 = { .x .7 b, { .x x, .acc acc } push_bits7 acc } push_bit;
 push_bits9 = { .x .8 b, { .x x, .acc acc } push_bits8 acc } push_bit;
 push_bits10 = { .x .9 b, { .x x, .acc acc } push_bits9 acc } push_bit;
@@ -421,18 +372,6 @@ del_nth = ?{ bits[] index, djson[] json } {
 -- §6. Cardinality & Length Relations
 ---------------------------------------------------------------
 
-_inv = ?{ < {} _, B 0, B 1 >=B x, B r } <
-  { .x /_ if, .r then } .then,
-  { .x /0 x, .r |0 r } _inv,
-  { .x /1 x, .r |1 r } _inv
-> ?bits[];
-_inc = ?{ < {} _, B 0, B 1 >=B x, B y } <
-  { .x /_ if, .y |1 then } .then,
-  { .x /0 x, .y |1 r } _inv,
-  { .x /1 x, .y |0 y } _inc
-> ?bits[];
-inc_nat = { { () x, 0b r } _inv x, 0b y } _inc;
-
 _trie_size = ?{
   < {} nil, { < {} nil, V val > val, T 0, T 1 } trie >=T t,
   < {} _, B 0, B 1 >=B acc
@@ -468,128 +407,6 @@ length_nat = ?djson[] <
   /object obj_size,
   /list list_size,
   /string str_len
->;
-
-pos_sign = {} |"+";
-bit0 = {} |0;
-bit1 = {} |1;
-
-pos_zero = {
-  pos_sign sign,
-  {
-    bit0 0, bit0 1, bit0 2, bit0 3, bit0 4,
-    bit0 5, bit0 6, bit0 7, bit0 8, bit0 9, bit0 10
-  } exponent,
-  {
-    bit0 0, bit0 1, bit0 2, bit0 3, bit0 4,
-    bit0 5, bit0 6, bit0 7, bit0 8, bit0 9,
-    bit0 10, bit0 11, bit0 12, bit0 13, bit0 14,
-    bit0 15, bit0 16, bit0 17, bit0 18, bit0 19,
-    bit0 20, bit0 21, bit0 22, bit0 23, bit0 24,
-    bit0 25, bit0 26, bit0 27, bit0 28, bit0 29,
-    bit0 30, bit0 31, bit0 32, bit0 33, bit0 34,
-    bit0 35, bit0 36, bit0 37, bit0 38, bit0 39,
-    bit0 40, bit0 41, bit0 42, bit0 43, bit0 44,
-    bit0 45, bit0 46, bit0 47, bit0 48, bit0 49,
-    bit0 50, bit0 51
-  } fraction
-};
-
-exp_bias = {
-  bit1 0, bit1 1, bit1 2, bit1 3, bit1 4,
-  bit1 5, bit1 6, bit1 7, bit1 8, bit1 9, bit0 10
-};
-
-exp_half_adder = <
-  { .a /0 a, .c_in /0 c_in } { bit0 sum, bit0 carry },
-  { .a /0 a, .c_in /1 c_in } { bit1 sum, bit0 carry },
-  { .a /1 a, .c_in /0 c_in } { bit1 sum, bit0 carry },
-  { .a /1 a, .c_in /1 c_in } { bit0 sum, bit1 carry }
->;
-
-inc_exp = {
-  { .0 a, bit1 c_in } exp_half_adder e0,
-  .1 b1, .2 b2, .3 b3, .4 b4, .5 b5, .6 b6, .7 b7, .8 b8, .9 b9, .10 b10
-} {
-  .e0.sum 0,
-  { .b1 a, .e0.carry c_in } exp_half_adder e1,
-  .b2 b2, .b3 b3, .b4 b4, .b5 b5, .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
-} {
-  .0 0, .e1.sum 1,
-  { .b2 a, .e1.carry c_in } exp_half_adder e2,
-  .b3 b3, .b4 b4, .b5 b5, .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
-} {
-  .0 0, .1 1, .e2.sum 2,
-  { .b3 a, .e2.carry c_in } exp_half_adder e3,
-  .b4 b4, .b5 b5, .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
-} {
-  .0 0, .1 1, .2 2, .e3.sum 3,
-  { .b4 a, .e3.carry c_in } exp_half_adder e4,
-  .b5 b5, .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
-} {
-  .0 0, .1 1, .2 2, .3 3, .e4.sum 4,
-  { .b5 a, .e4.carry c_in } exp_half_adder e5,
-  .b6 b6, .b7 b7, .b8 b8, .b9 b9, .b10 b10
-} {
-  .0 0, .1 1, .2 2, .3 3, .4 4, .e5.sum 5,
-  { .b6 a, .e5.carry c_in } exp_half_adder e6,
-  .b7 b7, .b8 b8, .b9 b9, .b10 b10
-} {
-  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .e6.sum 6,
-  { .b7 a, .e6.carry c_in } exp_half_adder e7,
-  .b8 b8, .b9 b9, .b10 b10
-} {
-  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6, .e7.sum 7,
-  { .b8 a, .e7.carry c_in } exp_half_adder e8,
-  .b9 b9, .b10 b10
-} {
-  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6, .7 7, .e8.sum 8,
-  { .b9 a, .e8.carry c_in } exp_half_adder e9,
-  .b10 b10
-} {
-  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6, .7 7, .8 8, .e9.sum 9,
-  { .b10 a, .e9.carry c_in } exp_half_adder e10
-} {
-  .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6, .7 7, .8 8, .9 9, .e10.sum 10
-};
-
-shift_frac = ?{ bit[] b, fraction[] f } {
-  .f.1 0,  .f.2 1,  .f.3 2,  .f.4 3,  .f.5 4,
-  .f.6 5,  .f.7 6,  .f.8 7,  .f.9 8,  .f.10 9,
-  .f.11 10, .f.12 11, .f.13 12, .f.14 13, .f.15 14,
-  .f.16 15, .f.17 16, .f.18 17, .f.19 18, .f.20 19,
-  .f.21 20, .f.22 21, .f.23 22, .f.24 23, .f.25 24,
-  .f.26 25, .f.27 26, .f.28 27, .f.29 28, .f.30 29,
-  .f.31 30, .f.32 31, .f.33 32, .f.34 33, .f.35 34,
-  .f.36 35, .f.37 36, .f.38 37, .f.39 38, .f.40 39,
-  .f.41 40, .f.42 41, .f.43 42, .f.44 43, .f.45 44,
-  .f.46 45, .f.47 46, .f.48 47, .f.49 48, .f.50 49,
-  .f.51 50, .b 51
-};
-
-_nat_step = ?{ bits[] bits, exponent[] exp, fraction[] frac } <
-  {
-    .bits /_ if,
-    { pos_sign sign, .exp exponent, .frac fraction } then
-  } .then,
-  {
-    .bits /0 bits,
-    .exp inc_exp exp,
-    { bit0 b, .frac f } shift_frac frac
-  } _nat_step,
-  {
-    .bits /1 bits,
-    .exp inc_exp exp,
-    { bit1 b, .frac f } shift_frac frac
-  } _nat_step
->;
-
-inv_bits = { () x, 0b r } _inv;
-
-nat_to_float64 = ?bits[] <
-  /_ { pos_zero then } .then,
-  /0 { pos_zero then } .then,
-  /1 { () inv_bits bits, exp_bias exp, pos_zero .fraction frac } _nat_step
 >;
 
 -- Count items in ?djson[] -> ?djson[] number
@@ -777,3 +594,280 @@ type_of = ?djson[] <
   /list {} |list,
   /object {} |object
 > ? json_type[];
+
+---------------------------------------------------------------
+-- §9. JSON Text Decoder
+---------------------------------------------------------------
+
+-- Parse exactly one JSON document. Invalid text, non-finite numbers,
+-- and unpaired surrogate escapes are undefined, as in k-djson.
+parseJson = ?string[] _json_value {
+  .rest _json_ws /nil end,
+  .value value
+} .value ?djson[];
+
+_json_result[] = { string[] rest, djson[] value };
+_json_text[] = { string[] rest, string[] value };
+
+_json_reverse = { () x, nil acc } _json_reverse_loop;
+_json_reverse_loop = ?{ string[] x, string[] acc } <
+  { .x /nil if, .acc then } .then,
+  { .x /cons .cdr x, { .x /cons .car car, .acc cdr } |cons acc } _json_reverse_loop
+> ?string[];
+
+_json_ws = ?string[] <
+  < _json_space, _json_tab, _json_lf, _json_cr > _json_ws,
+  ()
+> ?string[];
+
+_json_value = ?string[] _json_ws <
+  _json_n _json_u _json_l _json_l { () rest, null value },
+  _json_t _json_r _json_u _json_e { () rest, true value },
+  _json_f _json_a _json_l _json_s _json_e { () rest, false value },
+  _json_string { .rest rest, .value |string value },
+  _json_array,
+  _json_object,
+  _json_number
+> ?_json_result[];
+
+_json_string = ?string[] _json_quote { () rest, nil acc } _json_string_loop;
+_json_string_kind = ?unicode[] <
+  { _json_code /1 /0 /0 /0 /1 /0 /_ if, {} |quote then } .then,
+  { _json_code /1 /0 /1 /1 /1 /0 /0 /_ if, {} |escape then } .then,
+  { /ascii { .6 /0 a, .5 /0 b } if, {} |control then } .then,
+  {} |plain
+>;
+_json_string_loop = ?{ string[] rest, string[] acc } {
+  .rest /cons head, .acc acc, .rest /cons .car _json_string_kind kind
+} <
+  {
+    .kind /quote if,
+    { .head.cdr rest, .acc _json_reverse value } then
+  } .then,
+  {
+    .kind /plain if,
+    { .head.cdr rest, { .head.car car, .acc cdr } |cons acc } _json_string_loop then
+  } .then,
+  {
+    .kind /escape if,
+    { .head.cdr _json_escape escaped, .acc acc }
+    { .escaped.rest rest, { .escaped.value car, .acc cdr } |cons acc }
+      _json_string_loop then
+  } .then
+> ?_json_text[];
+
+_json_array = _json_open_array _json_ws <
+  _json_close_array { () rest, empty_list value },
+  { () rest, nil tree, 0 index } _json_array_item
+>;
+_json_array_item = ?{ string[] rest, btrie[djson[]] tree, bits[] index } {
+  .rest _json_value item, .tree tree, .index index
+} {
+  .item.rest _json_ws rest,
+  { .index index, .item.value val, .tree list } put_nth tree,
+  .index inc_nat index
+} <
+  { .rest _json_close_array rest, .tree |list value },
+  { .rest _json_comma rest, .tree tree, .index index } _json_array_item
+> ?_json_result[];
+
+_json_object = _json_open_object _json_ws <
+  _json_close_object { () rest, empty_object value },
+  { () rest, nil tree } _json_object_item
+>;
+_json_object_item = ?{ string[] rest, btrie[djson[]] tree } {
+  .rest _json_ws _json_string key, .tree tree
+} {
+  .key.rest _json_ws _json_colon _json_value item,
+  .key.value key, .tree tree
+} {
+  .item.rest _json_ws rest,
+  { .key key, .item.value val, .tree object } put tree
+} <
+  { .rest _json_close_object rest, .tree |object value },
+  { .rest _json_comma rest, .tree tree } _json_object_item
+> ?_json_result[];
+
+-- ASCII consumers return the unconsumed input.
+_json_space = /cons { .car _json_code /1 /0 /0 /0 /0 /0 /_ if, .cdr then } .then;
+_json_tab = /cons { .car _json_code /1 /0 /0 /1 /_ if, .cdr then } .then;
+_json_lf = /cons { .car _json_code /1 /0 /1 /0 /_ if, .cdr then } .then;
+_json_cr = /cons { .car _json_code /1 /1 /0 /1 /_ if, .cdr then } .then;
+_json_quote = /cons { .car _json_code /1 /0 /0 /0 /1 /0 /_ if, .cdr then } .then;
+_json_backslash = /cons { .car _json_code /1 /0 /1 /1 /1 /0 /0 /_ if, .cdr then } .then;
+_json_slash = /cons { .car _json_code /1 /0 /1 /1 /1 /1 /_ if, .cdr then } .then;
+_json_b = /cons { .car _json_code /1 /1 /0 /0 /0 /1 /0 /_ if, .cdr then } .then;
+_json_f = /cons { .car _json_code /1 /1 /0 /0 /1 /1 /0 /_ if, .cdr then } .then;
+_json_n = /cons { .car _json_code /1 /1 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
+_json_r = /cons { .car _json_code /1 /1 /1 /0 /0 /1 /0 /_ if, .cdr then } .then;
+_json_t = /cons { .car _json_code /1 /1 /1 /0 /1 /0 /0 /_ if, .cdr then } .then;
+_json_u = /cons { .car _json_code /1 /1 /1 /0 /1 /0 /1 /_ if, .cdr then } .then;
+
+_json_a = /cons { .car _json_code /1 /1 /0 /0 /0 /0 /1 /_ if, .cdr then } .then;
+_json_l = /cons { .car _json_code /1 /1 /0 /1 /1 /0 /0 /_ if, .cdr then } .then;
+_json_s = /cons { .car _json_code /1 /1 /1 /0 /0 /1 /1 /_ if, .cdr then } .then;
+_json_comma = /cons { .car _json_code /1 /0 /1 /1 /0 /0 /_ if, .cdr then } .then;
+_json_colon = /cons { .car _json_code /1 /1 /1 /0 /1 /0 /_ if, .cdr then } .then;
+_json_open_array = /cons { .car _json_code /1 /0 /1 /1 /0 /1 /1 /_ if, .cdr then } .then;
+_json_close_array = /cons { .car _json_code /1 /0 /1 /1 /1 /0 /1 /_ if, .cdr then } .then;
+_json_open_object = /cons { .car _json_code /1 /1 /1 /1 /0 /1 /1 /_ if, .cdr then } .then;
+_json_close_object = /cons { .car _json_code /1 /1 /1 /1 /1 /0 /1 /_ if, .cdr then } .then;
+
+_json_hex_letter = _json_code < /1 /0 /0, /1 /1 /0 > <
+  /0 /0 /0 /1 /_ 0b |0 |1 |0 |1,
+  /0 /0 /1 /0 /_ 0b |1 |1 |0 |1,
+  /0 /0 /1 /1 /_ 0b |0 |0 |1 |1,
+  /0 /1 /0 /0 /_ 0b |1 |0 |1 |1,
+  /0 /1 /0 /1 /_ 0b |0 |1 |1 |1,
+  /0 /1 /1 /0 /_ 0b |1 |1 |1 |1
+>;
+_json_hex = < _json_digit, /cons { .cdr rest, .car _json_hex_letter value } >;
+
+-- Unicode escape decoding.
+
+_json_c8 = 0b |0 |0 |0 |1;
+_json_c9 = 0b |1 |0 |0 |1;
+_json_c16 = 0b |0 |0 |0 |0 |1;
+
+_json_c128 = 0b |0 |0 |0 |0 |0 |0 |0 |1;
+_json_c65536 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1;
+_json_c55296 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |0 |1 |1;
+_json_c56320 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |1 |0 |1 |1;
+_json_c57344 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |1;
+_json_c224 = 0b |0 |0 |0 |0 |0 |1 |1 |1;
+_json_c240 = 0b |0 |0 |0 |0 |1 |1 |1 |1;
+_json_c248 = 0b |0 |0 |0 |1 |1 |1 |1 |1;
+_json_c249 = 0b |1 |0 |0 |1 |1 |1 |1 |1;
+_json_c250 = 0b |0 |1 |0 |1 |1 |1 |1 |1;
+_json_c252 = 0b |0 |0 |1 |1 |1 |1 |1 |1;
+_json_c254 = 0b |0 |1 |1 |1 |1 |1 |1 |1;
+_json_c208 = 0b |0 |0 |0 |0 |1 |0 |1 |1;
+_json_c216 = 0b |0 |0 |0 |1 |1 |0 |1 |1;
+
+_json_c2 = 0b |0 |1;
+_json_c4 = 0b |0 |0 |1;
+_json_c1024 = _json_c1023 inc_nat;
+
+-- Reconstruct the same Unicode partitions used by core.k and k-utf8.
+_json_unicode = ?bits[] _json_unpack16 <
+  { .plane /_ if, () _json_bmp then } .then,
+  {
+    .plane /1 /_ if,
+    { .hi mid, .lo lo } |supplementary_plane1 then
+  } .then,
+  { .plane _json_plane plane, .hi mid, .lo lo } |supplementary_planes2_16
+> ?unicode[];
+_json_bmp = {
+  () parts, .hi { () x, 0b acc } push_bits8 _json_trim high
+} <
+  { .high /_ a, .parts.lo.7 /0 b, .parts.lo _json_field7 |ascii then } .then,
+  {
+    { .high x, _json_c8 y } _json_lt if,
+    {
+      .parts.lo.0 0, .parts.lo.1 1, .parts.lo.2 2, .parts.lo.3 3,
+      .parts.lo.4 4, .parts.lo.5 5, .parts.lo.6 6, .parts.lo.7 7,
+      .parts.hi.0 8, .parts.hi.1 9, .parts.hi.2 10
+    } |plane0 then
+  } .then,
+  { .high _json_bmp_hi high, .parts.lo lo } <
+    { .high /common hi, .lo lo } |bmp_common,
+    { .high /private hi, .lo lo } |bmp_private_use
+  >
+>;
+_json_bmp_hi = ?bits[] <
+  {
+    { () x, _json_c16 y } _json_lt if,
+    { () x, _json_c8 y } _json_sub _json_small3 |h08_0F |common then
+  } .then,
+  {
+    { () x, _json_c128 y } _json_lt if,
+    { () x, _json_c16 y } _json_sub _json_small7 |h10_7F |common then
+  } .then,
+  {
+    { () x, _json_c208 y } _json_lt if,
+    { () x, _json_c128 y } _json_sub _json_small7 |h80_CF |common then
+  } .then,
+  {
+    { () x, _json_c216 y } _json_lt if,
+    { () x, _json_c208 y } _json_sub _json_small3 |hD0_D7 |common then
+  } .then,
+  {
+    { () x, _json_c240 y } _json_lt if,
+    { () x, _json_c224 y } _json_sub _json_small4 |hE0_EF |private then
+  } .then,
+  {
+    { () x, _json_c248 y } _json_lt if,
+    { () x, _json_c240 y } _json_sub _json_small3 |hF0_F7 |private then
+  } .then,
+  { () x, _json_c248 y } _json_sub /_ {} |hF8 |private,
+  { () x, _json_c249 y } _json_sub /_ {} |hF9 |common,
+  {
+    { () x, _json_c252 y } _json_lt if,
+    { () x, _json_c250 y } _json_sub _json_small1 |hFA_FB |common then
+  } .then,
+  {
+    { () x, _json_c254 y } _json_lt if,
+    { () x, _json_c252 y } _json_sub _json_small1 |hFC_FD |common then
+  } .then,
+  { () x, _json_c254 y } _json_sub _json_small1 |hFE_FF |common
+>;
+_json_plane = ?bits[] <
+  {
+    { () x, _json_c4 y } _json_lt if,
+    { () x, _json_c2 y } _json_sub _json_small1 |p02_03 then
+  } .then,
+  {
+    { () x, _json_c8 y } _json_lt if,
+    { () x, _json_c4 y } _json_sub _json_small2 |p04_07 then
+  } .then,
+  {
+    { () x, _json_c16 y } _json_lt if,
+    { () x, _json_c8 y } _json_sub _json_small3 |p08_0F then
+  } .then,
+  /1 /0 /0 /0 /0 /_ {} |p10
+>;
+
+_json_times16 = _json_reverse_bits |0 |0 |0 |0 _json_reverse_bits _json_trim;
+_json_hex4 = _json_hex
+  { .rest _json_hex next, .value _json_times16 high }
+  { .next.rest rest, { .high x, .next.value y } _json_add value }
+  { .rest _json_hex next, .value _json_times16 high }
+  { .next.rest rest, { .high x, .next.value y } _json_add value }
+  { .rest _json_hex next, .value _json_times16 high }
+  { .next.rest rest, { .high x, .next.value y } _json_add value };
+
+_json_escape = <
+  _json_quote { () rest, 0b |0 |1 |0 |0 |0 |1 _json_unicode value },
+  _json_backslash { () rest, 0b |0 |0 |1 |1 |1 |0 |1 _json_unicode value },
+  _json_slash { () rest, 0b |1 |1 |1 |1 |0 |1 _json_unicode value },
+  _json_b { () rest, _json_c8 _json_unicode value },
+  _json_f { () rest, 0b |0 |0 |1 |1 _json_unicode value },
+  _json_n { () rest, 0b |0 |1 |0 |1 _json_unicode value },
+  _json_r { () rest, 0b |1 |0 |1 |1 _json_unicode value },
+  _json_t { () rest, _json_c9 _json_unicode value },
+  _json_u _json_hex4 <
+    _json_surrogate_pair,
+    { .rest rest, .value _json_unicode value }
+  >
+>;
+_json_surrogate_pair = {
+  { .value x, _json_c55296 y } _json_sub high,
+  .rest _json_backslash _json_u _json_hex4 low
+} {
+  { .high x, _json_c1024 y } _json_lt a,
+  { .low.value x, _json_c57344 y } _json_lt b,
+  .high _json_reverse_bits |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 _json_reverse_bits x,
+  { .low.value x, _json_c56320 y } _json_sub y,
+  .low.rest rest
+} {
+  { { .x x, .y y } _json_add x, _json_c65536 y } _json_add _json_unicode value,
+  .rest rest
+};
+
+-- JSON numbers use IEEE's exact scanner, with JSON's lexical/finite guards.
+_json_number = ?string[] {
+  < _json_minus {}, _json_digit {} > if, () then
+} .then _json_scan_float64 {
+  .value _json_finite_float64 if,
+  { .rest rest, .value |number value } then
+} .then ?_json_result[];

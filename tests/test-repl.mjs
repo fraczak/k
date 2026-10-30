@@ -400,6 +400,7 @@ output = await evaluateInput("test utf8", utf8AutoState);
 assert.match(output[0], /utf8\.mjs: test utf8/);
 
 const ieeeAutoState = createState();
+await evaluateInput(":load core.k", ieeeAutoState);
 await evaluateInput(":load Examples/ieee.k", ieeeAutoState);
 output = await evaluateInput(":codec load ./codecs/ieee.mjs", ieeeAutoState);
 assert.match(output[0], /^loaded codec ieee\.mjs/);
@@ -625,6 +626,8 @@ assert.equal(output[0], "Current output limit: none");
 
 // Verify Examples/djson.k (json?, get, nth, set, del)
 const djsonKState = createState({ engine: "wasm" });
+await evaluateInput(":load core.k", djsonKState);
+await evaluateInput(":load Examples/ieee.k", djsonKState);
 output = await evaluateInput(":load Examples/djson.k", djsonKState);
 assert.equal(output[0], "loaded Examples/djson.k");
 await evaluateInput(":codec load codecs/djson.mjs", djsonKState);

@@ -68,8 +68,9 @@ relations, libraries, and codecs.
 | [Examples/list.k](Examples/list.k) | Small generic list example |
 | [Examples/arithmetics.k](Examples/arithmetics.k) | Arbitrary-precision integer and rational arithmetic |
 | [Examples/poly.k](Examples/poly.k) | Polymorphic list operations; load arithmetics.k first |
-| [Examples/djson.k](Examples/djson.k) | Dynamic JSON operations over binary tries |
-| [Examples/ieee.k](Examples/ieee.k) | Binary64 floating-point operations returning `{result, flags}` |
+| [Examples/djson.k](Examples/djson.k) | JSON text parsing and dynamic JSON operations; load `core.k` and `Examples/ieee.k` first |
+| [Examples/ieee.k](Examples/ieee.k) | Binary64 types and `parseFloat64` / `printFloat64`; load `core.k` first |
+| [Examples/ieee-arithmetics.k](Examples/ieee-arithmetics.k) | Binary64 arithmetic returning `{result, flags}`; load `core.k`, then `Examples/ieee.k` first |
 | [Examples/karatsuba-mult.k](Examples/karatsuba-mult.k) | Alternative integer multiplication algorithm |
 
 Load libraries explicitly with `:load` in the REPL. The CLI uses `--lib` with
