@@ -264,6 +264,26 @@ const { llvm: productRecurseLLVM } = compileObjectToLLVM(productRecurseObject, {
 // Calls inside product fields must not return tail status (i32 2)
 assert.doesNotMatch(productRecurseLLVM, /insertvalue %k_result undef, i32 2, 0/);
 
+const unionNonFinalRecurseObject = decodeObject(compileObjectBuffer(`
+  t[] = < {} a, { T x } b > = T;
+  f = ?t[] <
+    /b .x f,
+    /b {} |a
+  > ?t[];
+  f
+`, { source: "llvm-union-nonfinal-recurse.k" }));
+const { llvm: unionNonFinalRecurseLLVM } = compileObjectToLLVM(unionNonFinalRecurseObject, {
+  relation: "f",
+  inputPattern: [
+    ["closed-union", [["a", 1], ["b", 2]]],
+    ["closed-product", []],
+    ["closed-product", [["x", 0]]]
+  ]
+});
+// Self-calls in non-final union branches must not be lowered as tail calls (status 2 or tail_loop)
+assert.doesNotMatch(unionNonFinalRecurseLLVM, /insertvalue %k_result undef, i32 2, 0/);
+assert.doesNotMatch(unionNonFinalRecurseLLVM, /tail_loop:/);
+
 const kvmArtifact = objectToKVMArtifact(productObject, "__main__");
 assert.equal(kvmArtifact.format, "k-vm");
 const kvmLLVM = compileLLVMArtifactFromKVM(kvmArtifact, {
