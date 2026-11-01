@@ -505,7 +505,8 @@ function emitUnionFunctionBody(symbol, items, ctx, linkage = "", options = {}) {
     unsupported(ctx);
   } else {
     items.forEach((item, index) => {
-      unionBranch(ctx, ctx.addSyntheticFunction(item, options.tail === true), "%input", index === items.length - 1);
+      const isLast = index === items.length - 1;
+      unionBranch(ctx, ctx.addSyntheticFunction(item, options.tail === true && isLast), "%input", isLast);
     });
   }
   const prefix = linkage ? `define ${linkage} %k_result` : "define %k_result";
