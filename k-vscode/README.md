@@ -18,6 +18,11 @@ unions).
   - Canonical content-addressed references: `@base58hash`
   - Quoted label strings: `"label"`, `'label'` (with escape sequences)
   - The `...` any/open pattern marker
+- **Code navigation & symbol resolution**:
+  - **Go to Definition / Peek Definition** (`F12`, `Alt+F12`, `Ctrl+Click` / `Cmd+Click`) for relations, named patterns (`name[...]`), pattern parameters (`[X]`), filter/knot variables (`= X`), and canonical `@hash` aliases across workspace `.k` files
+  - **Find All References / Peek References** (`Shift+F12`) for relations, patterns, local filter/knot variables, and cross-file `@hash` imports
+  - **Document Highlights** when placing the cursor on a relation, pattern, or variable
+  - **Document Symbols / Outline / Breadcrumbs** (`Ctrl+Shift+O` / `Cmd+Shift+O`) listing all top-level patterns and relations
 - **Nested expression backgrounds** for filters inside relations
 - **k Contrast color theme** with:
   - Separate foreground colors for pattern names, relation identifiers,

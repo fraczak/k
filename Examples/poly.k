@@ -1,6 +1,6 @@
 -- Examples/poly.k: Polymorphic list functions in k
--- Uses arbitrary-precision integers from Examples/arithmetics.k.
 
+-- Defined in 'arithmetics.k':
 int[] = @Nws3vysWqC9PznraTP4kWPp44Rd77NAqrx9dgbtHAjGA[];
 dec = @yfy9ReCFtxn6HsW2qsER58PXQY8ptEdiH69pfi6rifeh;
 nat = @74wj62GF7Bp6kN6TgCZ4WVkT6XmppzBQUaYLTzyuMFwc; 

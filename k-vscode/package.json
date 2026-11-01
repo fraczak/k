@@ -1,9 +1,9 @@
 {
   "name": "k-language",
   "displayName": "k language",
-  "description": "Syntax highlighting and snippets for the k language — first-order partial functions over algebraic data types",
+  "description": "Syntax highlighting, snippets, and code navigation (Go to Definition, Find All References, Outline) for the k language — first-order partial functions over algebraic data types",
   "publisher": "wojtek",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "license": "ISC",
   "homepage": "https://github.com/fraczak/k",
   "repository": {

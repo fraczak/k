@@ -1,12 +1,14 @@
--- IEEE binary64 arithmetic. Load core.k, then ieee.k first.
+-- IEEE binary64 arithmetic.
 
+-- Defined in 'core.k':
 bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
+
+-- Defined in 'ieee.k':
 sign[] = @F7RNp9YbYnUXpfZBQViADi6LZyXYYuiJHc9KckfZtDvm[];
 exp11[] = @F2KGfE24DhFGChv6pVAb4pkC9YWvt5izpnnwFDTLfG2h[];
 frac52[] = @ziwtSeiWqhQZjbpnB2TpWhSJCDTWfX2QzGvPd3DdVJCZ[];
 float64[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
 
--- Shared constructors and predicates.
 + = @7rHQSPwedgnq3zPpQgdudpvwzxgbmDXhK9nVRCYciJpX;
 +? = @a8hxtzfPEwjBCV4gLQNTcKNLiFYYFdBy5b5pWNNF2qmd;
 - = @2Zn83TkHQiN5MgeFFLzYx2a9UYi22MsXzR8rD5VusHsh;
@@ -16,25 +18,19 @@ float64[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
 1 = @yhn2hGiP2VyS2BeYjrSrtrucugXJNDqWpNEYGMCjQQqV;
 1? = @WwekAdU3rQX7n7ceNKETesMJCz7uZFtBWYYKGhkQ2KXV;
 all_ones_exponent? = @pbafpfeff6YNWzPHUgQGjqaCu9Jpgtw8B2iGpiwYY6ci;
-exp0 = @bRQ4ZvHQXXY3VVfwBLZWKzvGNAP7D9JibenqJnZxDaiQ;
-exp_all1 = @7cjX9nvDtU2kSnV3FeECiYLnwXzg7rJU6zVjSWXY8LQi;
+exp0 = @ZBjGG7ckLADNGrtPLuJxYVyAQtPYKakzV37GkPhcaRqd;
 finite_float64? = @eDmk2p9N36L83zS9SHZFgu3zxpSydaj8vi9GqykygVdJ;
-flip_sign = @gCU3GAZNbRDaY6hDdhVw4ykuFvCMYcdSkUcJej7knsYN;
-frac0 = @6ExeHyCJJTX5VGjj2eaBMdmhzbQskAcLRh6F2gfveRTv;
-frac_lsb1 = @SHVHXMWgxF5dtgfJ82EvXtPijJC6rN37kiBp3Be4kbyD;
+frac0 = @8QkHeZu2V5wT7sETQ5DQ4ERpYxYueZFpKGPRtCmVr2Yd;
 inf_float64? = @DsFUGCxGqsbd6YM5W7FrHMjEQW26pnHyg5ShcUngtudk;
 nan_float64? = @dWdP2hq5QyUeuH7weaz7xvuLGSp4Yza2i43MH7xUePjX;
-neg_inf = @MMMiyGD9arLJG7wpKGLrtCUTuztHxQMH4VA6WnvW6wuH;
-neg_zero = @6VEsHQvx5xFgfCCWx4KaGFJbcnftj78kzsFrW5tRQcby;
+neg_inf = @BGVC7XsEfrMXyesxD6dH6nZQj4vDYyerVPG36VZArCw2;
+neg_zero = @qfTMB9KAaJPVQVdMjRgCzeRdQCD4Vw5P98ji7ibAVfzz;
 negate_float64 = @fg3Zb7t5Vfag3ph2WiiLUu6yq8vbuMrUHMegdgaFcj9b;
-nonzero_fraction? = @BcaEKkgRWd6jxX83MdQXxqx2xYaqr76wpdcHt3KFdak2;
-not_all_ones_exponent? = @HDK6CpHsdxhXLh9khFbKuNG2jG6BM8VFYSJMWCAykTkX;
-pos_inf = @d3CmJs8Qj28u5BYE85RGXbTYZmq2PKmuMsHzsuSY8hqt;
-pos_zero = @rQxnu7QhXpmG8eUL2J2BjjBCchkR3jrUcfwTPyU42n9c;
-qnan = @uCkX6kYtVDKncnu76BiCCb4brTWUcy4wJkqxPCEyGK5K;
+pos_inf = @Bg9YTcFFRt3CgJqtye9qpm75Hgtc5AnSSMiSm6btNGyg;
+pos_zero = @T7v7wwPqsqif8XVzYcWb4GtDGcc8VDxKUGUPZspZRh4E;
+qnan = @H9LK3iPGE9EHQU53rGqu6WEJcsGRMurVpUfgNA79Q2bE;
 zero_exponent? = @QsNFmFdBwp8bGMp5fmyjS54hkDBnuvwrW58pXvq3THKs;
 zero_float64? = @Y6XSWx63XRjvethPAVcQ7f9dQyEcjRMTuuQbhhDapcpZ;
-zero_fraction? = @93KX5MXkbwmWbVjbSWbf3dbnUTWMTgqSZbybxvhXEe8G;
 
 // Arithmetic-specific patterns and ripple-carry helpers.
 
@@ -766,7 +762,7 @@ sig112_sub =
   {.x x, (.y sig112_not) y, 1 c_in}
   sig112_add_cin
   ;
-sig112_zero = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55, 0 56, 0 57, 0 58, 0 59, 0 60, 0 61, 0 62, 0 63, 0 64, 0 65, 0 66, 0 67, 0 68, 0 69, 0 70, 0 71, 0 72, 0 73, 0 74, 0 75, 0 76, 0 77, 0 78, 0 79, 0 80, 0 81, 0 82, 0 83, 0 84, 0 85, 0 86, 0 87, 0 88, 0 89, 0 90, 0 91, 0 92, 0 93, 0 94, 0 95, 0 96, 0 97, 0 98, 0 99, 0 100, 0 101, 0 102, 0 103, 0 104, 0 105, 0 106, 0 107, 0 108, 0 109, 0 110, 0 111} ;
+sig112_zero = {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55, 0 56, 0 57, 0 58, 0 59, 0 60, 0 61, 0 62, 0 63, 0 64, 0 65, 0 66, 0 67, 0 68, 0 69, 0 70, 0 71, 0 72, 0 73, 0 74, 0 75, 0 76, 0 77, 0 78, 0 79, 0 80, 0 81, 0 82, 0 83, 0 84, 0 85, 0 86, 0 87, 0 88, 0 89, 0 90, 0 91, 0 92, 0 93, 0 94, 0 95, 0 96, 0 97, 0 98, 0 99, 0 100, 0 101, 0 102, 0 103, 0 104, 0 105, 0 106, 0 107, 0 108, 0 109, 0 110, 0 111} ;
 sig112_shift_left1 =
   {
     0 0,
@@ -5867,10 +5863,10 @@ mux_exp11 =
     {.sel sel, .a .10 a, .b .10 b} mux_bit 10
   } ;
 
-exp1 = {} {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} ;
+exp1 = {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} ;
 
 # exponent = 1023 (bias): 0b01111111111
-exp_1023 = {}
+exp_1023 =
   { 0 10,
     1 9, 1 8, 1 7, 1 6, 1 5, 1 4, 1 3, 1 2, 1 1, 1 0
   } ;
@@ -6371,7 +6367,7 @@ sig56_drop_grs =
     .55 55
   } ;
 
-sig56_ulp = {} { 0 0, 0 1, 0 2, 1 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55 } ;
+sig56_ulp = { 0 0, 0 1, 0 2, 1 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15, 0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31, 0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47, 0 48, 0 49, 0 50, 0 51, 0 52, 0 53, 0 54, 0 55 } ;
 
 flags_add_from_bits =
   <
@@ -6663,10 +6659,10 @@ ge_float64? =  {<cmp_float64 /gt, cmp_float64 /eq_zero, cmp_float64 /eq_exact> i
 
 xor_sign =
   <
-    {.x +? ifx, .y +? ify, {} |+  then} .then,
-    {.x +? ifx, .y -? ify, {} |-  then} .then,
-    {.x -? ifx, .y +? ify, {} |-  then} .then,
-    {.x -? ifx, .y -? ify, {} |+  then} .then
+    {.x +? ifx, .y +? ify, + then} .then,
+    {.x +? ifx, .y -? ify, - then} .then,
+    {.x -? ifx, .y +? ify, - then} .then,
+    {.x -? ifx, .y -? ify, + then} .then
   > ;
 
 opp_sign? =
@@ -7166,13 +7162,13 @@ neg = negate_float64;
 # --- useful float64 constants (IEEE-754 binary64) ---
 
 # 1.0  exponent = 1023 = 0b01111111111
-exp_1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 0 10} ;
+exp_1 = {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 0 10} ;
 
 # 10.0 exponent = 1026 = 1023 + 3 = 0b10000000010
-exp_10 = {} {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 1 10} ;
+exp_10 = {0 0, 1 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 1 10} ;
 
 # 10.0 significand = 1.01b => fraction bit 50 = 1 (2^-2), everything else 0
-frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
+frac_10 = {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
               0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
               0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
               0 48, 0 49, 1 50, 0 51} ;
@@ -7182,6 +7178,6 @@ frac_10 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12
 -0f = neg_zero;
 
 # 1.0, -1.0, 10.0
-1f  = {} {+ sign,  exp_1  exponent, frac0   fraction} ;
--1f = {} {- sign,  exp_1  exponent, frac0   fraction} ;
-10f = {} {+ sign,  exp_10 exponent, frac_10 fraction} ;
+1f  = {+ sign,  exp_1  exponent, frac0   fraction} ;
+-1f = {- sign,  exp_1  exponent, frac0   fraction} ;
+10f = {+ sign,  exp_10 exponent, frac_10 fraction} ;

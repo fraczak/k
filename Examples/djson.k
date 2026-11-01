@@ -1,30 +1,38 @@
 -- Examples/djson.k: Universal dynamic JSON schema and standard methods
 -- Works with codecs/djson.mjs (k-djson) and codecs/utf8.mjs (k-utf8).
--- Load core.k and Examples/ieee.k first; shared types use canonical hashes.
 
 ---------------------------------------------------------------
 -- §1. Named Pattern Definitions & Component Schemas
 ---------------------------------------------------------------
 
+-- Defined in 'core.k':
 bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
 bits[] = @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb[];
+ascii[] = @VgLSCtg5j6bmqeMXzdk7rHrs9DPYcjxXntYmR6kMpuXc[];
 unicode[] = @AhRir67FipnHnJfDU7fSQ3Xhcg6BTJYwtq6HGsWwZtbi[];
 string[] = @Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[];
 
--- IEEE sign[], exp11[], frac52[], float64[], and polymorphic list[X].
+-- Defined in 'ieee.k':
 sign[] = @F7RNp9YbYnUXpfZBQViADi6LZyXYYuiJHc9KckfZtDvm[];
-exponent[] = @F2KGfE24DhFGChv6pVAb4pkC9YWvt5izpnnwFDTLfG2h[];
-fraction[] = @ziwtSeiWqhQZjbpnB2TpWhSJCDTWfX2QzGvPd3DdVJCZ[];
 number[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
 list[X] = @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X];
 
--- Shared numeric, bit, list, and lexical operations from ieee.k.
 0b = @9sQsLXUsbMiGLXkQgJ6yaTLUBQGLgViQjKE3hXAYyRyv;
-a_char = @LmjQFttRGTNd4eJnGBJGWFVJhJ7DAwUvTwT6S9AaHUft;
+_a_ = @CSQsWPGdgDer9h4vkQrpyxPAx3HHpq9e3tBCmFt5JBft;
+_cr_ = @mWxEf9tNC5Zza2n2asRACakK6wbaFty5FTeymgxNCtKh;
+_e_ = @Cp2mSUTm7hs9NqXJUQCXmqjiNbcCWAEmTrYr3erBrcTy;
+_E_ = @EMwpiv7Tq8gBC2YiNK39za9v9fNXzgShuDH4JiAaQKPJ;
+_f_ = @W5EyUxJ2QtepSwEkMKXCZAeUVctfNXG9xAJtGiffHxpg;
+_lf_ = @DdFQhsDcSVY6kcLFYhFRRwV4AMY7FnWQrdAVC9W3u757;
+_tab_ = @HSry2A9J4g5d7KL4x7cbnfLPsAWgjS4fuvzfiHdVWtps;
+a_char = @LBFH7KivecqSzUZSvF6h9pcsYLzrg6GdfLJbxydvP8kD;
+b0 = @EHvJE7XLDHFp85gcBQGN5j3EDqUi3ChEdMtByVxF7mk9;
+b1 = @yhn2hGiP2VyS2BeYjrSrtrucugXJNDqWpNEYGMCjQQqV;
 c1023 = @6QziDQ3acyiQV7XQsX77uhPbTDvpdVGALzKAcxhwj5zQ;
-code = @GzZr8UMrLS35iKKYw4wVknWUJuiwm94LHSLXNiiy7den;
-digit = @FknvqUTTD5bq5NHDxdYGf48KLXUdw6VHt7WBf3nVQHup;
-f_char = @EanwyQDz5mtqJnrbVPyJrctepEhNAnqK7hZBHHkHDxLn;
+digit = @AA7kQ9BNdtTigBXeFT4sEucbDHKc3x3sWJtskE7irCLy;
+e_char = @JPp573QKGFNnkGdbZNeRTwFDZU3wpNuhTYhwdsAVaM3A;
+eq_char? = @H7x5yhf73jnDkJmKDsGtgng2AdBWT7cydc9aiP99Ppny;
+f_char = @5t5Jd89TCk3WE9bFb6f5HR9tfwQ5PFTVk6iwBrJi5ASd;
 field7 = @SFuC8GpSvwemLh82Kz4t6h9Bar5ieF4v28ibNZjQb48a;
 finite_float64? = @eDmk2p9N36L83zS9SHZFgu3zxpSydaj8vi9GqykygVdJ;
 inc = @3n3LEgaACKTzgLhEFH6r8PaGbNiPyV3WGKkLhpyf3FUs;
@@ -32,27 +40,26 @@ inv = @9HG3xPV4skXm8TRWTQZtpMCkLvMuuppUuRWsPNQsVsqK;
 inv_loop = @DWXKJJnBu3bXPpNdp2i8S9yyd6RMaafpg4UNk7KiY8mJ;
 lt? = @paDd2Hc35YnSGKVxQnG3hseDVFeY8K85M73ZpBj2bGvz;
 minus = @3Q9Gfy4iXs5cEdTUBNPb2Lz554djkNQVwLR4iKhytHKL;
-minus_char = @NGhX2wf7hL3NvsTvVNUBTaY7D6RXCk9Cn3ptv8jNsvyP;
-n_char = @49jG5PejUJ5yM8LPiEukYUc5EMd8emeLrXwSbfzZheFZ;
-natToFloat64 = @3PjHJU7H8txceAHqVLEGZtvwH863axSsrXjwsszG6Kyd;
+minus_char = @GLrjZ6x7by7X6Q9ZBBgWQvQPdpaDdpGy7cVyTTG7r44y;
+n_char = @YtiKcZQ9rry3cueGvu9yx4VmVkeQUfNkmQmfspWrzdvp;
+natToFloat64 = @JsjYdrgdYfgctaEhYbNrsRmDmHwV8NnwPiuSLqQeQWGb;
 plus = @h3uz7hegVewstX8QqxwRNzTJ9Rmf5Lzcb9bXxAQXY3bb;
 push_bit = @kjzD5wy3vVihSyEmpqUTiiQaTc2vikejKC66D7s5DfE2;
 push_bits1 = @5xxBWEQkTGDnHkuyA4hPaqswq6DDymPR53Z6vX6DANyn;
 push_bits2 = @agFtk8Zs8KrTR6zu9Nx5KDJCHTU8biAR6LyhGdd9gGqR;
 push_bits3 = @B9yHHLyYAyUfQfvXzghbPutyN852tXraqbhbPpCBHRmW;
 push_bits4 = @iz9bg6NQF7RXzM6ibW3MfBrUAYYXyUKhFWTHJjHn9Fvy;
-push_bits7 = @ey5ZakdvsDjpijiwa4pmsv9Nvi7uhyvZU2HpCfT2PJqk;
 reverse = @MugpktbC3D4hLzaRVyRH2W64CK9ZuhZ29AkJBEjprV72;
-scanFloat64 = @FWVpANViLCbMsBQDMYAiavkMwSEnuz9Qbize8U2cqDZ3;
+scanFloat64 = @4SNLvXeBcgRLcuZ2iV6p3EdqHkhwK5S9cM94cKc2pd8d;
 small1 = @FASMJ5EfHNmaMqy88FTYZJy7T8ps6uCzZetJ55zsEPgz;
 small2 = @fLHcGBbuAm73evJwKH2maEt3AK3VzMQuFbfyfUKXRBfD;
 small3 = @3rbHuQNth7JyLehzdQzTYG8gBE5JGUwTQdPYiAkWnkQ4;
 small4 = @M2vX2c8M5EgaQyEctasyssWd6rcn25hjb2MW5UWvbJtY;
 small7 = @yxeyAa4XY88QP5gRcuKzmnCKrrnSDd7M2p6QGjjGnS2N;
-t_char = @7kCrgfNnagxAbcBMXWp4WTLPbujcKAdQjtV3cbjp5Jzt;
+t_char = @Z86xynhBGBTpSNMrXKbZwi2xwvCrpMR5VcCBVTgspFZY;
 trim = @89p3L4zjJpYP8qadbebPKXAszHmqKm9sk5jYzTga8gKK;
 unpack16 = @YCBHPaRPdxbgQ93gwvvTMhqXCtPaiuBLgpRek6LLt7pE;
-ws = @abqd6Yt8cFacQDRL7yFrAyEnnv4uChaedDzUDXNrXVNF;
+ws = @Hd35uZ2UMYiPdg9dxVNXxnjFWq6gDYPLiaZGr99dkixt;
 
 bool[] = < {} true, {} false >;
 
@@ -224,6 +231,9 @@ has_nth? = has_index?;
 -- §5. Trie Update & Removal (put, remove, put_nth, remove_nth)
 ---------------------------------------------------------------
 
+push_bits5 = { .x .4 b, { .x x, .acc acc } push_bits4 acc } push_bit;
+push_bits6 = { .x .5 b, { .x x, .acc acc } push_bits5 acc } push_bit;
+push_bits7 = { .x .6 b, { .x x, .acc acc } push_bits6 acc } push_bit;
 push_bits8 = { .x .7 b, { .x x, .acc acc } push_bits7 acc } push_bit;
 push_bits9 = { .x .8 b, { .x x, .acc acc } push_bits8 acc } push_bit;
 push_bits10 = { .x .9 b, { .x x, .acc acc } push_bits9 acc } push_bit;
@@ -428,8 +438,8 @@ push = ?{ djson[] val, djson[] json } {
 ---------------------------------------------------------------
 
 read_bit = ?bits[] <
-  /0 { {} |0 bit, () rest },
-  /1 { {} |1 bit, () rest }
+  /0 { b0 bit, () rest },
+  /1 { b1 bit, () rest }
 >;
 
 read_bits7 =
@@ -607,10 +617,35 @@ json_value = ?string[] ws <
   json_number
 > ?result[];
 
+_quote_        = { b0 0, b1 1, b0 2, b0 3, b0 4, b1 5, b0 6 } |ascii;
+_backslash_    = { b0 0, b0 1, b1 2, b1 3, b1 4, b0 5, b1 6 } |ascii;
+_slash_        = { b1 0, b1 1, b1 2, b1 3, b0 4, b1 5, b0 6 } |ascii;
+_b_            = { b0 0, b1 1, b0 2, b0 3, b0 4, b1 5, b1 6 } |ascii;
+_bs_           = { b0 0, b0 1, b0 2, b1 3, b0 4, b0 5, b0 6 } |ascii;
+_ff_           = { b0 0, b0 1, b1 2, b1 3, b0 4, b0 5, b0 6 } |ascii;
+_l_            = { b0 0, b0 1, b1 2, b1 3, b0 4, b1 5, b1 6 } |ascii;
+_r_            = { b0 0, b1 1, b0 2, b0 3, b1 4, b1 5, b1 6 } |ascii;
+_s_            = { b1 0, b1 1, b0 2, b0 3, b1 4, b1 5, b1 6 } |ascii;
+_u_            = { b1 0, b0 1, b1 2, b0 3, b1 4, b1 5, b1 6 } |ascii;
+_comma_        = { b0 0, b0 1, b1 2, b1 3, b0 4, b1 5, b0 6 } |ascii;
+_colon_        = { b0 0, b1 1, b0 2, b1 3, b1 4, b1 5, b0 6 } |ascii;
+_open_array_   = { b1 0, b1 1, b0 2, b1 3, b1 4, b0 5, b1 6 } |ascii;
+_close_array_  = { b1 0, b0 1, b1 2, b1 3, b1 4, b0 5, b1 6 } |ascii;
+_open_object_  = { b1 0, b1 1, b0 2, b1 3, b1 4, b1 5, b1 6 } |ascii;
+_close_object_ = { b1 0, b0 1, b1 2, b1 3, b1 4, b1 5, b1 6 } |ascii;
+
+_A_            = { b1 0, b0 1, b0 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
+_B_            = { b0 0, b1 1, b0 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
+_C_            = { b1 0, b1 1, b0 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
+_D_            = { b0 0, b0 1, b1 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
+_F_            = { b0 0, b1 1, b1 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
+_c_            = { b1 0, b1 1, b0 2, b0 3, b0 4, b1 5, b1 6 } |ascii;
+_d_            = { b0 0, b0 1, b1 2, b0 3, b0 4, b1 5, b1 6 } |ascii;
+
 json_string = ?string[] quote_char { () rest, nil acc } string_loop;
 string_kind = ?unicode[] <
-  { code /1 /0 /0 /0 /1 /0 /_ if, {} |quote then } .then,
-  { code /1 /0 /1 /1 /1 /0 /0 /_ if, {} |escape then } .then,
+  { { () x, _quote_ y } eq_char? if, {} |quote then } .then,
+  { { () x, _backslash_ y } eq_char? if, {} |escape then } .then,
   { /ascii { .6 /0 a, .5 /0 b } if, {} |control then } .then,
   {} |plain
 >;
@@ -663,30 +698,35 @@ object_item = ?{ string[] rest, btrie[djson[]] tree } {
   { .rest comma_char rest, .tree tree } object_item
 > ?result[];
 
--- ASCII consumers return the unconsumed input (a_char, f_char, n_char, t_char are imported from ieee.k).
-quote_char = /cons { .car code /1 /0 /0 /0 /1 /0 /_ if, .cdr then } .then;
-backslash_char = /cons { .car code /1 /0 /1 /1 /1 /0 /0 /_ if, .cdr then } .then;
-slash_char = /cons { .car code /1 /0 /1 /1 /1 /1 /_ if, .cdr then } .then;
-b_char = /cons { .car code /1 /1 /0 /0 /0 /1 /0 /_ if, .cdr then } .then;
-e_char = /cons { .car code /1 /1 /0 /0 /1 /0 /1 /_ if, .cdr then } .then;
-l_char = /cons { .car code /1 /1 /0 /1 /1 /0 /0 /_ if, .cdr then } .then;
-r_char = /cons { .car code /1 /1 /1 /0 /0 /1 /0 /_ if, .cdr then } .then;
-s_char = /cons { .car code /1 /1 /1 /0 /0 /1 /1 /_ if, .cdr then } .then;
-u_char = /cons { .car code /1 /1 /1 /0 /1 /0 /1 /_ if, .cdr then } .then;
-comma_char = /cons { .car code /1 /0 /1 /1 /0 /0 /_ if, .cdr then } .then;
-colon_char = /cons { .car code /1 /1 /1 /0 /1 /0 /_ if, .cdr then } .then;
-open_array = /cons { .car code /1 /0 /1 /1 /0 /1 /1 /_ if, .cdr then } .then;
-close_array = /cons { .car code /1 /0 /1 /1 /1 /0 /1 /_ if, .cdr then } .then;
-open_object = /cons { .car code /1 /1 /1 /1 /0 /1 /1 /_ if, .cdr then } .then;
-close_object = /cons { .car code /1 /1 /1 /1 /1 /0 /1 /_ if, .cdr then } .then;
+-- ASCII consumers return the unconsumed input (a_char, e_char, f_char, n_char, t_char are imported from ieee.k).
+quote_char     = /cons { { .car x, _quote_ y } eq_char? if, .cdr then } .then;
+backslash_char = /cons { { .car x, _backslash_ y } eq_char? if, .cdr then } .then;
+slash_char     = /cons { { .car x, _slash_ y } eq_char? if, .cdr then } .then;
+b_char         = /cons { { .car x, _b_ y } eq_char? if, .cdr then } .then;
+l_char         = /cons { { .car x, _l_ y } eq_char? if, .cdr then } .then;
+r_char         = /cons { { .car x, _r_ y } eq_char? if, .cdr then } .then;
+s_char         = /cons { { .car x, _s_ y } eq_char? if, .cdr then } .then;
+u_char         = /cons { { .car x, _u_ y } eq_char? if, .cdr then } .then;
+comma_char     = /cons { { .car x, _comma_ y } eq_char? if, .cdr then } .then;
+colon_char     = /cons { { .car x, _colon_ y } eq_char? if, .cdr then } .then;
+open_array     = /cons { { .car x, _open_array_ y } eq_char? if, .cdr then } .then;
+close_array    = /cons { { .car x, _close_array_ y } eq_char? if, .cdr then } .then;
+open_object    = /cons { { .car x, _open_object_ y } eq_char? if, .cdr then } .then;
+close_object   = /cons { { .car x, _close_object_ y } eq_char? if, .cdr then } .then;
 
-hex_letter = code < /1 /0 /0, /1 /1 /0 > <
-  /0 /0 /0 /1 /_ 0b |0 |1 |0 |1,
-  /0 /0 /1 /0 /_ 0b |1 |1 |0 |1,
-  /0 /0 /1 /1 /_ 0b |0 |0 |1 |1,
-  /0 /1 /0 /0 /_ 0b |1 |0 |1 |1,
-  /0 /1 /0 /1 /_ 0b |0 |1 |1 |1,
-  /0 /1 /1 /0 /_ 0b |1 |1 |1 |1
+hex_letter = ?unicode[] <
+  { () x, _a_ y } eq_char? 0b |0 |1 |0 |1,
+  { () x, _A_ y } eq_char? 0b |0 |1 |0 |1,
+  { () x, _b_ y } eq_char? 0b |1 |1 |0 |1,
+  { () x, _B_ y } eq_char? 0b |1 |1 |0 |1,
+  { () x, _c_ y } eq_char? 0b |0 |0 |1 |1,
+  { () x, _C_ y } eq_char? 0b |0 |0 |1 |1,
+  { () x, _d_ y } eq_char? 0b |1 |0 |1 |1,
+  { () x, _D_ y } eq_char? 0b |1 |0 |1 |1,
+  { () x, _e_ y } eq_char? 0b |0 |1 |1 |1,
+  { () x, _E_ y } eq_char? 0b |0 |1 |1 |1,
+  { () x, _f_ y } eq_char? 0b |1 |1 |1 |1,
+  { () x, _F_ y } eq_char? 0b |1 |1 |1 |1
 >;
 hex = < digit, /cons { .cdr rest, .car hex_letter value } >;
 
@@ -695,7 +735,6 @@ hex = < digit, /cons { .cdr rest, .car hex_letter value } >;
 c2 = 0b |0 |1;
 c4 = 0b |0 |0 |1;
 c8 = 0b |0 |0 |0 |1;
-c9 = 0b |1 |0 |0 |1;
 c16 = 0b |0 |0 |0 |0 |1;
 c128 = 0b |0 |0 |0 |0 |0 |0 |0 |1;
 c208 = 0b |0 |0 |0 |0 |1 |0 |1 |1;
@@ -811,14 +850,14 @@ hex4 = hex
   { .next.rest rest, { .high x, .next.value y } plus value };
 
 escape = <
-  quote_char { () rest, 0b |0 |1 |0 |0 |0 |1 to_unicode value },
-  backslash_char { () rest, 0b |0 |0 |1 |1 |1 |0 |1 to_unicode value },
-  slash_char { () rest, 0b |1 |1 |1 |1 |0 |1 to_unicode value },
-  b_char { () rest, c8 to_unicode value },
-  f_char { () rest, 0b |0 |0 |1 |1 to_unicode value },
-  n_char { () rest, 0b |0 |1 |0 |1 to_unicode value },
-  r_char { () rest, 0b |1 |0 |1 |1 to_unicode value },
-  t_char { () rest, c9 to_unicode value },
+  quote_char { () rest, _quote_ value },
+  backslash_char { () rest, _backslash_ value },
+  slash_char { () rest, _slash_ value },
+  b_char { () rest, _bs_ value },
+  f_char { () rest, _ff_ value },
+  n_char { () rest, _lf_ value },
+  r_char { () rest, _cr_ value },
+  t_char { () rest, _tab_ value },
   u_char hex4 <
     surrogate_pair,
     { .rest rest, .value to_unicode value }

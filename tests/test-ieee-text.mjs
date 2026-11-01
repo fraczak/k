@@ -24,7 +24,7 @@ for (const [text, number] of [
   assert.equal(decodeValueToNumber(parse(text)), number, text);
 }
 assert.ok(Number.isNaN(decodeValueToNumber(parse("NaN"))));
-for (const text of ["", " ", ".1", "1.", "01", "1e", "1e+", "Infinityx", "NaNx", "1 2", "--1"]) {
+for (const text of ["", " ", ".1", "1.", "01", "1e", "1e+", "Infinityx", "NaNx", "1 2", "--1", "+-1", "-+1"]) {
   assert.equal(parse(text), undefined, text);
 }
 for (const [number, text] of [

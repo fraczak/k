@@ -1,8 +1,10 @@
--- IEEE binary64 types and text conversion. Load core.k first.
+-- IEEE binary64 types and text conversion.
 -- Arithmetic operations live in ieee-arithmetics.k.
 
+-- Defined in 'core.k':
 bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
 bits[] = @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb[];
+ascii[] = @VgLSCtg5j6bmqeMXzdk7rHrs9DPYcjxXntYmR6kMpuXc[];
 unicode[] = @AhRir67FipnHnJfDU7fSQ3Xhcg6BTJYwtq6HGsWwZtbi[];
 string[] = @Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[];
 
@@ -32,7 +34,11 @@ parseFloat64 = ?string[] ws scanFloat64 {
 } .value ?float64[];
 
 -- Prefix scanner shared with the JSON parser, which applies finite_float64?.
-scanFloat64 = ?string[] < plus_char number, number, special > ?result[];
+scanFloat64 = ?string[] <
+  plus_char { () rest, + sign } signed_decimal,
+  number,
+  special
+> ?result[];
 natToFloat64 = ?bits[] trim <
   /_ pos_zero,
   { () n, 1b d } ratio { + sign, .exponent exponent, .fraction fraction }
@@ -47,7 +53,7 @@ printFloat64 = ?float64[] <
   { zero_float64? if, .sign /- and, negative_zero_text then } .then,
   zero_float64? zero_text,
   { () value, print_ratio format_decimal text } <
-    { .value.sign /- if, { minus_ascii car, .text cdr } |cons then } .then,
+    { .value.sign /- if, { _minus_ car, .text cdr } |cons then } .then,
     .text
   >
 > ?string[];
@@ -120,29 +126,29 @@ zero_float64? = ?float64[] {
   .sign sign, .exponent zero_exponent? exponent, .fraction zero_fraction? fraction
 };
 
-exp0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10};
+exp0 = {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10};
 
-exp_all1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10};
+exp_all1 = {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10};
 
-frac0 = {} {
+frac0 = {
   0 0,  0 1,  0 2,  0 3,  0 4,  0 5,  0 6,  0 7,  0 8,  0 9,  0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
   0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
   0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
   0 48, 0 49, 0 50, 0 51
 };
 
-frac_lsb1 = {} {
+frac_lsb1 = {
   1 0,  0 1,  0 2,  0 3,  0 4,  0 5,  0 6,  0 7,  0 8,  0 9,  0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
   0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
   0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
   0 48, 0 49, 0 50, 0 51
 };
 
-pos_zero = {} {+ sign, exp0 exponent, frac0 fraction};
-neg_zero = {} {- sign, exp0 exponent, frac0 fraction};
-pos_inf  = {} {+ sign, exp_all1 exponent, frac0 fraction};
-neg_inf  = {} {- sign, exp_all1 exponent, frac0 fraction};
-qnan     = {} {+ sign, exp_all1 exponent, frac_lsb1 fraction};
+pos_zero = {+ sign, exp0 exponent, frac0 fraction};
+neg_zero = {- sign, exp0 exponent, frac0 fraction};
+pos_inf  = {+ sign, exp_all1 exponent, frac0 fraction};
+neg_inf  = {- sign, exp_all1 exponent, frac0 fraction};
+qnan     = {+ sign, exp_all1 exponent, frac_lsb1 fraction};
 
 flip_sign = < /+ -, /- + >;
 
@@ -153,7 +159,7 @@ negate_float64 =
 nat_pair[] = { bits[] x, bits[] y };
 order[] = < {} lt, {} eq, {} gt >;
 decimal[] = {
-  string[] rest, bits[] n, bits[] d, bits[] count, sign[] sign
+  string[] rest, bits[] n, bits[] d, bits[] count
 };
 result[] = { string[] rest, float64[] value };
 
@@ -164,6 +170,25 @@ lt = {} |lt;
 eq = {} |eq;
 gt = {} |gt;
 
+eq_bit? = ?{ bit[] x, bit[] y } <
+  { .x /0 a, .y /0 b },
+  { .x /1 a, .y /1 b }
+>;
+
+eq_ascii? = ?{ ascii[] x, ascii[] y } {
+  { .x.0 x, .y.0 y } eq_bit? 0,
+  { .x.1 x, .y.1 y } eq_bit? 1,
+  { .x.2 x, .y.2 y } eq_bit? 2,
+  { .x.3 x, .y.3 y } eq_bit? 3,
+  { .x.4 x, .y.4 y } eq_bit? 4,
+  { .x.5 x, .y.5 y } eq_bit? 5,
+  { .x.6 x, .y.6 y } eq_bit? 6
+};
+
+eq_char? = ?{ unicode[] x, unicode[] y } {
+  .x /ascii x, .y /ascii y
+} eq_ascii?;
+
 push_bit = ?{ bit[] b, bits[] acc } <
   { .b /0 if, .acc |0 then } .then,
   { .b /1 if, .acc |1 then } .then
@@ -173,9 +198,6 @@ push_bits1 = { .x .0 b, .acc acc } push_bit;
 push_bits2 = { .x .1 b, { .x x, .acc acc } push_bits1 acc } push_bit;
 push_bits3 = { .x .2 b, { .x x, .acc acc } push_bits2 acc } push_bit;
 push_bits4 = { .x .3 b, { .x x, .acc acc } push_bits3 acc } push_bit;
-push_bits5 = { .x .4 b, { .x x, .acc acc } push_bits4 acc } push_bit;
-push_bits6 = { .x .5 b, { .x x, .acc acc } push_bits5 acc } push_bit;
-push_bits7 = { .x .6 b, { .x x, .acc acc } push_bits6 acc } push_bit;
 
 trim = ?bits[] <
   /1 |1,
@@ -275,25 +297,40 @@ lsb = ?bits[] <
   /_ { 0 bit, _ rest }
 >;
 
-code = /ascii { () x, _ acc } push_bits7 trim;
+_0_ = { 0 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii;
+_1_ = { 1 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii;
+_2_ = { 0 0, 1 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii;
+_3_ = { 1 0, 1 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii;
+_4_ = { 0 0, 0 1, 1 2, 0 3, 1 4, 1 5, 0 6 } |ascii;
+_5_ = { 1 0, 0 1, 1 2, 0 3, 1 4, 1 5, 0 6 } |ascii;
+_6_ = { 0 0, 1 1, 1 2, 0 3, 1 4, 1 5, 0 6 } |ascii;
+_7_ = { 1 0, 1 1, 1 2, 0 3, 1 4, 1 5, 0 6 } |ascii;
+_8_ = { 0 0, 0 1, 0 2, 1 3, 1 4, 1 5, 0 6 } |ascii;
+_9_ = { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 0 6 } |ascii;
 
-e_char = /cons { .car code /1 /1 /0 /0 /1 /0 /1 /_ if, .cdr then } .then;
-E_char = /cons { .car code /1 /0 /0 /0 /1 /0 /1 /_ if, .cdr then } .then;
-minus_char = /cons { .car code /1 /0 /1 /1 /0 /1 /_ if, .cdr then } .then;
-plus_char = /cons { .car code /1 /0 /1 /0 /1 /1 /_ if, .cdr then } .then;
-dot_char = /cons { .car code /1 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
+_plus_  = { 1 0, 1 1, 0 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
+_minus_ = { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
+_dot_   = { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
+_e_     = { 1 0, 0 1, 1 2, 0 3, 0 4, 1 5, 1 6 } |ascii;
+_E_     = { 1 0, 0 1, 1 2, 0 3, 0 4, 0 5, 1 6 } |ascii;
 
-digit = /cons { .cdr rest, .car code /1 /1 <
-  /0 /0 /0 /0 /_ _,
-  /0 /0 /0 /1 /_ _ |1,
-  /0 /0 /1 /0 /_ _ |0 |1,
-  /0 /0 /1 /1 /_ _ |1 |1,
-  /0 /1 /0 /0 /_ _ |0 |0 |1,
-  /0 /1 /0 /1 /_ _ |1 |0 |1,
-  /0 /1 /1 /0 /_ _ |0 |1 |1,
-  /0 /1 /1 /1 /_ _ |1 |1 |1,
-  /1 /0 /0 /0 /_ _ |0 |0 |0 |1,
-  /1 /0 /0 /1 /_ _ |1 |0 |0 |1
+e_char     = /cons { { .car x, _e_ y } eq_char? if, .cdr then } .then;
+E_char     = /cons { { .car x, _E_ y } eq_char? if, .cdr then } .then;
+minus_char = /cons { { .car x, _minus_ y } eq_char? if, .cdr then } .then;
+plus_char  = /cons { { .car x, _plus_ y } eq_char? if, .cdr then } .then;
+dot_char   = /cons { { .car x, _dot_ y } eq_char? if, .cdr then } .then;
+
+digit = /cons { .cdr rest, .car <
+  { () x, _0_ y } eq_char? _,
+  { () x, _1_ y } eq_char? _ |1,
+  { () x, _2_ y } eq_char? _ |0 |1,
+  { () x, _3_ y } eq_char? _ |1 |1,
+  { () x, _4_ y } eq_char? _ |0 |0 |1,
+  { () x, _5_ y } eq_char? _ |1 |0 |1,
+  { () x, _6_ y } eq_char? _ |0 |1 |1,
+  { () x, _7_ y } eq_char? _ |1 |1 |1,
+  { () x, _8_ y } eq_char? _ |0 |0 |0 |1,
+  { () x, _9_ y } eq_char? _ |1 |0 |0 |1
 > value };
 
 take_byte = lsb
@@ -360,30 +397,36 @@ small3 = inv take_byte .byte field3;
 small4 = inv take_byte .byte field4;
 small7 = inv take_byte .byte field7;
 
-number = ?string[] <
-  minus_char { () rest, - sign },
-  { () rest, + sign }
-> { .rest digit digit, .sign sign } {
-  .digit.rest rest, .digit.value n, 1b d, 1b count, .sign sign
+unsigned_decimal = ?string[] digit {
+  .rest rest, .value n, 1b d, 1b count
 } <
   { .n /_ if, () then } .then,
   integer_digits
-> < fraction_first fraction_digits, () > {
-  () decimal,
-  < .rest exponent_part, { .rest rest, _ value, + sign } > exponent
+> < fraction_first fraction_digits, () > ?decimal[];
+
+signed_decimal = {
+  .rest unsigned_decimal decimal, .sign sign
+} {
+  .decimal decimal, .sign sign,
+  < .decimal.rest exponent_part, { .decimal.rest rest, _ value, + sign } > exponent
 } {
   .exponent.rest rest,
   {
     .decimal.n n, .decimal.d d, .decimal.count count,
-    .decimal.sign sign, .exponent exponent
+    .sign sign, .exponent exponent
   } decimal_float value
 } ?result[];
+
+number = ?string[] <
+  minus_char { () rest, - sign },
+  { () rest, + sign }
+> signed_decimal ?result[];
 
 integer_digits = ?decimal[] <
   { .rest digit digit, () decimal } {
     .digit.rest rest,
     { .decimal.n tenfold x, .digit.value y } plus n,
-    .decimal.d d, .decimal.count inc count, .decimal.sign sign
+    .decimal.d d, .decimal.count inc count
   } integer_digits,
   ()
 > ?decimal[];
@@ -393,14 +436,14 @@ fraction_first = ?decimal[] {
 } {
   .digit.rest rest,
   { .decimal.n tenfold x, .digit.value y } plus n,
-  .decimal.d tenfold d, .decimal.count inc count, .decimal.sign sign
+  .decimal.d tenfold d, .decimal.count inc count
 };
 
 fraction_digits = ?decimal[] <
   { .rest digit digit, () decimal } {
     .digit.rest rest,
     { .decimal.n tenfold x, .digit.value y } plus n,
-    .decimal.d tenfold d, .decimal.count inc count, .decimal.sign sign
+    .decimal.d tenfold d, .decimal.count inc count
   } fraction_digits,
   ()
 > ?decimal[];
@@ -557,18 +600,31 @@ round = {
 >;
 
 -- Text boundary helpers.
-space = /cons { .car code /1 /0 /0 /0 /0 /0 /_ if, .cdr then } .then;
-tab   = /cons { .car code /1 /0 /0 /1 /_ if, .cdr then } .then;
-lf    = /cons { .car code /1 /0 /1 /0 /_ if, .cdr then } .then;
-cr    = /cons { .car code /1 /1 /0 /1 /_ if, .cdr then } .then;
-I_char = /cons { .car code /1 /0 /0 /1 /0 /0 /1 /_ if, .cdr then } .then;
-n_char = /cons { .car code /1 /1 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
-f_char = /cons { .car code /1 /1 /0 /0 /1 /1 /0 /_ if, .cdr then } .then;
-i_char = /cons { .car code /1 /1 /0 /1 /0 /0 /1 /_ if, .cdr then } .then;
-t_char = /cons { .car code /1 /1 /1 /0 /1 /0 /0 /_ if, .cdr then } .then;
-y_char = /cons { .car code /1 /1 /1 /1 /0 /0 /1 /_ if, .cdr then } .then;
-N_char = /cons { .car code /1 /0 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
-a_char = /cons { .car code /1 /1 /0 /0 /0 /0 /1 /_ if, .cdr then } .then;
+_space_ = { 0 0, 0 1, 0 2, 0 3, 0 4, 1 5, 0 6 } |ascii;
+_tab_   = { 1 0, 0 1, 0 2, 1 3, 0 4, 0 5, 0 6 } |ascii;
+_lf_    = { 0 0, 1 1, 0 2, 1 3, 0 4, 0 5, 0 6 } |ascii;
+_cr_    = { 1 0, 0 1, 1 2, 1 3, 0 4, 0 5, 0 6 } |ascii;
+_I_     = { 1 0, 0 1, 0 2, 1 3, 0 4, 0 5, 1 6 } |ascii;
+_n_     = { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii;
+_f_     = { 0 0, 1 1, 1 2, 0 3, 0 4, 1 5, 1 6 } |ascii;
+_i_     = { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii;
+_t_     = { 0 0, 0 1, 1 2, 0 3, 1 4, 1 5, 1 6 } |ascii;
+_y_     = { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 1 6 } |ascii;
+_N_     = { 0 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6 } |ascii;
+_a_     = { 1 0, 0 1, 0 2, 0 3, 0 4, 1 5, 1 6 } |ascii;
+
+space  = /cons { { .car x, _space_ y } eq_char? if, .cdr then } .then;
+tab    = /cons { { .car x, _tab_ y } eq_char? if, .cdr then } .then;
+lf     = /cons { { .car x, _lf_ y } eq_char? if, .cdr then } .then;
+cr     = /cons { { .car x, _cr_ y } eq_char? if, .cdr then } .then;
+I_char = /cons { { .car x, _I_ y } eq_char? if, .cdr then } .then;
+n_char = /cons { { .car x, _n_ y } eq_char? if, .cdr then } .then;
+f_char = /cons { { .car x, _f_ y } eq_char? if, .cdr then } .then;
+i_char = /cons { { .car x, _i_ y } eq_char? if, .cdr then } .then;
+t_char = /cons { { .car x, _t_ y } eq_char? if, .cdr then } .then;
+y_char = /cons { { .car x, _y_ y } eq_char? if, .cdr then } .then;
+N_char = /cons { { .car x, _N_ y } eq_char? if, .cdr then } .then;
+a_char = /cons { { .car x, _a_ y } eq_char? if, .cdr then } .then;
 
 infinity_word = I_char n_char f_char i_char n_char i_char t_char y_char;
 nan_word = N_char a_char N_char;
@@ -580,11 +636,15 @@ special = <
   < minus_char, plus_char, () > nan_word { () rest, qnan value }
 >;
 
-zero_text = { { 0 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii car, nil cdr } |cons;
-negative_zero_text = { { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii car, zero_text cdr } |cons;
-infinity_text = { { 1 0, 0 1, 0 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 0 3, 0 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 0 1, 1 2, 0 3, 1 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 1 6 } |ascii car, nil cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons;
-negative_infinity_text = { { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii car, infinity_text cdr } |cons;
-nan_text = { { 0 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 0 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, nil cdr } |cons cdr } |cons cdr } |cons;
+zero_text = { _0_ car, nil cdr } |cons;
+negative_zero_text = { _minus_ car, zero_text cdr } |cons;
+infinity_text = {
+  _I_ car, { _n_ car, { _f_ car, { _i_ car, {
+    _n_ car, { _i_ car, { _t_ car, { _y_ car, nil cdr } |cons cdr } |cons cdr } |cons cdr
+  } |cons cdr } |cons cdr } |cons cdr } |cons cdr
+} |cons;
+negative_infinity_text = { _minus_ car, infinity_text cdr } |cons;
+nan_text = { _N_ car, { _a_ car, { _N_ car, nil cdr } |cons cdr } |cons cdr } |cons;
 
 c1074 = _ |0 |1 |0 |0 |1 |1 |0 |0 |0 |0 |1;
 c1075 = _ |1 |1 |0 |0 |1 |1 |0 |0 |0 |0 |1;
@@ -661,19 +721,9 @@ d8 = {} |8;
 d9 = {} |9;
 
 digit_ascii = <
-  /0 { 0 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
-  /1 { 1 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
-  /2 { 0 0, 1 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
-  /3 { 1 0, 1 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
-  /4 { 0 0, 0 1, 1 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
-  /5 { 1 0, 0 1, 1 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
-  /6 { 0 0, 1 1, 1 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
-  /7 { 1 0, 1 1, 1 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
-  /8 { 0 0, 0 1, 0 2, 1 3, 1 4, 1 5, 0 6 } |ascii,
-  /9 { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 0 6 } |ascii
+  /0 _0_, /1 _1_, /2 _2_, /3 _3_, /4 _4_,
+  /5 _5_, /6 _6_, /7 _7_, /8 _8_, /9 _9_
 >;
-dot_ascii   = { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
-minus_ascii = { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
 
 digit_mul2 = <
   { .digit /0 a, .carry /0 b } { d0 digit, d0 carry },
@@ -780,8 +830,8 @@ digits_multiply = ?{ digits[] digits, factor[] factor, digit_value[] carry } {
 binary_digits_loop = ?{ bits[] bits, digits[] digits } <
   { .bits /_ if, .digits then } .then,
   <
-    { .bits /0 bits, { .digits digits, {} |2 factor, d0 carry } digits_multiply digits },
-    { .bits /1 bits, { .digits digits, {} |2 factor, d1 carry } digits_multiply digits }
+    { .bits /0 bits, { .digits digits, d2 factor, d0 carry } digits_multiply digits },
+    { .bits /1 bits, { .digits digits, d2 factor, d1 carry } digits_multiply digits }
   > binary_digits_loop
 > ?digits[];
 
@@ -806,7 +856,7 @@ cancel_twos = ?{ bits[] reversed, bits[] places } <
 
 fraction_digits_print = cancel_twos {
   .reversed inv trim binary_digits digits,
-  {} |5 factor, .places steps, .places places
+  d5 factor, .places steps, .places places
 } { { .digits digits, .factor factor, .steps steps } digits_power digits, .places places };
 
 print_ratio = ?float64[] {
@@ -823,7 +873,7 @@ print_ratio = ?float64[] {
       { c1075 x, .exponent y } minus places } fraction_digits_print then
   } .then,
   {
-    .fraction |1 binary_digits digits, {} |2 factor,
+    .fraction |1 binary_digits digits, d2 factor,
     { .exponent x, c1075 y } minus steps
   } digits_power { () digits, _ places }
 >;
@@ -847,12 +897,12 @@ integer_text_loop = ?{ digits[] digits, string[] acc } <
 > ?string[];
 
 integer_text = ?{ digits[] digits, string[] acc } <
-  { .digits /nil if, { d0 digit_ascii car, .acc cdr } |cons then } .then,
+  { .digits /nil if, { _0_ car, .acc cdr } |cons then } .then,
   integer_text_loop
 > ?string[];
 
 format_decimal = ?{ digits[] digits, bits[] places } <
   { .places /_ if, { .digits digits, nil acc } integer_text then } .then,
   { .digits digits, .places places, nil acc } fraction_text
-  { .digits digits, { dot_ascii car, .acc cdr } |cons acc } integer_text
+  { .digits digits, { _dot_ car, .acc cdr } |cons acc } integer_text
 > ?string[];
