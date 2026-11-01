@@ -448,8 +448,8 @@ console.log("==> Running End-to-End Peano Addition & Serialization Tests");
     inc = | +1 nat?;
     dec = nat? / +1;
     add = ?{ nat? x, nat? y } = X <
-      { . x dec x, . y inc y } ?X add,
-      . y
+      { . x / 0 a, . y then } . then,
+      { . x dec x, . y inc y } ?X add
     >;
     ()
   `;
@@ -623,6 +623,90 @@ console.log("==> Running End-to-End Peano Addition & Serialization Tests");
   assert.equal(deeperRes[1], 1, "Tail-recursive Peano addition must handle 20000 inputs with compaction without call stack overflow");
 
   console.log("End-to-End Peano Addition & Serialization tests passed successfully!");
+}
+
+console.log("==> Running Union Non-Final Branch Recursion & Factored Tail-Call Tests (Issue #3)");
+{
+  const runtimeWat = fs.readFileSync("runtime.wat", "utf8");
+
+  // 1. Issue #3: Self-call in a non-final union branch must NOT be tail-call optimized,
+  // because failure of the recursive call must backtrack to subsequent union branches
+  // with the original input.
+  const backtrackDefs = annotate(`
+    t[] = < {} a, { T x } b > = T;
+    f = ?t[] <
+      /b .x f,
+      /b {} |a
+    > ?t[];
+    main = ?t[] /b .x f;
+    ()
+  `, { convergence: { strategy: "auto" } });
+
+  const fWat = lowerToWasm(backtrackDefs.rels.f, "f");
+  const mainWat = lowerToWasm(backtrackDefs.rels.main, "main");
+  assert.match(fWat, /\bcall \$f\b/, "Self-call in non-final union branch must emit a regular call");
+  assert.doesNotMatch(fWat, /\bbr \$tail_loop\b/, "Self-call in non-final union branch must not jump to $tail_loop");
+
+  const fullBacktrackWat = runtimeWat.trim().slice(0, -1) + "\n" + fWat + "\n" + mainWat + "\n)";
+  const binaryBacktrack = compileWat("union_backtrack.wat", fullBacktrackWat);
+  const exportsBacktrack = await instantiateWasm(binaryBacktrack);
+
+  function writeUnit(exports) {
+    const ptr = exports.alloc(8);
+    const view = new DataView(exports.memory.buffer);
+    view.setUint32(ptr, 8, true);
+    view.setUint32(ptr + 4, 0, true);
+    return ptr;
+  }
+
+  function writeVariant(exports, tag, payloadPtr) {
+    const ptr = exports.alloc(12);
+    const view = new DataView(exports.memory.buffer);
+    view.setUint32(ptr, 12, true);
+    view.setUint32(ptr + 4, getTagId(tag), true);
+    view.setUint32(ptr + 8, payloadPtr, true);
+    return ptr;
+  }
+
+  function writeSingleFieldProduct(exports, label, valPtr) {
+    const ptr = exports.alloc(16);
+    const view = new DataView(exports.memory.buffer);
+    view.setUint32(ptr, 16, true);
+    view.setUint32(ptr + 4, 1, true);
+    view.setUint32(ptr + 8, getTagId(label), true);
+    view.setUint32(ptr + 12, valPtr, true);
+    return ptr;
+  }
+
+  // Construct b(b(a)) = {{{} |a x} |b x} |b
+  const aPtr = writeVariant(exportsBacktrack, "a", writeUnit(exportsBacktrack));
+  const baPtr = writeVariant(exportsBacktrack, "b", writeSingleFieldProduct(exportsBacktrack, "x", aPtr));
+  const bbaPtr = writeVariant(exportsBacktrack, "b", writeSingleFieldProduct(exportsBacktrack, "x", baPtr));
+
+  const resBacktrack = exportsBacktrack.main(bbaPtr);
+  assert.equal(resBacktrack[1], 1, "main(b(b(a))) must succeed by backtracking to branch 2 of f(b(a))");
+  const viewBacktrack = new DataView(exportsBacktrack.memory.buffer);
+  assert.equal(viewBacktrack.getUint32(resBacktrack[0] + 4, true), getTagId("a"), "main(b(b(a))) must return variant |a");
+
+  // 2. Factored tail-recursive union `< { ... }, { ... } > self` in the final branch of a union
+  // must forward product fields directly into $tail_in_* locals without allocating a product.
+  const factoredDefs = annotate(`
+    bits[] = < {} _, B 0, B 1 > = B;
+    eat = ?{ bits[] x, bits[] y } <
+      { .x /_ a, .y then } .then,
+      <
+        { .x /0 x, .y |0 y },
+        { .x /1 x, .y |1 y }
+      > eat
+    > ?bits[];
+    ()
+  `, { convergence: { strategy: "auto" } });
+
+  const eatWat = lowerToWasm(factoredDefs.rels.eat, "eat");
+  assert.doesNotMatch(eatWat, /\bcall \$eat\b/, "Factored tail-recursive union must not emit a Wasm self-call");
+  assert.match(eatWat, /;; tail-call field x/, "Factored tail-recursive union branches must forward product fields directly to $tail_in_*");
+
+  console.log("Union Non-Final Branch Recursion & Factored Tail-Call tests passed successfully!");
 }
 
 console.log("==> Harness ready.");

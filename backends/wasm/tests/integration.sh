@@ -54,6 +54,11 @@ compare_json_envelope "projected JSON number" \
 compare_json_envelope "closed product filter" \
   '{"a":[1,2,"kupa"], "b": 123}' \
   '?{X a, Y b}'
+printf '{"b":{"b":"a"}}\n' |
+  node "$K_ROOT/codecs/k-parse.mjs" --input-type '?< {} a, T b > = T' |
+  node ./bin/k-wasm.mjs 't[] = < {} a, T b > = T; f = ?t[] < /b f, /b {} |a > ?t[]; /b f' |
+  node "$K_ROOT/codecs/k-print.mjs" |
+  grep -qx '"a"'
 printf '{"a":[1,2,"kupa"], "b": 123}\n' |
   node "$K_ROOT/codecs/json.mjs" --parse |
   node ./bin/k-wasm.mjs '{ .a.2 word, .b number }' |

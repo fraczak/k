@@ -197,14 +197,34 @@ export function lowerToWasm(relDef, name, options = {}) {
     return tailValueAfter(insts, index + 1, dest, inputMap, returnTarget, tailReturnTargets);
   }
 
-  function selfTailCallAfterProduct(insts, index, productDest, inputMap, returnTarget, tailReturnTargets) {
-    if (options.trace || inputProductFields.length === 0) return null;
-    const callInst = insts[index + 1];
-    if (!callInst || callInst.op !== "call" || callInst.func !== name) return null;
-    if (mapsToReg(callInst.src, inputMap) !== productDest) return null;
-    const callDest = cleanReg(callInst.dest);
-    if (!tailValueAfter(insts, index + 2, callDest, inputMap, returnTarget, tailReturnTargets)) return null;
-    return callInst;
+  function feedsSelfTailCall(
+    insts,
+    startIndex,
+    valueReg,
+    inputMap,
+    returnTarget,
+    tailReturnTargets,
+    tailCallInputTargets
+  ) {
+    if (options.trace || inputProductFields.length === 0) return false;
+    let current = valueReg;
+    for (let i = startIndex; i < insts.length; i++) {
+      const inst = insts[i];
+      if (inst.op === "guard_pattern" || inst.op === "guard_code" || inst.op === "id") {
+        if (mapsToReg(inst.src, inputMap) !== current) return false;
+        current = cleanReg(inst.dest);
+        continue;
+      }
+      if (inst.op === "call" && inst.func === name && mapsToReg(inst.src, inputMap) === current) {
+        const callDest = cleanReg(inst.dest);
+        return tailValueAfter(insts, i + 1, callDest, inputMap, returnTarget, tailReturnTargets);
+      }
+      if (inst.op === "return" && mapsToReg(inst.src, inputMap) === current) {
+        return Boolean(returnTarget && tailCallInputTargets.has(returnTarget));
+      }
+      return false;
+    }
+    return false;
   }
 
   function initInputProductLocals() {
@@ -252,7 +272,8 @@ export function lowerToWasm(relDef, name, options = {}) {
     returnTarget = null,
     failTarget = null,
     tailReturnTargets = new Set(),
-    inputAliases = new Set(["in"])
+    inputAliases = new Set(["in"]),
+    tailCallInputTargets = new Set()
   ) {
     const lines = [];
     for (let index = 0; index < insts.length; index++) {
@@ -354,7 +375,15 @@ export function lowerToWasm(relDef, name, options = {}) {
           const dest = cleanReg(inst.dest);
           const rawSrc = cleanReg(inst.src);
           const src = inputMap[rawSrc] || rawSrc;
-          const tailCall = selfTailCallAfterProduct(insts, index, dest, inputMap, returnTarget, tailReturnTargets);
+          const tailCall = feedsSelfTailCall(
+            insts,
+            index + 1,
+            dest,
+            inputMap,
+            returnTarget,
+            tailReturnTargets,
+            tailCallInputTargets
+          );
           const sortedBranches = [...inst.branches].sort((a, b) => {
             if (a.label < b.label) return -1;
             if (a.label > b.label) return 1;
@@ -382,8 +411,9 @@ export function lowerToWasm(relDef, name, options = {}) {
                 { ...inputMap, "in": src },
                 fieldTmp,
                 failTarget,
-                tailReturnTargets,
-                new Set(inputAliases)
+                new Set(),
+                new Set(inputAliases),
+                new Set()
               );
               lines.push(branchWat);
             }
@@ -430,8 +460,9 @@ export function lowerToWasm(relDef, name, options = {}) {
               { ...inputMap, "in": src },
               fieldTmp,
               failTarget,
-              tailReturnTargets,
-              new Set(inputAliases)
+              new Set(),
+              new Set(inputAliases),
+              new Set()
             );
             lines.push(branchWat);
           }
@@ -549,9 +580,16 @@ export function lowerToWasm(relDef, name, options = {}) {
           const rawSrc = cleanReg(inst.src);
           const src = inputMap[rawSrc] || rawSrc;
           const N = inst.branches.length;
-          const branchTailReturnTargets = tailValueAfter(insts, index + 1, dest, inputMap, returnTarget, tailReturnTargets)
-            ? new Set([...tailReturnTargets, dest])
-            : tailReturnTargets;
+          const unionIsTail = tailValueAfter(insts, index + 1, dest, inputMap, returnTarget, tailReturnTargets);
+          const unionFeedsSelfTailCall = feedsSelfTailCall(
+            insts,
+            index + 1,
+            dest,
+            inputMap,
+            returnTarget,
+            tailReturnTargets,
+            tailCallInputTargets
+          );
 
           const unionId = nextUnionId++;
           const arenaMark = `union_mark_${unionId}`;
@@ -566,6 +604,13 @@ export function lowerToWasm(relDef, name, options = {}) {
 
           for (let i = 0; i < N; i++) {
             const branch = inst.branches[i];
+            const isLast = i === N - 1;
+            const branchTailReturnTargets = isLast && unionIsTail
+              ? new Set([...tailReturnTargets, dest])
+              : new Set();
+            const branchTailCallInputTargets = unionFeedsSelfTailCall
+              ? new Set([...tailCallInputTargets, dest])
+              : (isLast && unionIsTail ? tailCallInputTargets : new Set());
             lines.push(`      global.get $arena_free`);
             lines.push(`      local.set $${arenaMark}`);
             const branchWat = compileInstructions(
@@ -574,7 +619,8 @@ export function lowerToWasm(relDef, name, options = {}) {
               dest,
               `$b${i}_try_${unionId}`,
               branchTailReturnTargets,
-              new Set(inputAliases)
+              new Set(inputAliases),
+              branchTailCallInputTargets
             );
             lines.push(branchWat);
             lines.push(`      br $union_done_${unionId}`);

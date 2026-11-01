@@ -134,6 +134,13 @@ printf '{"x":"left","y":"right"}' \
   | node ../../codecs/k-print.mjs \
   | grep -qx '"left"'
 
+node ../../objects/compile.mjs 't[] = < {} a, T b > = T; f = ?t[] < /b f, /b {} |a > ?t[]; /b f' "$TMP_DIR/nonfinal-tail.ko"
+printf '{"b":{"b":"a"}}\n' \
+  | node ../../codecs/k-parse.mjs --input-type '?< {} a, T b > = T' \
+  | node ./bin/k-llvm.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/nonfinal-tail.ko" \
+  | node ../../codecs/k-print.mjs \
+  | grep -qx '"a"'
+
 node --input-type=module -e "import { stdout } from 'node:process'; import { encodeToWire } from '../../codecs/runtime/prefix-codec.mjs'; import { Value } from '../../Value.mjs'; const pattern = [[\"open-union\",[[\"left\",1],[\"right\",1]]],[\"closed-product\",[]]]; stdout.write(encodeToWire(Value.variant(\"left\", Value.product({}), pattern), pattern));" \
   | node ./bin/k-llvm.mjs --cache-dir "$TMP_DIR/jit-cache" "$TMP_DIR/id.ko" \
   | node --input-type=module -e "import { stdin } from 'node:process'; import { decodeWire } from '../../codecs/runtime/prefix-codec.mjs'; const chunks = []; stdin.on('data', (chunk) => chunks.push(chunk)); stdin.on('end', () => console.log(JSON.stringify(decodeWire(Buffer.concat(chunks)).pattern)));" \

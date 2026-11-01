@@ -441,10 +441,11 @@ function hasSelfTailCall(insts, funcName, isTail = true) {
   for (let i = 0; i < insts.length; i++) {
     const inst = insts[i];
     if (isTail && isSelfTailCall(insts, i, funcName)) return true;
-    if (inst.op === "union" && inst.branches) {
+    if (inst.op === "union" && inst.branches && inst.branches.length > 0) {
       const unionIsTail = isTail && tailValueAfter(insts, i + 1, inst.dest);
-      for (let bIdx = 0; bIdx < inst.branches.length; bIdx++) {
-        if (hasSelfTailCall(inst.branches[bIdx].body, funcName, unionIsTail)) return true;
+      if (unionIsTail) {
+        const lastBranch = inst.branches[inst.branches.length - 1];
+        if (hasSelfTailCall(lastBranch.body, funcName, true)) return true;
       }
     }
   }
@@ -908,7 +909,7 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
               outputPattern: kvmFunc.outputPattern,
               body: branch.body
             };
-            const armTailRef = tailValueAfter(insts, i + 1, inst.dest) ? tailRef : null;
+            const armTailRef = (isLast && tailValueAfter(insts, i + 1, inst.dest)) ? tailRef : null;
             const armBody = lowerKVMFunction(armFunc, armName, armFunc.name, moduleCtx, "internal", { ...options, tailRef: armTailRef });
             moduleCtx.syntheticFunctions.push(armBody);
 

@@ -5,6 +5,21 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.5.1] — 2026-10-31 — Fix Union Tail-Call Optimization in Wasm and LLVM Backends
+
+- **Restrict Union Tail-Call Optimization to Final Branch (#3)**:
+  - Fix unsound self-tail-call optimization on non-final union branches in
+    `backends/wasm/src/kvm2wasm.mjs`, `backends/llvm/src/kvm2llvm.mjs`, and
+    `backends/llvm/src/llvm.mjs`. Only the final branch (`i === N - 1`) of a
+    union is in tail position; earlier branches must execute regular calls so
+    that failure of a recursive call properly backtracks to subsequent branches
+    with the original union input.
+  - Extend `feedsSelfTailCall` (`tailCallInputTargets`) in
+    `backends/wasm/src/kvm2wasm.mjs` so factored tail-recursive unions
+    (`< { ... }, { ... } > self` in tail position) continue to forward product
+    fields directly into `$tail_in_*` locals and jump to `$tail_loop` without
+    intermediate arena allocation.
+
 ## [8.5.0] — 2026-10-28 — Documentation and Test Cleanup
 
 - Replace the obsolete book, duplicated paper rendering, design plans, and
