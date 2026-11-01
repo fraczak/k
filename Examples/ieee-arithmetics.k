@@ -8,33 +8,33 @@ float64[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
 
 -- Shared constructors and predicates.
 + = @7rHQSPwedgnq3zPpQgdudpvwzxgbmDXhK9nVRCYciJpX;
-+? = @AR9HjW5Z2eFguBG27zFTaPN7VNRfyLabDXh87LWYBYS7;
++? = @a8hxtzfPEwjBCV4gLQNTcKNLiFYYFdBy5b5pWNNF2qmd;
 - = @2Zn83TkHQiN5MgeFFLzYx2a9UYi22MsXzR8rD5VusHsh;
--? = @qHsFhcAZcrrUtCtwBRCtRG63hBJKjm25P5DbK4GfdWHe;
+-? = @s8tFQFzJS2jNPsH5unFXxVEKhMivTt9MuMbgWmN2epW6;
 0 = @EHvJE7XLDHFp85gcBQGN5j3EDqUi3ChEdMtByVxF7mk9;
-0? = @iWMq26enaf96q83ZGSaDJrwRrUeZy7MSdjFeHny9s65T;
+0? = @AKPd8uefduHxVJUyz3XH7XcaPjgAZDNtiNfiAQhyi3Se;
 1 = @yhn2hGiP2VyS2BeYjrSrtrucugXJNDqWpNEYGMCjQQqV;
-1? = @QcpWEGasV6mVAmjKK2EkHVEjgqnHXkFPjx7hKkzyB8US;
-all_ones_exponent? = @D94T2PqQtaQ6zbc7ZsSsT5DjMuQ83AvDTvWLu4K44BRV;
+1? = @WwekAdU3rQX7n7ceNKETesMJCz7uZFtBWYYKGhkQ2KXV;
+all_ones_exponent? = @pbafpfeff6YNWzPHUgQGjqaCu9Jpgtw8B2iGpiwYY6ci;
 exp0 = @bRQ4ZvHQXXY3VVfwBLZWKzvGNAP7D9JibenqJnZxDaiQ;
 exp_all1 = @7cjX9nvDtU2kSnV3FeECiYLnwXzg7rJU6zVjSWXY8LQi;
-finite_float64? = @pAX8ruNaFXEAPtKeYvVA6kLmqYhNE7QCAKy2TEFehnwn;
-flip_sign = @62TQ4YFyRxFkS4aYddwGfHtdLyJRsvtYf36yin4sYHpK;
+finite_float64? = @eDmk2p9N36L83zS9SHZFgu3zxpSydaj8vi9GqykygVdJ;
+flip_sign = @gCU3GAZNbRDaY6hDdhVw4ykuFvCMYcdSkUcJej7knsYN;
 frac0 = @6ExeHyCJJTX5VGjj2eaBMdmhzbQskAcLRh6F2gfveRTv;
 frac_lsb1 = @SHVHXMWgxF5dtgfJ82EvXtPijJC6rN37kiBp3Be4kbyD;
-inf_float64? = @Y6xGQMWvpRfjFpF9NUWL6YyWt2sFgbUungbUKAZdi7Mg;
-nan_float64? = @YMDkVKABJpjwg2xVnBsx5g7ZPFY55UsMgJsgn2CWLb4e;
+inf_float64? = @DsFUGCxGqsbd6YM5W7FrHMjEQW26pnHyg5ShcUngtudk;
+nan_float64? = @dWdP2hq5QyUeuH7weaz7xvuLGSp4Yza2i43MH7xUePjX;
 neg_inf = @MMMiyGD9arLJG7wpKGLrtCUTuztHxQMH4VA6WnvW6wuH;
 neg_zero = @6VEsHQvx5xFgfCCWx4KaGFJbcnftj78kzsFrW5tRQcby;
-negate_float64 = @sMkB3vmeN4gSAQ5pr4U5UMg3q9DLMJD9MEL9AQhEfQ7M;
-nonzero_fraction? = @erLhmi7hnwEL289kdxCj2u3aerDvRANeRTCAcBpTykMA;
-not_all_ones_exponent? = @SmXhp95kpzNYTedsE4VMZMFX2iGtibwZZgFvnRcfbQGc;
+negate_float64 = @fg3Zb7t5Vfag3ph2WiiLUu6yq8vbuMrUHMegdgaFcj9b;
+nonzero_fraction? = @BcaEKkgRWd6jxX83MdQXxqx2xYaqr76wpdcHt3KFdak2;
+not_all_ones_exponent? = @HDK6CpHsdxhXLh9khFbKuNG2jG6BM8VFYSJMWCAykTkX;
 pos_inf = @d3CmJs8Qj28u5BYE85RGXbTYZmq2PKmuMsHzsuSY8hqt;
 pos_zero = @rQxnu7QhXpmG8eUL2J2BjjBCchkR3jrUcfwTPyU42n9c;
 qnan = @uCkX6kYtVDKncnu76BiCCb4brTWUcy4wJkqxPCEyGK5K;
-zero_exponent? = @uwBaQweqzUV2xKEig2iVcgiqYAGwT3f6apruvpFcj4PJ;
-zero_float64? = @KKcAchrf3dLQeHJEyezjvThe5wpMF9DUU5M5XHCJHdwm;
-zero_fraction? = @H8gDjZnbeRty3D5sR9ChhRZXQxwUbeWUCxFJfBgztc96;
+zero_exponent? = @QsNFmFdBwp8bGMp5fmyjS54hkDBnuvwrW58pXvq3THKs;
+zero_float64? = @Y6XSWx63XRjvethPAVcQ7f9dQyEcjRMTuuQbhhDapcpZ;
+zero_fraction? = @93KX5MXkbwmWbVjbSWbf3dbnUTWMTgqSZbybxvhXEe8G;
 
 // Arithmetic-specific patterns and ripple-carry helpers.
 

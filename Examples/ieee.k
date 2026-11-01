@@ -27,395 +27,316 @@ float64[] = { sign[] sign, exp11[] exponent, frac52[] fraction };
 -- Parse one complete decimal spelling, optionally prefixed by + or -, or
 -- Infinity/NaN. Decimal syntax otherwise follows JSON. Overflow becomes
 -- infinity; NaN spellings use one canonical payload.
-parseFloat64 = ?string[] _ieee_ws scanFloat64 {
-  .rest _ieee_ws /nil end, .value value
+parseFloat64 = ?string[] ws scanFloat64 {
+  .rest ws /nil end, .value value
 } .value ?float64[];
 
 -- Prefix scanner shared with the JSON parser, which applies finite_float64?.
-scanFloat64 = ?string[] < _ieee_plus _ieee_number, _ieee_number, _ieee_special > ?_ieee_result[];
-natToFloat64 = ?bits[] _ieee_trim <
+scanFloat64 = ?string[] < plus_char number, number, special > ?result[];
+natToFloat64 = ?bits[] trim <
   /_ pos_zero,
-  { () n, _ieee_one d } _ieee_ratio { + sign, .exponent exponent, .fraction fraction }
+  { () n, 1b d } ratio { + sign, .exponent exponent, .fraction fraction }
 > ?float64[];
 
 -- Print an exact decimal expansion (no shortest-format rounding). Signed zero
 -- and infinities retain their signs; every NaN prints the canonical word NaN.
 printFloat64 = ?float64[] <
-  nan_float64? _ieee_nan_text,
-  { inf_float64? if, .sign /- and, _ieee_negative_infinity_text then } .then,
-  inf_float64? _ieee_infinity_text,
-  { zero_float64? if, .sign /- and, _ieee_negative_zero_text then } .then,
-  zero_float64? _ieee_zero_text,
-  { () value, _ieee_print_ratio _ieee_format_decimal text } <
-    { .value.sign /- if, { _ieee_minus_char car, .text cdr } |cons then } .then,
+  nan_float64? nan_text,
+  { inf_float64? if, .sign /- and, negative_infinity_text then } .then,
+  inf_float64? infinity_text,
+  { zero_float64? if, .sign /- and, negative_zero_text then } .then,
+  zero_float64? zero_text,
+  { () value, print_ratio format_decimal text } <
+    { .value.sign /- if, { minus_ascii car, .text cdr } |cons then } .then,
     .text
   >
 > ?string[];
 
-_ieee_nil = {} |nil;
-_ieee_ws = ?string[] <
-  < _ieee_space, _ieee_tab, _ieee_lf, _ieee_cr > _ieee_ws,
+nil = {} |nil;
+ws = ?string[] <
+  < space, tab, lf, cr > ws,
   ()
 > ?string[];
 
 -- Small constructors and classification filters.
-0 = {} |0 ;
+0 = {} |0;
+1 = {} |1;
 
-1 = {} |1 ;
++ = {} |+;
+- = {} |-;
 
-+ = {} |+ ;
+0? = /0 |0;
+1? = /1 |1;
 
-- = {} |- ;
++? = /+ |+;
+-? = /- |-;
 
-0? =  {/0 if, () then} .then ;
+zero_exponent? = {
+  .0 0? 0, .1 0? 1, .2 0? 2, .3 0? 3, .4 0? 4, .5 0? 5,
+  .6 0? 6, .7 0? 7, .8 0? 8, .9 0? 9, .10 0? 10
+};
 
-1? =  {/1 if, () then} .then ;
+all_ones_exponent? = {
+  .0 1? 0, .1 1? 1, .2 1? 2, .3 1? 3, .4 1? 4, .5 1? 5,
+  .6 1? 6, .7 1? 7, .8 1? 8, .9 1? 9, .10 1? 10
+};
 
-+? =  {/+ if, () then} .then ;
+not_all_ones_exponent? = {
+  <.10 /0, .9 /0, .8 /0, .7 /0, .6 /0, .5 /0, .4 /0, .3 /0, .2 /0, .1 /0, .0 /0> if,
+  () then
+} .then;
 
--? =  {/- if, () then} .then ;
+zero_fraction? = {
+  .0 0? 0,   .1 0? 1,   .2 0? 2,   .3 0? 3,   .4 0? 4,   .5 0? 5,   .6 0? 6,   .7 0? 7,   .8 0? 8,   .9 0? 9,
+  .10 0? 10, .11 0? 11, .12 0? 12, .13 0? 13, .14 0? 14, .15 0? 15, .16 0? 16, .17 0? 17, .18 0? 18, .19 0? 19,
+  .20 0? 20, .21 0? 21, .22 0? 22, .23 0? 23, .24 0? 24, .25 0? 25, .26 0? 26, .27 0? 27, .28 0? 28, .29 0? 29,
+  .30 0? 30, .31 0? 31, .32 0? 32, .33 0? 33, .34 0? 34, .35 0? 35, .36 0? 36, .37 0? 37, .38 0? 38, .39 0? 39,
+  .40 0? 40, .41 0? 41, .42 0? 42, .43 0? 43, .44 0? 44, .45 0? 45, .46 0? 46, .47 0? 47, .48 0? 48, .49 0? 49,
+  .50 0? 50, .51 0? 51
+};
 
-zero_exponent? =
-  {.0 0? if0, .1 0? if1, .2 0? if2, .3 0? if3, .4 0? if4, .5 0? if5, .6 0? if6, .7 0? if7, .8 0? if8, .9 0? if9, .10 0? if10, () then} .then
-  ;
+nonzero_fraction? = {
+  <.51 /1, .50 /1, .49 /1, .48 /1, .47 /1, .46 /1, .45 /1, .44 /1, .43 /1, .42 /1,
+   .41 /1, .40 /1, .39 /1, .38 /1, .37 /1, .36 /1, .35 /1, .34 /1, .33 /1, .32 /1,
+   .31 /1, .30 /1, .29 /1, .28 /1, .27 /1, .26 /1, .25 /1, .24 /1, .23 /1, .22 /1,
+   .21 /1, .20 /1, .19 /1, .18 /1, .17 /1, .16 /1, .15 /1, .14 /1, .13 /1, .12 /1,
+   .11 /1, .10 /1, .9 /1, .8 /1, .7 /1, .6 /1, .5 /1, .4 /1, .3 /1, .2 /1, .1 /1, .0 /1> if,
+  () then
+} .then;
 
-all_ones_exponent? =
-  {.0 1? if0, .1 1? if1, .2 1? if2, .3 1? if3, .4 1? if4, .5 1? if5, .6 1? if6, .7 1? if7, .8 1? if8, .9 1? if9, .10 1? if10, () then} .then
-  ;
+nan_float64? = ?float64[] {
+  .sign sign, .exponent all_ones_exponent? exponent, .fraction nonzero_fraction? fraction
+};
 
-not_all_ones_exponent? =
-  {<.10 0?, .9 0?, .8 0?, .7 0?, .6 0?, .5 0?, .4 0?, .3 0?, .2 0?, .1 0?, .0 0?> if, () then} .then
-  ;
+inf_float64? = ?float64[] {
+  .sign sign, .exponent all_ones_exponent? exponent, .fraction zero_fraction? fraction
+};
 
-zero_fraction? =
-  {.51 0? if51, .50 0? if50, .49 0? if49, .48 0? if48, .47 0? if47, .46 0? if46, .45 0? if45, .44 0? if44, .43 0? if43, .42 0? if42,
-   .41 0? if41, .40 0? if40, .39 0? if39, .38 0? if38, .37 0? if37, .36 0? if36, .35 0? if35, .34 0? if34, .33 0? if33, .32 0? if32,
-   .31 0? if31, .30 0? if30, .29 0? if29, .28 0? if28, .27 0? if27, .26 0? if26, .25 0? if25, .24 0? if24, .23 0? if23, .22 0? if22,
-   .21 0? if21, .20 0? if20, .19 0? if19, .18 0? if18, .17 0? if17, .16 0? if16, .15 0? if15, .14 0? if14, .13 0? if13, .12 0? if12,
-   .11 0? if11, .10 0? if10, .9 0? if9, .8 0? if8, .7 0? if7, .6 0? if6, .5 0? if5, .4 0? if4, .3 0? if3, .2 0? if2, .1 0? if1, .0 0? if0,
-   () then} .then
-  ;
+finite_float64? = ?float64[] {
+  .sign sign, .exponent not_all_ones_exponent? exponent, .fraction fraction
+};
 
-nonzero_fraction? =
-  {<.51 1?, .50 1?, .49 1?, .48 1?, .47 1?, .46 1?, .45 1?, .44 1?, .43 1?, .42 1?,
-    .41 1?, .40 1?, .39 1?, .38 1?, .37 1?, .36 1?, .35 1?, .34 1?, .33 1?, .32 1?,
-    .31 1?, .30 1?, .29 1?, .28 1?, .27 1?, .26 1?, .25 1?, .24 1?, .23 1?, .22 1?,
-    .21 1?, .20 1?, .19 1?, .18 1?, .17 1?, .16 1?, .15 1?, .14 1?, .13 1?, .12 1?,
-    .11 1?, .10 1?, .9 1?, .8 1?, .7 1?, .6 1?, .5 1?, .4 1?, .3 1?, .2 1?, .1 1?, .0 1?> if, () then} .then
-  ;
+zero_float64? = ?float64[] {
+  .sign sign, .exponent zero_exponent? exponent, .fraction zero_fraction? fraction
+};
 
-nan_float64? =
-  {.exponent all_ones_exponent? ife, .fraction nonzero_fraction? iff, () then} .then
-  ;
+exp0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10};
 
-inf_float64? =
-  {.exponent all_ones_exponent? ife, .fraction zero_fraction? iff, () then} .then
-  ;
+exp_all1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10};
 
-finite_float64? =
-  {.exponent not_all_ones_exponent? ife, () then} .then
-  ;
+frac0 = {} {
+  0 0,  0 1,  0 2,  0 3,  0 4,  0 5,  0 6,  0 7,  0 8,  0 9,  0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
+  0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
+  0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
+  0 48, 0 49, 0 50, 0 51
+};
 
-zero_float64? =
-  {.exponent zero_exponent? ife, .fraction zero_fraction? iff, () then} .then
-  ;
+frac_lsb1 = {} {
+  1 0,  0 1,  0 2,  0 3,  0 4,  0 5,  0 6,  0 7,  0 8,  0 9,  0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
+  0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
+  0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
+  0 48, 0 49, 0 50, 0 51
+};
 
-exp0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10} ;
+pos_zero = {} {+ sign, exp0 exponent, frac0 fraction};
+neg_zero = {} {- sign, exp0 exponent, frac0 fraction};
+pos_inf  = {} {+ sign, exp_all1 exponent, frac0 fraction};
+neg_inf  = {} {- sign, exp_all1 exponent, frac0 fraction};
+qnan     = {} {+ sign, exp_all1 exponent, frac_lsb1 fraction};
 
-exp_all1 = {} {1 0, 1 1, 1 2, 1 3, 1 4, 1 5, 1 6, 1 7, 1 8, 1 9, 1 10} ;
-
-frac0 = {} {0 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
-            0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
-            0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
-            0 48, 0 49, 0 50, 0 51} ;
-
-frac_lsb1 = {} {1 0, 0 1, 0 2, 0 3, 0 4, 0 5, 0 6, 0 7, 0 8, 0 9, 0 10, 0 11, 0 12, 0 13, 0 14, 0 15,
-                0 16, 0 17, 0 18, 0 19, 0 20, 0 21, 0 22, 0 23, 0 24, 0 25, 0 26, 0 27, 0 28, 0 29, 0 30, 0 31,
-                0 32, 0 33, 0 34, 0 35, 0 36, 0 37, 0 38, 0 39, 0 40, 0 41, 0 42, 0 43, 0 44, 0 45, 0 46, 0 47,
-                0 48, 0 49, 0 50, 0 51} ;
-
-pos_zero = {} {+ sign, exp0 exponent, frac0 fraction} ;
-
-neg_zero = {} {- sign, exp0 exponent, frac0 fraction} ;
-
-pos_inf  = {} {+ sign, exp_all1 exponent, frac0 fraction} ;
-
-neg_inf  = {} {- sign, exp_all1 exponent, frac0 fraction} ;
-
-qnan = {} {+ sign, exp_all1 exponent, frac_lsb1 fraction} ;
-
-flip_sign =
-  <
-    {+? if, {} |-  then} .then,
-    {-? if, {} |+  then} .then
-  > ;
+flip_sign = < /+ -, /- + >;
 
 negate_float64 =
-  {.sign flip_sign sign, .exponent exponent, .fraction fraction}
-  ;
+  {.sign flip_sign sign, .exponent exponent, .fraction fraction};
 
 -- Exact decimal parsing and shared bit helpers.
-_ieee_nat_pair[] = { bits[] x, bits[] y };
-_ieee_order[] = < {} lt, {} eq, {} gt >;
-_ieee_decimal[] = {
+nat_pair[] = { bits[] x, bits[] y };
+order[] = < {} lt, {} eq, {} gt >;
+decimal[] = {
   string[] rest, bits[] n, bits[] d, bits[] count, sign[] sign
 };
-_ieee_result[] = { string[] rest, float64[] value };
+result[] = { string[] rest, float64[] value };
 
-_ieee_zero = {} | _;
+_ = {} |_;
+1b = _ |1;
 
-_ieee_push_bit = ?{ < {} 0, {} 1 > b, < {} _, BITS 0, BITS 1 >=BITS acc } <
+lt = {} |lt;
+eq = {} |eq;
+gt = {} |gt;
+
+push_bit = ?{ bit[] b, bits[] acc } <
   { .b /0 if, .acc |0 then } .then,
   { .b /1 if, .acc |1 then } .then
 > ?bits[];
 
-_ieee_push_bits1 = { .x .0 b, .acc acc } _ieee_push_bit;
+push_bits1 = { .x .0 b, .acc acc } push_bit;
+push_bits2 = { .x .1 b, { .x x, .acc acc } push_bits1 acc } push_bit;
+push_bits3 = { .x .2 b, { .x x, .acc acc } push_bits2 acc } push_bit;
+push_bits4 = { .x .3 b, { .x x, .acc acc } push_bits3 acc } push_bit;
+push_bits5 = { .x .4 b, { .x x, .acc acc } push_bits4 acc } push_bit;
+push_bits6 = { .x .5 b, { .x x, .acc acc } push_bits5 acc } push_bit;
+push_bits7 = { .x .6 b, { .x x, .acc acc } push_bits6 acc } push_bit;
 
-_ieee_push_bits2 = { .x .1 b, { .x x, .acc acc } _ieee_push_bits1 acc } _ieee_push_bit;
-
-_ieee_push_bits3 = { .x .2 b, { .x x, .acc acc } _ieee_push_bits2 acc } _ieee_push_bit;
-
-_ieee_push_bits4 = { .x .3 b, { .x x, .acc acc } _ieee_push_bits3 acc } _ieee_push_bit;
-
-_ieee_push_bits5 = { .x .4 b, { .x x, .acc acc } _ieee_push_bits4 acc } _ieee_push_bit;
-
-_ieee_push_bits6 = { .x .5 b, { .x x, .acc acc } _ieee_push_bits5 acc } _ieee_push_bit;
-
-_ieee_push_bits7 = { .x .6 b, { .x x, .acc acc } _ieee_push_bits6 acc } _ieee_push_bit;
-
-_ieee_inv = ?{ < {} _, B 0, B 1 >=B x, B r } <
-  { .x /_ if, .r then } .then,
-  { .x /0 x, .r |0 r } _ieee_inv,
-  { .x /1 x, .r |1 r } _ieee_inv
-> ?bits[];
-
-_ieee_inc_loop = ?{ < {} _, B 0, B 1 >=B x, B y } <
-  { .x /_ if, .y |1 then } .then,
-  { .x /0 x, .y |1 r } _ieee_inv,
-  { .x /1 x, .y |0 y } _ieee_inc_loop
-> ?bits[];
-
-_ieee_nat_inc = { { () x, _ieee_zero r } _ieee_inv x, _ieee_zero y } _ieee_inc_loop;
-
-_ieee_half_adder = <
-  { .a /0 a, .c_in /0 c_in } { 0 sum, 0 carry },
-  { .a /0 a, .c_in /1 c_in } { 1 sum, 0 carry },
-  { .a /1 a, .c_in /0 c_in } { 1 sum, 0 carry },
-  { .a /1 a, .c_in /1 c_in } { 0 sum, 1 carry }
+trim = ?bits[] <
+  /1 |1,
+  /_ |_,
+  /0 trim
 >;
 
-_ieee_trim = ?bits[] <
-  /0 /0 /0 /0 /0 /0 /0 /0 _ieee_trim,
-  /0 _ieee_trim, ()
+inv_loop = ?{ bits[] x, bits[] r } <
+  { .x /_ if, .r then } .then,
+  <
+    { .x /0 x, .r |0 r },
+    { .x /1 x, .r |1 r }
+  > inv_loop
 > ?bits[];
 
-_ieee_one = _ieee_zero |1;
+inv = ?bits[] { () x, _ r } inv_loop;
 
-_ieee_twice = _ieee_reverse_bits |0 _ieee_reverse_bits _ieee_trim;
+inc_rev = ?{ bits[] x, bits[] r } <
+  { .x /_ if, .r |1 then } .then,
+  { .x /0 x, .r |1 r } inv_loop,
+  { .x /1 x, .r |0 r } inc_rev
+> ?bits[];
 
-_ieee_tenfold = { _ieee_twice x, _ieee_twice _ieee_twice _ieee_twice y } _ieee_add;
+inc = ?bits[] { inv x, _ r } inc_rev;
 
-_ieee_lsb = ?bits[] <
+dec_rev = ?{ bits[] x, bits[] r } <
+  { .x /1 x, .r |0 r } inv_loop,
+  { .x /0 x, .r |1 r } dec_rev
+> ?bits[];
+
+dec = ?bits[] { inv x, _ r } dec_rev trim;
+
+cmp_loop = ?{ bits[] x, bits[] y, order[] order } <
+  { .x /_ a, .y /_ b, .order then } .then,
+  { .x /_ if, lt then } .then,
+  { .y /_ if, gt then } .then,
+  <
+    { .x /0 x, .y /1 y, .order /eq lt order },
+    { .x /1 x, .y /0 y, .order /eq gt order },
+    { .x </0, /1> x, .y </0, /1> y, .order order }
+  > cmp_loop
+> ?order[];
+
+cmp = ?nat_pair[] { .x x, .y y, eq order } cmp_loop;
+
+lt? = { cmp /lt if, () then } .then;
+
+plus_loop = ?{ bits[] x, bits[] y, bit[] c, bits[] r } <
+  { .y /_ a, .c /0 b, { .x x, .r r } inv_loop trim then } .then,
+  { .x /_ a, .c /0 b, { .y x, .r r } inv_loop trim then } .then,
+  { .y /_ a, .c /1 b, { .x x, .r r } inc_rev trim then } .then,
+  { .x /_ a, .c /1 b, { .y x, .r r } inc_rev trim then } .then,
+  <
+    { .x /0 x, .y /0 y, .c /0 |0 c, .r |0 r },
+    { .x /0 x, .y /0 y, .c /1 |0 c, .r |1 r },
+    { .x /0 x, .y /1 y, .c /0 |0 c, .r |1 r },
+    { .x /0 x, .y /1 y, .c /1 |1 c, .r |0 r },
+    { .x /1 x, .y /0 y, .c /0 |0 c, .r |1 r },
+    { .x /1 x, .y /0 y, .c /1 |1 c, .r |0 r },
+    { .x /1 x, .y /1 y, .c /0 |1 c, .r |0 r },
+    { .x /1 x, .y /1 y, .c /1 |1 c, .r |1 r }
+  > plus_loop
+> ?bits[];
+
+plus = ?nat_pair[] { .x inv x, .y inv y, 0 c, _ r } plus_loop;
+
+minus_loop = ?{ bits[] x, bits[] y, bit[] c, bits[] r } <
+  { .y /_ a, .c /0 b, { .x x, .r r } inv_loop trim then } .then,
+  { .y /_ a, .c /1 b, { .x x, .r r } dec_rev trim then } .then,
+  <
+    { .x /0 x, .y /0 y, .c /0 |0 c, .r |0 r },
+    { .x /0 x, .y /0 y, .c /1 |1 c, .r |1 r },
+    { .x /0 x, .y /1 y, .c /0 |1 c, .r |1 r },
+    { .x /0 x, .y /1 y, .c /1 |1 c, .r |0 r },
+    { .x /1 x, .y /0 y, .c /0 |0 c, .r |1 r },
+    { .x /1 x, .y /0 y, .c /1 |0 c, .r |0 r },
+    { .x /1 x, .y /1 y, .c /0 |0 c, .r |0 r },
+    { .x /1 x, .y /1 y, .c /1 |1 c, .r |1 r }
+  > minus_loop
+> ?bits[];
+
+minus = ?nat_pair[] { .x inv x, .y inv y, 0 c, _ r } minus_loop;
+
+twice = ?bits[] <
+  /_ _,
+  { inv |0 x, _ r } inv_loop
+> ?bits[];
+
+tenfold = ?bits[] <
+  /_ _,
+  inv { |0 x, |0 |0 |0 y, 0 c, _ r } plus_loop
+> ?bits[];
+
+lsb = ?bits[] <
   /0 { 0 bit, () rest },
   /1 { 1 bit, () rest },
-  /_ { 0 bit, _ieee_zero rest }
+  /_ { 0 bit, _ rest }
 >;
 
-_ieee_reverse_bits = { () x, _ieee_zero acc } _ieee_reverse_bits_loop;
+code = /ascii { () x, _ acc } push_bits7 trim;
 
-_ieee_reverse_bits_step = ?{ bits[] x, bits[] acc } <
-  { .x /0 x, .acc |0 acc }, { .x /1 x, .acc |1 acc }
->;
+e_char = /cons { .car code /1 /1 /0 /0 /1 /0 /1 /_ if, .cdr then } .then;
+E_char = /cons { .car code /1 /0 /0 /0 /1 /0 /1 /_ if, .cdr then } .then;
+minus_char = /cons { .car code /1 /0 /1 /1 /0 /1 /_ if, .cdr then } .then;
+plus_char = /cons { .car code /1 /0 /1 /0 /1 /1 /_ if, .cdr then } .then;
+dot_char = /cons { .car code /1 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
 
-_ieee_reverse_bits8 =
-  _ieee_reverse_bits_step _ieee_reverse_bits_step _ieee_reverse_bits_step _ieee_reverse_bits_step
-  _ieee_reverse_bits_step _ieee_reverse_bits_step _ieee_reverse_bits_step _ieee_reverse_bits_step;
-
-_ieee_reverse_bits_loop = ?{ bits[] x, bits[] acc } <
-  { .x /_ if, .acc then } .then,
-  < _ieee_reverse_bits8, _ieee_reverse_bits_step > _ieee_reverse_bits_loop
-> ?bits[];
-
-_ieee_pair_step = ?_ieee_nat_pair[] { .x </0, /1> x, .y </0, /1> y };
-
-_ieee_pair8 =
-  _ieee_pair_step _ieee_pair_step _ieee_pair_step _ieee_pair_step
-  _ieee_pair_step _ieee_pair_step _ieee_pair_step _ieee_pair_step;
-
-_ieee_width = ?_ieee_nat_pair[] <
-  { .x /_ a, .y /_ b } {} |eq,
-  { .x /_ if, {} |lt then } .then,
-  { .y /_ if, {} |gt then } .then,
-  < _ieee_pair8, _ieee_pair_step > _ieee_width
-> ?_ieee_order[];
-
-_ieee_lex = ?_ieee_nat_pair[] <
-  { .x /_ a, .y /_ b } {} |eq,
-  { .x /0 a, .y /1 b } {} |lt,
-  { .x /1 a, .y /0 b } {} |gt,
-  < _ieee_lex8, _ieee_lex_step > _ieee_lex
-> ?_ieee_order[];
-
-_ieee_lex_step = ?_ieee_nat_pair[] <
-  { .x /0 x, .y /0 y }, { .x /1 x, .y /1 y }
->;
-
-_ieee_lex8 =
-  _ieee_lex_step _ieee_lex_step _ieee_lex_step _ieee_lex_step
-  _ieee_lex_step _ieee_lex_step _ieee_lex_step _ieee_lex_step;
-
-_ieee_cmp = ?_ieee_nat_pair[] { () pair, _ieee_width order } <
-  { .order /eq if, .pair _ieee_lex then } .then,
-  .order
->;
-
-_ieee_lt = { _ieee_cmp /lt if, () then } .then;
-
-_ieee_add_bit = {
-  { .a a, .carry c_in } _ieee_half_adder first,
-  .b b
-} {
-  { .first.sum a, .b c_in } _ieee_half_adder second,
-  .first.carry carry
-} {
-  .second.sum bit,
-  < .carry /1 1, .second.carry > carry
-};
-
-_ieee_add = ?_ieee_nat_pair[] {
-  .x _ieee_reverse_bits x, .y _ieee_reverse_bits y, 0 carry, _ieee_zero acc
-} _ieee_add_loop;
-
-_ieee_add_loop = ?{ bits[] x, bits[] y, bit[] carry, bits[] acc } <
-  {
-    .x /_ a, .y /_ b,
-    < { .carry /0 if, .acc then } .then, .acc |1 > _ieee_trim then
-  } .then,
-  < _ieee_add8, _ieee_add_step > _ieee_add_loop
-> ?bits[];
-
-_ieee_add_step = ?{ bits[] x, bits[] y, bit[] carry, bits[] acc } {
-  < .x /0, .x /1, .y /0, .y /1 > if,
-  { .x _ieee_lsb x, .y _ieee_lsb y, .carry carry, .acc acc } then
-} .then
-  {
-    .x.rest x, .y.rest y, .acc acc,
-    { .x.bit a, .y.bit b, .carry carry } _ieee_add_bit sum
-  }
-  {
-    .x x, .y y, .sum.carry carry,
-    < { .sum.bit /0 if, .acc |0 then } .then, .acc |1 > acc
-  };
-
-_ieee_add8 =
-  _ieee_add_step _ieee_add_step _ieee_add_step _ieee_add_step
-  _ieee_add_step _ieee_add_step _ieee_add_step _ieee_add_step;
-
-_ieee_sub_bit = <
-  { .a /0 a, .b /0 b, .borrow /0 c } { 0 bit, 0 borrow },
-  { .a /0 a, .b /0 b, .borrow /1 c } { 1 bit, 1 borrow },
-  { .a /0 a, .b /1 b, .borrow /0 c } { 1 bit, 1 borrow },
-  { .a /0 a, .b /1 b, .borrow /1 c } { 0 bit, 1 borrow },
-  { .a /1 a, .b /0 b, .borrow /0 c } { 1 bit, 0 borrow },
-  { .a /1 a, .b /0 b, .borrow /1 c } { 0 bit, 0 borrow },
-  { .a /1 a, .b /1 b, .borrow /0 c } { 0 bit, 0 borrow },
-  { .a /1 a, .b /1 b, .borrow /1 c } { 1 bit, 1 borrow }
->;
-
-_ieee_sub = ?_ieee_nat_pair[] {
-  .x _ieee_reverse_bits x, .y _ieee_reverse_bits y, 0 borrow, _ieee_zero acc
-} _ieee_sub_loop;
-
-_ieee_sub_loop = ?{ bits[] x, bits[] y, bit[] borrow, bits[] acc } <
-  { .x /_ a, .y /_ b, .borrow /0 c, .acc _ieee_trim then } .then,
-  < _ieee_sub8, _ieee_sub_step > _ieee_sub_loop
-> ?bits[];
-
-_ieee_sub_step = ?{ bits[] x, bits[] y, bit[] borrow, bits[] acc }
-  {
-    < .x /0, .x /1, .y /0, .y /1 > if,
-    { .x _ieee_lsb x, .y _ieee_lsb y, .borrow borrow, .acc acc } then
-  } .then
-  {
-    .x.rest x, .y.rest y, .acc acc,
-    { .x.bit a, .y.bit b, .borrow borrow } _ieee_sub_bit difference
-  }
-  {
-    .x x, .y y, .difference.borrow borrow,
-    < { .difference.bit /0 if, .acc |0 then } .then, .acc |1 > acc
-  };
-
-_ieee_sub8 =
-  _ieee_sub_step _ieee_sub_step _ieee_sub_step _ieee_sub_step
-  _ieee_sub_step _ieee_sub_step _ieee_sub_step _ieee_sub_step;
-
-_ieee_code = /ascii { () x, _ieee_zero acc } _ieee_push_bits7 _ieee_trim;
-
-_ieee_e = /cons { .car _ieee_code /1 /1 /0 /0 /1 /0 /1 /_ if, .cdr then } .then;
-
-_ieee_E = /cons { .car _ieee_code /1 /0 /0 /0 /1 /0 /1 /_ if, .cdr then } .then;
-
-_ieee_minus = /cons { .car _ieee_code /1 /0 /1 /1 /0 /1 /_ if, .cdr then } .then;
-
-_ieee_plus = /cons { .car _ieee_code /1 /0 /1 /0 /1 /1 /_ if, .cdr then } .then;
-
-_ieee_dot = /cons { .car _ieee_code /1 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
-
-_ieee_digit = /cons { .cdr rest, .car _ieee_code /1 /1 <
-  /0 /0 /0 /0 /_ _ieee_zero,
-  /0 /0 /0 /1 /_ _ieee_zero |1,
-  /0 /0 /1 /0 /_ _ieee_zero |0 |1,
-  /0 /0 /1 /1 /_ _ieee_zero |1 |1,
-  /0 /1 /0 /0 /_ _ieee_zero |0 |0 |1,
-  /0 /1 /0 /1 /_ _ieee_zero |1 |0 |1,
-  /0 /1 /1 /0 /_ _ieee_zero |0 |1 |1,
-  /0 /1 /1 /1 /_ _ieee_zero |1 |1 |1,
-  /1 /0 /0 /0 /_ _ieee_zero |0 |0 |0 |1,
-  /1 /0 /0 /1 /_ _ieee_zero |1 |0 |0 |1
+digit = /cons { .cdr rest, .car code /1 /1 <
+  /0 /0 /0 /0 /_ _,
+  /0 /0 /0 /1 /_ _ |1,
+  /0 /0 /1 /0 /_ _ |0 |1,
+  /0 /0 /1 /1 /_ _ |1 |1,
+  /0 /1 /0 /0 /_ _ |0 |0 |1,
+  /0 /1 /0 /1 /_ _ |1 |0 |1,
+  /0 /1 /1 /0 /_ _ |0 |1 |1,
+  /0 /1 /1 /1 /_ _ |1 |1 |1,
+  /1 /0 /0 /0 /_ _ |0 |0 |0 |1,
+  /1 /0 /0 /1 /_ _ |1 |0 |0 |1
 > value };
 
-_ieee_byte = _ieee_lsb
-  { .bit b0, .rest _ieee_lsb tail }
-  { .b0 b0, .tail.bit b1, .tail.rest _ieee_lsb tail }
-  { .b0 b0, .b1 b1, .tail.bit b2, .tail.rest _ieee_lsb tail }
-  { .b0 b0, .b1 b1, .b2 b2, .tail.bit b3, .tail.rest _ieee_lsb tail }
-  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .tail.bit b4, .tail.rest _ieee_lsb tail }
-  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .b4 b4, .tail.bit b5, .tail.rest _ieee_lsb tail }
-  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .b4 b4, .b5 b5, .tail.bit b6, .tail.rest _ieee_lsb tail }
+take_byte = lsb
+  { .bit b0, .rest lsb tail }
+  { .b0 b0, .tail.bit b1, .tail.rest lsb tail }
+  { .b0 b0, .b1 b1, .tail.bit b2, .tail.rest lsb tail }
+  { .b0 b0, .b1 b1, .b2 b2, .tail.bit b3, .tail.rest lsb tail }
+  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .tail.bit b4, .tail.rest lsb tail }
+  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .b4 b4, .tail.bit b5, .tail.rest lsb tail }
+  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .b4 b4, .b5 b5, .tail.bit b6, .tail.rest lsb tail }
   { { .b0 0, .b1 1, .b2 2, .b3 3, .b4 4, .b5 5, .b6 6, .tail.bit 7 } byte, .tail.rest rest };
 
-_ieee_nibble = _ieee_lsb
-  { .bit b0, .rest _ieee_lsb tail }
-  { .b0 b0, .tail.bit b1, .tail.rest _ieee_lsb tail }
-  { .b0 b0, .b1 b1, .tail.bit b2, .tail.rest _ieee_lsb tail }
+take_nibble = lsb
+  { .bit b0, .rest lsb tail }
+  { .b0 b0, .tail.bit b1, .tail.rest lsb tail }
+  { .b0 b0, .b1 b1, .tail.bit b2, .tail.rest lsb tail }
   { { .b0 0, .b1 1, .b2 2, .tail.bit 3 } byte, .tail.rest rest };
 
-_ieee_unpack16 = _ieee_reverse_bits _ieee_byte
-  { .byte lo, .rest _ieee_byte high }
-  { .lo lo, .high.byte hi, .high.rest _ieee_reverse_bits _ieee_trim plane };
+unpack16 = inv take_byte
+  { .byte lo, .rest take_byte high }
+  { .lo lo, .high.byte hi, .high.rest inv trim plane };
 
-_ieee_field1 = { .0 0 };
+field1 = { .0 0 };
+field2 = { .0 0, .1 1 };
+field3 = { .0 0, .1 1, .2 2 };
+field4 = { .0 0, .1 1, .2 2, .3 3 };
+field7 = { .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6 };
 
-_ieee_field2 = { .0 0, .1 1 };
+exp_field = unpack16 {
+  .lo.0 0, .lo.1 1, .lo.2 2, .lo.3 3, .lo.4 4, .lo.5 5, .lo.6 6, .lo.7 7,
+  .hi.0 8, .hi.1 9, .hi.2 10
+};
 
-_ieee_field3 = { .0 0, .1 1, .2 2 };
-
-_ieee_field4 = { .0 0, .1 1, .2 2, .3 3 };
-
-_ieee_field7 = { .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6 };
-
-_ieee_exp_field = _ieee_unpack16 { .lo.0 0, .lo.1 1, .lo.2 2, .lo.3 3, .lo.4 4, .lo.5 5, .lo.6 6, .lo.7 7, .hi.0 8, .hi.1 9, .hi.2 10 };
-
-_ieee_mantissa = _ieee_byte { .byte b0, .rest _ieee_byte tail }
-  { .b0 b0, .tail.byte b1, .tail.rest _ieee_byte tail }
-  { .b0 b0, .b1 b1, .tail.byte b2, .tail.rest _ieee_byte tail }
-  { .b0 b0, .b1 b1, .b2 b2, .tail.byte b3, .tail.rest _ieee_byte tail }
-  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .tail.byte b4, .tail.rest _ieee_byte tail }
-  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .b4 b4, .tail.byte b5, .tail.rest _ieee_nibble tail }
+mantissa = take_byte { .byte b0, .rest take_byte tail }
+  { .b0 b0, .tail.byte b1, .tail.rest take_byte tail }
+  { .b0 b0, .b1 b1, .tail.byte b2, .tail.rest take_byte tail }
+  { .b0 b0, .b1 b1, .b2 b2, .tail.byte b3, .tail.rest take_byte tail }
+  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .tail.byte b4, .tail.rest take_byte tail }
+  { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .b4 b4, .tail.byte b5, .tail.rest take_nibble tail }
   { {
-    .b0.0 0, .b0.1 1, .b0.2 2, .b0.3 3,
-    .b0.4 4, .b0.5 5, .b0.6 6, .b0.7 7,
-    .b1.0 8, .b1.1 9, .b1.2 10, .b1.3 11,
+    .b0.0 0,  .b0.1 1,  .b0.2 2,  .b0.3 3,
+    .b0.4 4,  .b0.5 5,  .b0.6 6,  .b0.7 7,
+    .b1.0 8,  .b1.1 9,  .b1.2 10, .b1.3 11,
     .b1.4 12, .b1.5 13, .b1.6 14, .b1.7 15,
     .b2.0 16, .b2.1 17, .b2.2 18, .b2.3 19,
     .b2.4 20, .b2.5 21, .b2.6 22, .b2.7 23,
@@ -428,101 +349,91 @@ _ieee_mantissa = _ieee_byte { .byte b0, .rest _ieee_byte tail }
     .tail.byte.0 48, .tail.byte.1 49, .tail.byte.2 50, .tail.byte.3 51
   } fraction, .tail.rest lead };
 
-_ieee_c52 = _ieee_zero |0 |0 |1 |0 |1 |1;
+c52   = _ |0 |0 |1 |0 |1 |1;
+c400  = _ |0 |0 |0 |0 |1 |0 |0 |1 |1;
+c1023 = _ |1 |1 |1 |1 |1 |1 |1 |1 |1 |1;
+c2047 = _ |1 |1 |1 |1 |1 |1 |1 |1 |1 |1 |1;
 
-_ieee_c400 = _ieee_zero |0 |0 |0 |0 |1 |0 |0 |1 |1;
+small1 = inv take_byte .byte field1;
+small2 = inv take_byte .byte field2;
+small3 = inv take_byte .byte field3;
+small4 = inv take_byte .byte field4;
+small7 = inv take_byte .byte field7;
 
-_ieee_c1023 = _ieee_zero |1 |1 |1 |1 |1 |1 |1 |1 |1 |1;
-
-_ieee_c2047 = _ieee_zero |1 |1 |1 |1 |1 |1 |1 |1 |1 |1 |1;
-
-_ieee_small1 = _ieee_reverse_bits _ieee_byte .byte _ieee_field1;
-
-_ieee_small2 = _ieee_reverse_bits _ieee_byte .byte _ieee_field2;
-
-_ieee_small3 = _ieee_reverse_bits _ieee_byte .byte _ieee_field3;
-
-_ieee_small4 = _ieee_reverse_bits _ieee_byte .byte _ieee_field4;
-
-_ieee_small7 = _ieee_reverse_bits _ieee_byte .byte _ieee_field7;
-
-_ieee_number = ?string[] <
-  _ieee_minus { () rest, {} |"-" sign },
+number = ?string[] <
+  minus_char { () rest, - sign },
   { () rest, + sign }
-> { .rest _ieee_digit digit, .sign sign } {
-  .digit.rest rest, .digit.value n, _ieee_one d, _ieee_one count, .sign sign
+> { .rest digit digit, .sign sign } {
+  .digit.rest rest, .digit.value n, 1b d, 1b count, .sign sign
 } <
   { .n /_ if, () then } .then,
-  _ieee_integer_digits
-> < _ieee_fraction_first _ieee_fraction_digits, () > {
+  integer_digits
+> < fraction_first fraction_digits, () > {
   () decimal,
-  < .rest _ieee_exponent, { .rest rest, _ieee_zero value, + sign } > exponent
+  < .rest exponent_part, { .rest rest, _ value, + sign } > exponent
 } {
   .exponent.rest rest,
   {
     .decimal.n n, .decimal.d d, .decimal.count count,
     .decimal.sign sign, .exponent exponent
-  } _ieee_decimal_float value
-} ?_ieee_result[];
+  } decimal_float value
+} ?result[];
 
-_ieee_integer_digits = ?_ieee_decimal[] <
-  { .rest _ieee_digit digit, () decimal } {
+integer_digits = ?decimal[] <
+  { .rest digit digit, () decimal } {
     .digit.rest rest,
-    { .decimal.n _ieee_tenfold x, .digit.value y } _ieee_add n,
-    .decimal.d d, .decimal.count _ieee_nat_inc count, .decimal.sign sign
-  } _ieee_integer_digits,
+    { .decimal.n tenfold x, .digit.value y } plus n,
+    .decimal.d d, .decimal.count inc count, .decimal.sign sign
+  } integer_digits,
   ()
-> ?_ieee_decimal[];
+> ?decimal[];
 
-_ieee_fraction_first = ?_ieee_decimal[] {
-  .rest _ieee_dot rest, .n n, .d d, .count count, .sign sign
-} _ieee_fraction_digit;
-
-_ieee_fraction_digit = ?_ieee_decimal[] { .rest _ieee_digit digit, () decimal } {
+fraction_first = ?decimal[] {
+  .rest dot_char digit digit, () decimal
+} {
   .digit.rest rest,
-  { .decimal.n _ieee_tenfold x, .digit.value y } _ieee_add n,
-  .decimal.d _ieee_tenfold d, .decimal.count _ieee_nat_inc count, .decimal.sign sign
+  { .decimal.n tenfold x, .digit.value y } plus n,
+  .decimal.d tenfold d, .decimal.count inc count, .decimal.sign sign
 };
 
-_ieee_fraction_digits = ?_ieee_decimal[] <
-  _ieee_fraction_digit _ieee_fraction_digits, ()
-> ?_ieee_decimal[];
+fraction_digits = ?decimal[] <
+  { .rest digit digit, () decimal } {
+    .digit.rest rest,
+    { .decimal.n tenfold x, .digit.value y } plus n,
+    .decimal.d tenfold d, .decimal.count inc count, .decimal.sign sign
+  } fraction_digits,
+  ()
+> ?decimal[];
 
-_ieee_exponent = < _ieee_e, _ieee_E > <
-  _ieee_minus { () rest, {} |"-" sign },
-  _ieee_plus { () rest, + sign },
+exponent_part = < e_char, E_char > <
+  minus_char { () rest, - sign },
+  plus_char { () rest, + sign },
   { () rest, + sign }
-> { .rest _ieee_digit _ieee_exponent_digits digits, .sign sign }
+> { .rest digit exponent_digits digits, .sign sign }
   { .digits.rest rest, .digits.value value, .sign sign };
 
-_ieee_exponent_digits = ?{ string[] rest, bits[] value } <
-  { .rest _ieee_digit next, .value _ieee_tenfold high }
-  { .next.rest rest, { .high x, .next.value y } _ieee_add value }
-    _ieee_exponent_digits,
+exponent_digits = ?{ string[] rest, bits[] value } <
+  { .rest digit next, .value tenfold high }
+  { .next.rest rest, { .high x, .next.value y } plus value }
+    exponent_digits,
   ()
 > ?{ string[] rest, bits[] value };
 
-_ieee_dec = ?bits[] _ieee_reverse_bits _ieee_dec_lsb _ieee_reverse_bits _ieee_trim;
+signed_zero = { .sign sign, exp0 exponent, frac0 fraction };
 
-_ieee_dec_lsb = ?bits[] < /1 |0, /0 _ieee_dec_lsb |1 > ?bits[];
-
-_ieee_inc_lsb = ?bits[] < /0 |1, /1 _ieee_inc_lsb |0, /_ _ieee_one > ?bits[];
-
-_ieee_signed_zero = { .sign sign, pos_zero .exponent exponent, pos_zero .fraction fraction };
-
-_ieee_decimal_float = <
-  { .n /_ if, _ieee_signed_zero then } .then,
+decimal_float = <
+  { .n /_ if, signed_zero then } .then,
   {
     () decimal,
-    { .exponent.value x, { .count x, _ieee_c400 y } _ieee_add y } _ieee_cmp order
+    { .exponent.value x, { .count x, c400 y } plus y } cmp order
   } <
     {
-      .order /gt a, .decimal.exponent.sign /"-" b,
-      .decimal _ieee_signed_zero then
+      .order /gt a, .decimal.exponent.sign /- b,
+      .decimal signed_zero then
     } .then,
     {
-      .order /gt a, .decimal.exponent.sign /"+" b,
-      { .decimal.sign sign, pos_inf .exponent exponent, frac0 fraction } then
+      .order /gt a, .decimal.exponent.sign /+ b,
+      { .decimal.sign sign, exp_all1 exponent, frac0 fraction } then
     } .then,
     {
       .order </lt, /eq> if,
@@ -530,263 +441,226 @@ _ieee_decimal_float = <
         {
           .decimal.n n, .decimal.d d,
           .decimal.exponent.value power, .decimal.exponent.sign direction
-        } _ieee_scale_decimal _ieee_ratio fields,
+        } scale_decimal ratio fields,
         .decimal.sign sign
       } { .sign sign, .fields.exponent exponent, .fields.fraction fraction } then
     } .then
   >
 > ?float64[];
 
-_ieee_scale_decimal = ?{ bits[] n, bits[] d, bits[] power, sign[] direction } <
+scale_decimal = ?{ bits[] n, bits[] d, bits[] power, sign[] direction } <
   { .power /_ if, { .n n, .d d } then } .then,
-  < _ieee_scale8, _ieee_scale_step > _ieee_scale_decimal
+  <
+    { .n tenfold n, .d d, .power dec power, .direction +? direction },
+    { .n n, .d tenfold d, .power dec power, .direction -? direction }
+  > scale_decimal
 > ?{ bits[] n, bits[] d };
 
-_ieee_scale_step = ?{ bits[] n, bits[] d, bits[] power, sign[] direction }
-  <
-    {
-      .direction /"+" if,
-      { .n _ieee_tenfold n, .d d, .power _ieee_dec power, .direction direction } then
-    } .then,
-    {
-      .direction /"-" if,
-      { .n n, .d _ieee_tenfold d, .power _ieee_dec power, .direction direction } then
-    } .then
-  >;
+ratio = ?{ bits[] n, bits[] d } {
+  .n n, .d d, .n x, .d y, c1023 exponent
+} align;
 
-_ieee_scale8 =
-  _ieee_scale_step _ieee_scale_step _ieee_scale_step _ieee_scale_step
-  _ieee_scale_step _ieee_scale_step _ieee_scale_step _ieee_scale_step;
-
-_ieee_ratio = ?{ bits[] n, bits[] d } {
-  .n n, .d d, .n x, .d y, _ieee_c1023 exponent
-} _ieee_align;
-
-_ieee_align = ?{ bits[] n, bits[] d, bits[] x, bits[] y, bits[] exponent } <
-  { .x /_ a, .y /_ b, { .n n, .d d, .exponent exponent } _ieee_normalized then } .then,
+align = ?{ bits[] n, bits[] d, bits[] x, bits[] y, bits[] exponent } <
+  { .x /_ a, .y /_ b, { .n n, .d d, .exponent exponent } normalized then } .then,
   {
     .y /_ if,
-    { .n n, .d _ieee_reverse_bits denominator, .x steps, .exponent exponent } _ieee_align_down then
+    { .n n, .d inv denominator, .x steps, .exponent exponent } align_down then
   } .then,
   {
     .x /_ if,
-    { .n _ieee_reverse_bits numerator, .d d, .y steps, .exponent exponent } _ieee_align_up then
+    { .n inv numerator, .d d, .y steps, .exponent exponent } align_up then
   } .then,
-  < _ieee_align8, _ieee_align_step > _ieee_align
+  { .n n, .d d, .x </0, /1> x, .y </0, /1> y, .exponent exponent } align
 > ?{ exp11[] exponent, frac52[] fraction };
 
-_ieee_align_step = ?{ bits[] n, bits[] d, bits[] x, bits[] y, bits[] exponent } {
-  .n n, .d d, .x </0, /1> x, .y </0, /1> y, .exponent exponent
-};
-
-_ieee_align8 =
-  _ieee_align_step _ieee_align_step _ieee_align_step _ieee_align_step
-  _ieee_align_step _ieee_align_step _ieee_align_step _ieee_align_step;
-
-_ieee_align_down = ?{ bits[] n, bits[] denominator, bits[] steps, bits[] exponent } <
+align_down = ?{ bits[] n, bits[] denominator, bits[] steps, bits[] exponent } <
   {
     .steps /_ if,
-    { .n n, .denominator _ieee_reverse_bits d, .exponent exponent } _ieee_normalized then
+    { .n n, .denominator inv d, .exponent exponent } normalized then
   } .then,
   {
     .exponent /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /_ if,
     { exp_all1 exponent, frac0 fraction } then
   } .then,
-  < _ieee_align_down8, _ieee_align_down_step > _ieee_align_down
+  { .n n, .denominator |0 denominator, .steps </0, /1> steps, .exponent inc exponent } align_down
 > ?{ exp11[] exponent, frac52[] fraction };
 
-_ieee_align_down_step = ?{ bits[] n, bits[] denominator, bits[] steps, bits[] exponent } {
-  { .exponent x, _ieee_c2047 y } _ieee_lt if,
-  {
-    .n n, .denominator |0 denominator, .steps </0, /1> steps,
-    .exponent _ieee_nat_inc exponent
-  } then
-} .then;
-
-_ieee_align_down8 =
-  _ieee_align_down_step _ieee_align_down_step _ieee_align_down_step _ieee_align_down_step
-  _ieee_align_down_step _ieee_align_down_step _ieee_align_down_step _ieee_align_down_step;
-
-_ieee_align_up = ?{ bits[] numerator, bits[] d, bits[] steps, bits[] exponent } <
+align_up = ?{ bits[] numerator, bits[] d, bits[] steps, bits[] exponent } <
   {
     < .steps /_, .exponent /1 /_ > if,
-    { .numerator _ieee_reverse_bits n, .d d, .exponent exponent } _ieee_normalized then
+    { .numerator inv n, .d d, .exponent exponent } normalized then
   } .then,
-  < _ieee_align_up8, _ieee_align_up_step > _ieee_align_up
+  { .numerator |0 numerator, .d d, .steps </0, /1> steps, .exponent dec exponent } align_up
 > ?{ exp11[] exponent, frac52[] fraction };
 
-_ieee_align_up_step = ?{ bits[] numerator, bits[] d, bits[] steps, bits[] exponent } {
-  .exponent _ieee_dec /1 if,
-  {
-    .numerator |0 numerator, .d d, .steps </0, /1> steps,
-    .exponent _ieee_dec exponent
-  } then
-} .then;
+ratio_less? = { .n x, .d y } lt?;
 
-_ieee_align_up8 =
-  _ieee_align_up_step _ieee_align_up_step _ieee_align_up_step _ieee_align_up_step
-  _ieee_align_up_step _ieee_align_up_step _ieee_align_up_step _ieee_align_up_step;
-
-_ieee_normalized = ?{ bits[] n, bits[] d, bits[] exponent } <
+normalized = ?{ bits[] n, bits[] d, bits[] exponent } <
   {
-    _ieee_ratio_less if,
+    ratio_less? if,
     .exponent /1 /_ and,
-    { .n n, .d d, _ieee_zero exponent, _ieee_zero acc, _ieee_c52 left } _ieee_fraction_loop then
+    { .n n, .d d, _ exponent, _ acc, c52 left } fraction_loop then
   } .then,
   {
-    _ieee_ratio_less if,
+    ratio_less? if,
     {
-      { .n _ieee_twice x, .d y } _ieee_sub n,
-      .d d, .exponent _ieee_dec exponent, _ieee_one acc, _ieee_c52 left
-    } _ieee_fraction_loop then
+      { .n twice x, .d y } minus n,
+      .d d, .exponent dec exponent, 1b acc, c52 left
+    } fraction_loop then
   } .then,
   {
-    { .n x, .d y } _ieee_sub n,
-    .d d, .exponent exponent, _ieee_one acc, _ieee_c52 left
-  } _ieee_fraction_loop
+    { .n x, .d y } minus n,
+    .d d, .exponent exponent, 1b acc, c52 left
+  } fraction_loop
 > ?{ exp11[] exponent, frac52[] fraction };
 
-_ieee_ratio_less = { .n x, .d y } _ieee_lt;
-
-_ieee_fraction_loop = ?{
+fraction_loop = ?{
   bits[] n, bits[] d, bits[] exponent, bits[] acc, bits[] left
 } <
-  { .left /_ if, () _ieee_round then } .then,
-  { .n _ieee_twice n, .d d, .exponent exponent, .acc acc, .left _ieee_dec left }
-  <
+  { .left /_ if, round then } .then,
+  { .n twice n, .d d, .exponent exponent, .acc acc, .left dec left } <
     {
-      _ieee_ratio_less if,
-      { .n n, .d d, .exponent exponent, .acc |0 acc, .left left } then
-    } .then,
+      { .n x, .d y } lt? .x n,
+      .d d, .exponent exponent, .acc |0 acc, .left left
+    },
     {
-      { .n x, .d y } _ieee_sub n,
+      { .n x, .d y } minus n,
       .d d, .exponent exponent, .acc |1 acc, .left left
     }
-  > _ieee_fraction_loop
+  > fraction_loop
 > ?{ exp11[] exponent, frac52[] fraction };
 
-_ieee_round = {
-  () state, { .n _ieee_twice x, .d y } _ieee_cmp order
+inc_lsb = ?bits[] { () x, _ r } inc_rev inv;
+
+round = {
+  () state, { .n twice x, .d y } cmp order
 } {
   .state.exponent exponent,
   <
-    { .order /gt if, .state.acc _ieee_inc_lsb then } .then,
-    { .order /eq a, .state.acc /1 b, .state.acc _ieee_inc_lsb then } .then,
+    { .order /gt if, .state.acc inc_lsb then } .then,
+    { .order /eq a, .state.acc /1 b, .state.acc inc_lsb then } .then,
     .state.acc
-  > _ieee_mantissa mantissa
+  > mantissa mantissa
 } {
   .mantissa.fraction fraction,
   <
-    { .exponent /_ a, .mantissa.lead /1 b, _ieee_one then } .then,
-    { .mantissa.lead /0 /1 /_ if, .exponent _ieee_nat_inc then } .then,
+    { .exponent /_ a, .mantissa.lead /1 b, 1b then } .then,
+    { .mantissa.lead /0 /1 /_ if, .exponent inc then } .then,
     .exponent
   > exponent
 } {
   () fields,
-  { .exponent x, _ieee_c2047 y } _ieee_cmp order
+  { .exponent x, c2047 y } cmp order
 } <
-  { .order /lt if, { .fields.exponent _ieee_exp_field exponent, .fields.fraction fraction } then } .then,
+  { .order /lt if, { .fields.exponent exp_field exponent, .fields.fraction fraction } then } .then,
   { exp_all1 exponent, frac0 fraction }
 >;
 
 -- Text boundary helpers.
-_ieee_space = /cons { .car _ieee_code /1 /0 /0 /0 /0 /0 /_ if, .cdr then } .then;
-_ieee_tab = /cons { .car _ieee_code /1 /0 /0 /1 /_ if, .cdr then } .then;
-_ieee_lf = /cons { .car _ieee_code /1 /0 /1 /0 /_ if, .cdr then } .then;
-_ieee_cr = /cons { .car _ieee_code /1 /1 /0 /1 /_ if, .cdr then } .then;
-_ieee_I = /cons { .car _ieee_code /1 /0 /0 /1 /0 /0 /1 /_ if, .cdr then } .then;
-_ieee_n = /cons { .car _ieee_code /1 /1 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
-_ieee_f = /cons { .car _ieee_code /1 /1 /0 /0 /1 /1 /0 /_ if, .cdr then } .then;
-_ieee_i = /cons { .car _ieee_code /1 /1 /0 /1 /0 /0 /1 /_ if, .cdr then } .then;
-_ieee_t = /cons { .car _ieee_code /1 /1 /1 /0 /1 /0 /0 /_ if, .cdr then } .then;
-_ieee_y = /cons { .car _ieee_code /1 /1 /1 /1 /0 /0 /1 /_ if, .cdr then } .then;
-_ieee_N = /cons { .car _ieee_code /1 /0 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
-_ieee_a = /cons { .car _ieee_code /1 /1 /0 /0 /0 /0 /1 /_ if, .cdr then } .then;
-_ieee_infinity_word = _ieee_I _ieee_n _ieee_f _ieee_i _ieee_n _ieee_i _ieee_t _ieee_y;
-_ieee_nan_word = _ieee_N _ieee_a _ieee_N;
-_ieee_special = <
-  _ieee_minus _ieee_infinity_word { () rest, neg_inf value },
-  _ieee_plus _ieee_infinity_word { () rest, pos_inf value },
-  _ieee_infinity_word { () rest, pos_inf value },
-  < _ieee_minus, _ieee_plus, () > _ieee_nan_word { () rest, qnan value }
+space = /cons { .car code /1 /0 /0 /0 /0 /0 /_ if, .cdr then } .then;
+tab   = /cons { .car code /1 /0 /0 /1 /_ if, .cdr then } .then;
+lf    = /cons { .car code /1 /0 /1 /0 /_ if, .cdr then } .then;
+cr    = /cons { .car code /1 /1 /0 /1 /_ if, .cdr then } .then;
+I_char = /cons { .car code /1 /0 /0 /1 /0 /0 /1 /_ if, .cdr then } .then;
+n_char = /cons { .car code /1 /1 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
+f_char = /cons { .car code /1 /1 /0 /0 /1 /1 /0 /_ if, .cdr then } .then;
+i_char = /cons { .car code /1 /1 /0 /1 /0 /0 /1 /_ if, .cdr then } .then;
+t_char = /cons { .car code /1 /1 /1 /0 /1 /0 /0 /_ if, .cdr then } .then;
+y_char = /cons { .car code /1 /1 /1 /1 /0 /0 /1 /_ if, .cdr then } .then;
+N_char = /cons { .car code /1 /0 /0 /1 /1 /1 /0 /_ if, .cdr then } .then;
+a_char = /cons { .car code /1 /1 /0 /0 /0 /0 /1 /_ if, .cdr then } .then;
+
+infinity_word = I_char n_char f_char i_char n_char i_char t_char y_char;
+nan_word = N_char a_char N_char;
+
+special = <
+  minus_char infinity_word { () rest, neg_inf value },
+  plus_char infinity_word { () rest, pos_inf value },
+  infinity_word { () rest, pos_inf value },
+  < minus_char, plus_char, () > nan_word { () rest, qnan value }
 >;
-_ieee_zero_text = { { 0 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii car, _ieee_nil cdr } |cons;
-_ieee_negative_zero_text = { { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii car, { { 0 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii car, _ieee_nil cdr } |cons cdr } |cons;
-_ieee_infinity_text = { { 1 0, 0 1, 0 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 0 3, 0 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 0 1, 1 2, 0 3, 1 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 1 6 } |ascii car, _ieee_nil cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons;
-_ieee_negative_infinity_text = { { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 0 3, 0 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 0 1, 1 2, 0 3, 1 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 1 6 } |ascii car, _ieee_nil cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons;
-_ieee_nan_text = { { 0 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 0 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, _ieee_nil cdr } |cons cdr } |cons cdr } |cons;
-_ieee_c2 = _ieee_zero |0 |1;
-_ieee_c5 = _ieee_zero |1 |0 |1;
-_ieee_c1074 = _ieee_zero |0 |1 |0 |0 |1 |1 |0 |0 |0 |0 |1;
-_ieee_c1075 = _ieee_zero |1 |1 |0 |0 |1 |1 |0 |0 |0 |0 |1;
-_ieee_exponent_bits = { () source, _ieee_zero acc }
+
+zero_text = { { 0 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii car, nil cdr } |cons;
+negative_zero_text = { { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii car, zero_text cdr } |cons;
+infinity_text = { { 1 0, 0 1, 0 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 0 3, 0 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 0 1, 1 2, 0 3, 1 4, 1 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 1 6 } |ascii car, nil cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons cdr } |cons;
+negative_infinity_text = { { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii car, infinity_text cdr } |cons;
+nan_text = { { 0 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, { { 1 0, 0 1, 0 2, 0 3, 0 4, 1 5, 1 6 } |ascii car, { { 0 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6 } |ascii car, nil cdr } |cons cdr } |cons cdr } |cons;
+
+c1074 = _ |0 |1 |0 |0 |1 |1 |0 |0 |0 |0 |1;
+c1075 = _ |1 |1 |0 |0 |1 |1 |0 |0 |0 |0 |1;
+
+exponent_bits = { () source, _ acc }
   { .source source,
-    { { .source.0 0, .source.1 1, .source.2 2, .source.3 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.0 0, .source.1 1, .source.2 2, .source.3 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.4 0, .source.5 1, .source.6 2, .source.7 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.4 0, .source.5 1, .source.6 2, .source.7 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.8 0, .source.9 1, .source.10 2 } x, .acc acc } _ieee_push_bits3 acc
+    { { .source.8 0, .source.9 1, .source.10 2 } x, .acc acc } push_bits3 acc
   }
   .acc;
-_ieee_fraction_bits = { () source, _ieee_zero acc }
+
+fraction_bits = { () source, _ acc }
   { .source source,
-    { { .source.0 0, .source.1 1, .source.2 2, .source.3 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.0 0, .source.1 1, .source.2 2, .source.3 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.4 0, .source.5 1, .source.6 2, .source.7 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.4 0, .source.5 1, .source.6 2, .source.7 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.8 0, .source.9 1, .source.10 2, .source.11 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.8 0, .source.9 1, .source.10 2, .source.11 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.12 0, .source.13 1, .source.14 2, .source.15 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.12 0, .source.13 1, .source.14 2, .source.15 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.16 0, .source.17 1, .source.18 2, .source.19 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.16 0, .source.17 1, .source.18 2, .source.19 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.20 0, .source.21 1, .source.22 2, .source.23 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.20 0, .source.21 1, .source.22 2, .source.23 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.24 0, .source.25 1, .source.26 2, .source.27 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.24 0, .source.25 1, .source.26 2, .source.27 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.28 0, .source.29 1, .source.30 2, .source.31 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.28 0, .source.29 1, .source.30 2, .source.31 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.32 0, .source.33 1, .source.34 2, .source.35 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.32 0, .source.33 1, .source.34 2, .source.35 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.36 0, .source.37 1, .source.38 2, .source.39 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.36 0, .source.37 1, .source.38 2, .source.39 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.40 0, .source.41 1, .source.42 2, .source.43 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.40 0, .source.41 1, .source.42 2, .source.43 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.44 0, .source.45 1, .source.46 2, .source.47 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.44 0, .source.45 1, .source.46 2, .source.47 3 } x, .acc acc } push_bits4 acc
   }
   { .source source,
-    { { .source.48 0, .source.49 1, .source.50 2, .source.51 3 } x, .acc acc } _ieee_push_bits4 acc
+    { { .source.48 0, .source.49 1, .source.50 2, .source.51 3 } x, .acc acc } push_bits4 acc
   }
   .acc;
 
 -- Decimal digit arithmetic for exact, round-trip-safe printing.
-_ieee_digit_value[] = < {} 0, {} 1, {} 2, {} 3, {} 4, {} 5, {} 6, {} 7, {} 8, {} 9 >;
-_ieee_digits[] = < {} nil, { _ieee_digit_value[] car, D cdr } cons > = D;
-_ieee_factor[] = < {} 2, {} 5 >;
-_ieee_d0 = {} |0;
-_ieee_d1 = {} |1;
-_ieee_d2 = {} |2;
-_ieee_d3 = {} |3;
-_ieee_d4 = {} |4;
-_ieee_d5 = {} |5;
-_ieee_d6 = {} |6;
-_ieee_d7 = {} |7;
-_ieee_d8 = {} |8;
-_ieee_d9 = {} |9;
-_ieee_digit_char = <
+list[X] = < {} nil, { X car, L cdr } cons > = L;
+digit_value[] = < {} 0, {} 1, {} 2, {} 3, {} 4, {} 5, {} 6, {} 7, {} 8, {} 9 >;
+digits[] = list[digit_value[]];
+factor[] = < {} 2, {} 5 >;
+
+d0 = {} |0;
+d1 = {} |1;
+d2 = {} |2;
+d3 = {} |3;
+d4 = {} |4;
+d5 = {} |5;
+d6 = {} |6;
+d7 = {} |7;
+d8 = {} |8;
+d9 = {} |9;
+
+digit_ascii = <
   /0 { 0 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
   /1 { 1 0, 0 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
   /2 { 0 0, 1 1, 0 2, 0 3, 1 4, 1 5, 0 6 } |ascii,
@@ -798,199 +672,187 @@ _ieee_digit_char = <
   /8 { 0 0, 0 1, 0 2, 1 3, 1 4, 1 5, 0 6 } |ascii,
   /9 { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 0 6 } |ascii
 >;
-_ieee_dot_char = { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
-_ieee_minus_char = { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
-_ieee_digit_mul2 = <
-  { .digit /0 a, .carry /0 b } { _ieee_d0 digit, _ieee_d0 carry },
-  { .digit /0 a, .carry /1 b } { _ieee_d1 digit, _ieee_d0 carry },
-  { .digit /1 a, .carry /0 b } { _ieee_d2 digit, _ieee_d0 carry },
-  { .digit /1 a, .carry /1 b } { _ieee_d3 digit, _ieee_d0 carry },
-  { .digit /2 a, .carry /0 b } { _ieee_d4 digit, _ieee_d0 carry },
-  { .digit /2 a, .carry /1 b } { _ieee_d5 digit, _ieee_d0 carry },
-  { .digit /3 a, .carry /0 b } { _ieee_d6 digit, _ieee_d0 carry },
-  { .digit /3 a, .carry /1 b } { _ieee_d7 digit, _ieee_d0 carry },
-  { .digit /4 a, .carry /0 b } { _ieee_d8 digit, _ieee_d0 carry },
-  { .digit /4 a, .carry /1 b } { _ieee_d9 digit, _ieee_d0 carry },
-  { .digit /5 a, .carry /0 b } { _ieee_d0 digit, _ieee_d1 carry },
-  { .digit /5 a, .carry /1 b } { _ieee_d1 digit, _ieee_d1 carry },
-  { .digit /6 a, .carry /0 b } { _ieee_d2 digit, _ieee_d1 carry },
-  { .digit /6 a, .carry /1 b } { _ieee_d3 digit, _ieee_d1 carry },
-  { .digit /7 a, .carry /0 b } { _ieee_d4 digit, _ieee_d1 carry },
-  { .digit /7 a, .carry /1 b } { _ieee_d5 digit, _ieee_d1 carry },
-  { .digit /8 a, .carry /0 b } { _ieee_d6 digit, _ieee_d1 carry },
-  { .digit /8 a, .carry /1 b } { _ieee_d7 digit, _ieee_d1 carry },
-  { .digit /9 a, .carry /0 b } { _ieee_d8 digit, _ieee_d1 carry },
-  { .digit /9 a, .carry /1 b } { _ieee_d9 digit, _ieee_d1 carry }
+dot_ascii   = { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
+minus_ascii = { 1 0, 0 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
+
+digit_mul2 = <
+  { .digit /0 a, .carry /0 b } { d0 digit, d0 carry },
+  { .digit /0 a, .carry /1 b } { d1 digit, d0 carry },
+  { .digit /1 a, .carry /0 b } { d2 digit, d0 carry },
+  { .digit /1 a, .carry /1 b } { d3 digit, d0 carry },
+  { .digit /2 a, .carry /0 b } { d4 digit, d0 carry },
+  { .digit /2 a, .carry /1 b } { d5 digit, d0 carry },
+  { .digit /3 a, .carry /0 b } { d6 digit, d0 carry },
+  { .digit /3 a, .carry /1 b } { d7 digit, d0 carry },
+  { .digit /4 a, .carry /0 b } { d8 digit, d0 carry },
+  { .digit /4 a, .carry /1 b } { d9 digit, d0 carry },
+  { .digit /5 a, .carry /0 b } { d0 digit, d1 carry },
+  { .digit /5 a, .carry /1 b } { d1 digit, d1 carry },
+  { .digit /6 a, .carry /0 b } { d2 digit, d1 carry },
+  { .digit /6 a, .carry /1 b } { d3 digit, d1 carry },
+  { .digit /7 a, .carry /0 b } { d4 digit, d1 carry },
+  { .digit /7 a, .carry /1 b } { d5 digit, d1 carry },
+  { .digit /8 a, .carry /0 b } { d6 digit, d1 carry },
+  { .digit /8 a, .carry /1 b } { d7 digit, d1 carry },
+  { .digit /9 a, .carry /0 b } { d8 digit, d1 carry },
+  { .digit /9 a, .carry /1 b } { d9 digit, d1 carry }
 >;
-_ieee_digit_mul5 = <
-  { .digit /0 a, .carry /0 b } { _ieee_d0 digit, _ieee_d0 carry },
-  { .digit /0 a, .carry /1 b } { _ieee_d1 digit, _ieee_d0 carry },
-  { .digit /0 a, .carry /2 b } { _ieee_d2 digit, _ieee_d0 carry },
-  { .digit /0 a, .carry /3 b } { _ieee_d3 digit, _ieee_d0 carry },
-  { .digit /0 a, .carry /4 b } { _ieee_d4 digit, _ieee_d0 carry },
-  { .digit /1 a, .carry /0 b } { _ieee_d5 digit, _ieee_d0 carry },
-  { .digit /1 a, .carry /1 b } { _ieee_d6 digit, _ieee_d0 carry },
-  { .digit /1 a, .carry /2 b } { _ieee_d7 digit, _ieee_d0 carry },
-  { .digit /1 a, .carry /3 b } { _ieee_d8 digit, _ieee_d0 carry },
-  { .digit /1 a, .carry /4 b } { _ieee_d9 digit, _ieee_d0 carry },
-  { .digit /2 a, .carry /0 b } { _ieee_d0 digit, _ieee_d1 carry },
-  { .digit /2 a, .carry /1 b } { _ieee_d1 digit, _ieee_d1 carry },
-  { .digit /2 a, .carry /2 b } { _ieee_d2 digit, _ieee_d1 carry },
-  { .digit /2 a, .carry /3 b } { _ieee_d3 digit, _ieee_d1 carry },
-  { .digit /2 a, .carry /4 b } { _ieee_d4 digit, _ieee_d1 carry },
-  { .digit /3 a, .carry /0 b } { _ieee_d5 digit, _ieee_d1 carry },
-  { .digit /3 a, .carry /1 b } { _ieee_d6 digit, _ieee_d1 carry },
-  { .digit /3 a, .carry /2 b } { _ieee_d7 digit, _ieee_d1 carry },
-  { .digit /3 a, .carry /3 b } { _ieee_d8 digit, _ieee_d1 carry },
-  { .digit /3 a, .carry /4 b } { _ieee_d9 digit, _ieee_d1 carry },
-  { .digit /4 a, .carry /0 b } { _ieee_d0 digit, _ieee_d2 carry },
-  { .digit /4 a, .carry /1 b } { _ieee_d1 digit, _ieee_d2 carry },
-  { .digit /4 a, .carry /2 b } { _ieee_d2 digit, _ieee_d2 carry },
-  { .digit /4 a, .carry /3 b } { _ieee_d3 digit, _ieee_d2 carry },
-  { .digit /4 a, .carry /4 b } { _ieee_d4 digit, _ieee_d2 carry },
-  { .digit /5 a, .carry /0 b } { _ieee_d5 digit, _ieee_d2 carry },
-  { .digit /5 a, .carry /1 b } { _ieee_d6 digit, _ieee_d2 carry },
-  { .digit /5 a, .carry /2 b } { _ieee_d7 digit, _ieee_d2 carry },
-  { .digit /5 a, .carry /3 b } { _ieee_d8 digit, _ieee_d2 carry },
-  { .digit /5 a, .carry /4 b } { _ieee_d9 digit, _ieee_d2 carry },
-  { .digit /6 a, .carry /0 b } { _ieee_d0 digit, _ieee_d3 carry },
-  { .digit /6 a, .carry /1 b } { _ieee_d1 digit, _ieee_d3 carry },
-  { .digit /6 a, .carry /2 b } { _ieee_d2 digit, _ieee_d3 carry },
-  { .digit /6 a, .carry /3 b } { _ieee_d3 digit, _ieee_d3 carry },
-  { .digit /6 a, .carry /4 b } { _ieee_d4 digit, _ieee_d3 carry },
-  { .digit /7 a, .carry /0 b } { _ieee_d5 digit, _ieee_d3 carry },
-  { .digit /7 a, .carry /1 b } { _ieee_d6 digit, _ieee_d3 carry },
-  { .digit /7 a, .carry /2 b } { _ieee_d7 digit, _ieee_d3 carry },
-  { .digit /7 a, .carry /3 b } { _ieee_d8 digit, _ieee_d3 carry },
-  { .digit /7 a, .carry /4 b } { _ieee_d9 digit, _ieee_d3 carry },
-  { .digit /8 a, .carry /0 b } { _ieee_d0 digit, _ieee_d4 carry },
-  { .digit /8 a, .carry /1 b } { _ieee_d1 digit, _ieee_d4 carry },
-  { .digit /8 a, .carry /2 b } { _ieee_d2 digit, _ieee_d4 carry },
-  { .digit /8 a, .carry /3 b } { _ieee_d3 digit, _ieee_d4 carry },
-  { .digit /8 a, .carry /4 b } { _ieee_d4 digit, _ieee_d4 carry },
-  { .digit /9 a, .carry /0 b } { _ieee_d5 digit, _ieee_d4 carry },
-  { .digit /9 a, .carry /1 b } { _ieee_d6 digit, _ieee_d4 carry },
-  { .digit /9 a, .carry /2 b } { _ieee_d7 digit, _ieee_d4 carry },
-  { .digit /9 a, .carry /3 b } { _ieee_d8 digit, _ieee_d4 carry },
-  { .digit /9 a, .carry /4 b } { _ieee_d9 digit, _ieee_d4 carry }
+
+digit_mul5 = <
+  { .digit /0 a, .carry /0 b } { d0 digit, d0 carry },
+  { .digit /0 a, .carry /1 b } { d1 digit, d0 carry },
+  { .digit /0 a, .carry /2 b } { d2 digit, d0 carry },
+  { .digit /0 a, .carry /3 b } { d3 digit, d0 carry },
+  { .digit /0 a, .carry /4 b } { d4 digit, d0 carry },
+  { .digit /1 a, .carry /0 b } { d5 digit, d0 carry },
+  { .digit /1 a, .carry /1 b } { d6 digit, d0 carry },
+  { .digit /1 a, .carry /2 b } { d7 digit, d0 carry },
+  { .digit /1 a, .carry /3 b } { d8 digit, d0 carry },
+  { .digit /1 a, .carry /4 b } { d9 digit, d0 carry },
+  { .digit /2 a, .carry /0 b } { d0 digit, d1 carry },
+  { .digit /2 a, .carry /1 b } { d1 digit, d1 carry },
+  { .digit /2 a, .carry /2 b } { d2 digit, d1 carry },
+  { .digit /2 a, .carry /3 b } { d3 digit, d1 carry },
+  { .digit /2 a, .carry /4 b } { d4 digit, d1 carry },
+  { .digit /3 a, .carry /0 b } { d5 digit, d1 carry },
+  { .digit /3 a, .carry /1 b } { d6 digit, d1 carry },
+  { .digit /3 a, .carry /2 b } { d7 digit, d1 carry },
+  { .digit /3 a, .carry /3 b } { d8 digit, d1 carry },
+  { .digit /3 a, .carry /4 b } { d9 digit, d1 carry },
+  { .digit /4 a, .carry /0 b } { d0 digit, d2 carry },
+  { .digit /4 a, .carry /1 b } { d1 digit, d2 carry },
+  { .digit /4 a, .carry /2 b } { d2 digit, d2 carry },
+  { .digit /4 a, .carry /3 b } { d3 digit, d2 carry },
+  { .digit /4 a, .carry /4 b } { d4 digit, d2 carry },
+  { .digit /5 a, .carry /0 b } { d5 digit, d2 carry },
+  { .digit /5 a, .carry /1 b } { d6 digit, d2 carry },
+  { .digit /5 a, .carry /2 b } { d7 digit, d2 carry },
+  { .digit /5 a, .carry /3 b } { d8 digit, d2 carry },
+  { .digit /5 a, .carry /4 b } { d9 digit, d2 carry },
+  { .digit /6 a, .carry /0 b } { d0 digit, d3 carry },
+  { .digit /6 a, .carry /1 b } { d1 digit, d3 carry },
+  { .digit /6 a, .carry /2 b } { d2 digit, d3 carry },
+  { .digit /6 a, .carry /3 b } { d3 digit, d3 carry },
+  { .digit /6 a, .carry /4 b } { d4 digit, d3 carry },
+  { .digit /7 a, .carry /0 b } { d5 digit, d3 carry },
+  { .digit /7 a, .carry /1 b } { d6 digit, d3 carry },
+  { .digit /7 a, .carry /2 b } { d7 digit, d3 carry },
+  { .digit /7 a, .carry /3 b } { d8 digit, d3 carry },
+  { .digit /7 a, .carry /4 b } { d9 digit, d3 carry },
+  { .digit /8 a, .carry /0 b } { d0 digit, d4 carry },
+  { .digit /8 a, .carry /1 b } { d1 digit, d4 carry },
+  { .digit /8 a, .carry /2 b } { d2 digit, d4 carry },
+  { .digit /8 a, .carry /3 b } { d3 digit, d4 carry },
+  { .digit /8 a, .carry /4 b } { d4 digit, d4 carry },
+  { .digit /9 a, .carry /0 b } { d5 digit, d4 carry },
+  { .digit /9 a, .carry /1 b } { d6 digit, d4 carry },
+  { .digit /9 a, .carry /2 b } { d7 digit, d4 carry },
+  { .digit /9 a, .carry /3 b } { d8 digit, d4 carry },
+  { .digit /9 a, .carry /4 b } { d9 digit, d4 carry }
 >;
-_ieee_digits_reverse = { () x, _ieee_nil acc } _ieee_digits_reverse_loop;
-_ieee_digits_reverse_step = ?{ _ieee_digits[] x, _ieee_digits[] acc } {
-  .x /cons .cdr x, { .x /cons .car car, .acc cdr } |cons acc
-};
-_ieee_digits_reverse8 =
-  _ieee_digits_reverse_step _ieee_digits_reverse_step _ieee_digits_reverse_step _ieee_digits_reverse_step
-  _ieee_digits_reverse_step _ieee_digits_reverse_step _ieee_digits_reverse_step _ieee_digits_reverse_step;
-_ieee_digits_reverse_loop = ?{ _ieee_digits[] x, _ieee_digits[] acc } <
+
+reverse_loop = ?{ list[X] x, list[X] acc } <
   { .x /nil if, .acc then } .then,
-  < _ieee_digits_reverse8, _ieee_digits_reverse_step > _ieee_digits_reverse_loop
-> ?_ieee_digits[];
+  { .x /cons .cdr x, { .x /cons .car car, .acc cdr } |cons acc } reverse_loop
+> ?list[X];
 
-_ieee_digits_multiply = ?{ _ieee_digits[] digits, _ieee_factor[] factor, _ieee_digit_value[] carry } {
-  .digits x, .factor factor, .carry carry, _ieee_nil acc
-} _ieee_digits_multiply_loop;
-_ieee_digits_multiply_step = ?{
-  _ieee_digits[] x, _ieee_factor[] factor, _ieee_digit_value[] carry, _ieee_digits[] acc
-} {
-  .x /cons .cdr x, .factor factor, .acc acc,
-  { .x /cons .car digit, .carry carry, .factor factor } <
-    { .factor /2 if, { .digit digit, .carry carry } _ieee_digit_mul2 then } .then,
-    { .factor /5 if, { .digit digit, .carry carry } _ieee_digit_mul5 then } .then
-  > next
-} { .x x, .factor factor, .next.carry carry, { .next.digit car, .acc cdr } |cons acc };
-_ieee_digits_multiply8 =
-  _ieee_digits_multiply_step _ieee_digits_multiply_step _ieee_digits_multiply_step _ieee_digits_multiply_step
-  _ieee_digits_multiply_step _ieee_digits_multiply_step _ieee_digits_multiply_step _ieee_digits_multiply_step;
-_ieee_digits_multiply_loop = ?{
-  _ieee_digits[] x, _ieee_factor[] factor, _ieee_digit_value[] carry, _ieee_digits[] acc
+reverse = ?list[X] { () x, nil acc } reverse_loop ?list[X];
+
+digits_multiply_loop = ?{
+  digits[] x, factor[] factor, digit_value[] carry, digits[] acc
 } <
-  { .x /nil a, .carry /0 b, .acc _ieee_digits_reverse then } .then,
-  { .x /nil if, { .carry car, .acc cdr } |cons _ieee_digits_reverse then } .then,
-  < _ieee_digits_multiply8, _ieee_digits_multiply_step > _ieee_digits_multiply_loop
-> ?_ieee_digits[];
+  { .x /nil a, .carry /0 b, .acc reverse then } .then,
+  { .x /nil if, { .carry car, .acc cdr } |cons reverse then } .then,
+  {
+    .x /cons .cdr x, .factor factor, .acc acc,
+    { .x /cons .car digit, .carry carry, .factor factor } <
+      { .factor /2 if, { .digit digit, .carry carry } digit_mul2 then } .then,
+      { .factor /5 if, { .digit digit, .carry carry } digit_mul5 then } .then
+    > next
+  } { .x x, .factor factor, .next.carry carry, { .next.digit car, .acc cdr } |cons acc }
+    digits_multiply_loop
+> ?digits[];
 
-_ieee_binary_digits = ?bits[] {
-  () bits, { _ieee_d0 car, _ieee_nil cdr } |cons digits
-} _ieee_binary_digits_loop;
-_ieee_binary_digits_loop = ?{ bits[] bits, _ieee_digits[] digits } <
+digits_multiply = ?{ digits[] digits, factor[] factor, digit_value[] carry } {
+  .digits x, .factor factor, .carry carry, nil acc
+} digits_multiply_loop;
+
+binary_digits_loop = ?{ bits[] bits, digits[] digits } <
   { .bits /_ if, .digits then } .then,
   <
-    { .bits /0 bits, { .digits digits, {} |2 factor, _ieee_d0 carry } _ieee_digits_multiply digits },
-    { .bits /1 bits, { .digits digits, {} |2 factor, _ieee_d1 carry } _ieee_digits_multiply digits }
-  > _ieee_binary_digits_loop
-> ?_ieee_digits[];
+    { .bits /0 bits, { .digits digits, {} |2 factor, d0 carry } digits_multiply digits },
+    { .bits /1 bits, { .digits digits, {} |2 factor, d1 carry } digits_multiply digits }
+  > binary_digits_loop
+> ?digits[];
 
-_ieee_digits_power = ?{ _ieee_digits[] digits, _ieee_factor[] factor, bits[] steps } <
+binary_digits = ?bits[] {
+  () bits, { d0 car, nil cdr } |cons digits
+} binary_digits_loop;
+
+digits_power = ?{ digits[] digits, factor[] factor, bits[] steps } <
   { .steps /_ if, .digits then } .then,
-  < _ieee_digits_power8, _ieee_digits_power_step > _ieee_digits_power
-> ?_ieee_digits[];
-_ieee_digits_power_step = ?{ _ieee_digits[] digits, _ieee_factor[] factor, bits[] steps } {
-  { .digits digits, .factor factor, _ieee_d0 carry } _ieee_digits_multiply digits,
-  .factor factor, .steps _ieee_dec steps
-};
-_ieee_digits_power8 =
-  _ieee_digits_power_step _ieee_digits_power_step _ieee_digits_power_step _ieee_digits_power_step
-  _ieee_digits_power_step _ieee_digits_power_step _ieee_digits_power_step _ieee_digits_power_step;
+  {
+    { .digits digits, .factor factor, d0 carry } digits_multiply digits,
+    .factor factor,
+    .steps dec steps
+  } digits_power
+> ?digits[];
 
 -- Remove binary factors of two before generating fractional decimal places.
-_ieee_cancel_twos = ?{ bits[] reversed, bits[] places } <
-  { .places /_ if, () then } .then,
-  { .reversed /0 reversed, .places _ieee_dec places } _ieee_cancel_twos,
-  ()
+cancel_twos = ?{ bits[] reversed, bits[] places } <
+  { < .places /_, .reversed </1 {}, /_> > if, () then } .then,
+  { .reversed /0 reversed, .places dec places } cancel_twos
 > ?{ bits[] reversed, bits[] places };
-_ieee_print_ratio = ?float64[] {
-  .fraction _ieee_fraction_bits fraction,
-  .exponent _ieee_exponent_bits _ieee_trim exponent
+
+fraction_digits_print = cancel_twos {
+  .reversed inv trim binary_digits digits,
+  {} |5 factor, .places steps, .places places
+} { { .digits digits, .factor factor, .steps steps } digits_power digits, .places places };
+
+print_ratio = ?float64[] {
+  .fraction fraction_bits fraction,
+  .exponent exponent_bits trim exponent
 } <
   {
     .exponent /_ if,
-    { .fraction _ieee_reverse_bits reversed, _ieee_c1074 places } _ieee_fraction_digits_print then
+    { .fraction inv reversed, c1074 places } fraction_digits_print then
   } .then,
   {
-    { .exponent x, _ieee_c1075 y } _ieee_lt if,
-    { .fraction |1 _ieee_reverse_bits reversed,
-      { _ieee_c1075 x, .exponent y } _ieee_sub places } _ieee_fraction_digits_print then
+    { .exponent x, c1075 y } lt? if,
+    { .fraction |1 inv reversed,
+      { c1075 x, .exponent y } minus places } fraction_digits_print then
   } .then,
   {
-    .fraction |1 _ieee_binary_digits digits, {} |2 factor,
-    { .exponent x, _ieee_c1075 y } _ieee_sub steps
-  } _ieee_digits_power { () digits, _ieee_zero places }
+    .fraction |1 binary_digits digits, {} |2 factor,
+    { .exponent x, c1075 y } minus steps
+  } digits_power { () digits, _ places }
 >;
-_ieee_fraction_digits_print = _ieee_cancel_twos {
-  .reversed _ieee_reverse_bits _ieee_trim _ieee_binary_digits digits,
-  {} |5 factor, .places steps, .places places
-} { { .digits digits, .factor factor, .steps steps } _ieee_digits_power digits, .places places };
 
 -- Consume least-significant digits, prepending characters in display order.
-_ieee_fraction_text = ?{ _ieee_digits[] digits, bits[] places, string[] acc } <
+fraction_text = ?{ digits[] digits, bits[] places, string[] acc } <
   { .places /_ if, { .digits digits, .acc acc } then } .then,
-  < _ieee_fraction_text8, _ieee_fraction_text_step > _ieee_fraction_text
-> ?{ _ieee_digits[] digits, string[] acc };
-_ieee_fraction_text_step = ?{ _ieee_digits[] digits, bits[] places, string[] acc } {
-  < .digits /cons .cdr, _ieee_nil > digits,
-  .places _ieee_dec places,
-  { < .digits /cons .car, _ieee_d0 > _ieee_digit_char car, .acc cdr } |cons acc
-};
-_ieee_fraction_text8 =
-  _ieee_fraction_text_step _ieee_fraction_text_step _ieee_fraction_text_step _ieee_fraction_text_step
-  _ieee_fraction_text_step _ieee_fraction_text_step _ieee_fraction_text_step _ieee_fraction_text_step;
-_ieee_integer_text = ?{ _ieee_digits[] digits, string[] acc } <
-  { .digits /nil if, { _ieee_d0 _ieee_digit_char car, .acc cdr } |cons then } .then,
-  () _ieee_integer_text_loop
-> ?string[];
-_ieee_integer_text_loop = ?{ _ieee_digits[] digits, string[] acc } <
+  {
+    < .digits /cons .cdr, nil > digits,
+    .places dec places,
+    { < .digits /cons .car, d0 > digit_ascii car, .acc cdr } |cons acc
+  } fraction_text
+> ?{ digits[] digits, string[] acc };
+
+integer_text_loop = ?{ digits[] digits, string[] acc } <
   { .digits /nil if, .acc then } .then,
-  < _ieee_integer_text8, _ieee_integer_text_step > _ieee_integer_text_loop
+  {
+    .digits /cons .cdr digits,
+    { .digits /cons .car digit_ascii car, .acc cdr } |cons acc
+  } integer_text_loop
 > ?string[];
-_ieee_integer_text_step = ?{ _ieee_digits[] digits, string[] acc } {
-  .digits /cons .cdr digits,
-  { .digits /cons .car _ieee_digit_char car, .acc cdr } |cons acc
-};
-_ieee_integer_text8 =
-  _ieee_integer_text_step _ieee_integer_text_step _ieee_integer_text_step _ieee_integer_text_step
-  _ieee_integer_text_step _ieee_integer_text_step _ieee_integer_text_step _ieee_integer_text_step;
-_ieee_format_decimal = ?{ _ieee_digits[] digits, bits[] places } <
-  { .places /_ if, { .digits digits, _ieee_nil acc } _ieee_integer_text then } .then,
-  { .digits digits, .places places, _ieee_nil acc } _ieee_fraction_text
-  { .digits digits, { _ieee_dot_char car, .acc cdr } |cons acc } _ieee_integer_text
+
+integer_text = ?{ digits[] digits, string[] acc } <
+  { .digits /nil if, { d0 digit_ascii car, .acc cdr } |cons then } .then,
+  integer_text_loop
+> ?string[];
+
+format_decimal = ?{ digits[] digits, bits[] places } <
+  { .places /_ if, { .digits digits, nil acc } integer_text then } .then,
+  { .digits digits, .places places, nil acc } fraction_text
+  { .digits digits, { dot_ascii car, .acc cdr } |cons acc } integer_text
 > ?string[];
