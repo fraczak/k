@@ -5,6 +5,26 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.6.0] — 2026-11-03 — Native JSON Parser, IEEE Library Split, and REPL Pattern Inspection
+
+- **Native JSON Parsing & IEEE Library Split**:
+  - Implement native JSON text parser (`parseJson` from `string[]` to `djson[]`)
+    in `Examples/djson.k` with strict tail recursion and atomic character
+    matching.
+  - Split IEEE binary64 types and text conversion (`Examples/ieee.k`) from IEEE
+    arithmetic operations (`Examples/ieee-arithmetics.k`), remove unused
+    definitions, and document relation contracts.
+  - Add go-to-definition and symbol navigation in `k-vscode`.
+- **REPL Canonical Boundary Patterns & `:pat` Improvements**:
+  - Render input and output boundary patterns in `:rel <name>` using canonical
+    pattern names (`?@hash[...]`) when the inline pattern exceeds `maxPatLength`
+    (default `30`), registering canonical patterns in session state for
+    inspection via `:pat @hash`.
+  - Add `:max-pat-length [num|none]` (alias `:maxPatLength`) runtime REPL
+    command and `--max-pat-length=<num|none>` CLI flag.
+  - Normalize `:pat` / `:pattern` arguments and tab-completion to strip a
+    leading `?` (e.g., `:pat ?@hash`).
+
 ## [8.5.1] — 2026-10-31 — Fix Union Tail-Call Optimization in Wasm and LLVM Backends
 
 - **Restrict Union Tail-Call Optimization to Final Branch (#3)**:
