@@ -162,6 +162,7 @@ decimal[] = {
   string[] rest, bits[] n, bits[] d, bits[] count
 };
 result[] = { string[] rest, float64[] value };
+digit_result[] = { string[] rest, bits[] value };
 
 _ = {} |_;
 1b = _ |1;
@@ -314,13 +315,22 @@ _dot_   = { 0 0, 1 1, 1 2, 1 3, 0 4, 1 5, 0 6 } |ascii;
 _e_     = { 1 0, 0 1, 1 2, 0 3, 0 4, 1 5, 1 6 } |ascii;
 _E_     = { 1 0, 0 1, 1 2, 0 3, 0 4, 0 5, 1 6 } |ascii;
 
+-- Match leading 'e' from string[]. Input: ?string[], Output: ?string[] (tail of string)
 e_char     = /cons { { .car x, _e_ y } eq_char? if, .cdr then } .then;
+-- Match leading 'E' from string[]. Input: ?string[], Output: ?string[] (tail of string)
 E_char     = /cons { { .car x, _E_ y } eq_char? if, .cdr then } .then;
+-- Match leading '-' from string[]. Input: ?string[], Output: ?string[] (tail of string)
 minus_char = /cons { { .car x, _minus_ y } eq_char? if, .cdr then } .then;
+-- Match leading '+' from string[]. Input: ?string[], Output: ?string[] (tail of string)
 plus_char  = /cons { { .car x, _plus_ y } eq_char? if, .cdr then } .then;
+-- Match leading '.' from string[]. Input: ?string[], Output: ?string[] (tail of string)
 dot_char   = /cons { { .car x, _dot_ y } eq_char? if, .cdr then } .then;
 
-digit = /cons { .cdr rest, .car <
+-- Parse one leading ASCII decimal digit ('0'..'9') from a character string.
+-- Input:  ?string[]       - character string (list of unicode code points)
+-- Output: ?digit_result[] - { rest: remaining string[], value: bits[] in 0..9 }
+-- Fails if the string is empty or does not start with a decimal digit ('0'..'9').
+scan_digit = ?string[] /cons { .cdr rest, .car <
   { () x, _0_ y } eq_char? _,
   { () x, _1_ y } eq_char? _ |1,
   { () x, _2_ y } eq_char? _ |0 |1,
@@ -331,8 +341,13 @@ digit = /cons { .cdr rest, .car <
   { () x, _7_ y } eq_char? _ |1 |1 |1,
   { () x, _8_ y } eq_char? _ |0 |0 |0 |1,
   { () x, _9_ y } eq_char? _ |1 |0 |0 |1
-> value };
+> value } ?digit_result[];
+parse_digit = scan_digit;
+digit = scan_digit;
 
+-- Unpack lowest 8 bits from bits[] into a byte record { 0..7 } and remaining bits.
+-- Input:  bits[]
+-- Output: { byte: { 0..7 }, rest: bits[] }
 take_byte = lsb
   { .bit b0, .rest lsb tail }
   { .b0 b0, .tail.bit b1, .tail.rest lsb tail }
@@ -343,27 +358,40 @@ take_byte = lsb
   { .b0 b0, .b1 b1, .b2 b2, .b3 b3, .b4 b4, .b5 b5, .tail.bit b6, .tail.rest lsb tail }
   { { .b0 0, .b1 1, .b2 2, .b3 3, .b4 4, .b5 5, .b6 6, .tail.bit 7 } byte, .tail.rest rest };
 
+-- Unpack lowest 4 bits from bits[] into a nibble record { 0..3 } and remaining bits.
+-- Input:  bits[]
+-- Output: { byte: { 0..3 }, rest: bits[] }
 take_nibble = lsb
   { .bit b0, .rest lsb tail }
   { .b0 b0, .tail.bit b1, .tail.rest lsb tail }
   { .b0 b0, .b1 b1, .tail.bit b2, .tail.rest lsb tail }
   { { .b0 0, .b1 1, .b2 2, .tail.bit 3 } byte, .tail.rest rest };
 
+-- Unpack a 16-bit integer and plane from bits[].
+-- Input:  bits[]
+-- Output: { lo: byte, hi: byte, plane: bits[] }
 unpack16 = inv take_byte
   { .byte lo, .rest take_byte high }
   { .lo lo, .high.byte hi, .high.rest inv trim plane };
 
+-- Bit field projections from a byte record { 0..7 }:
 field1 = { .0 0 };
 field2 = { .0 0, .1 1 };
 field3 = { .0 0, .1 1, .2 2 };
 field4 = { .0 0, .1 1, .2 2, .3 3 };
 field7 = { .0 0, .1 1, .2 2, .3 3, .4 4, .5 5, .6 6 };
 
+-- Convert unpacked 16-bit lo/hi bytes into an 11-bit IEEE exponent field exp11[].
+-- Input:  { lo: byte, hi: byte, ... }
+-- Output: exp11[]
 exp_field = unpack16 {
   .lo.0 0, .lo.1 1, .lo.2 2, .lo.3 3, .lo.4 4, .lo.5 5, .lo.6 6, .lo.7 7,
   .hi.0 8, .hi.1 9, .hi.2 10
 };
 
+-- Unpack 52 fraction bits and lead bit from bits[].
+-- Input:  bits[]
+-- Output: { fraction: frac52[], lead: bits[] }
 mantissa = take_byte { .byte b0, .rest take_byte tail }
   { .b0 b0, .tail.byte b1, .tail.rest take_byte tail }
   { .b0 b0, .b1 b1, .tail.byte b2, .tail.rest take_byte tail }
@@ -391,19 +419,28 @@ c400  = _ |0 |0 |0 |0 |1 |0 |0 |1 |1;
 c1023 = _ |1 |1 |1 |1 |1 |1 |1 |1 |1 |1;
 c2047 = _ |1 |1 |1 |1 |1 |1 |1 |1 |1 |1 |1;
 
+-- Extract small bitfields (1, 2, 3, 4, 7 bits) from reversed bits[].
+-- Input:  bits[]
+-- Output: field struct (field1..field7)
 small1 = inv take_byte .byte field1;
 small2 = inv take_byte .byte field2;
 small3 = inv take_byte .byte field3;
 small4 = inv take_byte .byte field4;
 small7 = inv take_byte .byte field7;
 
-unsigned_decimal = ?string[] digit {
+-- Parse an unsigned decimal number (leading integer digits, optional fraction).
+-- Input:  ?string[]
+-- Output: ?decimal[] = { rest: string[], n: bits[], d: bits[], count: bits[] }
+unsigned_decimal = ?string[] scan_digit {
   .rest rest, .value n, 1b d, 1b count
 } <
   { .n /_ if, () then } .then,
   integer_digits
 > < fraction_first fraction_digits, () > ?decimal[];
 
+-- Parse signed decimal and optional exponent, converted to binary64 float64[].
+-- Input:  { rest: string[], sign: sign[] }
+-- Output: ?result[] = { rest: string[], value: float64[] }
 signed_decimal = {
   .rest unsigned_decimal decimal, .sign sign
 } {
@@ -417,13 +454,19 @@ signed_decimal = {
   } decimal_float value
 } ?result[];
 
+-- Parse a decimal number with optional leading '-' or '+' sign.
+-- Input:  ?string[]
+-- Output: ?result[] = { rest: string[], value: float64[] }
 number = ?string[] <
   minus_char { () rest, - sign },
   { () rest, + sign }
 > signed_decimal ?result[];
 
+-- Parse subsequent integer digits, accumulating n = n * 10 + digit.
+-- Input:  ?decimal[]
+-- Output: ?decimal[]
 integer_digits = ?decimal[] <
-  { .rest digit digit, () decimal } {
+  { .rest scan_digit digit, () decimal } {
     .digit.rest rest,
     { .decimal.n tenfold x, .digit.value y } plus n,
     .decimal.d d, .decimal.count inc count
@@ -431,16 +474,22 @@ integer_digits = ?decimal[] <
   ()
 > ?decimal[];
 
+-- Parse the decimal point '.' and the required first fraction digit.
+-- Input:  ?decimal[]
+-- Output: ?decimal[]
 fraction_first = ?decimal[] {
-  .rest dot_char digit digit, () decimal
+  .rest dot_char scan_digit digit, () decimal
 } {
   .digit.rest rest,
   { .decimal.n tenfold x, .digit.value y } plus n,
   .decimal.d tenfold d, .decimal.count inc count
 };
 
+-- Parse subsequent fractional digits, accumulating n = n * 10 + digit and d = d * 10.
+-- Input:  ?decimal[]
+-- Output: ?decimal[]
 fraction_digits = ?decimal[] <
-  { .rest digit digit, () decimal } {
+  { .rest scan_digit digit, () decimal } {
     .digit.rest rest,
     { .decimal.n tenfold x, .digit.value y } plus n,
     .decimal.d tenfold d, .decimal.count inc count
@@ -448,19 +497,25 @@ fraction_digits = ?decimal[] <
   ()
 > ?decimal[];
 
+-- Parse the exponent component ('e' or 'E' followed by optional sign and digits).
+-- Input:  ?string[]
+-- Output: { rest: string[], value: bits[], sign: sign[] }
 exponent_part = < e_char, E_char > <
   minus_char { () rest, - sign },
   plus_char { () rest, + sign },
   { () rest, + sign }
-> { .rest digit exponent_digits digits, .sign sign }
+> { .rest scan_digit exponent_digits digits, .sign sign }
   { .digits.rest rest, .digits.value value, .sign sign };
 
-exponent_digits = ?{ string[] rest, bits[] value } <
-  { .rest digit next, .value tenfold high }
+-- Parse exponent digits into bits[] accumulator.
+-- Input:  ?digit_result[] = { string[] rest, bits[] value }
+-- Output: ?digit_result[]
+exponent_digits = ?digit_result[] <
+  { .rest scan_digit next, .value tenfold high }
   { .next.rest rest, { .high x, .next.value y } plus value }
     exponent_digits,
   ()
-> ?{ string[] rest, bits[] value };
+> ?digit_result[];
 
 signed_zero = { .sign sign, exp0 exponent, frac0 fraction };
 
@@ -613,6 +668,9 @@ _y_     = { 1 0, 0 1, 0 2, 1 3, 1 4, 1 5, 1 6 } |ascii;
 _N_     = { 0 0, 1 1, 1 2, 1 3, 0 4, 0 5, 1 6 } |ascii;
 _a_     = { 1 0, 0 1, 0 2, 0 3, 0 4, 1 5, 1 6 } |ascii;
 
+-- Match and consume specific ASCII characters from a string[].
+-- Input:  ?string[]
+-- Output: ?string[] (tail of string)
 space  = /cons { { .car x, _space_ y } eq_char? if, .cdr then } .then;
 tab    = /cons { { .car x, _tab_ y } eq_char? if, .cdr then } .then;
 lf     = /cons { { .car x, _lf_ y } eq_char? if, .cdr then } .then;
@@ -629,6 +687,9 @@ a_char = /cons { { .car x, _a_ y } eq_char? if, .cdr then } .then;
 infinity_word = I_char n_char f_char i_char n_char i_char t_char y_char;
 nan_word = N_char a_char N_char;
 
+-- Parse special IEEE binary64 words (+/-Infinity, Infinity, +/-NaN, NaN).
+-- Input:  ?string[]
+-- Output: ?result[] = { rest: string[], value: float64[] }
 special = <
   minus_char infinity_word { () rest, neg_inf value },
   plus_char infinity_word { () rest, pos_inf value },

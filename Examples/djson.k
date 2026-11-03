@@ -6,17 +6,15 @@
 ---------------------------------------------------------------
 
 -- Defined in 'core.k':
-bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
 bits[] = @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb[];
-ascii[] = @VgLSCtg5j6bmqeMXzdk7rHrs9DPYcjxXntYmR6kMpuXc[];
 unicode[] = @AhRir67FipnHnJfDU7fSQ3Xhcg6BTJYwtq6HGsWwZtbi[];
 string[] = @Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[];
 
 -- Defined in 'ieee.k':
-sign[] = @F7RNp9YbYnUXpfZBQViADi6LZyXYYuiJHc9KckfZtDvm[];
 number[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
 list[X] = @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X];
 
+-- Aliases to definitions imported from 'ieee.k':
 0b = @9sQsLXUsbMiGLXkQgJ6yaTLUBQGLgViQjKE3hXAYyRyv;
 _a_ = @CSQsWPGdgDer9h4vkQrpyxPAx3HHpq9e3tBCmFt5JBft;
 _cr_ = @mWxEf9tNC5Zza2n2asRACakK6wbaFty5FTeymgxNCtKh;
@@ -29,7 +27,7 @@ a_char = @LBFH7KivecqSzUZSvF6h9pcsYLzrg6GdfLJbxydvP8kD;
 b0 = @EHvJE7XLDHFp85gcBQGN5j3EDqUi3ChEdMtByVxF7mk9;
 b1 = @yhn2hGiP2VyS2BeYjrSrtrucugXJNDqWpNEYGMCjQQqV;
 c1023 = @6QziDQ3acyiQV7XQsX77uhPbTDvpdVGALzKAcxhwj5zQ;
-digit = @AA7kQ9BNdtTigBXeFT4sEucbDHKc3x3sWJtskE7irCLy;
+digit = @BGtG3xygJZDwEzkPwUZgNVasnCMJnuRiFxXUsFb9W7wW;
 e_char = @JPp573QKGFNnkGdbZNeRTwFDZU3wpNuhTYhwdsAVaM3A;
 eq_char? = @H7x5yhf73jnDkJmKDsGtgng2AdBWT7cydc9aiP99Ppny;
 f_char = @5t5Jd89TCk3WE9bFb6f5HR9tfwQ5PFTVk6iwBrJi5ASd;
@@ -50,7 +48,7 @@ push_bits2 = @agFtk8Zs8KrTR6zu9Nx5KDJCHTU8biAR6LyhGdd9gGqR;
 push_bits3 = @B9yHHLyYAyUfQfvXzghbPutyN852tXraqbhbPpCBHRmW;
 push_bits4 = @iz9bg6NQF7RXzM6ibW3MfBrUAYYXyUKhFWTHJjHn9Fvy;
 reverse = @MugpktbC3D4hLzaRVyRH2W64CK9ZuhZ29AkJBEjprV72;
-scanFloat64 = @4SNLvXeBcgRLcuZ2iV6p3EdqHkhwK5S9cM94cKc2pd8d;
+scanFloat64 = @GMczQMpsqVR7qdHgQEaqYuxR84hrYxizgcsZ2axayY8H;
 small1 = @FASMJ5EfHNmaMqy88FTYZJy7T8ps6uCzZetJ55zsEPgz;
 small2 = @fLHcGBbuAm73evJwKH2maEt3AK3VzMQuFbfyfUKXRBfD;
 small3 = @3rbHuQNth7JyLehzdQzTYG8gBE5JGUwTQdPYiAkWnkQ4;
@@ -728,6 +726,9 @@ hex_letter = ?unicode[] <
   { () x, _f_ y } eq_char? 0b |1 |1 |1 |1,
   { () x, _F_ y } eq_char? 0b |1 |1 |1 |1
 >;
+-- Parse a single hexadecimal digit ('0'..'9', 'a'..'f', 'A'..'F') from a character string.
+-- Input:  string[]
+-- Output: { rest: string[], value: bits[] } where value is in 0..15
 hex = < digit, /cons { .cdr rest, .car hex_letter value } >;
 
 -- Unicode escape decoding.
@@ -841,6 +842,9 @@ times1024 = ?bits[] <
   { inv |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 x, 0b r } inv_loop
 > ?bits[];
 
+-- Parse 4 hexadecimal digits from string[], accumulating a 16-bit code point.
+-- Input:  string[]
+-- Output: { rest: string[], value: bits[] }
 hex4 = hex
   { .rest hex next, .value times16 high }
   { .next.rest rest, { .high x, .next.value y } plus value }
@@ -849,6 +853,9 @@ hex4 = hex
   { .rest hex next, .value times16 high }
   { .next.rest rest, { .high x, .next.value y } plus value };
 
+-- Parse a JSON string escape sequence (\", \\, \/, \b, \f, \n, \r, \t, \uXXXX) after the backslash.
+-- Input:  string[]
+-- Output: { rest: string[], value: unicode[] }
 escape = <
   quote_char { () rest, _quote_ value },
   backslash_char { () rest, _backslash_ value },
@@ -877,7 +884,9 @@ surrogate_pair = {
   .rest rest
 };
 
--- JSON numbers use IEEE's exact scanner, with JSON's lexical/finite guards.
+-- JSON numbers use IEEE's exact scanner, with JSON's lexical/finite guards (RFC 8259).
+-- Input:  ?string[]
+-- Output: ?result[] = { rest: string[], value: djson[] } (where value is |number)
 json_number = ?string[] {
   < minus_char {}, digit {} > if, () then
 } .then scanFloat64 {
