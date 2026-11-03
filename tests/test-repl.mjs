@@ -1036,6 +1036,28 @@ assert.equal(
   output[0],
   "@92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM[] = <{} zero, ...>;"
 );
+output = await evaluateInput(
+  ":pat ?@92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM",
+  shortThresholdState
+);
+assert.equal(
+  output[0],
+  "@92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM[] = <{} zero, ...>;"
+);
+output = await evaluateInput(
+  ":pat ?@92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM[]",
+  shortThresholdState
+);
+assert.equal(
+  output[0],
+  "@92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM[] = <{} zero, ...>;"
+);
+completions = completeInput(":pat ?@92TY", shortThresholdState)[0];
+assert(
+  completions.includes(
+    ":pat ?@92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM"
+  )
+);
 output = await evaluateInput(":max-pat-length none", shortThresholdState);
 assert.equal(output[0], "max pattern length disabled");
 output = await evaluateInput(":maxPatLength", shortThresholdState);

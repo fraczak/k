@@ -1064,16 +1064,23 @@ function completeCommandArgument(line, state) {
 
   if (command === "pattern" || command === "pat") {
     const trimmed = arg.trimStart();
+    const qMatch = trimmed.match(/^(\?\s*)(.*)$/);
+    const qPrefix = qMatch ? qMatch[1] : "";
+    const target = qMatch ? qMatch[2] : trimmed;
     const leadingWhitespace = arg.length - trimmed.length;
-    const prefix = line.slice(0, argStart + leadingWhitespace);
+    const prefix = line.slice(0, argStart + leadingWhitespace) + qPrefix;
     const names = Object.keys(state.patterns || {}).sort();
     const matches = names
-      .filter((name) => name.startsWith(trimmed))
+      .filter((name) => name.startsWith(target))
       .map((name) => `${prefix}${name}`);
-    if (trimmed.startsWith("@")) {
+    if (target.startsWith("@")) {
       for (const [name, p] of Object.entries(state.patterns || {})) {
         const hash = resolvePatternCanonicalName(state, name, p);
-        if (hash && hash.startsWith(trimmed)) {
+        if (
+          hash &&
+          hash.startsWith(target) &&
+          !matches.includes(`${prefix}${hash}`)
+        ) {
           matches.push(`${prefix}${hash}`);
         }
       }
@@ -1601,7 +1608,13 @@ async function evaluateCommand(line, state) {
       }
       restoreCodes(state);
       const rawName = arg.trim();
-      let patternName = rawName.replace(/\[.*\]$/, "").trim();
+      let patternName = rawName
+        .replace(/^\?\s*/, "")
+        .replace(/\[.*\]$/, "")
+        .trim();
+      if (!patternName) {
+        throw new Error(`${usagePrefix}pattern requires a pattern name`);
+      }
       let pat = null;
       if (patternName.startsWith("@")) {
         pat = state.patterns?.[patternName];
