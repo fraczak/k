@@ -63,6 +63,7 @@ const COMMAND_NAMES = [
   "help", "rel", "pattern", "pat", "patterns", "pats",
   "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
   "engine", "wasm", "pkir", "js", "limit",
+  "max-pat-length", "maxPatLength",
   "quit", "exit"
 ];
 const CODEC_COMMAND_NAMES = ["load", "unload", "list"];
@@ -110,7 +111,8 @@ function createState(options = {}) {
     lastMain: null,
     lastTiming: null,
     showTiming: true,
-    printLimit: options.printLimit ?? Infinity
+    printLimit: options.printLimit ?? Infinity,
+    maxPatLength: options.maxPatLength ?? 30
   };
 }
 
@@ -732,6 +734,7 @@ function canonicalNames(state) {
   return [...new Set([
     ...Object.keys(state.codes),
     ...Object.keys(state.rels),
+    ...Object.keys(state.patterns || {}),
     ...Object.values(state.typeAliases),
     ...Object.values(state.relAliases),
     ...Object.values(state.patternAliases || {})
@@ -1572,13 +1575,21 @@ async function evaluateCommand(line, state) {
           "Use :rel <name> to show a relation definition"
         );
       }
+      restoreCodes(state);
       const { hash, rel } = resolveRel(state, arg);
       if (!rel) throw new Error(`Unknown relation '${arg}'`);
       const prettyRelStr = prettyRelation(
         rel,
         displayAliases(state),
-        state.relAliases
+        state.relAliases,
+        {
+          libraries: [stateLibrary(state)],
+          patterns: state.patterns,
+          registerPatterns: state.patterns,
+          maxPatLength: state.maxPatLength
+        }
       );
+      state.codes = codes.dump();
       return [`${arg} = ${prettyRelStr};  -- ${hash}`];
     }
     case "rels":
@@ -1588,6 +1599,7 @@ async function evaluateCommand(line, state) {
       if (!arg) {
         throw new Error(`${usagePrefix}pattern requires a pattern name`);
       }
+      restoreCodes(state);
       const rawName = arg.trim();
       let patternName = rawName.replace(/\[.*\]$/, "").trim();
       let pat = null;
@@ -1681,12 +1693,37 @@ async function evaluateCommand(line, state) {
       state.printLimit = n;
       return [`output limit set to ${n}`];
     }
+    case "maxPatLength":
+    case "max-pat-length": {
+      const mode = (arg || "").trim().toLowerCase();
+      if (!mode) {
+        const current = Number.isFinite(state.maxPatLength)
+          ? state.maxPatLength
+          : "none";
+        return [`Current max pattern length: ${current}`];
+      }
+      if (mode === "none" || mode === "infinity" || mode === "off") {
+        state.maxPatLength = Infinity;
+        return ["max pattern length disabled"];
+      }
+      const n = parseInt(mode, 10);
+      if (Number.isNaN(n) || n < 0) {
+        throw new Error(
+          `Invalid max pattern length '${arg.trim()}'. ` +
+          `Usage: :${command} [num|none]`
+        );
+      }
+      state.maxPatLength = n;
+      return [`max pattern length set to ${n}`];
+    }
     case "reset": {
       const currentEngine = state.engine;
       const currentLimit = state.printLimit;
+      const currentMaxPatLength = state.maxPatLength;
       const fresh = createState({
         engine: currentEngine,
-        printLimit: currentLimit
+        printLimit: currentLimit,
+        maxPatLength: currentMaxPatLength
       });
       Object.assign(state, fresh);
       return ["reset"];
@@ -1725,6 +1762,7 @@ function helpText() {
     ":pattern name        show named pattern definition (alias :pat)",
     ":patterns            list pattern aliases (alias :pats)",
     ":limit [num|none]    set maximum characters for value output",
+    ":max-pat-length [n|none] max inline pattern length in :rel (default 30)",
     ":codec load file     load a codec module from file",
     ":codec unload name   unload a registered codec",
     ":codec list          list loaded codecs (or simply :codecs)",
@@ -1762,6 +1800,8 @@ function cliUsage() {
   console.log("  --wasm                   Shortcut for --engine=wasm.");
   console.log("  --js                     Shortcut for --engine=js.");
   console.log("  --limit=<num>            Set maximum characters for output.");
+  console.log("  --max-pat-length=<num>   Set max inline pattern length in :rel");
+  console.log("                           (default: 30).");
   console.log("  -h, --help               Show this help.");
 }
 
@@ -1858,6 +1898,7 @@ if (isMainEntrypoint()) {
   const args = argv.slice(2);
   let engine = "wasm";
   let printLimit = Infinity;
+  let maxPatLength = 30;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "-h" || arg === "--help") {
@@ -1905,13 +1946,41 @@ if (isMainEntrypoint()) {
         exit(1);
       }
       printLimit = val;
+    } else if (
+      arg.startsWith("--max-pat-length=") ||
+      arg.startsWith("--maxPatLength=")
+    ) {
+      const raw = arg.slice(arg.indexOf("=") + 1).trim().toLowerCase();
+      if (raw === "none" || raw === "infinity" || raw === "off") {
+        maxPatLength = Infinity;
+      } else {
+        const val = parseInt(raw, 10);
+        if (Number.isNaN(val) || val < 0) {
+          console.error(`Invalid max pattern length '${raw}'.`);
+          exit(1);
+        }
+        maxPatLength = val;
+      }
+    } else if (arg === "--max-pat-length" || arg === "--maxPatLength") {
+      i++;
+      const raw = (args[i] || "").trim().toLowerCase();
+      if (raw === "none" || raw === "infinity" || raw === "off") {
+        maxPatLength = Infinity;
+      } else {
+        const val = parseInt(raw, 10);
+        if (Number.isNaN(val) || val < 0) {
+          console.error(`Invalid max pattern length '${args[i]}'.`);
+          exit(1);
+        }
+        maxPatLength = val;
+      }
     } else {
       console.error(`Unknown option '${arg}'.`);
       cliUsage();
       exit(1);
     }
   }
-  startRepl({ engine, printLimit });
+  startRepl({ engine, printLimit, maxPatLength });
 }
 
 export {

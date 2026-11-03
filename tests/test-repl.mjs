@@ -26,11 +26,19 @@ const state = createState();
 
 let output = await evaluateInput("zero = {} | zero;", state);
 output = await evaluateInput(":rel zero", state);
-assert.match(output[0], /^zero = /);
+assert.equal(
+  output[0],
+  "zero = ?(...) {} |zero ?<{} zero, ...>;  " +
+    "-- @ZdauiYp7DqPGmHkUiG8yuWz4ZbEgvxZyNkBAmJ4ENhAX"
+);
 
 output = await evaluateInput("succ = | succ;", state);
 output = await evaluateInput(":rel succ", state);
-assert.match(output[0], /^succ = /);
+assert.equal(
+  output[0],
+  "succ = ?X0 |succ ?<X0 succ, ...>;  " +
+    "-- @SwjzXdcxv8ZbpCkF4cXGtgKkqPTfYqGGP5erQE7DCCsj"
+);
 
 output = await evaluateInput(":rels", state);
 assert.match(output[0], /^zero = @/m);
@@ -971,6 +979,76 @@ assert(
     "p[X] = @PScsPA3xYv4kSXUqHafwVQr5Cxkmspf3bj46KAcmyxmR[X,Y,Y]"
   )
 );
+
+// Verify :rel prints canonical pattern names for input and output patterns
+output = await evaluateInput(":rel car", polyExplicitState);
+assert.equal(
+  output[0],
+  "car = ?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X0] " +
+    "/cons .car ?X0;  " +
+    "-- @zjRvxpKqktzNfR3VYSqq4bF9XLQTnCp4MpP82JLmysaP"
+);
+output = await evaluateInput(":rel reverse", polyExplicitState);
+assert.equal(
+  output[0],
+  "reverse = ?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X0] " +
+    "{() xs, nil acc} _reverse " +
+    "?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X0];  " +
+    "-- @JbJ2aQugNct2GGeCJ65zKjN55Bf5YPyGHzsikTCjx82w"
+);
+output = await evaluateInput(":rel nil?", polyExplicitState);
+assert.equal(
+  output[0],
+  "nil? = ?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[(...)] " +
+    "/nil nil " +
+    "?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[(...)];  " +
+    "-- @YHZEettEijtfW68ekdSKKiZRfiiEkqJjLDb9NNcJnwcg"
+);
+output = await evaluateInput(":rel parseJson", djsonKState);
+assert.equal(
+  output[0],
+  "parseJson = " +
+    "?@Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[] " +
+    "json_value {.rest ws /nil end, .value value} .value " +
+    "?@P5C7TQKTSPnFUkYkYzTudJamxAQ3T3fHbvZNqwWMfAA2[];  " +
+    "-- @tWaZchv9AbbWxSHVk8nBpz8jVnjswiwDNhpFZeFwg6Pt"
+);
+const shortThresholdState = createState();
+output = await evaluateInput(":max-pat-length", shortThresholdState);
+assert.equal(output[0], "Current max pattern length: 30");
+output = await evaluateInput(":maxPatLength 10", shortThresholdState);
+assert.equal(output[0], "max pattern length set to 10");
+output = await evaluateInput(":max-pat-length", shortThresholdState);
+assert.equal(output[0], "Current max pattern length: 10");
+await evaluateInput("zero = {} | zero;", shortThresholdState);
+output = await evaluateInput(":rel zero", shortThresholdState);
+assert.equal(
+  output[0],
+  "zero = ?(...) {} |zero " +
+    "?@92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM[];  " +
+    "-- @ZdauiYp7DqPGmHkUiG8yuWz4ZbEgvxZyNkBAmJ4ENhAX"
+);
+output = await evaluateInput(
+  ":pat @92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM",
+  shortThresholdState
+);
+assert.equal(
+  output[0],
+  "@92TYLAz9F3GXM3pwDZhN8rD8vKTRJhX9hS44HzS9WKdM[] = <{} zero, ...>;"
+);
+output = await evaluateInput(":max-pat-length none", shortThresholdState);
+assert.equal(output[0], "max pattern length disabled");
+output = await evaluateInput(":maxPatLength", shortThresholdState);
+assert.equal(output[0], "Current max pattern length: none");
+output = await evaluateInput(":rel zero", shortThresholdState);
+assert.equal(
+  output[0],
+  "zero = ?(...) {} |zero ?<{} zero, ...>;  " +
+    "-- @ZdauiYp7DqPGmHkUiG8yuWz4ZbEgvxZyNkBAmJ4ENhAX"
+);
+completions = completeInput(":max", shortThresholdState)[0];
+assert(completions.includes(":max-pat-length"));
+assert(completions.includes(":maxPatLength"));
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
 fs.rmSync(symlinkPath, { force: true });

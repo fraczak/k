@@ -1938,6 +1938,8 @@ const htmlContent = `<!DOCTYPE html>
               </tr>
               <tr><td><code>:rel &lt;name&gt;</code></td><td>Display definition of relation <code>&lt;name&gt;</code></td></tr>
               <tr><td><code>:rels</code></td><td>List all relation aliases</td></tr>
+              <tr><td><code>:limit [num|none]</code></td><td>Display or set maximum characters for value output</td></tr>
+              <tr><td><code>:max-pat-length [num|none]</code></td><td>Display or set max inline pattern length in <code>:rel</code> (default <code>30</code>, alias <code>:maxPatLength</code>)</td></tr>
               <tr><td><code>:codecs</code></td><td>List all loaded format codecs</td></tr>
               <tr><td><code>:codec load &lt;file.mjs&gt;</code></td><td>Load a codec from file (or load through Files)</td></tr>
               <tr><td><code>:codec unload &lt;file.mjs&gt;</code></td><td>Unload a loaded codec</td></tr>

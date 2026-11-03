@@ -2,6 +2,7 @@
 // Canonical representation, hash resolution, and export helpers.
 
 import { annotate } from "./index.mjs";
+import { TypePatternGraph } from "./TypePatternGraph.mjs";
 import { patternGraphToCanonical, prettyFilter } from "./pretty.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
@@ -200,7 +201,7 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
   if (name && pat) allPatterns[name] = pat;
 
   let pathMap = {};
-  if (formalCount > 0) {
+  if (formalCount > 0 && name) {
     try {
       const markerArgs = formalParams.map((_, i) => ({
         type: "name",
@@ -434,8 +435,236 @@ export function buildExportPreamble(exports = [], libraries = []) {
   return lines.join("\n") + "\n";
 }
 
+const DEFAULT_MAX_PAT_LENGTH = 30;
+
+export function canonicalBoundaryFilterSources(
+  typePatternGraph,
+  patternIds,
+  options = {}
+) {
+  const maxPatLength = options.maxPatLength ?? DEFAULT_MAX_PAT_LENGTH;
+  const leafOccurrences = [];
+  const knotEntries = [];
+
+  function buildSingleRootFilter(rawRootId) {
+    const subGraph = new TypePatternGraph(
+      typePatternGraph.registerCodeDef,
+      typePatternGraph.findCode
+    );
+    const renamed = typePatternGraph.clone([rawRootId], subGraph);
+    const rootId = subGraph.find(renamed[rawRootId]);
+
+    const origByNew = new Map();
+    for (const [origId, newId] of Object.entries(renamed)) {
+      origByNew.set(
+        subGraph.find(Number(newId)),
+        typePatternGraph.find(Number(origId))
+      );
+    }
+
+    const inDegree = subGraph.patterns.nodes.map(() => 0);
+    inDegree[rootId]++;
+    subGraph.edges.forEach((outEdges) =>
+      Object.values(outEdges).forEach((destMap) =>
+        Object.values(destMap).forEach((dst) => inDegree[dst]++)
+      )
+    );
+
+    function hasOpenDescendant(startId, seen = new Set()) {
+      if (seen.has(startId)) return false;
+      seen.add(startId);
+      const p = subGraph.get_pattern(startId);
+      if (
+        p.pattern === "(...)" ||
+        p.pattern === "{...}" ||
+        p.pattern === "<...>"
+      ) {
+        return true;
+      }
+      const edges = subGraph.edges[startId] || {};
+      for (const key of Object.keys(edges)) {
+        const dst = Object.values(edges[key])[0];
+        if (hasOpenDescendant(dst, seen)) return true;
+      }
+      return false;
+    }
+
+    const dagKnots = new Map();
+    let nextKnot = 0;
+
+    function build(patternId, ancestorKnots) {
+      const pattern = subGraph.get_pattern(patternId);
+      if (pattern.pattern === "(...)") {
+        const origId = origByNew.get(patternId) ?? patternId;
+        const node = { type: null, open: true, fields: {} };
+        leafOccurrences.push({ origId, node });
+        return node;
+      }
+
+      if (ancestorKnots.has(patternId)) {
+        const knot = ancestorKnots.get(patternId);
+        knot.used = true;
+        const refNode = { type: "name", name: knot.name };
+        knot.refs.push(refNode);
+        return refNode;
+      }
+
+      const isOpenStruct =
+        pattern.pattern === "{...}" || pattern.pattern === "<...>";
+      const shareAcrossDag =
+        isOpenStruct || !hasOpenDescendant(patternId);
+
+      if (
+        shareAcrossDag &&
+        inDegree[patternId] > 1 &&
+        dagKnots.has(patternId)
+      ) {
+        const knot = dagKnots.get(patternId);
+        knot.used = true;
+        const refNode = { type: "name", name: knot.name };
+        knot.refs.push(refNode);
+        return refNode;
+      }
+
+      const knotEntry = {
+        name: `K${nextKnot++}`,
+        used: false,
+        target: null,
+        refs: []
+      };
+      knotEntries.push(knotEntry);
+      const nextAncestors = new Map(ancestorKnots);
+      nextAncestors.set(patternId, knotEntry);
+      if (shareAcrossDag && inDegree[patternId] > 1) {
+        dagKnots.set(patternId, knotEntry);
+      }
+
+      const edges = subGraph.edges[patternId] || {};
+      const fields = () =>
+        Object.keys(edges)
+          .sort()
+          .reduce((acc, key) => {
+            acc[key] = build(
+              Object.values(edges[key])[0],
+              nextAncestors
+            );
+            return acc;
+          }, {});
+
+      let res;
+      switch (pattern.pattern) {
+        case "type": {
+          const code = subGraph.findCode(pattern.type);
+          if (code?.code === "product") {
+            res = { type: "product", fields: fields() };
+          } else if (code?.code === "union") {
+            res = { type: "union", fields: fields() };
+          } else {
+            res = { type: "code", code: pattern.type };
+          }
+          break;
+        }
+        case "{...}":
+          res = { type: "product", open: true, fields: fields() };
+          break;
+        case "<...>":
+          res = { type: "union", open: true, fields: fields() };
+          break;
+        case "{}":
+          res = { type: "product", fields: fields() };
+          break;
+        case "<>":
+          res = { type: "union", fields: fields() };
+          break;
+      }
+      knotEntry.target = res;
+      if (knotEntry.used) {
+        res.name = knotEntry.name;
+      }
+      return res;
+    }
+
+    const built = build(rootId, new Map());
+    for (const knot of dagKnots.values()) {
+      if (knot.used && knot.target) {
+        knot.target.name = knot.name;
+      }
+    }
+    return built;
+  }
+
+  const filters = patternIds.map((id) => buildSingleRootFilter(id));
+
+  const origCounts = new Map();
+  for (const { origId } of leafOccurrences) {
+    origCounts.set(origId, (origCounts.get(origId) || 0) + 1);
+  }
+  const sharedVarByOrig = new Map();
+  let nextVar = 0;
+  for (const { origId, node } of leafOccurrences) {
+    if ((origCounts.get(origId) || 0) > 1) {
+      if (!sharedVarByOrig.has(origId)) {
+        sharedVarByOrig.set(origId, `X${nextVar++}`);
+      }
+      node.type = "name";
+      node.name = sharedVarByOrig.get(origId);
+      delete node.fields;
+    }
+  }
+  const sharedVars = [...sharedVarByOrig.values()];
+
+  for (const knot of knotEntries) {
+    if (knot.used && knot.target) {
+      const knotName = `X${nextVar++}`;
+      knot.name = knotName;
+      knot.target.name = knotName;
+      for (const refNode of knot.refs) {
+        refNode.name = knotName;
+      }
+    }
+  }
+
+  return filters.map((filter) => {
+    const inlineStr = prettyFilter(filter);
+    if (
+      (filter.type === null &&
+        filter.open &&
+        Object.keys(filter.fields || {}).length === 0 &&
+        !filter.name) ||
+      (filter.type === "name" && filter.open) ||
+      inlineStr.length <= maxPatLength
+    ) {
+      return `?${inlineStr}`;
+    }
+    const info = resolvePatternCanonicalInfo(
+      null,
+      { params: sharedVars, filter },
+      options
+    );
+    if (
+      info.hash &&
+      options.registerPatterns &&
+      !options.registerPatterns[info.hash]
+    ) {
+      options.registerPatterns[info.hash] = {
+        params: info.canonicalParams || info.params || [],
+        filter: info.canonicalFilterAst || filter,
+        _canonical: info.hash,
+        _canonicalDef: info.def,
+        _canonicalParams: info.canonicalParams,
+        _graphParams: info.canonicalParams,
+        _aliasArgs: info.aliasArgs,
+        _canonicalFilterAst: info.canonicalFilterAst
+      };
+    }
+    const args = (info.aliasArgs || []).join(", ");
+    return `?${info.hash}[${args}]`;
+  });
+}
+
 export default {
   resolvePatternCanonicalInfo,
   canonicalPatternHash,
-  buildExportPreamble
+  buildExportPreamble,
+  canonicalBoundaryFilterSources
 };

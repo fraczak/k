@@ -5,7 +5,8 @@ import { TypePatternGraph } from "./TypePatternGraph.mjs";
 import { patterns2filters, prettyRel } from "./pretty.mjs";
 import {
   resolvePatternCanonicalInfo,
-  buildExportPreamble
+  buildExportPreamble,
+  canonicalBoundaryFilterSources
 } from "./canonical-pattern.mjs";
 
 const OBJECT_MAGIC = Buffer.from("KOBJ\n");
@@ -842,12 +843,19 @@ function boundaryFilterSources(typePatternGraph, patternIds, aliases) {
     }));
 }
 
-function prettyRelation(rel, aliases = {}, relAliases = {}) {
-  const [inputFilter, outputFilter] = boundaryFilterSources(
-    rel.typePatternGraph,
-    [rel.def.patterns[0], rel.def.patterns[1]],
-    aliases
-  );
+function prettyRelation(rel, aliases = {}, relAliases = {}, options = {}) {
+  const useCanonical = options.canonicalPatterns ?? true;
+  const [inputFilter, outputFilter] = useCanonical
+    ? canonicalBoundaryFilterSources(
+        rel.typePatternGraph,
+        [rel.def.patterns[0], rel.def.patterns[1]],
+        options
+      )
+    : boundaryFilterSources(
+        rel.typePatternGraph,
+        [rel.def.patterns[0], rel.def.patterns[1]],
+        aliases
+      );
   const body = rewriteRefsInExp(
     stripRelationBoundaryFilters(stripDebugFieldsFromExp(rel.def), rel.typePatternGraph),
     aliases,
@@ -877,7 +885,7 @@ function decompileObject(object) {
     const relName = relAliases[name] || name;
     if (emittedRelAliases.has(relName)) return null;
     emittedRelAliases.add(relName);
-    return `${aliases[relName] || relName} = ${prettyRelation(rel, aliases, relAliases)};`;
+    return `${aliases[relName] || relName} = ${prettyRelation(rel, aliases, relAliases, { canonicalPatterns: false })};`;
   };
   const compileStats = hydrated.compileStats;
   const sccs = compileStats?.sccs || [];

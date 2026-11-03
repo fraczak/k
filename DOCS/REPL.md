@@ -36,6 +36,7 @@ shows compilation and execution costs for the selected engine.
 | `:engine [wasm\|pkir\|js]` | Show or select the evaluation engine |
 | `:wasm` / `:pkir` / `:js` | Engine shortcuts |
 | `:limit [number\|none]` | Show or change the output limit (default: 4096 characters) |
+| `:max-pat-length [number\|none]` | Show or change max inline pattern length in `:rel` (default: 30, alias `:maxPatLength`) |
 | `:klib file` | Export the current library |
 | `:ko file expression` | Export an executable object |
 | `:reset` | Clear session state |
