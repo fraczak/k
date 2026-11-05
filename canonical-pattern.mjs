@@ -3,7 +3,11 @@
 
 import { annotate } from "./index.mjs";
 import { TypePatternGraph } from "./TypePatternGraph.mjs";
-import { patternGraphToCanonical, prettyFilter } from "./pretty.mjs";
+import {
+  patternGraphToCanonical,
+  patterns2filters,
+  prettyFilter
+} from "./pretty.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { closedPatternToCodeHash } from "./repl-codecs.mjs";
@@ -161,6 +165,88 @@ function toAstFilter(node, canonicalParams = []) {
     }
   }
   return res;
+}
+
+export function instantiateCanonicalFilter(
+  canonicalFilterAst,
+  canonicalParams = [],
+  aliasArgs = []
+) {
+  if (!canonicalFilterAst) return canonicalFilterAst;
+  const paramMap = new Map();
+  for (let i = 0; i < canonicalParams.length; i++) {
+    paramMap.set(
+      canonicalParams[i],
+      aliasArgs[i] ?? canonicalParams[i]
+    );
+  }
+  const usedArgNames = new Set(
+    aliasArgs.filter((a) => a && a !== "(...)")
+  );
+  const knotNames = new Set();
+  function collectKnots(node) {
+    if (!node || typeof node !== "object") return;
+    if (
+      node.name &&
+      node.type !== "name" &&
+      !paramMap.has(node.name)
+    ) {
+      knotNames.add(node.name);
+    }
+    if (node.fields) {
+      for (const child of Object.values(node.fields)) {
+        collectKnots(child);
+      }
+    }
+  }
+  collectKnots(canonicalFilterAst);
+
+  const knotRename = new Map();
+  let nextIdx = 0;
+  for (const k of knotNames) {
+    if (usedArgNames.has(k)) {
+      while (
+        usedArgNames.has(`X${nextIdx}`) ||
+        knotNames.has(`X${nextIdx}`)
+      ) {
+        nextIdx++;
+      }
+      knotRename.set(k, `X${nextIdx++}`);
+    }
+  }
+
+  function walk(node) {
+    if (!node || typeof node !== "object") return node;
+    if (
+      (node.type === "name" || node.type === null) &&
+      paramMap.has(node.name)
+    ) {
+      const arg = paramMap.get(node.name);
+      if (arg === "(...)") {
+        return { type: null, open: true, fields: {} };
+      }
+      return { type: "name", name: arg, open: true };
+    }
+    if (
+      (node.type === "name" || node.type === null) &&
+      knotRename.has(node.name)
+    ) {
+      return { ...node, name: knotRename.get(node.name) };
+    }
+    const res = { ...node };
+    if (res.name && knotRename.has(res.name)) {
+      res.name = knotRename.get(res.name);
+    }
+    if (res.fields) {
+      res.fields = {};
+      for (const [k, v] of Object.entries(node.fields)) {
+        res.fields[k] = walk(v);
+      }
+    }
+    return res;
+  }
+
+  return walk(canonicalFilterAst);
 }
 
 export function resolvePatternCanonicalInfo(name, pat, options = {}) {
@@ -435,7 +521,7 @@ export function buildExportPreamble(exports = [], libraries = []) {
   return lines.join("\n") + "\n";
 }
 
-const DEFAULT_MAX_PAT_LENGTH = 30;
+const DEFAULT_MAX_PAT_LENGTH = 45;
 
 export function canonicalBoundaryFilterSources(
   typePatternGraph,
@@ -444,9 +530,9 @@ export function canonicalBoundaryFilterSources(
 ) {
   const maxPatLength = options.maxPatLength ?? DEFAULT_MAX_PAT_LENGTH;
   const leafOccurrences = [];
-  const knotEntries = [];
 
   function buildSingleRootFilter(rawRootId) {
+    const filterKnots = [];
     const subGraph = new TypePatternGraph(
       typePatternGraph.registerCodeDef,
       typePatternGraph.findCode
@@ -532,7 +618,7 @@ export function canonicalBoundaryFilterSources(
         target: null,
         refs: []
       };
-      knotEntries.push(knotEntry);
+      filterKnots.push(knotEntry);
       const nextAncestors = new Map(ancestorKnots);
       nextAncestors.set(patternId, knotEntry);
       if (shareAcrossDag && inDegree[patternId] > 1) {
@@ -590,10 +676,11 @@ export function canonicalBoundaryFilterSources(
         knot.target.name = knot.name;
       }
     }
-    return built;
+    return { filter: built, filterKnots };
   }
 
-  const filters = patternIds.map((id) => buildSingleRootFilter(id));
+  const builtFilters = patternIds.map((id) => buildSingleRootFilter(id));
+  const filters = builtFilters.map((b) => b.filter);
 
   const origCounts = new Map();
   for (const { origId } of leafOccurrences) {
@@ -613,34 +700,48 @@ export function canonicalBoundaryFilterSources(
   }
   const sharedVars = [...sharedVarByOrig.values()];
 
-  for (const knot of knotEntries) {
-    if (knot.used && knot.target) {
-      const knotName = `X${nextVar++}`;
-      knot.name = knotName;
-      knot.target.name = knotName;
-      for (const refNode of knot.refs) {
-        refNode.name = knotName;
+  for (const { filterKnots } of builtFilters) {
+    let knotVar = sharedVars.length;
+    for (const knot of filterKnots) {
+      if (knot.used && knot.target) {
+        const knotName = `X${knotVar++}`;
+        knot.name = knotName;
+        knot.target.name = knotName;
+        for (const refNode of knot.refs) {
+          refNode.name = knotName;
+        }
       }
     }
   }
 
-  return filters.map((filter) => {
+  const useCanonicalNames = filters.some(
+    (filter) => prettyFilter(filter).length > maxPatLength
+  );
+
+  const resolvedByInline = new Map();
+  const canonicalSources = filters.map((filter) => {
     const inlineStr = prettyFilter(filter);
-    if (
+    const isBareWildcard =
       (filter.type === null &&
         filter.open &&
         Object.keys(filter.fields || {}).length === 0 &&
         !filter.name) ||
-      (filter.type === "name" && filter.open) ||
-      inlineStr.length <= maxPatLength
-    ) {
+      (filter.type === "name" && filter.open);
+    if (isBareWildcard) {
       return `?${inlineStr}`;
     }
-    const info = resolvePatternCanonicalInfo(
-      null,
-      { params: sharedVars, filter },
-      options
-    );
+    if (!useCanonicalNames && !options.registerPatterns) {
+      return `?${inlineStr}`;
+    }
+    let info = resolvedByInline.get(inlineStr);
+    if (!info) {
+      info = resolvePatternCanonicalInfo(
+        null,
+        { params: sharedVars, filter },
+        options
+      );
+      resolvedByInline.set(inlineStr, info);
+    }
     if (
       info.hash &&
       options.registerPatterns &&
@@ -653,18 +754,26 @@ export function canonicalBoundaryFilterSources(
         _canonicalDef: info.def,
         _canonicalParams: info.canonicalParams,
         _graphParams: info.canonicalParams,
-        _aliasArgs: info.aliasArgs,
+        _aliasArgs: info.canonicalParams || [],
         _canonicalFilterAst: info.canonicalFilterAst
       };
     }
     const args = (info.aliasArgs || []).join(", ");
     return `?${info.hash}[${args}]`;
   });
+
+  if (!useCanonicalNames) {
+    return patterns2filters(typePatternGraph, ...patternIds).map(
+      (f) => `?${prettyFilter(f)}`
+    );
+  }
+  return canonicalSources;
 }
 
 export default {
   resolvePatternCanonicalInfo,
   canonicalPatternHash,
   buildExportPreamble,
-  canonicalBoundaryFilterSources
+  canonicalBoundaryFilterSources,
+  instantiateCanonicalFilter
 };

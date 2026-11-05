@@ -28,6 +28,7 @@ shows compilation and execution costs for the selected engine.
 | `:rel name` / `:rels` | Inspect a relation / list relation aliases |
 | `:pat name` / `:pats` | Inspect a pattern / list pattern aliases |
 | `:pattern` / `:patterns` | Long forms of the preceding pattern commands |
+| `:all-patterns` / `:all-pat` | List all canonical patterns keyed by hash with their aliases |
 | `:load [--no-alias] file` | Load source or a compiled library |
 | `:codec load file` | Register a codec module |
 | `:codec unload name` | Remove a codec |
@@ -36,7 +37,7 @@ shows compilation and execution costs for the selected engine.
 | `:engine [wasm\|pkir\|js]` | Show or select the evaluation engine |
 | `:wasm` / `:pkir` / `:js` | Engine shortcuts |
 | `:limit [number\|none]` | Show or change the output limit (default: 4096 characters) |
-| `:max-pat-length [number\|none]` | Show or change max inline pattern length in `:rel` (default: 30, alias `:maxPatLength`) |
+| `:max-pat-length [number\|none]` | Show or change max inline pattern length in `:rel` (default: 45, alias `:maxPatLength`) |
 | `:klib file` | Export the current library |
 | `:ko file expression` | Export an executable object |
 | `:reset` | Clear session state |

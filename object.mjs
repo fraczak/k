@@ -593,7 +593,7 @@ function compileLibrary(script, options = {}) {
           _canonicalDef: info.def,
           _canonicalParams: info.canonicalParams,
           _graphParams: info.canonicalParams,
-          _aliasArgs: info.aliasArgs,
+          _aliasArgs: info.canonicalParams || [],
           _canonicalFilterAst: info.canonicalFilterAst
         };
       }

@@ -5,6 +5,28 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.6.1] — 2026-11-04 — REPL `:all-patterns` and Shared-Graph Boundary Pattern Printing
+
+- **REPL `:all-patterns` (alias `:all-pat`)**:
+  - Add `:all-patterns` / `:all-pat` to list all canonical patterns keyed by
+    hash — including patterns derived from relation definitions without named
+    aliases — along with any aliases and their routing bindings
+    (`-- p[X] = @[X,(...)], q[ZZZ] = @[ZZZ,ZZZ]`).
+- **Canonical `:pat` Display**:
+  - Update `:pat <name>` to always display the canonicalized pattern body with
+    the alias's routing arguments (`aliasArgs`) substituted via
+    `instantiateCanonicalFilter`.
+- **Shared-Graph `:rel` Boundary Pattern Rendering & Default `max-pat-length`**:
+  - When neither boundary pattern exceeds `max-pat-length`, `:rel <name>` prints
+    the input and output boundary patterns from a single shared pattern graph
+    (`patterns2filters`) so shared nodes reuse knot variables across input and
+    output (e.g., `ww = ?<{}=X1 x, X1 y, X0 z>=X0 () ?X0;`).
+  - When either boundary pattern exceeds `max-pat-length`, render both boundary
+    patterns (unless a bare wildcard `?(...)` or bare open variable `?X0`) as
+    standalone canonical `@hash[...]` pattern applications.
+  - Increase default `max-pat-length` from `30` to `45` (the length of a
+    `@hash` name).
+
 ## [8.6.0] — 2026-11-03 — Native JSON Parser, IEEE Library Split, and REPL Pattern Inspection
 
 - **Native JSON Parsing & IEEE Library Split**:
