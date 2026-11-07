@@ -6,58 +6,56 @@
 ---------------------------------------------------------------
 
 -- Defined in 'core.k':
+bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
 bits[] = @VtPHxGf5GNMzzyVFxtv7gegFfJRYapBGtCeyV56bs5Zb[];
 unicode[] = @AhRir67FipnHnJfDU7fSQ3Xhcg6BTJYwtq6HGsWwZtbi[];
 string[] = @Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[];
+list[X] = @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X];
 
 -- Defined in 'ieee.k':
 number[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
-list[X] = @JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X];
 
 -- Aliases to definitions imported from 'ieee.k':
-0b = @9sQsLXUsbMiGLXkQgJ6yaTLUBQGLgViQjKE3hXAYyRyv;
-_a_ = @CSQsWPGdgDer9h4vkQrpyxPAx3HHpq9e3tBCmFt5JBft;
-_cr_ = @mWxEf9tNC5Zza2n2asRACakK6wbaFty5FTeymgxNCtKh;
-_e_ = @Cp2mSUTm7hs9NqXJUQCXmqjiNbcCWAEmTrYr3erBrcTy;
-_E_ = @EMwpiv7Tq8gBC2YiNK39za9v9fNXzgShuDH4JiAaQKPJ;
-_f_ = @W5EyUxJ2QtepSwEkMKXCZAeUVctfNXG9xAJtGiffHxpg;
-_lf_ = @DdFQhsDcSVY6kcLFYhFRRwV4AMY7FnWQrdAVC9W3u757;
-_tab_ = @HSry2A9J4g5d7KL4x7cbnfLPsAWgjS4fuvzfiHdVWtps;
-a_char = @LBFH7KivecqSzUZSvF6h9pcsYLzrg6GdfLJbxydvP8kD;
-b0 = @EHvJE7XLDHFp85gcBQGN5j3EDqUi3ChEdMtByVxF7mk9;
-b1 = @yhn2hGiP2VyS2BeYjrSrtrucugXJNDqWpNEYGMCjQQqV;
-c1023 = @6QziDQ3acyiQV7XQsX77uhPbTDvpdVGALzKAcxhwj5zQ;
-digit = @BGtG3xygJZDwEzkPwUZgNVasnCMJnuRiFxXUsFb9W7wW;
-e_char = @JPp573QKGFNnkGdbZNeRTwFDZU3wpNuhTYhwdsAVaM3A;
-eq_char? = @H7x5yhf73jnDkJmKDsGtgng2AdBWT7cydc9aiP99Ppny;
-f_char = @5t5Jd89TCk3WE9bFb6f5HR9tfwQ5PFTVk6iwBrJi5ASd;
+_a_ = @SWz2Su6jrKMLBJUdstChXXqBxhmYXPQmgZzjiMY2C3WU;
+_cr_ = @mmfxkDakZKxTnSem6TaBMwFxhHCNLNeQ5NGB6FXJEuBc;
+_e_ = @6dEMmL8cnMq3PnvKS9XKkLbXagZjkBGBSteuCnsMTyeJ;
+_E_ = @PSZiUBnRAzerMrp44TZUfjaFAen6JcQHGGuVzLFBXxVX;
+_f_ = @EztMxif4CSk5yCwKNV4HNybtGFrT5jcE3YdbLgzN5thJ;
+_lf_ = @wkUwcydRgSb7SEEwv3i9Aspp6DL4eVidUwq9e6Fk2mqL;
+_tab_ = @AsNRztmSnK3duXxW9GJygQtYRjeUCN3PqPPwXA9Qa475;
+a_char = @y4rrNXbrZhy9RiesNn8eBHWtMuzUbzmC4sirARkEgPzm;
+c1023 = @LpKiXpTEeZHk5m7UTPvJY2VNzAy9fN27Vk6mFmGarLMx;
+digit = @NYMMKZiubEnXsxvRLm2YqyW29r4Z9nzp4f4bDzxzUDh6;
+e_char = @MPxm9SLfNCWws3haR7D7rEKsQMAQBtv35wM6ZB6vKs5V;
+eq_char? = @KdvwBdZucwy9HNhunGUiJu23AJCV3msXNURv7FKT4NSe;
+f_char = @Ad4G3Y348pFB6DWunnJ6gpc8ShmDLaLm6ZZRSz7dAgS6;
 field7 = @SFuC8GpSvwemLh82Kz4t6h9Bar5ieF4v28ibNZjQb48a;
-finite_float64? = @eDmk2p9N36L83zS9SHZFgu3zxpSydaj8vi9GqykygVdJ;
-inc = @3n3LEgaACKTzgLhEFH6r8PaGbNiPyV3WGKkLhpyf3FUs;
-inv = @9HG3xPV4skXm8TRWTQZtpMCkLvMuuppUuRWsPNQsVsqK;
+finite_float64? = @Un56DNRzisnRedgtm6hev8FUXeQdwVvYanhrQ7hCVKmz;
+inc = @2QXTvLGKmk3RsaefL4XgXyzvawx3LUUhDuXKRnuWDWss;
+inv = @KDfkF87mFdEDQMXxCy6beDNMMjMtzipBH2RJ2ZGRs7EL;
 inv_loop = @DWXKJJnBu3bXPpNdp2i8S9yyd6RMaafpg4UNk7KiY8mJ;
-lt? = @paDd2Hc35YnSGKVxQnG3hseDVFeY8K85M73ZpBj2bGvz;
-minus = @3Q9Gfy4iXs5cEdTUBNPb2Lz554djkNQVwLR4iKhytHKL;
-minus_char = @GLrjZ6x7by7X6Q9ZBBgWQvQPdpaDdpGy7cVyTTG7r44y;
-n_char = @YtiKcZQ9rry3cueGvu9yx4VmVkeQUfNkmQmfspWrzdvp;
-natToFloat64 = @JsjYdrgdYfgctaEhYbNrsRmDmHwV8NnwPiuSLqQeQWGb;
-plus = @h3uz7hegVewstX8QqxwRNzTJ9Rmf5Lzcb9bXxAQXY3bb;
+lt? = @K99ZE5z4hFm8uECZt7bWS8nfHL66amv5rkFnEf36uhwA;
+minus = @QVa9EQpHxibQCyNaHteD5av6Cqmv3sa8yLTBVjBMWaSn;
+minus_char = @yNxNaynLphA2KpvC7Tj5dgTPCqie894zt2CsRrdgewAB;
+n_char = @3mzFMcRzt8Dr79Txp94JrkeGzneHPq2dfFbhamPyvqsM;
+natToFloat64 = @EqXtFuMvgJtizS4ZvcHnJ3WYwRSC7yxDrr6cBAz5ZLm2;
+plus = @zRNanC6g5KT46AcWdpxvKx7jwZVyQtdFffiGq23yDGqG;
 push_bit = @kjzD5wy3vVihSyEmpqUTiiQaTc2vikejKC66D7s5DfE2;
-push_bits1 = @5xxBWEQkTGDnHkuyA4hPaqswq6DDymPR53Z6vX6DANyn;
-push_bits2 = @agFtk8Zs8KrTR6zu9Nx5KDJCHTU8biAR6LyhGdd9gGqR;
-push_bits3 = @B9yHHLyYAyUfQfvXzghbPutyN852tXraqbhbPpCBHRmW;
-push_bits4 = @iz9bg6NQF7RXzM6ibW3MfBrUAYYXyUKhFWTHJjHn9Fvy;
-reverse = @MugpktbC3D4hLzaRVyRH2W64CK9ZuhZ29AkJBEjprV72;
-scanFloat64 = @GMczQMpsqVR7qdHgQEaqYuxR84hrYxizgcsZ2axayY8H;
-small1 = @FASMJ5EfHNmaMqy88FTYZJy7T8ps6uCzZetJ55zsEPgz;
-small2 = @fLHcGBbuAm73evJwKH2maEt3AK3VzMQuFbfyfUKXRBfD;
-small3 = @3rbHuQNth7JyLehzdQzTYG8gBE5JGUwTQdPYiAkWnkQ4;
-small4 = @M2vX2c8M5EgaQyEctasyssWd6rcn25hjb2MW5UWvbJtY;
-small7 = @yxeyAa4XY88QP5gRcuKzmnCKrrnSDd7M2p6QGjjGnS2N;
-t_char = @Z86xynhBGBTpSNMrXKbZwi2xwvCrpMR5VcCBVTgspFZY;
-trim = @89p3L4zjJpYP8qadbebPKXAszHmqKm9sk5jYzTga8gKK;
-unpack16 = @YCBHPaRPdxbgQ93gwvvTMhqXCtPaiuBLgpRek6LLt7pE;
-ws = @Hd35uZ2UMYiPdg9dxVNXxnjFWq6gDYPLiaZGr99dkixt;
+push_bits1 = @LFsEP3rFznpUYkr7dAfvmjb2DfsvvszDgbu7ACqb6rfK;
+push_bits2 = @NawPPURs8ncgTSfDiSKZRCY9xsCpEcNBRy6KBqzCAyXW;
+push_bits3 = @L6GeHQUwB6F9cCuJvThxXPZs5LMyBQ8sjpgRe2QPXKeD;
+push_bits4 = @ijaDf66RY5jGTGHzURqGZqdijjEFecFcSbw7yyt6ejxu;
+reverse = @Q9ZynEvvhk7n4J4MNnx2fS5bXGHiuRkgU3wcaccJAi6u;
+scanFloat64 = @Lb5WBVHJQ5qRKE9YcDNQBLqY8SiCqJtjqwjVFbra2g8c;
+small1 = @FSDDBdqc4vVVjadzJQfmYFLrq2wyGrpikUdbPgB4Wbh9;
+small2 = @zCZKN3KcpBGcAkqHUUt3e5BciS72tXmkzjY4YTVXe9HT;
+small3 = @KcrTH9DxHaZfahyv2wanwLg3nNLjFTeHBey9Vmmw5b9H;
+small4 = @Xx9utSfZgL6D9FuwRMLm2L2BgeyqXK5D89nFiuGuN87a;
+small7 = @65eQ4SEU3ndiKxU9Pyg9syPbKwWWiuNidR86Ci9TVTBy;
+t_char = @HvsJepUNMRiHiGUr72LCW8WAhY99iciSyVqR4AKwZHYn;
+trim = @KpFXwb3ZnbDWfADPih98fEdriz4xZwBNabFpsNw7PdLu;
+unpack16 = @xTMhhuLL7hfKTyF3mBGfYPatqmeVGqpQJQQmXnGEUaFJ;
+ws = @S8kaqgJdGkCNBdGEAdkvGnedVSMFKnPBpjRpKAdfYP5q;
 
 bool[] = < {} true, {} false >;
 
@@ -81,10 +79,13 @@ djson[] = <
   btrie[J] object
 > = J;
 
+ascii = | ascii ?unicode[];
 ---------------------------------------------------------------
 -- §2. Constructors and Projections
 ---------------------------------------------------------------
-
+0b = {}|_;
+b0 = {}|0;
+b1 = {}|1;
 0 = 0b | 0;
 1 = 0b | 1;
 
@@ -105,28 +106,28 @@ empty_object = nil | object ?djson[];
 ---------------------------------------------------------------
 
 -- Step one bit (0 or 1) in a binary trie
-step_0 = /trie .0;
-step_1 = /trie .1;
+step_0 = ?btrie[X] /trie .0;
+step_1 = ?btrie[X] /trie .1;
 
-step_bit = <
+step_bit = ?{bit[] b, btrie[X] t} <
   { .b /0 if, .t step_0 then } .then,
   { .b /1 if, .t step_1 then } .then
->;
+> ?btrie[X];
 
 -- Step N bits from MSB (.N-1) down to LSB (.0)
-step_bits1 = { .x .0 b, .t t } step_bit;
-step_bits2 = { .x x, { .x .1 b, .t t } step_bit t } step_bits1;
-step_bits3 = { .x x, { .x .2 b, .t t } step_bit t } step_bits2;
-step_bits4 = { .x x, { .x .3 b, .t t } step_bit t } step_bits3;
-step_bits5 = { .x x, { .x .4 b, .t t } step_bit t } step_bits4;
-step_bits6 = { .x x, { .x .5 b, .t t } step_bit t } step_bits5;
-step_bits7 = { .x x, { .x .6 b, .t t } step_bit t } step_bits6;
-step_bits8 = { .x x, { .x .7 b, .t t } step_bit t } step_bits7;
-step_bits9 = { .x x, { .x .8 b, .t t } step_bit t } step_bits8;
-step_bits10 = { .x x, { .x .9 b, .t t } step_bit t } step_bits9;
-step_bits11 = { .x x, { .x .10 b, .t t } step_bit t } step_bits10;
+step_bits1 = ?{(...) x, btrie[X] t} { .x .0 b, .t t } step_bit;
+step_bits2 = ?{(...) x, btrie[X] t} { .x x, { .x .1 b, .t t } step_bit t } step_bits1;
+step_bits3 = ?{(...) x, btrie[X] t} { .x x, { .x .2 b, .t t } step_bit t } step_bits2;
+step_bits4 = ?{(...) x, btrie[X] t} { .x x, { .x .3 b, .t t } step_bit t } step_bits3;
+step_bits5 = ?{(...) x, btrie[X] t} { .x x, { .x .4 b, .t t } step_bit t } step_bits4;
+step_bits6 = ?{(...) x, btrie[X] t} { .x x, { .x .5 b, .t t } step_bit t } step_bits5;
+step_bits7 = ?{(...) x, btrie[X] t} { .x x, { .x .6 b, .t t } step_bit t } step_bits6;
+step_bits8 = ?{(...) x, btrie[X] t} { .x x, { .x .7 b, .t t } step_bit t } step_bits7;
+step_bits9 = ?{(...) x, btrie[X] t} { .x x, { .x .8 b, .t t } step_bit t } step_bits8;
+step_bits10 = ?{(...) x, btrie[X] t} { .x x, { .x .9 b, .t t } step_bit t } step_bits9;
+step_bits11 = ?{(...) x, btrie[X] t} { .x x, { .x .10 b, .t t } step_bit t } step_bits10;
 
-step_bmp_common_hi = <
+step_bmp_common_hi = ?{ (...) hi, btrie[X] t } <
   { .hi /h08_0F x, .t step_0 step_0 step_0 t } step_bits3,
   { .hi /h10_7F x, .t step_0 step_0 step_1 t } step_bits7,
   { .hi /h80_CF x, .t step_0 step_1 step_0 t } step_bits7,
@@ -137,13 +138,13 @@ step_bmp_common_hi = <
   { .hi /hFE_FF x, .t step_1 step_1 step_1 t } step_bits1
 >;
 
-step_bmp_priv_hi = <
+step_bmp_priv_hi = ?{ (...) hi, btrie[X] t } <
   { .hi /hE0_EF x, .t step_0 t } step_bits4,
   { .hi /hF0_F7 x, .t step_1 step_0 t } step_bits3,
   { .hi /hF8 if, .t step_1 step_1 then } .then
 >;
 
-step_plane2_16 = <
+step_plane2_16 = ?{ (...) p, btrie[X] t } <
   { .p /p02_03 x, .t step_0 step_0 t } step_bits1,
   { .p /p04_07 x, .t step_0 step_1 t } step_bits2,
   { .p /p08_0F x, .t step_1 step_0 t } step_bits3,
@@ -151,7 +152,7 @@ step_plane2_16 = <
 >;
 
 -- Advance trie by one Unicode character: { char, t } -> t
-step_char = <
+step_char = ?{unicode[] char, btrie[X] t} <
   { .char /ascii x, .t step_0 t } step_bits7,
   { .char /plane0 x, .t step_1 step_0 t } step_bits11,
   {
@@ -188,11 +189,11 @@ step_char = <
 ---------------------------------------------------------------
 
 -- Low-level lookup string key in object trie: { key, object } -> val
-dot = ?{ K key, T object } { .key ?string[] key, .object ?btrie[V] t } <
-  { .key /nil if, .t /trie .val /val then } .then,
+dot = ?{ string[] key, btrie[V] object } <
+  { .key /nil if, .object /trie .val /val then } .then,
   {
     .key /cons .cdr key,
-    { .key /cons .car char, .t t } step_char object
+    { .key /cons .car char, .object t } step_char object
   } dot
 >;
 
@@ -229,15 +230,15 @@ has_nth? = has_index?;
 -- §5. Trie Update & Removal (put, remove, put_nth, remove_nth)
 ---------------------------------------------------------------
 
-push_bits5 = { .x .4 b, { .x x, .acc acc } push_bits4 acc } push_bit;
-push_bits6 = { .x .5 b, { .x x, .acc acc } push_bits5 acc } push_bit;
-push_bits7 = { .x .6 b, { .x x, .acc acc } push_bits6 acc } push_bit;
-push_bits8 = { .x .7 b, { .x x, .acc acc } push_bits7 acc } push_bit;
-push_bits9 = { .x .8 b, { .x x, .acc acc } push_bits8 acc } push_bit;
-push_bits10 = { .x .9 b, { .x x, .acc acc } push_bits9 acc } push_bit;
-push_bits11 = { .x .10 b, { .x x, .acc acc } push_bits10 acc } push_bit;
+push_bits5 = ?{(...) x, (...) acc} { .x .4 b, { .x x, .acc acc } push_bits4 acc } push_bit;
+push_bits6 = ?{(...) x, (...) acc} { .x .5 b, { .x x, .acc acc } push_bits5 acc } push_bit;
+push_bits7 = ?{(...) x, (...) acc} { .x .6 b, { .x x, .acc acc } push_bits6 acc } push_bit;
+push_bits8 = ?{(...) x, (...) acc} { .x .7 b, { .x x, .acc acc } push_bits7 acc } push_bit;
+push_bits9 = ?{(...) x, (...) acc} { .x .8 b, { .x x, .acc acc } push_bits8 acc } push_bit;
+push_bits10 = ?{(...) x, (...) acc} { .x .9 b, { .x x, .acc acc } push_bits9 acc } push_bit;
+push_bits11 = ?{(...) x, (...) acc} { .x .10 b, { .x x, .acc acc } push_bits10 acc } push_bit;
 
-push_bmp_common_hi = <
+push_bmp_common_hi = ?{(...) hi, (...) acc} <
   { .hi /h08_0F x, .acc acc } push_bits3 |0 |0 |0,
   { .hi /h10_7F x, .acc acc } push_bits7 |1 |0 |0,
   { .hi /h80_CF x, .acc acc } push_bits7 |0 |1 |0,
@@ -248,20 +249,20 @@ push_bmp_common_hi = <
   { .hi /hFE_FF x, .acc acc } push_bits1 |1 |1 |1
 > ?bits[];
 
-push_bmp_priv_hi = <
+push_bmp_priv_hi = ?{(...) hi, (...) acc}  <
   { .hi /hE0_EF x, .acc acc } push_bits4 |0,
   { .hi /hF0_F7 x, .acc acc } push_bits3 |0 |1,
   { .hi /hF8 if, .acc |1 |1 then } .then
 > ?bits[];
 
-push_plane2_16 = <
+push_plane2_16 = ?{(...) p, (...) acc}  <
   { .p /p02_03 x, .acc acc } push_bits1 |0 |0,
   { .p /p04_07 x, .acc acc } push_bits2 |1 |0,
   { .p /p08_0F x, .acc acc } push_bits3 |0 |1,
   { .p /p10 if, .acc |1 |1 then } .then
 > ?bits[];
 
-prepend_char_bits = <
+prepend_char_bits = ?{unicode[] char, (...) acc}  <
   { .char /ascii x, .acc acc } push_bits7 |0,
   { .char /plane0 x, .acc acc } push_bits11 |0 |1,
   {
@@ -295,7 +296,7 @@ str_to_bits_loop = ?{ string[] str, bits[] acc } <
 
 str_to_bits = ?string[] { reverse str, 0b acc } str_to_bits_loop;
 
-ensure_trie = ?btrie[V] < /nil { nil val, nil 0, nil 1 }, /trie () >;
+ensure_trie = ?btrie[V] < /nil { nil val, nil 0, nil 1 }, /trie >;
 
 -- Insert or replace { index, val, list } -> list
 put_nth = ?{ K index, V val, T list } = X {
@@ -440,7 +441,7 @@ read_bit = ?bits[] <
   /1 { b1 bit, () rest }
 >;
 
-read_bits7 =
+read_bits7 = 
   read_bit
   { .bit b6, (.rest read_bit) r5 }
   { .b6 b6, .r5 .bit b5, (.r5 .rest read_bit) r4 }
@@ -452,7 +453,7 @@ read_bits7 =
     .r1 .bit b1, (.r1 .rest read_bit) r0
   }
   {
-    { .r0 .bit 0, .b1 1, .b2 2, .b3 3, .b4 4, .b5 5, .b6 6 } |ascii val,
+    { .r0 .bit 0, .b1 1, .b2 2, .b3 3, .b4 4, .b5 5, .b6 6 } ascii val,
     .r0 .rest rest
   };
 
@@ -615,30 +616,30 @@ json_value = ?string[] ws <
   json_number
 > ?result[];
 
-_quote_        = { b0 0, b1 1, b0 2, b0 3, b0 4, b1 5, b0 6 } |ascii;
-_backslash_    = { b0 0, b0 1, b1 2, b1 3, b1 4, b0 5, b1 6 } |ascii;
-_slash_        = { b1 0, b1 1, b1 2, b1 3, b0 4, b1 5, b0 6 } |ascii;
-_b_            = { b0 0, b1 1, b0 2, b0 3, b0 4, b1 5, b1 6 } |ascii;
-_bs_           = { b0 0, b0 1, b0 2, b1 3, b0 4, b0 5, b0 6 } |ascii;
-_ff_           = { b0 0, b0 1, b1 2, b1 3, b0 4, b0 5, b0 6 } |ascii;
-_l_            = { b0 0, b0 1, b1 2, b1 3, b0 4, b1 5, b1 6 } |ascii;
-_r_            = { b0 0, b1 1, b0 2, b0 3, b1 4, b1 5, b1 6 } |ascii;
-_s_            = { b1 0, b1 1, b0 2, b0 3, b1 4, b1 5, b1 6 } |ascii;
-_u_            = { b1 0, b0 1, b1 2, b0 3, b1 4, b1 5, b1 6 } |ascii;
-_comma_        = { b0 0, b0 1, b1 2, b1 3, b0 4, b1 5, b0 6 } |ascii;
-_colon_        = { b0 0, b1 1, b0 2, b1 3, b1 4, b1 5, b0 6 } |ascii;
-_open_array_   = { b1 0, b1 1, b0 2, b1 3, b1 4, b0 5, b1 6 } |ascii;
-_close_array_  = { b1 0, b0 1, b1 2, b1 3, b1 4, b0 5, b1 6 } |ascii;
-_open_object_  = { b1 0, b1 1, b0 2, b1 3, b1 4, b1 5, b1 6 } |ascii;
-_close_object_ = { b1 0, b0 1, b1 2, b1 3, b1 4, b1 5, b1 6 } |ascii;
+_quote_        = { b0 0, b1 1, b0 2, b0 3, b0 4, b1 5, b0 6 } ascii;
+_backslash_    = { b0 0, b0 1, b1 2, b1 3, b1 4, b0 5, b1 6 } ascii;
+_slash_        = { b1 0, b1 1, b1 2, b1 3, b0 4, b1 5, b0 6 } ascii;
+_b_            = { b0 0, b1 1, b0 2, b0 3, b0 4, b1 5, b1 6 } ascii;
+_bs_           = { b0 0, b0 1, b0 2, b1 3, b0 4, b0 5, b0 6 } ascii;
+_ff_           = { b0 0, b0 1, b1 2, b1 3, b0 4, b0 5, b0 6 } ascii;
+_l_            = { b0 0, b0 1, b1 2, b1 3, b0 4, b1 5, b1 6 } ascii;
+_r_            = { b0 0, b1 1, b0 2, b0 3, b1 4, b1 5, b1 6 } ascii;
+_s_            = { b1 0, b1 1, b0 2, b0 3, b1 4, b1 5, b1 6 } ascii;
+_u_            = { b1 0, b0 1, b1 2, b0 3, b1 4, b1 5, b1 6 } ascii;
+_comma_        = { b0 0, b0 1, b1 2, b1 3, b0 4, b1 5, b0 6 } ascii;
+_colon_        = { b0 0, b1 1, b0 2, b1 3, b1 4, b1 5, b0 6 } ascii;
+_open_array_   = { b1 0, b1 1, b0 2, b1 3, b1 4, b0 5, b1 6 } ascii;
+_close_array_  = { b1 0, b0 1, b1 2, b1 3, b1 4, b0 5, b1 6 } ascii;
+_open_object_  = { b1 0, b1 1, b0 2, b1 3, b1 4, b1 5, b1 6 } ascii;
+_close_object_ = { b1 0, b0 1, b1 2, b1 3, b1 4, b1 5, b1 6 } ascii;
 
-_A_            = { b1 0, b0 1, b0 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
-_B_            = { b0 0, b1 1, b0 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
-_C_            = { b1 0, b1 1, b0 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
-_D_            = { b0 0, b0 1, b1 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
-_F_            = { b0 0, b1 1, b1 2, b0 3, b0 4, b0 5, b1 6 } |ascii;
-_c_            = { b1 0, b1 1, b0 2, b0 3, b0 4, b1 5, b1 6 } |ascii;
-_d_            = { b0 0, b0 1, b1 2, b0 3, b0 4, b1 5, b1 6 } |ascii;
+_A_            = { b1 0, b0 1, b0 2, b0 3, b0 4, b0 5, b1 6 } ascii;
+_B_            = { b0 0, b1 1, b0 2, b0 3, b0 4, b0 5, b1 6 } ascii;
+_C_            = { b1 0, b1 1, b0 2, b0 3, b0 4, b0 5, b1 6 } ascii;
+_D_            = { b0 0, b0 1, b1 2, b0 3, b0 4, b0 5, b1 6 } ascii;
+_F_            = { b0 0, b1 1, b1 2, b0 3, b0 4, b0 5, b1 6 } ascii;
+_c_            = { b1 0, b1 1, b0 2, b0 3, b0 4, b1 5, b1 6 } ascii;
+_d_            = { b0 0, b0 1, b1 2, b0 3, b0 4, b1 5, b1 6 } ascii;
 
 json_string = ?string[] quote_char { () rest, nil acc } string_loop;
 string_kind = ?unicode[] <
@@ -725,7 +726,7 @@ hex_letter = ?unicode[] <
   { () x, _E_ y } eq_char? 0b |0 |1 |1 |1,
   { () x, _f_ y } eq_char? 0b |1 |1 |1 |1,
   { () x, _F_ y } eq_char? 0b |1 |1 |1 |1
->;
+> ?bits[];
 -- Parse a single hexadecimal digit ('0'..'9', 'a'..'f', 'A'..'F') from a character string.
 -- Input:  string[]
 -- Output: { rest: string[], value: bits[] } where value is in 0..15
@@ -733,25 +734,25 @@ hex = < digit, /cons { .cdr rest, .car hex_letter value } >;
 
 -- Unicode escape decoding.
 
-c2 = 0b |0 |1;
-c4 = 0b |0 |0 |1;
-c8 = 0b |0 |0 |0 |1;
-c16 = 0b |0 |0 |0 |0 |1;
-c128 = 0b |0 |0 |0 |0 |0 |0 |0 |1;
-c208 = 0b |0 |0 |0 |0 |1 |0 |1 |1;
-c216 = 0b |0 |0 |0 |1 |1 |0 |1 |1;
-c224 = 0b |0 |0 |0 |0 |0 |1 |1 |1;
-c240 = 0b |0 |0 |0 |0 |1 |1 |1 |1;
-c248 = 0b |0 |0 |0 |1 |1 |1 |1 |1;
-c249 = 0b |1 |0 |0 |1 |1 |1 |1 |1;
-c250 = 0b |0 |1 |0 |1 |1 |1 |1 |1;
-c252 = 0b |0 |0 |1 |1 |1 |1 |1 |1;
-c254 = 0b |0 |1 |1 |1 |1 |1 |1 |1;
+c2 = 0b |0 |1 ?bits[];
+c4 = 0b |0 |0 |1 ?bits[];
+c8 = 0b |0 |0 |0 |1 ?bits[];
+c16 = 0b |0 |0 |0 |0 |1 ?bits[];
+c128 = 0b |0 |0 |0 |0 |0 |0 |0 |1 ?bits[];
+c208 = 0b |0 |0 |0 |0 |1 |0 |1 |1 ?bits[];
+c216 = 0b |0 |0 |0 |1 |1 |0 |1 |1 ?bits[];
+c224 = 0b |0 |0 |0 |0 |0 |1 |1 |1 ?bits[];
+c240 = 0b |0 |0 |0 |0 |1 |1 |1 |1 ?bits[];
+c248 = 0b |0 |0 |0 |1 |1 |1 |1 |1 ?bits[];
+c249 = 0b |1 |0 |0 |1 |1 |1 |1 |1 ?bits[];
+c250 = 0b |0 |1 |0 |1 |1 |1 |1 |1 ?bits[];
+c252 = 0b |0 |0 |1 |1 |1 |1 |1 |1 ?bits[];
+c254 = 0b |0 |1 |1 |1 |1 |1 |1 |1 ?bits[];
 c1024 = c1023 inc;
-c55296 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |0 |1 |1;
-c56320 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |1 |0 |1 |1;
-c57344 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |1;
-c65536 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1;
+c55296 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |0 |1 |1 ?bits[];
+c56320 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |1 |0 |1 |1 ?bits[];
+c57344 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 |1 |1 ?bits[];
+c65536 = 0b |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |0 |1 ?bits[];
 
 -- Reconstruct the same Unicode partitions used by core.k and k-utf8.
 to_unicode = ?bits[] unpack16 <
@@ -765,7 +766,7 @@ to_unicode = ?bits[] unpack16 <
 bmp = {
   () parts, .hi { () x, 0b acc } push_bits8 trim high
 } <
-  { .high /_ a, .parts.lo.7 /0 b, .parts.lo field7 |ascii then } .then,
+  { .high /_ a, .parts.lo.7 /0 b, .parts.lo field7 ascii then } .then,
   {
     { .high x, c8 y } lt? if,
     {

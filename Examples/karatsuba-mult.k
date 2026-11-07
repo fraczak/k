@@ -139,7 +139,7 @@ _split_rev_u = ? split_state[]
 >;
 split_at = {.x inv x_rev, .m m, 0b low} _split_rev_u;
 
-at_least_256_u? = <
+at_least_256_u? = ?unat[] <
   /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1
   /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1
   /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1 /1

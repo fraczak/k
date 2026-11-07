@@ -1013,7 +1013,7 @@ assert.equal(
     "?@Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[] " +
     "json_value {.rest ws /nil end, .value value} .value " +
     "?@P5C7TQKTSPnFUkYkYzTudJamxAQ3T3fHbvZNqwWMfAA2[];  " +
-    "-- @tWaZchv9AbbWxSHVk8nBpz8jVnjswiwDNhpFZeFwg6Pt"
+    "-- @kTcBn7486jUPMmkJXWpczRiU7XYcTxDsLtmCUwBJKH2N"
 );
 const shortThresholdState = createState();
 output = await evaluateInput(":max-pat-length", shortThresholdState);

@@ -11,6 +11,7 @@
 
 bit[] = < {} 0, {} 1 >;
 bits[] = < {} _, B 0, B 1 > = B;
+list[X] = < {} nil, {X car, L cdr} cons> = L;
 
 ---------------------------------------------------------------
 -- §2. Unicode and String
@@ -73,7 +74,7 @@ unicode[] = <
 >;
 
 -- Linked-list string: nil or (unicode car, string cdr).
-string[] = < {} nil, { unicode[] car, S cdr } cons > = S;
+string[] = list[unicode[]];
 
 ---------------------------------------------------------------
 -- §3. Pattern
