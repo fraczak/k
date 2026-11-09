@@ -1,4 +1,4 @@
-# --lib lib/bits.k --use inc:inc_bits
+# --lib lib/bits.k --use inc_bits
 
 -- lib/list.k — Parametric linked lists (list[X])
 

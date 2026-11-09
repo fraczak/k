@@ -6,6 +6,7 @@ import {
   executeKVM
 } from "../kvm.mjs";
 import { compileObjectBuffer, decodeObject } from "../object.mjs";
+import { parseHeaderUses } from "../canonical-pattern.mjs";
 import { objectToKIRP } from "../kir.mjs";
 import { fromObject, Value } from "../Value.mjs";
 import { lowerToWasm } from "../backends/wasm/src/kvm2wasm.mjs";
@@ -245,9 +246,12 @@ console.log("==> Starting Polymorphic kVM & Specialization Tests");
     let prevLib = null;
     for (const [idx, src] of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"].entries()) {
       const nextLib = path.join(tmpDir, `step-${idx}.klib`);
+      const fileSource = fs.readFileSync(path.join(__dirname, "..", src), "utf8");
+      const uses = parseHeaderUses(fileSource).flatMap((u) => ["--use", u.use]);
       const stepRes = spawnSync(process.execPath, [
         compileScript,
         ...(prevLib ? ["--lib", prevLib] : []),
+        ...uses,
         src,
         nextLib
       ], {

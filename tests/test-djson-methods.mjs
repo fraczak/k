@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import k from "../index.mjs";
 import { Value } from "../Value.mjs";
 import { compileLibrary, loadLibrary } from "../object.mjs";
+import { parseHeaderUses } from "../canonical-pattern.mjs";
 import { fromJsonValue, toJsonValue } from "../codecs/djson.mjs";
 import { textToStringValue, stringValueToText } from "../codecs/runtime/unicode-string.mjs";
 import { parse as parseInt } from "../codecs/int.mjs";
@@ -17,12 +18,16 @@ for (const file of [
   "lib/string.k",
   "lib/ieee.k"
 ]) {
-  ieee = loadLibrary(compileLibrary(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), {
+  const fileSource = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+  const uses = parseHeaderUses(fileSource).map((u) => u.use);
+  ieee = loadLibrary(compileLibrary(fileSource, {
     source: file,
-    libraries: ieee ? [ieee] : []
+    libraries: ieee ? [ieee] : [],
+    use: uses
   }));
 }
-const library = loadLibrary(compileLibrary(source, { libraries: [ieee] }));
+const djsonUses = parseHeaderUses(source).map((u) => u.use);
+const library = loadLibrary(compileLibrary(source, { libraries: [ieee], use: djsonUses }));
 const run = (op, value) => k.compile(library.relAlias[op], { libraries: [library] })(value);
 
 function method(op, json, { key, index, val } = {}) {

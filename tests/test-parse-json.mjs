@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import k from "../index.mjs";
 import { compileLibrary, loadLibrary } from "../object.mjs";
+import { parseHeaderUses } from "../canonical-pattern.mjs";
 import { compileWasmArtifact, instantiateWasmArtifact } from "../backends/wasm/src/wasm.mjs";
 import { fromJsonValue } from "../codecs/djson.mjs";
 import { textToStringValue } from "../codecs/runtime/unicode-string.mjs";
@@ -20,14 +21,20 @@ for (const file of [
   "lib/string.k",
   "lib/ieee.k"
 ]) {
-  ieee = loadLibrary(compileLibrary(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), {
+  const fileSource = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+  const uses = parseHeaderUses(fileSource).map((u) => u.use);
+  ieee = loadLibrary(compileLibrary(fileSource, {
     source: file,
-    libraries: ieee ? [ieee] : []
+    libraries: ieee ? [ieee] : [],
+    use: uses
   }));
 }
-const library = loadLibrary(compileLibrary(readFileSync(new URL("../lib/djson.k", import.meta.url), "utf8"), {
+const djsonSource = readFileSync(new URL("../lib/djson.k", import.meta.url), "utf8");
+const djsonUses = parseHeaderUses(djsonSource).map((u) => u.use);
+const library = loadLibrary(compileLibrary(djsonSource, {
   source: "lib/djson.k",
-  libraries: [ieee]
+  libraries: [ieee],
+  use: djsonUses
 }));
 const wasm = await instantiateWasmArtifact(await compileWasmArtifact(library.relAlias.parseJson, { libraries: [library] }));
 const fast = text => wasm.executeValue(textToStringValue(text));
@@ -95,7 +102,10 @@ try {
   let prev = null;
   for (let i = 0; i < chain.length; i++) {
     const out = path.join(scratch, `step-${i}.klib`);
-    const args = ["objects/compile.mjs", ...(prev ? ["--lib", prev] : []), chain[i], out];
+    const fileSource = readFileSync(new URL(`../${chain[i]}`, import.meta.url), "utf8");
+    const uses = parseHeaderUses(fileSource).map((u) => u.use);
+    const useArgs = uses.flatMap((u) => ["--use", u]);
+    const args = ["objects/compile.mjs", ...(prev ? ["--lib", prev] : []), ...useArgs, chain[i], out];
     const built = spawnSync(process.execPath, args, {
       cwd: new URL("..", import.meta.url)
     });

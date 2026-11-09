@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import k from "../index.mjs";
 import { Value } from "../Value.mjs";
 import { compileLibrary, loadLibrary } from "../object.mjs";
+import { parseHeaderUses } from "../canonical-pattern.mjs";
 import { fromJsonValue, toJsonValue } from "../codecs/djson.mjs";
 import { textToStringValue, stringValueToText } from "../codecs/runtime/unicode-string.mjs";
 import { encodeNumberToValue, decodeValueToNumber } from "../codecs/ieee.mjs";
@@ -22,8 +23,9 @@ const libFiles = [
 const libs = [];
 for (const file of libFiles) {
   const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+  const uses = parseHeaderUses(source).map((u) => u.use);
   const compiled = loadLibrary(
-    compileLibrary(source, { source: file, libraries: libs })
+    compileLibrary(source, { source: file, libraries: libs, use: uses })
   );
   libs.push(compiled);
 }

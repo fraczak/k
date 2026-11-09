@@ -48,6 +48,7 @@ const tests = [
     ["tests/test-djson-methods.mjs"]
   ],
   ["tests/test-lib.mjs", node, ["tests/test-lib.mjs"]],
+  ["tests/test-library-isolation.mjs", node, ["tests/test-library-isolation.mjs"]],
   ["tests/test-parse-json.mjs", node, ["tests/test-parse-json.mjs"]],
   ["tests/test-ieee-text.mjs", node, ["tests/test-ieee-text.mjs"]],
   ["tests/test-deep-wire-value.mjs", node, ["tests/test-deep-wire-value.mjs"]],

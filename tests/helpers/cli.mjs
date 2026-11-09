@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parse, print } from "../../codecs/int.mjs";
 import { encodeToWire, decodeWire } from "../../codecs/runtime/prefix-codec.mjs";
+import { parseHeaderUses } from "../../canonical-pattern.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
@@ -32,6 +33,13 @@ export function withCompiledLibrary(source, test) {
       const nextLibrary = path.join(dir, `library-${i}.klib`);
       const args = ["objects/compile.mjs"];
       if (library) args.push("--lib", library);
+      const filePath = path.isAbsolute(sources[i]) ? sources[i] : path.join(root, sources[i]);
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, "utf8");
+        for (const u of parseHeaderUses(raw)) {
+          args.push("--use", u.use);
+        }
+      }
       args.push(sources[i], nextLibrary);
       succeeds(node(args), `compile ${sources[i]}`);
       library = nextLibrary;

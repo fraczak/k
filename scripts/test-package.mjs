@@ -50,7 +50,12 @@ try {
   const arithKlib = path.join(scratch, "arithmetics.klib");
   run("k-compile", [path.join(packageDir, "lib/bit.k"), bitKlib]);
   run("k-compile", ["--lib", bitKlib, path.join(packageDir, "lib/bits.k"), bitsKlib]);
-  run("k-compile", ["--lib", bitsKlib, path.join(packageDir, "lib/arithmetics.k"), arithKlib]);
+  run("k-compile", [
+    "--lib", bitsKlib,
+    "--use", "trim inv_loop inv cmp inc_bits dec_bits plus_bits minus_bits mul_bits",
+    path.join(packageDir, "lib/arithmetics.k"),
+    arithKlib
+  ]);
   const incremented = run("k", ["--lib", arithKlib,
     "--use", "inc", "inc"], integer);
   assert.equal(run("k-int", ["--print"], incremented).toString().trim(), "43");

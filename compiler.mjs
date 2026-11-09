@@ -20,7 +20,12 @@ function compileTypes(representatives, rels, options = {}) {
   const relAlias = {};
   if (options.libraries) {
     for (const lib of options.libraries) {
-      Object.assign(relAlias, lib.relAlias || {});
+      const lr = lib.rels || lib.defs?.rels || {};
+      for (const k of Object.keys(lr)) {
+        if (k.startsWith("@")) {
+          relAlias[k] = k;
+        }
+      }
     }
     const useSpecs = [...(options.useSpecs || options.use || [])];
     for (const spec of useSpecs) {
@@ -31,7 +36,7 @@ function compileTypes(representatives, rels, options = {}) {
         const libName = rawLib.replace(/\[.*\]$/, "").trim();
         const localName = rawLocal.replace(/\[.*\]$/, "").trim();
         for (const lib of options.libraries) {
-          const relHash = lib.relAlias?.[libName];
+          const relHash = lib.relAlias?.[libName] || (libName.startsWith("@") ? libName : null);
           if (relHash) {
             relAlias[localName] = relHash;
           }

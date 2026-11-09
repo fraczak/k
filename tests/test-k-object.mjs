@@ -14,7 +14,8 @@ import {
   objectToFunction,
   runConvergedObject,
   decompileObjectBuffer,
-  extractAliasesFromObject
+  extractAliasesFromObject,
+  parseHeaderUses
 } from "../object.mjs";
 
 const value = parseValue("{a:{b:x,c:{}}}");
@@ -109,9 +110,11 @@ const bitsLib = loadLibrary(decodeObject(compileLibraryBuffer(
   fs.readFileSync("lib/bits.k", "utf8"),
   { source: "lib/bits.k", libraries: [bitLib] }
 )));
+const arithRaw = fs.readFileSync("lib/arithmetics.k", "utf8");
+const arithUses = parseHeaderUses(arithRaw).map((u) => u.use);
 const arithmeticsLibraryBuffer = compileLibraryBuffer(
-  fs.readFileSync("lib/arithmetics.k", "utf8"),
-  { source: "lib/arithmetics.k", libraries: [bitsLib] }
+  arithRaw,
+  { source: "lib/arithmetics.k", libraries: [bitsLib], use: arithUses }
 );
 const arithmeticsDecompiledSource = decompileObjectBuffer(arithmeticsLibraryBuffer);
 const arithmeticsRoundTripSource = decompileObjectBuffer(

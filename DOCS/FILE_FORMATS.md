@@ -98,31 +98,30 @@ To clearly document dependencies and recommended compilation options without sca
 Multiple `# --lib` lines can be declared to document multiple dependencies:
 
 ```k
-# --lib lib/bits.k --use trim inv_loop inv cmp
-# --lib lib/bits.k --use inc:inc_bits dec:dec_bits plus:plus_bits minus:minus_bits mul:mul_bits
+# --lib lib/bits.k --use trim inv_loop inv cmp inc_bits dec_bits plus_bits minus_bits mul_bits
 ```
 
 #### How `--lib` and `--use` Work
 
 When source code is compiled with library dependencies (`k-compile`, `k.mjs`, `compileLibrary`, `compileObject`, or the REPL's `:load`):
 
-1. **In-Memory Symbol Availability**: When `--lib file.klib` is supplied, all relations and patterns defined in the library are available in memory during compilation.
-2. **No Text Synthesis or Line Offset**: The compiler never synthesizes code or prepends text to the user's source files. Source text remains untouched, preserving exact 1-to-1 line numbers in AST nodes, diagnostics, warnings, and error messages.
-3. **Local Precedence**: Definitions written in the current `.k` file take precedence over library definitions. For example, if a library provides `inc` and the file defines its own `inc`, the local definition takes precedence while library definitions with distinct names (or aliases such as `inc_bits`) remain accessible.
-4. **In-Memory Aliasing (`--use`)**: When `--use <spec>` is provided on the command line (or via `useSpecs` in the API), aliases are registered directly in memory in the compiler symbol tables without altering source text.
+1. **Content-Addressed Availability (Hash-Only)**: When `--lib file.klib` is supplied, all relations and patterns defined in the library are available in memory indexed strictly by their content hashes (`@<hash>`). Friendly names (the aliases recorded in library metadata) are **never** in scope by default.
+2. **Explicit Symbol Scope (`--use`)**: To bring a library relation or pattern into scope under a friendly name, `--use <spec>` must be specified (or `useSpecs` passed in the compiler API). The compiler resolves the spec against the library's metadata aliases and binds the friendly or aliased name directly in the in-memory symbol tables.
+3. **No Automatic Ingestion or Precedence Ambiguity**: Because library friendly names are not in scope without `--use`, there is no implicit shadowing or "precedence". Local definitions define local names; library definitions are accessed by `@<hash>` or by the names explicitly brought into scope via `--use`.
+4. **No Text Synthesis or Line Offset**: The compiler never synthesizes source code or prepends preamble text to user files. Source text remains completely untouched, preserving exact 1-to-1 line numbers in AST nodes, diagnostics, warnings, and error messages.
 
 #### Command-Line Usage
 
-- Compile a file using a pre-compiled library:
+- Compile a file using a pre-compiled library and explicit `--use` bindings (as documented in the file's header comments):
   ```sh
-  node objects/compile.mjs --lib /tmp/bits.klib lib/arithmetics.k /tmp/arithmetics.klib
+  node objects/compile.mjs --lib /tmp/bits.klib \
+    --use "trim inv_loop inv cmp inc_bits dec_bits plus_bits minus_bits mul_bits" \
+    lib/arithmetics.k /tmp/arithmetics.klib
   ```
-- Command-line `--use spec` flags create in-memory aliases when needed:
+- Command-line `--use spec` flags bring relations into scope for evaluation:
   ```sh
   printf '42\n' | node codecs/int.mjs --parse |
     node k.mjs --lib /tmp/k-math.klib --use inc 'inc' |
-    node codecs/int.mjs --print
-  ```
     node codecs/int.mjs --print
   ```
 

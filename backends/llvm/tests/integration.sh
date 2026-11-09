@@ -123,7 +123,9 @@ node --input-type=module -e "import assert from 'node:assert/strict'; import { s
 
 node ../../objects/compile.mjs ../../lib/bit.k "$TMP_DIR/bit.klib"
 node ../../objects/compile.mjs --lib "$TMP_DIR/bit.klib" ../../lib/bits.k "$TMP_DIR/bits.klib"
-node ../../objects/compile.mjs --lib "$TMP_DIR/bits.klib" ../../lib/arithmetics.k "$TMP_DIR/arithmetics.klib"
+node ../../objects/compile.mjs --lib "$TMP_DIR/bits.klib" \
+  --use "trim inv_loop inv cmp inc_bits dec_bits plus_bits minus_bits mul_bits" \
+  ../../lib/arithmetics.k "$TMP_DIR/arithmetics.klib"
 node ./bin/k-llvm-build.mjs --lib "$TMP_DIR/arithmetics.klib" --use times 's = ?< <bits 0, bits 1, {} _>=bits "+", bits "-" > {()x, ()y} times; s' -o "$TMP_DIR/square-exe"
 printf '987654321' \
   | node ../../codecs/int.mjs --parse \

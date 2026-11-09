@@ -581,9 +581,11 @@ export function retypeObjectRelation(object, relationName, inputPattern, options
 
   const target = resolveRelation(object, relationName);
   const source = `?${propertyListToFilter(inputPattern)} __kir_target__`;
+  const helperRels = Object.keys(object.rels || {}).filter((k) => k !== "__main__");
   const retypedObject = hydrateObject(compileObject(source, {
     source: options.source || "<kir-retype>",
-    libraries: [relationLibraryWithTarget(object, target.rel)]
+    libraries: [relationLibraryWithTarget(object, target.rel)],
+    use: ["__kir_target__", ...helperRels]
   }));
   return objectToKIRP(retypedObject);
 }

@@ -172,13 +172,28 @@ printf '{"x":{"a":{}},"y":{"b":{}}}\n' |
   node "$K_ROOT/codecs/k-print.mjs" |
   grep -qx '"b"'
 
-node "$K_ROOT/objects/compile.mjs" "$K_ROOT/lib/bit.k" "$TMP_DIR/bit.klib"
-node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/bit.klib" "$K_ROOT/lib/bits.k" "$TMP_DIR/bits.klib"
-node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/bits.klib" "$K_ROOT/lib/list.k" "$TMP_DIR/list.klib"
-node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/list.klib" "$K_ROOT/lib/btrie.k" "$TMP_DIR/btrie.klib"
-node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/btrie.klib" "$K_ROOT/lib/string.k" "$TMP_DIR/string.klib"
-node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/string.klib" "$K_ROOT/lib/ieee.k" "$TMP_DIR/ieee-types.klib"
-node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/ieee-types.klib" "$K_ROOT/Examples/ieee-arithmetics.k" "$TMP_DIR/ieee.klib"
+compile_step() {
+  local prev="$1"
+  local src="$2"
+  local out="$3"
+  local uses=()
+  while IFS= read -r line; do
+    [ -n "$line" ] && uses+=(--use "$line")
+  done < <(node -e 'import("'$K_ROOT'/canonical-pattern.mjs").then(m => { for (const u of m.parseHeaderUses(fs.readFileSync(process.argv[1],"utf8"))) console.log(u.use); })' "$src" 2>/dev/null || true)
+  if [ -n "$prev" ]; then
+    node "$K_ROOT/objects/compile.mjs" --lib "$prev" "${uses[@]}" "$src" "$out"
+  else
+    node "$K_ROOT/objects/compile.mjs" "${uses[@]}" "$src" "$out"
+  fi
+}
+
+compile_step "" "$K_ROOT/lib/bit.k" "$TMP_DIR/bit.klib"
+compile_step "$TMP_DIR/bit.klib" "$K_ROOT/lib/bits.k" "$TMP_DIR/bits.klib"
+compile_step "$TMP_DIR/bits.klib" "$K_ROOT/lib/list.k" "$TMP_DIR/list.klib"
+compile_step "$TMP_DIR/list.klib" "$K_ROOT/lib/btrie.k" "$TMP_DIR/btrie.klib"
+compile_step "$TMP_DIR/btrie.klib" "$K_ROOT/lib/string.k" "$TMP_DIR/string.klib"
+compile_step "$TMP_DIR/string.klib" "$K_ROOT/lib/ieee.k" "$TMP_DIR/ieee-types.klib"
+compile_step "$TMP_DIR/ieee-types.klib" "$K_ROOT/Examples/ieee-arithmetics.k" "$TMP_DIR/ieee.klib"
 if node ./bin/k-wasm-compile.mjs --lib "$TMP_DIR/ieee.klib" --lib "$TMP_DIR/ieee.klib" --use mul:times "{()x,()y} times .result" "$TMP_DIR/repeated-lib.wasm" >/dev/null 2>&1; then
   echo "--lib unexpectedly accepted more than once" >&2
   exit 1

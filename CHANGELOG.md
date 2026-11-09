@@ -5,6 +5,20 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.7.1] — 2026-11-08 — Content-Addressable Library Isolation and Scope Binding Fixes
+
+- **Strict Content-Addressable Library Isolation**:
+  - Loading a library with `--lib` makes relations and pattern templates available in memory strictly by their `@<hash>`. Friendly names (aliases recorded in library metadata) never enter compilation scope by default.
+  - Fix unintended leakage of friendly names into compilation scope when importing libraries.
+- **Explicit Scope Binding (`--use`)**:
+  - Friendly names or aliases enter compilation scope only when explicitly requested via `--use <spec>` on the CLI or `useSpecs` in the API.
+  - Preserve exact 1-to-1 source line numbers in diagnostics and AST nodes without synthetic text preambles.
+- **Eliminate Symbol Renaming Across `lib/` Modules**:
+  - Remove all `libname:localname` aliasing colons across `lib/*.k` header comments and bodies (`inc_bits`, `list_size`, etc.).
+  - Allow standard libraries to load cleanly in the REPL (`:load`) when prerequisites are loaded in order, with zero aliasing magic.
+- **Library Isolation Test Suite**:
+  - Add `tests/test-library-isolation.mjs` verifying relation and pattern template isolation, hash-only access, explicit `--use`, exact line numbers, and sequential REPL `:load`.
+
 ## [8.7.0] — 2026-11-07 — Standard Library Modularization and In-Memory Library Loading
 
 - **Standard Library Modularization into `lib/`**:
@@ -21,8 +35,8 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **In-Memory Library Loading & Dependency Comments (`# --lib ... --use ...`)**:
   - Add leading `# --lib <dependency> --use <specs>` header comments to document library dependencies and symbol usage at the top of `.k` files without hardcoded hashes.
   - `# --lib` lines remain strictly human-readable comments (never synthesized as text preambles), preserving exact 1-to-1 source line numbers in diagnostics, AST nodes, and warnings.
-  - `--lib <dependency.klib>` brings all library relations and patterns into scope in memory during compilation.
-  - `--use <spec>` establishes in-memory symbol and pattern aliases (`name`, `libname:localname`, `pattern[Params]:localname[Params]`) without modifying source text.
+  - `--lib <dependency.klib>` makes library relations and patterns available in memory indexed strictly by their content hashes (`@hash`); friendly names are never in scope by default.
+  - `--use <spec>` explicitly brings requested friendly names or aliases into compilation scope in memory without modifying source text or line numbers.
 - **Toolchain & REPL Integration**:
   - Pass `--lib` and `--use` directly into compiler options across `compileLibrary`, `compileObject`, `k.mjs`, `kvm.mjs`, LLVM, and Wasm backends.
   - REPL `:load` brings session library definitions into scope ambiently in memory.

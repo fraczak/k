@@ -1,8 +1,8 @@
 # --lib lib/bits.k --use inc lt? plus minus times1024
 # --lib lib/list.k --use reverse
-# --lib lib/btrie.k --use btrie[V] nth_trie put_nth remove_nth obj_size:list_size obj_size obj_values_raw values_to_trie
+# --lib lib/btrie.k --use btrie[V] nth_trie put_nth remove_nth list_size obj_size obj_values_raw values_to_trie
 # --lib lib/string.k --use unicode[] string[] eq_char? _quote_ _backslash_ _slash_ _bs_ _ff_ _lf_ _cr_ _tab_ n_char u_char l_char t_char r_char e_char f_char a_char s_char quote_char backslash_char slash_char b_char comma_char colon_char open_array close_array open_object close_object ws minus_char digit hex4 c1024 c55296 c56320 c57344 c65536 dot put remove str_len obj_keys_raw to_unicode
-# --lib lib/ieee.k --use float64[]:number[] finite_float64? natToFloat64 scanFloat64
+# --lib lib/ieee.k --use float64[] finite_float64? natToFloat64 scanFloat64
 
 -- lib/djson.k — Universal dynamic JSON schema (djson[]), methods, and RFC 8259 parser
 

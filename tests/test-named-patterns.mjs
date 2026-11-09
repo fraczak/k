@@ -132,6 +132,13 @@ assert.equal(evaluate(`
   my_list[T] = ${LIST}[T];
   {{}|0 car, {}|nil cdr}|cons ?my_list[my_bit[]]
 `, { libraries: [library] }).tag, "cons");
+
+// Library patterns are known by hash only unless --use / useSpecs is specified.
+assert.throws(
+  () => evaluate("is_bit = ?bit[]; ()", { libraries: [library] }),
+  /Unknown pattern template 'bit\[\]'/
+);
+
 assert.equal(evaluate(`
   is_bit = ?bit[];
   is_pair = ?${PAIR}[bit[],bit[]];
@@ -139,7 +146,7 @@ assert.equal(evaluate(`
   b = {}|0 is_bit;
   p = {b first, {}|1 second} is_pair;
   {p car, {}|nil cdr}|cons is_pair_list
-`, { libraries: [library] }).tag, "cons");
+`, { libraries: [library], useSpecs: ["bit", "list"] }).tag, "cons");
 
 assert.equal(evaluate(`
   is_bit = ?my_bit[];

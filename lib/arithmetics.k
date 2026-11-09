@@ -1,5 +1,4 @@
-# --lib lib/bits.k --use trim inv_loop inv cmp
-# --lib lib/bits.k --use inc:inc_bits dec:dec_bits plus:plus_bits minus:minus_bits mul:mul_bits
+# --lib lib/bits.k --use trim inv_loop inv cmp inc_bits dec_bits plus_bits minus_bits mul_bits
 
 -- lib/arithmetics.k — Signed arbitrary-precision integers (int[])
 

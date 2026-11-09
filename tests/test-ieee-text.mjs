@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import k from "../index.mjs";
 import { compileLibrary, loadLibrary } from "../object.mjs";
+import { parseHeaderUses } from "../canonical-pattern.mjs";
 import { compileWasmArtifact, instantiateWasmArtifact } from "../backends/wasm/src/wasm.mjs";
 import { encodeNumberToValue, decodeValueToNumber } from "../codecs/ieee.mjs";
 import { textToStringValue, stringValueToText } from "../codecs/runtime/unicode-string.mjs";
@@ -16,9 +17,12 @@ const ieeeSources = [
 ];
 let ieee = null;
 for (const file of ieeeSources) {
-  ieee = loadLibrary(compileLibrary(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), {
+  const fileSource = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+  const uses = parseHeaderUses(fileSource).map((u) => u.use);
+  ieee = loadLibrary(compileLibrary(fileSource, {
     source: file,
-    libraries: ieee ? [ieee] : []
+    libraries: ieee ? [ieee] : [],
+    use: uses
   }));
 }
 assert.equal(ieee.relAlias.add, undefined, "Text conversion must not load IEEE arithmetic");

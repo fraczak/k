@@ -286,13 +286,6 @@ export function expandPatternsInRels(rels, patterns = {}, options = {}) {
           allPatterns[name] = pat;
         }
       }
-      for (const [name, hash] of Object.entries(lib.patternAlias || {})) {
-        const pat = libPatterns[hash] || libPatterns[name];
-        if (pat) {
-          if (!(hash in allPatterns)) allPatterns[hash] = pat;
-          if (!(name in allPatterns)) allPatterns[name] = pat;
-        }
-      }
     }
   }
 
@@ -322,15 +315,6 @@ export function validatePatternDefinitions(
       for (const [name, pat] of Object.entries(libPatterns)) {
         if (name.startsWith("@") && !(name in allPatterns)) {
           allPatterns[name] = pat;
-        }
-      }
-      for (const [name, hash] of Object.entries(
-        lib.patternAlias || {}
-      )) {
-        const pat = libPatterns[hash] || libPatterns[name];
-        if (pat) {
-          if (!(hash in allPatterns)) allPatterns[hash] = pat;
-          if (!(name in allPatterns)) allPatterns[name] = pat;
         }
       }
     }

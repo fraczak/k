@@ -42,6 +42,7 @@ function annotate(script, options = {}) {
   const rels = {...defs.rels, "__main__": {def: exp}};
 
   // 1. Inject library patterns into defs.patterns before validation and expansion
+  // NOTE: Library patterns are known by their hashes ONLY unless --use is specified.
   if (options.libraries) {
     for (const lib of options.libraries) {
       const libPatterns =
@@ -53,14 +54,6 @@ function annotate(script, options = {}) {
         if (name.startsWith("@") && !(name in (defs.patterns || {}))) {
           if (!defs.patterns) defs.patterns = {};
           defs.patterns[name] = pat;
-        }
-      }
-      for (const [name, hash] of Object.entries(lib.patternAlias || {})) {
-        const pat = libPatterns[hash] || libPatterns[name];
-        if (pat) {
-          if (!defs.patterns) defs.patterns = {};
-          if (!(name in defs.patterns)) defs.patterns[name] = pat;
-          if (!(hash in defs.patterns)) defs.patterns[hash] = pat;
         }
       }
     }
@@ -78,7 +71,7 @@ function annotate(script, options = {}) {
         const localName = rawLocal.replace(/\[.*\]$/, "").trim();
         for (const lib of options.libraries) {
           const libPatterns = lib.patterns || lib.defs?.patterns || lib.sourceDefs?.patterns || {};
-          const patHash = lib.patternAlias?.[libName];
+          const patHash = lib.patternAlias?.[libName] || (libName.startsWith("@") ? libName : null);
           const pat = (patHash && libPatterns[patHash]) || libPatterns[libName];
           if (pat) {
             if (!defs.patterns) defs.patterns = {};
@@ -94,18 +87,14 @@ function annotate(script, options = {}) {
   validatePatternDefinitions(defs.patterns || {}, options);
   expandPatternsInRels(rels, defs.patterns || {}, options);
 
-  // 3. Inject library relations into the rels table so friendly & @hash refs resolve
+  // 3. Inject library relations into the rels table so @hash refs resolve
+  // NOTE: Library relations are known by their hashes ONLY unless --use is specified.
   if (options.libraries) {
     for (const lib of options.libraries) {
       const libRels = lib.rels || lib.defs?.rels || {};
       for (const [name, rel] of Object.entries(libRels)) {
-        if (!(name in rels)) {
+        if (name.startsWith("@") && !(name in rels)) {
           rels[name] = { ...rel, _library: true };
-        }
-      }
-      for (const [aliasName, hash] of Object.entries(lib.relAlias || {})) {
-        if (!(aliasName in rels) && libRels[hash]) {
-          rels[aliasName] = { ...libRels[hash], _library: true };
         }
       }
     }
@@ -122,7 +111,7 @@ function annotate(script, options = {}) {
         const localName = rawLocal.replace(/\[.*\]$/, "").trim();
         for (const lib of options.libraries) {
           const libRels = lib.rels || lib.defs?.rels || {};
-          const relHash = lib.relAlias?.[libName];
+          const relHash = lib.relAlias?.[libName] || (libName.startsWith("@") ? libName : null);
           const rel = (relHash && libRels[relHash]) || libRels[libName];
           if (rel && !(localName in rels)) {
             rels[localName] = { ...rel, _library: true };
