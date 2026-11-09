@@ -7,9 +7,17 @@ import { parse as parseFloat64, print as printFloat64 } from "../codecs/ieee.mjs
 import { closedPatternToCodeHash, valueForCode } from "../repl-codecs.mjs";
 
 const state = createState({ engine: "js" });
-await evaluateInput(":load core.k", state);
-await evaluateInput(":load Examples/ieee.k", state);
-await evaluateInput(":load Examples/ieee-arithmetics.k", state);
+for (const file of [
+  "lib/bit.k",
+  "lib/bits.k",
+  "lib/list.k",
+  "lib/btrie.k",
+  "lib/string.k",
+  "lib/ieee.k",
+  "Examples/ieee-arithmetics.k"
+]) {
+  await evaluateInput(`:load ${file}`, state);
+}
 
 for (const name of ["add", "sub", "mul", "div"]) {
   assert.ok(state.relAliases[name], `Expected public IEEE relation '${name}'`);

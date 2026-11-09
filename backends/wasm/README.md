@@ -43,8 +43,8 @@ filename. Compile tools read source from stdin when the program is omitted.
 Source files need a terminal expression; a `.klib` alone is not an executable
 input.
 
-Compile commands accept one `--lib file` and repeated `--export alias` or
-`--export libraryAlias:localAlias` options before the program. Libraries can
+Compile commands accept one `--lib file` and repeated `--use alias` or
+`--use libraryAlias:localAlias` options before the program. Libraries can
 be `.k` source or `.klib` objects. `--pkir` chooses the experimental PKIR
 lowering path; `-o` / `--output` selects an output path.
 
@@ -55,7 +55,7 @@ For a library example using only a small definition:
 
 ```sh
 node objects/compile.mjs 'greet = {} |hello;' /tmp/k-demo.klib
-node backends/wasm/bin/k-wasm-compile.mjs --lib /tmp/k-demo.klib   --export greet '?{} greet' /tmp/k-greet.wasm
+node backends/wasm/bin/k-wasm-compile.mjs --lib /tmp/k-demo.klib   --use greet '?{} greet' /tmp/k-greet.wasm
 node codecs/unit.mjs --parse |
   node backends/wasm/bin/k-wasm-run.mjs /tmp/k-greet.wasm |
   node codecs/k-print.mjs

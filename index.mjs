@@ -41,16 +41,92 @@ function annotate(script, options = {}) {
   const representatives = codes.register(defs.codes);
   const rels = {...defs.rels, "__main__": {def: exp}};
 
+  // 1. Inject library patterns into defs.patterns before validation and expansion
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      const libPatterns =
+        lib.patterns ||
+        lib.defs?.patterns ||
+        lib.sourceDefs?.patterns ||
+        {};
+      for (const [name, pat] of Object.entries(libPatterns)) {
+        if (name.startsWith("@") && !(name in (defs.patterns || {}))) {
+          if (!defs.patterns) defs.patterns = {};
+          defs.patterns[name] = pat;
+        }
+      }
+      for (const [name, hash] of Object.entries(lib.patternAlias || {})) {
+        const pat = libPatterns[hash] || libPatterns[name];
+        if (pat) {
+          if (!defs.patterns) defs.patterns = {};
+          if (!(name in defs.patterns)) defs.patterns[name] = pat;
+          if (!(hash in defs.patterns)) defs.patterns[hash] = pat;
+        }
+      }
+    }
+  }
+
+  // 2. Handle pattern aliases from useSpecs / use (e.g. float64[]:number[])
+  const useSpecs = [...(options.useSpecs || options.use || [])];
+  if (options.libraries && useSpecs.length > 0) {
+    for (const spec of useSpecs) {
+      const parts = spec.trim().split(/[\s,]+/);
+      for (const item of parts) {
+        if (!item) continue;
+        const [rawLib, rawLocal] = item.includes(":") ? item.split(":", 2) : [item, item];
+        const libName = rawLib.replace(/\[.*\]$/, "").trim();
+        const localName = rawLocal.replace(/\[.*\]$/, "").trim();
+        for (const lib of options.libraries) {
+          const libPatterns = lib.patterns || lib.defs?.patterns || lib.sourceDefs?.patterns || {};
+          const patHash = lib.patternAlias?.[libName];
+          const pat = (patHash && libPatterns[patHash]) || libPatterns[libName];
+          if (pat) {
+            if (!defs.patterns) defs.patterns = {};
+            if (!(localName in defs.patterns)) {
+              defs.patterns[localName] = pat;
+            }
+          }
+        }
+      }
+    }
+  }
+
   validatePatternDefinitions(defs.patterns || {}, options);
   expandPatternsInRels(rels, defs.patterns || {}, options);
 
-  // Inject library relations into the rels table so @hash refs resolve
+  // 3. Inject library relations into the rels table so friendly & @hash refs resolve
   if (options.libraries) {
     for (const lib of options.libraries) {
       const libRels = lib.rels || lib.defs?.rels || {};
       for (const [name, rel] of Object.entries(libRels)) {
         if (!(name in rels)) {
           rels[name] = { ...rel, _library: true };
+        }
+      }
+      for (const [aliasName, hash] of Object.entries(lib.relAlias || {})) {
+        if (!(aliasName in rels) && libRels[hash]) {
+          rels[aliasName] = { ...libRels[hash], _library: true };
+        }
+      }
+    }
+  }
+
+  // 4. Handle relation aliases from useSpecs / use (e.g. inc:inc_bits)
+  if (options.libraries && useSpecs.length > 0) {
+    for (const spec of useSpecs) {
+      const parts = spec.trim().split(/[\s,]+/);
+      for (const item of parts) {
+        if (!item) continue;
+        const [rawLib, rawLocal] = item.includes(":") ? item.split(":", 2) : [item, item];
+        const libName = rawLib.replace(/\[.*\]$/, "").trim();
+        const localName = rawLocal.replace(/\[.*\]$/, "").trim();
+        for (const lib of options.libraries) {
+          const libRels = lib.rels || lib.defs?.rels || {};
+          const relHash = lib.relAlias?.[libName];
+          const rel = (relHash && libRels[relHash]) || libRels[libName];
+          if (rel && !(localName in rels)) {
+            rels[localName] = { ...rel, _library: true };
+          }
         }
       }
     }

@@ -1,31 +1,39 @@
 -- IEEE binary64 arithmetic.
 
--- Defined in 'core.k':
-bit[] = @MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg[];
+bit[]  = < {} 0, {} 1 >;
+sign[] = < {} "+", {} "-" >;
 
--- Defined in 'ieee.k':
-sign[] = @F7RNp9YbYnUXpfZBQViADi6LZyXYYuiJHc9KckfZtDvm[];
-exp11[] = @F2KGfE24DhFGChv6pVAb4pkC9YWvt5izpnnwFDTLfG2h[];
-frac52[] = @ziwtSeiWqhQZjbpnB2TpWhSJCDTWfX2QzGvPd3DdVJCZ[];
+0   = {} |0 ?bit[];
+1   = {} |1 ?bit[];
+0?  = ?X /0 |0 ?X;
+1?  = ?X /1 |1 ?X;
+
++   = {} |"+" ?sign[];
+-   = {} |"-" ?sign[];
++?  = ?sign[] /"+" +;
+-?  = ?sign[] /"-" -;
+
+# --lib lib/bit.k --use not_bit and_bit or_bit xor_bit
+not_bit = @WAu2W28Cay64FmGXCumzmrgbMiEnSjyNUETbSzXtCvEw;
+and_bit = @4iKmE8nmJDxBMREydctSER6UnbA5ufURFJjr4mtKt9AZ;
+or_bit  = @FYe6xjtJKkYaiVT6UahWqGsfmihAyvwiqWE4zaEYekkz;
+xor_bit = @QecMdpq96xrRQyYENRgJvqhbYnxyqb66Uxc4mrdWSFpu;
+
+# --lib lib/ieee.k --use exp11[] frac52[] float64[]
+exp11[]   = @F2KGfE24DhFGChv6pVAb4pkC9YWvt5izpnnwFDTLfG2h[];
+frac52[]  = @ziwtSeiWqhQZjbpnB2TpWhSJCDTWfX2QzGvPd3DdVJCZ[];
 float64[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
 
-+ = @6u5XJAT7FHFBERfFPbyv5ENkqdyW2HzwKhgkczuvMQQT;
-+? = @Hs6MAcbku7m6mAyzH2wdv6M93sVabVS79PTjRK53cSs6;
-- = @DNePZ88gpzTbKDVUzSPrZJ2Nei55NqFsFKhVitUSRAZM;
--? = @g9uDGrMuDXhfbcqRRc6n7RFCeZqHnAafPqqaxHLYwbJK;
-0 = @jTxNHSR3cARUh2HWYqhhL3nimyyQJnGzgGkAL7UJyseV;
-0? = @JXK7GgBn4DHaXVAQizGXg6wMDM66QWTCiuQ6H6kyg8uA;
-1 = @wZsYRirwVkEXpP4Lxvw9wMaZvvXPpdeJQVAMH8yjfSfY;
-1? = @ZMDaFFxjfUe4eM6bCcdXYC4imhMyKPk2S6s8zmGD8qRn;
+# --lib lib/ieee.k --use all_ones_exponent? exp0 finite_float64? frac0 inf_float64? nan_float64? neg_inf neg_zero negate_float64 pos_inf pos_zero qnan zero_exponent? zero_float64?
 all_ones_exponent? = @G4gtCwkTyvUKAjhAKFFj5bfAMfW53t8A6CRxXpTyafcS;
 exp0 = @5CevJXf7TxM9xpnE6d7wUPxCNUCb8hjcyDxK27Qdb99d;
-finite_float64? = @Un56DNRzisnRedgtm6hev8FUXeQdwVvYanhrQ7hCVKmz;
+finite_float64? = @rXgbm83aU9KXZKsnUTKaMa6xE4L4SYr53QKWj55HgTXX;
 frac0 = @cEAdYip46Ce9nsZS8HvRg6iHqeLaAzWBcB5PvWyZHcPz;
 inf_float64? = @EHkVn6SrkQf9xx5j7nxBpA4wrMbrmnkNZGAGVHZESTbE;
-nan_float64? = @URLEZuV6zSC8SmfpBnXxdt9dnrgntNK9pHTZGb4Apkaw;
+nan_float64? = @C4gMueJKY8pkL4sXhA9Mm4myUdMfMnKLDNsJijr4Gzmw;
 neg_inf = @dDUVHjeQsLRfZ9P2faLv7uHd94w8XUxhug9xJr3CxhGA;
 neg_zero = @KkPWjqrqkhgNXTTeG8J7ZZhBUjVmN9nRnp42j6nRtb8V;
-negate_float64 = @vXzD23dCAb4YDbnT8vX3Npme7XXv3LV5CZHrpqh6JChh;
+negate_float64 = @3V9Ve52CnGsvJ9xxHgBwL47L4ac3Xh98bPuLJLHgeU78;
 pos_inf = @8paZ6U6NYfRBsnQHEJQFxtSWsET5WyAZBDUWaZkcPtmz;
 pos_zero = @QTRfm3S4BKsqqt7WDPAPhfNA2dajxcj9iyAtvnqpMcdf;
 qnan = @tS5xBCNSeuX3ahkFgk8wpX8nB6XrH9teHvYhhKxTFu7h;
@@ -113,11 +121,7 @@ underflow = {} |underflow;
 inexact = {} |inexact;
 div_by_zero = {} |div_by_zero;
 
-// Primitive boolean operators and a 3-input XOR helper.
-not_bit =  </0 1, 0>;
-or_bit =  <.x/1 1, .y/1 1, 0> ;
-and_bit =  <.x/0 0, .y/0 0, 1> ;
-xor_bit =  <{.x/0 if, .y then} .then, .y not_bit> ;
+// 3-input XOR helper.
 xor_abc =
   {{.a x, .b y} xor_bit x, .c y} xor_bit;
 

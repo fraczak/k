@@ -63,18 +63,26 @@ relations, libraries, and codecs.
 
 | File | Purpose |
 | --- | --- |
-| [core.k](core.k) | Bit, Unicode string, and self-hosted pattern schemas |
+| [lib/bit.k](lib/bit.k) | Bit, boolean, and ternary ordering (`bit[]`, `bool[]`, `order[]`) |
+| [lib/bits.k](lib/bits.k) | Arbitrary-width bit strings and 8-bit bytes (`bits[]`, `byte[]`) |
+| [lib/arithmetics.k](lib/arithmetics.k) | Signed arbitrary-precision integer arithmetic (`int[]`, `plus`, `minus`, `times`, `karatsuba`, `div`, `mod`, `gcd`, `lcm`) |
+| [lib/list.k](lib/list.k) | Parametric linked lists (`list[X]`) |
+| [lib/btrie.k](lib/btrie.k) | Parametric binary tries and optional values (`opt[V]`, `btrie[V]`) |
+| [lib/string.k](lib/string.k) | ASCII bytes, Unicode codepoints, and strings (`ascii[]`, `unicode[]`, `string[]`) |
+| [lib/ieee.k](lib/ieee.k) | Binary64 types and `parseFloat64` / `printFloat64` (`float64[]`) |
+| [lib/djson.k](lib/djson.k) | JSON text parsing (`parseJson`) and dynamic JSON operations (`djson[]`) |
+| [core.k](core.k) | Standalone bit, Unicode string, and self-hosted pattern schemas |
 | [Examples/nat.k](Examples/nat.k) | Small Peano arithmetic example |
-| [Examples/list.k](Examples/list.k) | Small generic list example |
-| [Examples/arithmetics.k](Examples/arithmetics.k) | Arbitrary-precision integer and rational arithmetic |
-| [Examples/poly.k](Examples/poly.k) | Polymorphic list operations; load arithmetics.k first |
-| [Examples/djson.k](Examples/djson.k) | JSON text parsing and dynamic JSON operations; load `core.k` and `Examples/ieee.k` first |
-| [Examples/ieee.k](Examples/ieee.k) | Binary64 types and `parseFloat64` / `printFloat64`; load `core.k` first |
-| [Examples/ieee-arithmetics.k](Examples/ieee-arithmetics.k) | Binary64 arithmetic returning `{result, flags}`; load `core.k`, then `Examples/ieee.k` first |
-| [Examples/karatsuba-mult.k](Examples/karatsuba-mult.k) | Alternative integer multiplication algorithm |
+| [Examples/arithmetics.k](Examples/arithmetics.k) | Factorial, Fibonacci, and exact rational arithmetic (`rat[]`); load `lib/bit.k`, `lib/bits.k`, and `lib/arithmetics.k` first |
+| [Examples/poly.k](Examples/poly.k) | Polymorphic list operations indexed by `int[]`; load `lib/bit.k`, `lib/bits.k`, `lib/arithmetics.k`, and `lib/list.k` first |
+| [Examples/ieee-arithmetics.k](Examples/ieee-arithmetics.k) | Binary64 arithmetic returning `{result, flags}`; load `lib/bit.k` through `lib/ieee.k` first |
 
-Load libraries explicitly with `:load` in the REPL. The CLI uses `--lib` with
-explicit `--export` aliases; see [file formats and tools](DOCS/FILE_FORMATS.md).
+Load libraries explicitly with `:load` in the REPL. Source files document
+dependencies and imported symbols via `# --lib <dependency> --use <specs>`
+header comments at the top of the file. Supplying `--lib <dependency.klib>`
+brings all library definitions into scope in memory during compilation.
+Command-line `--use` flags allow defining in-memory aliases. See
+[file formats and tools](DOCS/FILE_FORMATS.md).
 
 ## JavaScript API
 

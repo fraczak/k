@@ -25,9 +25,17 @@ export function succeeds(result, label) {
 
 export function withCompiledLibrary(source, test) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "k-library-test-"));
-  const library = path.join(dir, "library.klib");
+  const sources = Array.isArray(source) ? source : [source];
+  let library = null;
   try {
-    succeeds(node(["objects/compile.mjs", source, library]), `compile ${source}`);
+    for (let i = 0; i < sources.length; i++) {
+      const nextLibrary = path.join(dir, `library-${i}.klib`);
+      const args = ["objects/compile.mjs"];
+      if (library) args.push("--lib", library);
+      args.push(sources[i], nextLibrary);
+      succeeds(node(args), `compile ${sources[i]}`);
+      library = nextLibrary;
+    }
     test(library);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -36,7 +44,7 @@ export function withCompiledLibrary(source, test) {
 
 export function runLibrary(library, aliases, source, input = "0") {
   return node(["k.mjs", "--lib", library,
-    ...aliases.flatMap((alias) => ["--export", alias]), source],
+    ...aliases.flatMap((alias) => ["--use", alias]), source],
   encodeToWire(parse(input)));
 }
 

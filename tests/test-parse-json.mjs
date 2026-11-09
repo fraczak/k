@@ -11,11 +11,22 @@ import { textToStringValue } from "../codecs/runtime/unicode-string.mjs";
 import { parse as utf8 } from "../codecs/utf8.mjs";
 import { encodeToWire, decodeWire } from "../codecs/runtime/codec-sdk.mjs";
 
-const core = loadLibrary(compileLibrary(readFileSync(new URL("../core.k", import.meta.url), "utf8")));
-const ieee = loadLibrary(compileLibrary(readFileSync(new URL("../Examples/ieee.k", import.meta.url), "utf8"), {
-  libraries: [core]
-}));
-const library = loadLibrary(compileLibrary(readFileSync(new URL("../Examples/djson.k", import.meta.url), "utf8"), {
+let ieee = null;
+for (const file of [
+  "lib/bit.k",
+  "lib/bits.k",
+  "lib/list.k",
+  "lib/btrie.k",
+  "lib/string.k",
+  "lib/ieee.k"
+]) {
+  ieee = loadLibrary(compileLibrary(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), {
+    source: file,
+    libraries: ieee ? [ieee] : []
+  }));
+}
+const library = loadLibrary(compileLibrary(readFileSync(new URL("../lib/djson.k", import.meta.url), "utf8"), {
+  source: "lib/djson.k",
   libraries: [ieee]
 }));
 const wasm = await instantiateWasmArtifact(await compileWasmArtifact(library.relAlias.parseJson, { libraries: [library] }));
@@ -72,19 +83,28 @@ for (const text of ["1e309", "-1.8e308"]) assert.equal(fast(text), undefined, te
 const text = '{"answer":42,"ok":true}';
 const scratch = mkdtempSync(path.join(os.tmpdir(), "k-json-test-"));
 try {
-  const artifact = path.join(scratch, "djson.klib");
-  const ieeeArtifact = path.join(scratch, "ieee.klib");
-  for (const args of [
-    ["--lib", "core.k", "Examples/ieee.k", ieeeArtifact],
-    ["--lib", ieeeArtifact, "Examples/djson.k", artifact]
-  ]) {
-    const built = spawnSync(process.execPath, ["objects/compile.mjs", ...args], {
+  const chain = [
+    "lib/bit.k",
+    "lib/bits.k",
+    "lib/list.k",
+    "lib/btrie.k",
+    "lib/string.k",
+    "lib/ieee.k",
+    "lib/djson.k"
+  ];
+  let prev = null;
+  for (let i = 0; i < chain.length; i++) {
+    const out = path.join(scratch, `step-${i}.klib`);
+    const args = ["objects/compile.mjs", ...(prev ? ["--lib", prev] : []), chain[i], out];
+    const built = spawnSync(process.execPath, args, {
       cwd: new URL("..", import.meta.url)
     });
     assert.ifError(built.error);
     assert.equal(built.status, 0, built.stderr.toString());
+    prev = out;
   }
-  const cli = spawnSync(process.execPath, ["k.mjs", "--lib", artifact, "--export", "parseJson", "parseJson"], {
+  const artifact = prev;
+  const cli = spawnSync(process.execPath, ["k.mjs", "--lib", artifact, "--use", "parseJson", "parseJson"], {
     cwd: new URL("..", import.meta.url), input: encodeToWire(utf8(text))
   });
   assert.ifError(cli.error);

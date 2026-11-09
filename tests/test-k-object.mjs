@@ -101,13 +101,21 @@ const recursiveNatPattern = new RegExp(
 assert.equal(natRoundTripSource, natDecompiledSource);
 assert.match(natDecompiledSource, recursiveNatPattern);
 
+const bitLib = loadLibrary(decodeObject(compileLibraryBuffer(
+  fs.readFileSync("lib/bit.k", "utf8"),
+  { source: "lib/bit.k" }
+)));
+const bitsLib = loadLibrary(decodeObject(compileLibraryBuffer(
+  fs.readFileSync("lib/bits.k", "utf8"),
+  { source: "lib/bits.k", libraries: [bitLib] }
+)));
 const arithmeticsLibraryBuffer = compileLibraryBuffer(
-  fs.readFileSync("Examples/arithmetics.k", "utf8"),
-  { source: "Examples/arithmetics.k" }
+  fs.readFileSync("lib/arithmetics.k", "utf8"),
+  { source: "lib/arithmetics.k", libraries: [bitsLib] }
 );
 const arithmeticsDecompiledSource = decompileObjectBuffer(arithmeticsLibraryBuffer);
 const arithmeticsRoundTripSource = decompileObjectBuffer(
-  compileLibraryBuffer(arithmeticsDecompiledSource, { source: "Examples/arithmetics.decompiled.k" })
+  compileLibraryBuffer(arithmeticsDecompiledSource, { source: "lib/arithmetics.decompiled.k" })
 );
 assert.equal(arithmeticsRoundTripSource, arithmeticsDecompiledSource);
 

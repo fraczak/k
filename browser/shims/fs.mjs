@@ -12,6 +12,8 @@ function cleanPath(p) {
   let s = (p instanceof URL ? p.pathname : (p?.pathname || String(p))).replace(/\\/g, "/");
   if (s.startsWith("file://")) s = s.replace(/^file:\/\//, "");
   if (s.endsWith("runtime.wat")) return "backends/wasm/runtime.wat";
+  const libIdx = s.lastIndexOf("lib/");
+  if (libIdx !== -1) return s.slice(libIdx);
   const exIdx = s.lastIndexOf("Examples/");
   if (exIdx !== -1) return s.slice(exIdx);
   const wasmIdx = s.lastIndexOf("backends/wasm/");
@@ -32,10 +34,17 @@ export function setVfsFile(path, content) {
 export function getVfsFile(path) {
   const cleaned = cleanPath(path);
   if (vfs.has(cleaned)) return vfs.get(cleaned);
+  if (cleaned.startsWith("lib/")) {
+    const stripped = cleaned.slice("lib/".length);
+    if (vfs.has(stripped)) return vfs.get(stripped);
+  } else if (!cleaned.startsWith("Examples/")) {
+    const withLib = `lib/${cleaned}`;
+    if (vfs.has(withLib)) return vfs.get(withLib);
+  }
   if (cleaned.startsWith("Examples/")) {
     const stripped = cleaned.slice("Examples/".length);
     if (vfs.has(stripped)) return vfs.get(stripped);
-  } else {
+  } else if (!cleaned.startsWith("lib/")) {
     const withEx = `Examples/${cleaned}`;
     if (vfs.has(withEx)) return vfs.get(withEx);
   }
@@ -51,12 +60,19 @@ export function getVfsFile(path) {
 
 const CURATED_VFS_FILES = [
   "core.k",
+  "bit.k",
+  "bits.k",
   "arithmetics.k",
+  "list.k",
+  "btrie.k",
+  "string.k",
   "ieee.k",
+  "djson.k",
   "ieee-arithmetics.k",
   "poly.k",
-  "karatsuba-mult.k",
+  "nat.k",
   "json.mjs",
+  "djson.mjs",
   "utf8.mjs",
   "int.mjs",
   "unit.mjs",
@@ -72,7 +88,7 @@ export function getAllVfsFiles() {
   }
   for (const key of vfs.keys()) {
     if (key.endsWith("runtime.wat") || key.startsWith("backends/")) continue;
-    if (key.startsWith("Examples/") || key.startsWith("codecs/")) continue;
+    if (key.startsWith("lib/") || key.startsWith("Examples/") || key.startsWith("codecs/")) continue;
     result.add(key);
   }
   return Array.from(result);

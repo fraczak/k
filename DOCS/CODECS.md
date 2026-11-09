@@ -112,20 +112,21 @@ witness derivation. General wire semantics are specified in
 | `json.mjs` / `k-json` | Document-specific schemas: objects as products, arrays as indexed products |
 | `djson.mjs` / `k-djson` | One recursive JSON representation using binary tries for objects and arrays |
 
-`Examples/djson.k` supplies operations such as `get`, `nth`, `set`,
+`lib/djson.k` supplies operations such as `get`, `nth`, `set`,
 `del`, `push`, `keys`, and `values`. The specializing JSON codec and dynamic
 JSON codec serve different schemas; they are not interchangeable encodings.
 
-The library references core and IEEE types by their canonical hashes, as
-`poly.k` references the integer type. Its `number[]` is the IEEE `float64[]`;
-the sign, exponent, and fraction schemas are shared too. In the REPL, load
-`core.k`, `Examples/ieee.k`, then `Examples/djson.k`. When compiling, build the
-IEEE library with core first so it carries both sets of types.
+The library references earlier `lib/` types by their canonical hashes. Its
+`number[]` is the IEEE `float64[]`; the sign, exponent, and fraction schemas
+are shared too. In the REPL, load `lib/bit.k`, `lib/bits.k`, `lib/list.k`,
+`lib/btrie.k`, `lib/string.k`, `lib/ieee.k`, then `lib/djson.k`. When
+compiling, chain the `lib/` modules in order so each `.klib` carries forward
+the accumulated definitions.
 
-`Examples/ieee.k` contains the binary64 representation, small constructors and
+`lib/ieee.k` contains the binary64 representation, constructors and
 predicates, and text conversion. Heavy add/subtract/multiply/divide definitions
-are in `Examples/ieee-arithmetics.k`; load that file after `core.k` and `ieee.k`
-when arithmetic is needed. JSON parsing uses the lightweight library alone.
+are in `Examples/ieee-arithmetics.k`; load that file after `lib/ieee.k`
+when arithmetic is needed. JSON parsing uses `lib/ieee.k` alone.
 
 `parseFloat64`: `string[]` → `float64[]` accepts JSON-style decimal syntax,
 an optional leading `+`, surrounding ASCII JSON whitespace, and the words
@@ -145,10 +146,15 @@ surrogate escapes, and numbers that overflow to infinity are undefined.
 For example, decode UTF-8 to a k string, then parse that string in k:
 
 ```sh
-node objects/compile.mjs --lib core.k Examples/ieee.k /tmp/ieee-core.klib
-node objects/compile.mjs --lib /tmp/ieee-core.klib Examples/djson.k /tmp/djson.klib
+node objects/compile.mjs lib/bit.k /tmp/bit.klib
+node objects/compile.mjs --lib /tmp/bit.klib lib/bits.k /tmp/bits.klib
+node objects/compile.mjs --lib /tmp/bits.klib lib/list.k /tmp/list.klib
+node objects/compile.mjs --lib /tmp/list.klib lib/btrie.k /tmp/btrie.klib
+node objects/compile.mjs --lib /tmp/btrie.klib lib/string.k /tmp/string.klib
+node objects/compile.mjs --lib /tmp/string.klib lib/ieee.k /tmp/ieee.klib
+node objects/compile.mjs --lib /tmp/ieee.klib lib/djson.k /tmp/djson.klib
 printf '%s' '{"answer":42}' | node codecs/utf8.mjs --parse |
-  node k.mjs --lib /tmp/djson.klib --export parseJson 'parseJson' |
+  node k.mjs --lib /tmp/djson.klib --use parseJson 'parseJson' |
   node codecs/djson.mjs --print
 ```
 
@@ -160,14 +166,14 @@ The compiled IEEE library also supports a complete text round-trip in k:
 
 ```sh
 printf '%s' '1.5' | node codecs/utf8.mjs --parse |
-  node k.mjs --lib /tmp/ieee-core.klib --export parseFloat64 --export printFloat64 'parseFloat64 printFloat64' |
+  node k.mjs --lib /tmp/ieee.klib --use parseFloat64 --use printFloat64 'parseFloat64 printFloat64' |
   node codecs/utf8.mjs --print
 ```
 
 For arithmetic, compile the optional layer against the same IEEE library:
 
 ```sh
-node objects/compile.mjs --lib /tmp/ieee-core.klib Examples/ieee-arithmetics.k /tmp/ieee-arithmetics.klib
+node objects/compile.mjs --lib /tmp/ieee.klib Examples/ieee-arithmetics.k /tmp/ieee-arithmetics.klib
 ```
 
 `k-parse` and `k-print` use [textual k values](TEXTUAL_VALUES.md), rather than

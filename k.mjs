@@ -12,8 +12,7 @@ import {
   compileLibrary,
   decodeObject,
   objectToFunction,
-  loadLibrary,
-  buildExportPreamble
+  loadLibrary
 } from "./object.mjs";
 
 let kScript, inputStream;
@@ -34,14 +33,14 @@ function helpText() {
     "",
     "Options:",
     "  --lib file       Load one .klib or .k library before compiling.",
-    "  --export spec    Export library alias into scope. Repeatable.",
+    "  --use spec       Use library alias in scope (repeatable).",
     "                   spec is 'name' or 'libname:localname'.",
     "  -h, --help       Show this help.",
     "",
     "Examples:",
     `  echo '"abc"' | k-parse | ${prog} '{.1 0}' | k-print`,
     `  echo '{"x":1,"y":2}' | k-json --parse | \\`,
-    `    ${prog} --lib Examples/poly.k --export concat \\`,
+    `    ${prog} --lib Examples/poly.k --use concat \\`,
     `      's={()xs,()ys}concat; s' | k-json --print`
   ].join("\n");
 }
@@ -61,12 +60,13 @@ function isFile(filePath) {
   }
 }
 
-function compileFile(filePath, libraries, preamble) {
+function compileFile(filePath, libraries, useSpecs = []) {
   const buffer = fs.readFileSync(filePath);
   try {
     return objectToFunction(decodeObject(buffer));
   } catch {
-    return k.compile(preamble + buffer.toString("utf8"), { libraries });
+    const raw = buffer.toString("utf8");
+    return k.compile(raw, { libraries, useSpecs });
   }
 }
 
@@ -78,8 +78,8 @@ function compileFile(filePath, libraries, preamble) {
     }
 
     const libraries = [];
-    const exports = [];
-    // Parse --lib and --export flags
+    const useSpecs = [];
+    // Parse --lib and --use flags
     while (args.length > 0 && args[0].startsWith("--")) {
       if (args[0] === "--lib") {
         args.shift();
@@ -97,17 +97,15 @@ function compileFile(filePath, libraries, preamble) {
           const libBuffer = fs.readFileSync(libPath);
           libraries.push(loadLibrary(decodeObject(libBuffer)));
         }
-      } else if (args[0] === "--export") {
+      } else if (args[0] === "--use") {
         args.shift();
         const spec = args.shift();
-        if (!spec) throw new Error("--export requires a spec argument");
-        exports.push(spec);
+        if (!spec) throw new Error("--use requires a spec argument");
+        useSpecs.push(spec);
       } else {
         break;
       }
     }
-
-    const preamble = buildExportPreamble(exports, libraries);
 
     let kScriptStr = (function (arg) {
       if (arg == null) {
@@ -119,12 +117,10 @@ function compileFile(filePath, libraries, preamble) {
           "pass the source/object file path directly"
         );
       }
-      if (isFile(arg)) return compileFile(arg, libraries, preamble);
-      return preamble + arg;
+      if (isFile(arg)) return compileFile(arg, libraries, useSpecs);
+      return k.compile(arg, { libraries, useSpecs });
     })(args.shift());
-    let kScript = typeof kScriptStr === "function"
-      ? kScriptStr
-      : k.compile(kScriptStr, { libraries });
+    let kScript = kScriptStr;
     inputStream = (function (arg) {
       if (arg == null) {
         return stdin;

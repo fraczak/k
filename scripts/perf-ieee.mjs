@@ -223,7 +223,15 @@ function pkirLaneName() {
 
 console.log("==> Initializing IEEE types and arithmetic");
 const state = createState();
-for (const name of ["core.k", "Examples/ieee.k", "Examples/ieee-arithmetics.k"]) {
+for (const name of [
+  "lib/bit.k",
+  "lib/bits.k",
+  "lib/list.k",
+  "lib/btrie.k",
+  "lib/string.k",
+  "lib/ieee.k",
+  "Examples/ieee-arithmetics.k"
+]) {
   await evaluateInput(`:load ${fileURLToPath(import.meta.resolve(`@fraczak/k/${name}`))}`, state);
 }
 

@@ -78,21 +78,41 @@ if (fs.existsSync(coreKPath)) {
   vfsFiles["core.k"] = fs.readFileSync(coreKPath, "utf8");
 }
 
-// Add verified k-code files
+// Add verified lib/ k-code files
+const verifiedLibs = [
+  "bit.k",
+  "bits.k",
+  "arithmetics.k",
+  "list.k",
+  "btrie.k",
+  "string.k",
+  "ieee.k",
+  "djson.k"
+];
+const libDir = path.join(projectRoot, "lib");
+for (const filename of verifiedLibs) {
+  const fullPath = path.join(libDir, filename);
+  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+    const content = fs.readFileSync(fullPath, "utf8");
+    vfsFiles[filename] = content;
+    vfsFiles[`lib/${filename}`] = content;
+  }
+}
+
+// Add verified Examples/ k-code files
 const verifiedExamples = [
   "arithmetics.k",
-  "ieee.k",
   "ieee-arithmetics.k",
-  "poly.k",
-  "karatsuba-mult.k",
-  "djson.k"
+  "poly.k"
 ];
 const examplesDir = path.join(projectRoot, "Examples");
 for (const filename of verifiedExamples) {
   const fullPath = path.join(examplesDir, filename);
   if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
     const content = fs.readFileSync(fullPath, "utf8");
-    vfsFiles[filename] = content;
+    if (!(filename in vfsFiles)) {
+      vfsFiles[filename] = content;
+    }
     vfsFiles[`Examples/${filename}`] = content;
   }
 }
@@ -1688,14 +1708,22 @@ const htmlContent = `<!DOCTYPE html>
         <div class="control-group">
           <select id="example-select" title="Choose an example or expression">
             <option value="">-- Example / Expression --</option>
-            <optgroup label="Standard Examples">
+            <optgroup label="Standard Libraries (lib/)">
+              <option value="lib/bit.k">lib/bit.k</option>
+              <option value="lib/bits.k">lib/bits.k</option>
+              <option value="lib/arithmetics.k">lib/arithmetics.k</option>
+              <option value="lib/list.k">lib/list.k</option>
+              <option value="lib/btrie.k">lib/btrie.k</option>
+              <option value="lib/string.k">lib/string.k</option>
+              <option value="lib/ieee.k">lib/ieee.k</option>
+              <option value="lib/djson.k">lib/djson.k</option>
+            </optgroup>
+            <optgroup label="Examples">
               <option value="core.k">core.k</option>
-              <option value="arithmetics.k">arithmetics.k</option>
-              <option value="ieee.k">ieee.k</option>
-              <option value="ieee-arithmetics.k">ieee-arithmetics.k</option>
-              <option value="poly.k">poly.k</option>
-              <option value="karatsuba-mult.k">karatsuba-mult.k</option>
-              <option value="djson.k">djson.k</option>
+              <option value="Examples/nat.k">Examples/nat.k</option>
+              <option value="Examples/arithmetics.k">Examples/arithmetics.k</option>
+              <option value="Examples/poly.k">Examples/poly.k</option>
+              <option value="Examples/ieee-arithmetics.k">Examples/ieee-arithmetics.k</option>
             </optgroup>
             <optgroup label="Quick Expressions">
               <option value="expr:{} | ok">{} | ok</option>

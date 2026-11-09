@@ -40,7 +40,7 @@ function helpText() {
     "",
     "Options:",
     "  --lib file        Load one .klib or .k library before compiling.",
-    "  --export spec     Export library alias into scope. Repeatable.",
+    "  --use spec        Use library alias in scope (repeatable).",
     "                    spec is 'name' or 'libname:localname'.",
     "  --pkir            Lower via Polymorphic K IR (PKIR).",
     "  --retype rel      Relation to specialize (default: object main).",
@@ -58,7 +58,7 @@ function helpText() {
     "Examples:",
     `  echo '"abc"' | k-parse | ${prog} '{.1 0}' | k-print`,
     `  echo '{"x":1,"y":2}' | k-json --parse | \\`,
-    `    ${prog} --lib Examples/poly.k --export concat \\`,
+    `    ${prog} --lib Examples/poly.k --use concat \\`,
     `      's={()xs,()ys}concat; s' | k-json --print`
   ].join("\n");
 }
@@ -174,7 +174,7 @@ async function main() {
     }
   }
 
-  const { libraries, exportSpecs, usePKIR } =
+  const { libraries, useSpecs, usePKIR } =
     parseCompileOptions(remainingArgs);
   const programInput = resolveProgramInput(remainingArgs);
   const inputWirePath = remainingArgs.shift();
@@ -200,7 +200,7 @@ async function main() {
     const inputKey = JSON.stringify({
       programInput,
       libraries: libraries.map((lib) => Object.keys(lib.rels || {})),
-      exportSpecs
+      useSpecs
     });
     const key = computeCacheKey({
       fingerprint,
@@ -233,7 +233,7 @@ async function main() {
       } else {
         const object = await compileProgramInputToObject(programInput, {
           libraries,
-          exportSpecs,
+          useSpecs,
           stdin
         });
         compileObjectToExecutable(object, tmpPath, {
@@ -264,7 +264,7 @@ async function main() {
     } else {
       const object = await compileProgramInputToObject(programInput, {
         libraries,
-        exportSpecs,
+        useSpecs,
         stdin
       });
       compileObjectToExecutable(object, exePath, {

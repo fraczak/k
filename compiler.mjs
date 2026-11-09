@@ -18,6 +18,27 @@ function compileTypes(representatives, rels, options = {}) {
   //   }
  
   const relAlias = {};
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      Object.assign(relAlias, lib.relAlias || {});
+    }
+    const useSpecs = [...(options.useSpecs || options.use || [])];
+    for (const spec of useSpecs) {
+      const parts = spec.trim().split(/[\s,]+/);
+      for (const item of parts) {
+        if (!item) continue;
+        const [rawLib, rawLocal] = item.includes(":") ? item.split(":", 2) : [item, item];
+        const libName = rawLib.replace(/\[.*\]$/, "").trim();
+        const localName = rawLocal.replace(/\[.*\]$/, "").trim();
+        for (const lib of options.libraries) {
+          const relHash = lib.relAlias?.[libName];
+          if (relHash) {
+            relAlias[localName] = relHash;
+          }
+        }
+      }
+    }
+  }
   const compileStats = {
     sccs: []
   };

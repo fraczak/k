@@ -3,7 +3,7 @@ import { withCompiledLibrary, runLibrary, integer } from "./helpers/cli.mjs";
 
 const large = "11111112222223333334444444555555666666777777788888899999900000011111122222233333344444455555";
 
-withCompiledLibrary("Examples/karatsuba-mult.k", (library) => {
+withCompiledLibrary(["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"], (library) => {
   const multiply = (source, input) =>
     integer(runLibrary(library, ["karatsuba"], source, input), source);
 

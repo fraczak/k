@@ -6,14 +6,20 @@ import { fileURLToPath } from "node:url";
 import { createState, evaluateInput } from "../backend-api.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const arithmeticsPath = path.join(root, "Examples/arithmetics.k");
-const polyPath = path.join(root, "Examples/poly.k");
+const polySources = [
+  "lib/bit.k",
+  "lib/bits.k",
+  "lib/arithmetics.k",
+  "lib/list.k",
+  "Examples/poly.k"
+];
 
 console.log("==> Running Polymorphic List Tests (Examples/poly.k)");
 
 const state = createState();
-await evaluateInput(`:load ${arithmeticsPath}`, state);
-await evaluateInput(`:load ${polyPath}`, state);
+for (const relPath of polySources) {
+  await evaluateInput(`:load ${path.join(root, relPath)}`, state);
+}
 
 async function evalK(snippet) {
   const res = await evaluateInput(snippet, state);

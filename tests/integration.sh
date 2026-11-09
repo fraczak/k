@@ -33,10 +33,10 @@ grep -q '"__main__"' "$TMP_DIR/stdin.kvm"
 grep -q '"layer": "KVM-P"' "$TMP_DIR/poly-object.kvm"
 grep -q '"isPolymorphic": true' "$TMP_DIR/poly-object.kvm"
 ./objects/compile.mjs 'id = ();' "$TMP_DIR/export.klib"
-./objects/compile.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' "$TMP_DIR/export.ko"
+./objects/compile.mjs --lib "$TMP_DIR/export.klib" --use id:alias 'alias' "$TMP_DIR/export.ko"
 ./objects/decompile.mjs "$TMP_DIR/export.ko" | grep -q '^----- main -----$'
-node ./codecs/unit.mjs --parse | ./k.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' | node ./codecs/unit.mjs --print | grep -qx '{}'
-node ./codecs/unit.mjs --parse | ./kvm.mjs --lib "$TMP_DIR/export.klib" --export id:alias 'alias' | node ./codecs/unit.mjs --print | grep -qx '{}'
+node ./codecs/unit.mjs --parse | ./k.mjs --lib "$TMP_DIR/export.klib" --use id:alias 'alias' | node ./codecs/unit.mjs --print | grep -qx '{}'
+node ./codecs/unit.mjs --parse | ./kvm.mjs --lib "$TMP_DIR/export.klib" --use id:alias 'alias' | node ./codecs/unit.mjs --print | grep -qx '{}'
 node ./codecs/unit.mjs --parse | ./k.mjs "$TMP_DIR/export.ko" | node ./codecs/unit.mjs --print | grep -qx '{}'
 node ./codecs/unit.mjs --parse | ./kvm.mjs "$TMP_DIR/export.ko" | node ./codecs/unit.mjs --print | grep -qx '{}'
 if ./k.mjs --lib "$TMP_DIR/export.klib" --lib "$TMP_DIR/export.klib" '()' > "$TMP_DIR/two-lib.out" 2> "$TMP_DIR/two-lib.err"; then
@@ -81,7 +81,12 @@ if ./kvm.mjs -k Examples/nat.k > "$TMP_DIR/dash-k-kvm.out" 2> "$TMP_DIR/dash-k-k
 fi
 grep -q -- '-k is no longer supported' "$TMP_DIR/dash-k-kvm.err"
 echo
-./objects/compile.mjs --lib core.k Examples/ieee.k "$TMP_DIR/ieee-types.klib"
+./objects/compile.mjs lib/bit.k "$TMP_DIR/bit.klib"
+./objects/compile.mjs --lib "$TMP_DIR/bit.klib" lib/bits.k "$TMP_DIR/bits.klib"
+./objects/compile.mjs --lib "$TMP_DIR/bits.klib" lib/list.k "$TMP_DIR/list.klib"
+./objects/compile.mjs --lib "$TMP_DIR/list.klib" lib/btrie.k "$TMP_DIR/btrie.klib"
+./objects/compile.mjs --lib "$TMP_DIR/btrie.klib" lib/string.k "$TMP_DIR/string.klib"
+./objects/compile.mjs --lib "$TMP_DIR/string.klib" lib/ieee.k "$TMP_DIR/ieee-types.klib"
 ./objects/compile.mjs --lib "$TMP_DIR/ieee-types.klib" Examples/ieee-arithmetics.k "$TMP_DIR/ieee.klib"
 MUL=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^mul = @' | sed 's/^mul = \(@[^;]*\);.*$/\1/'`
 DIV=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^div = @' | sed 's/^div = \(@[^;]*\);.*$/\1/'`

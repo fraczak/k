@@ -415,55 +415,141 @@ export function canonicalPatternHash(name, pat, options = {}) {
   return resolvePatternCanonicalInfo(name, pat, options).hash;
 }
 
-export function buildExportPreamble(exports = [], libraries = []) {
-  if (exports.length === 0) return "";
+export function parseHeaderDirectives(source) {
+  if (!source || typeof source !== "string") return [];
+  const directives = [];
+  const lines = source.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("--") || trimmed.startsWith("//") || trimmed.startsWith("%")) {
+      continue;
+    }
+    if (trimmed.startsWith("#")) {
+      const match = trimmed.match(/^#\s*--?lib\s+(\S+)\s+--use\s+(.+)$/);
+      if (match) {
+        directives.push({ lib: match[1], use: match[2].trim() });
+      }
+      continue;
+    }
+    break;
+  }
+  return directives;
+}
+
+export function parseHeaderUses(source) {
+  return parseHeaderDirectives(source);
+}
+
+function buildMapsForLibrary(lib) {
   const relMap = {};
   const patMap = {};
-  for (const lib of libraries) {
-    for (const [name, hash] of Object.entries(lib.relAlias || {})) {
-      if (name !== "__main__") relMap[name] = { hash };
-    }
-    for (const [name, hash] of Object.entries(lib.patternAlias || {})) {
+  for (const [name, hash] of Object.entries(lib.relAlias || {})) {
+    if (name !== "__main__") relMap[name] = { hash };
+  }
+  for (const [name, hash] of Object.entries(lib.patternAlias || {})) {
+    patMap[name] = {
+      hash,
+      params:
+        lib.patterns?.[name]?.params ||
+        lib.patterns?.[name]?._canonicalParams ||
+        lib.patterns?.[hash]?.params ||
+        [],
+      aliasArgs:
+        lib.patterns?.[name]?._aliasArgs ||
+        lib.meta?.[hash]?.origins?.find((o) => o.name === name)
+          ?.aliasArgs ||
+        lib.patterns?.[name]?.params ||
+        []
+    };
+  }
+  for (const [name, pat] of Object.entries(lib.patterns || {})) {
+    if (!patMap[name]) {
       patMap[name] = {
-        hash,
-        params:
-          lib.patterns?.[name]?.params ||
-          lib.patterns?.[name]?._canonicalParams ||
-          lib.patterns?.[hash]?.params ||
-          [],
-        aliasArgs:
-          lib.patterns?.[name]?._aliasArgs ||
-          lib.meta?.[hash]?.origins?.find((o) => o.name === name)
-            ?.aliasArgs ||
-          lib.patterns?.[name]?.params ||
-          []
+        hash: pat._canonical || lib.patternAlias?.[name] || name,
+        params: pat.params || [],
+        aliasArgs: pat._aliasArgs || pat.params || []
       };
     }
-    for (const [name, pat] of Object.entries(lib.patterns || {})) {
-      if (!patMap[name]) {
-        patMap[name] = {
-          hash: pat._canonical || lib.patternAlias?.[name] || name,
-          params: pat.params || [],
-          aliasArgs: pat._aliasArgs || pat.params || []
-        };
+  }
+  for (const [hash, entry] of Object.entries(lib.meta || {})) {
+    for (const origin of entry?.origins || []) {
+      const type = origin?.type || entry?.type;
+      if (type === "rel") {
+        if (origin?.name && origin.name !== "__main__") {
+          relMap[origin.name] = { hash };
+        }
+      } else if (type === "pattern") {
+        if (origin?.name) {
+          patMap[origin.name] = {
+            hash,
+            params: origin.params || entry.params || [],
+            aliasArgs:
+              origin.aliasArgs ||
+              entry.aliasArgs ||
+              origin.params ||
+              []
+          };
+        }
       }
     }
-    for (const [hash, entry] of Object.entries(lib.meta || {})) {
-      for (const origin of entry?.origins || []) {
-        const type = origin?.type || entry?.type;
-        if (type === "rel") {
-          if (origin?.name && origin.name !== "__main__") {
-            relMap[origin.name] = { hash };
+  }
+  return { relMap, patMap };
+}
+
+function findMatchingLibrary(libPath, libraries) {
+  if (!libPath || !libraries || libraries.length === 0) return null;
+  const baseName = libPath.split("/").pop();
+  for (const lib of libraries) {
+    if (lib.source) {
+      if (
+        lib.source === libPath ||
+        lib.source.endsWith("/" + libPath) ||
+        lib.source.split("/").pop() === baseName
+      ) {
+        return lib;
+      }
+    }
+    if (lib.meta) {
+      for (const entry of Object.values(lib.meta)) {
+        for (const origin of entry?.origins || []) {
+          if (
+            origin.source &&
+            (origin.source === libPath ||
+              origin.source.split("/").pop() === baseName)
+          ) {
+            return lib;
           }
-        } else if (type === "pattern") {
-          if (origin?.name) {
-            patMap[origin.name] = {
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function matchesSource(actualSource, requestedSource) {
+  if (!actualSource || !requestedSource) return false;
+  if (actualSource === requestedSource) return true;
+  const reqBase = requestedSource.split("/").pop();
+  const actBase = actualSource.split("/").pop();
+  return reqBase === actBase;
+}
+
+function findFromMeta(libPath, name, type, libraries) {
+  for (const lib of libraries) {
+    if (!lib.meta) continue;
+    for (const [hash, entry] of Object.entries(lib.meta)) {
+      if (entry?.type !== type && entry?.type !== "any") continue;
+      for (const origin of entry?.origins || []) {
+        if (origin?.name === name && (origin.type == null || origin.type === type)) {
+          if (!libPath || matchesSource(origin.source, libPath)) {
+            return {
               hash,
               params: origin.params || entry.params || [],
               aliasArgs:
                 origin.aliasArgs ||
                 entry.aliasArgs ||
                 origin.params ||
+                entry.params ||
                 []
             };
           }
@@ -471,9 +557,45 @@ export function buildExportPreamble(exports = [], libraries = []) {
       }
     }
   }
+  return null;
+}
+
+export function buildUsePreamble(exports = [], libraries = []) {
+  if (exports.length === 0) return "";
+  const globalRelMap = {};
+  const globalPatMap = {};
+  const libMap = new Map();
+
+  for (const lib of libraries) {
+    const maps = buildMapsForLibrary(lib);
+    libMap.set(lib, maps);
+    Object.assign(globalRelMap, maps.relMap);
+    Object.assign(globalPatMap, maps.patMap);
+  }
+
+  const flatItems = [];
+  for (const entry of exports) {
+    if (!entry) continue;
+    if (typeof entry === "string") {
+      const trimmed = entry.trim();
+      if (!trimmed) continue;
+      for (const spec of trimmed.split(/[\s,]+/).filter(Boolean)) {
+        flatItems.push({ lib: null, spec });
+      }
+    } else if (typeof entry === "object" && entry.use) {
+      const trimmed = entry.use.trim();
+      if (!trimmed) continue;
+      for (const spec of trimmed.split(/[\s,]+/).filter(Boolean)) {
+        flatItems.push({ lib: entry.lib || null, spec });
+      }
+    }
+  }
 
   const lines = [];
-  for (const spec of exports) {
+  const seenRel = new Set();
+  const seenPat = new Set();
+  for (const item of flatItems) {
+    const spec = item.spec;
     const [rawLib, rawLocal] = spec.includes(":")
       ? spec.split(":", 2)
       : [spec, spec];
@@ -482,43 +604,76 @@ export function buildExportPreamble(exports = [], libraries = []) {
     const libName = rawLib.replace(/\[.*\]$/, "").trim();
     const localName = rawLocal.replace(/\[.*\]$/, "").trim();
 
+    let relTarget = null;
+    let patTarget = null;
+
+    if (!isExplicitPattern) {
+      if (item.lib) {
+        relTarget = findFromMeta(item.lib, libName, "rel", libraries);
+      }
+      if (!relTarget) {
+        const matchedLib = item.lib ? findMatchingLibrary(item.lib, libraries) : null;
+        if (matchedLib && libMap.get(matchedLib)?.relMap[libName]) {
+          relTarget = libMap.get(matchedLib).relMap[libName];
+        } else if (globalRelMap[libName]) {
+          relTarget = globalRelMap[libName];
+        }
+      }
+    }
+
+    if (item.lib) {
+      patTarget = findFromMeta(item.lib, libName, "pattern", libraries);
+    }
+    if (!patTarget) {
+      const matchedLib = item.lib ? findMatchingLibrary(item.lib, libraries) : null;
+      if (matchedLib && libMap.get(matchedLib)?.patMap[libName]) {
+        patTarget = libMap.get(matchedLib).patMap[libName];
+      } else if (globalPatMap[libName]) {
+        patTarget = globalPatMap[libName];
+      }
+    }
+
     let emitted = false;
-    if (!isExplicitPattern && relMap[libName]) {
-      const target = relMap[libName];
-      const body = target.hash.startsWith("@")
-        ? target.hash.slice(1)
-        : target.hash;
-      lines.push(`${localName} = @${body};`);
+    if (!isExplicitPattern && relTarget) {
+      const body = relTarget.hash.startsWith("@")
+        ? relTarget.hash.slice(1)
+        : relTarget.hash;
+      if (!seenRel.has(localName)) {
+        lines.push(`${localName} = @${body};`);
+        seenRel.add(localName);
+      }
       emitted = true;
     }
-    if (patMap[libName]) {
-      if (isExplicitPattern || !emitted || relMap[libName]) {
-        const target = patMap[libName];
-        const body = target.hash.startsWith("@")
-          ? target.hash.slice(1)
-          : target.hash;
+    if (patTarget) {
+      if (isExplicitPattern || !emitted || relTarget) {
+        const body = patTarget.hash.startsWith("@")
+          ? patTarget.hash.slice(1)
+          : patTarget.hash;
         const paramStr =
-          target.params && target.params.length > 0
-            ? `[${target.params.join(", ")}]`
+          patTarget.params && patTarget.params.length > 0
+            ? `[${patTarget.params.join(", ")}]`
             : "[]";
-        const args = target.aliasArgs || target.params;
+        const args = patTarget.aliasArgs || patTarget.params;
         const argStr =
           args && args.length > 0
             ? `[${args.join(", ")}]`
             : paramStr;
-        lines.push(
-          `${localName}${paramStr} = @${body}${argStr};`
-        );
+        if (!seenPat.has(localName)) {
+          lines.push(
+            `${localName}${paramStr} = @${body}${argStr};`
+          );
+          seenPat.add(localName);
+        }
         emitted = true;
       }
     }
     if (!emitted) {
       throw new Error(
-        `--export: '${rawLib}' not found in loaded libraries`
+        `--use: '${rawLib}' not found in loaded libraries`
       );
     }
   }
-  return lines.join("\n") + "\n";
+  return lines.length > 0 ? lines.join("\n") + "\n" : "";
 }
 
 const DEFAULT_MAX_PAT_LENGTH = 45;
@@ -773,7 +928,9 @@ export function canonicalBoundaryFilterSources(
 export default {
   resolvePatternCanonicalInfo,
   canonicalPatternHash,
-  buildExportPreamble,
+  buildUsePreamble,
+  parseHeaderDirectives,
+  parseHeaderUses,
   canonicalBoundaryFilterSources,
   instantiateCanonicalFilter
 };

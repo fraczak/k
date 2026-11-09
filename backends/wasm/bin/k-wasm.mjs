@@ -28,7 +28,7 @@ function helpText() {
     "",
     "Options:",
     "  --lib file        Load one .klib or .k library before compiling.",
-    "  --export spec     Export library alias into scope. Repeatable.",
+    "  --use spec        Use library alias in scope (repeatable).",
     "                    spec is 'name' or 'libname:localname'.",
     "  --pkir            Lower via Polymorphic K IR (PKIR).",
     "  -h, --help        Show this help.",
@@ -39,7 +39,7 @@ function helpText() {
     "Examples:",
     `  echo '"abc"' | k-parse | ${prog} '{.1 0}' | k-print`,
     `  echo '{"x":1,"y":2}' | k-json --parse | \\`,
-    `    ${prog} --lib Examples/poly.k --export concat \\`,
+    `    ${prog} --lib Examples/poly.k --use concat \\`,
     `      's={()xs,()ys}concat; s' | k-json --print`
   ].join("\n");
 }
@@ -55,7 +55,7 @@ async function main() {
     return;
   }
 
-  const { libraries, exportSpecs, usePKIR } = parseCompileOptions(args);
+  const { libraries, useSpecs, usePKIR } = parseCompileOptions(args);
   const programInput = resolveProgramInput(args);
   const inputPath = args.shift();
   if (args.length > 0) throw new Error("Too many arguments");
@@ -70,7 +70,7 @@ async function main() {
   const { pattern: inputEnvelopePattern } = decodeWire(inputBuffer);
   const artifact = await compileProgramInput(programInput, {
     libraries,
-    exportSpecs,
+    useSpecs,
     inputEnvelopePattern,
     usePKIR
   });

@@ -23,47 +23,31 @@ export async function createPolySuite({ listLength = 40, cacheDir = null } = {})
   const ops = ["reverse", "concat", "split_by", "get_nth", "length"];
   const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
 
-  const arithmeticsPath = fileURLToPath(import.meta.resolve("../../Examples/arithmetics.k"));
-  const arithmeticsSource = fs.readFileSync(arithmeticsPath, "utf8");
-  const arithmeticsLib = loadLibrary(compileLibrary(arithmeticsSource, { source: arithmeticsPath }));
+  let depLib = null;
+  for (const relPath of ["../../lib/bit.k", "../../lib/bits.k", "../../lib/arithmetics.k", "../../lib/list.k"]) {
+    const filePath = fileURLToPath(import.meta.resolve(relPath));
+    depLib = loadLibrary(compileLibrary(fs.readFileSync(filePath, "utf8"), {
+      source: filePath,
+      libraries: depLib ? [depLib] : []
+    }));
+  }
 
   const polyPath = fileURLToPath(import.meta.resolve("../../Examples/poly.k"));
   const polySource = fs.readFileSync(polyPath, "utf8");
-
-  function buildExportPreamble(exports, libraries) {
-    const aliasMap = {};
-    for (const lib of libraries) {
-      for (const [name, hash] of Object.entries(lib.relAlias || {})) {
-        if (name !== "__main__") aliasMap[name] = hash;
-      }
-    }
-    const lines = [];
-    for (const spec of exports) {
-      const [libName, localName] = spec.includes(":") ? spec.split(":", 2) : [spec, spec];
-      const hash = aliasMap[libName];
-      if (!hash) throw new Error(`--export: '${libName}' not found in loaded libraries`);
-      const body = hash.startsWith("@") ? hash.slice(1) : hash;
-      lines.push(`${localName} = @${body};`);
-    }
-    return lines.join("\n") + "\n";
-  }
-
-  const neededExports = ["0", "int", "inc", "dec", "nat", "zero_int?"];
-  const exportPreamble = buildExportPreamble(neededExports, [arithmeticsLib]);
-  const polyLib = loadLibrary(compileLibrary(exportPreamble + polySource, {
+  const polyLib = loadLibrary(compileLibrary(polySource, {
     source: polyPath,
-    libraries: [arithmeticsLib]
+    libraries: [depLib]
   }));
 
   const state = {
-    codes: { ...arithmeticsLib.codes, ...polyLib.codes },
-    rels: { ...arithmeticsLib.rels, ...polyLib.rels },
+    codes: { ...depLib.codes, ...polyLib.codes },
+    rels: { ...depLib.rels, ...polyLib.rels },
     typeAliases: {},
     relAliases: { ...polyLib.relAlias },
-    meta: { ...arithmeticsLib.meta, ...polyLib.meta }
+    meta: { ...depLib.meta, ...polyLib.meta }
   };
 
-  for (const [hash, entry] of Object.entries(arithmeticsLib.meta)) {
+  for (const [hash, entry] of Object.entries(depLib.meta)) {
     if (entry.type === "code") {
       for (const origin of entry.origins || []) {
         if (origin.name) state.typeAliases[origin.name] = hash;

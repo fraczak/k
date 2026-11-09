@@ -56,7 +56,7 @@ Common compile options:
 
 - `-o` / `--output path`: output path instead of a positional output.
 - `--lib file`: one `.k` or `.klib` dependency.
-- `--export name` or `--export libraryName:localName`: repeatable alias imports.
+- `--use name` or `--use libraryName:localName`: repeatable alias imports.
 - `--pkir`: compile source through PKIR.
 - `--retype relation`: select the relation for envelope specialization.
 - `--opt flag`: Clang optimization flag.

@@ -5,7 +5,8 @@ import {
   compileObjectBuffer,
   decodeObject,
   loadLibrary,
-  buildExportPreamble
+  buildUsePreamble,
+  parseHeaderUses
 } from "@fraczak/k/object.mjs";
 
 export function readAll(stream) {
@@ -35,7 +36,7 @@ export function loadLibraryFromPath(libPath) {
 
 export function parseCompileOptions(args) {
   const libraries = [];
-  const exportSpecs = [];
+  const useSpecs = [];
   let loadedLibrary = false;
   let usePKIR = false;
 
@@ -53,15 +54,15 @@ export function parseCompileOptions(args) {
       if (!libPath) throw new Error("--lib requires a file argument");
       libraries.push(loadLibraryFromPath(libPath));
       loadedLibrary = true;
-    } else if (args[0] === "--export") {
+    } else if (args[0] === "--use") {
       args.shift();
       const spec = args.shift();
       if (!spec) {
         throw new Error(
-          "--export requires a spec argument (name or libname:localname)"
+          "--use requires a spec argument (name or libname:localname)"
         );
       }
-      exportSpecs.push(spec);
+      useSpecs.push(spec);
     } else if (args[0] === "--pkir") {
       args.shift();
       usePKIR = true;
@@ -72,7 +73,7 @@ export function parseCompileOptions(args) {
     }
   }
 
-  return { libraries, exportSpecs, usePKIR };
+  return { libraries, useSpecs, usePKIR };
 }
 
 export function fileInputType(filePath) {
@@ -108,17 +109,18 @@ export function resolveProgramInput(args, { allowStdinSource = false } = {}) {
   };
 }
 
-export { buildExportPreamble };
+export { buildUsePreamble };
 
 export async function compileProgramInputToObject(
   input,
-  { libraries = [], exportSpecs = [], stdin = null } = {}
+  { libraries = [], useSpecs = [], exportSpecs = [], stdin = null } = {}
 ) {
+  const specs = useSpecs.length > 0 ? useSpecs : exportSpecs;
   let object;
   if (input.kind === "inline-source") {
-    const preamble = buildExportPreamble(exportSpecs, libraries);
-    const objBuffer = compileObjectBuffer(preamble + input.source, {
+    const objBuffer = compileObjectBuffer(input.source, {
       libraries,
+      useSpecs: specs,
       source: input.sourceName
     });
     object = decodeObject(objBuffer);
@@ -127,17 +129,17 @@ export async function compileProgramInputToObject(
       throw new Error("stdin source requested without a stdin stream");
     }
     const source = (await readAll(stdin)).toString("utf8");
-    const preamble = buildExportPreamble(exportSpecs, libraries);
-    const objBuffer = compileObjectBuffer(preamble + source, {
+    const objBuffer = compileObjectBuffer(source, {
       libraries,
+      useSpecs: specs,
       source: input.sourceName
     });
     object = decodeObject(objBuffer);
   } else if (input.kind === "source-file") {
     const source = fs.readFileSync(input.path, "utf8");
-    const preamble = buildExportPreamble(exportSpecs, libraries);
-    const objBuffer = compileObjectBuffer(preamble + source, {
+    const objBuffer = compileObjectBuffer(source, {
       libraries,
+      useSpecs: specs,
       source: input.sourceName
     });
     object = decodeObject(objBuffer);
@@ -161,7 +163,7 @@ export async function compileProgramInputToObject(
 }
 
 export default {
-  buildExportPreamble,
+  buildUsePreamble,
   compileProgramInputToObject,
   fileInputType,
   parseCompileOptions,

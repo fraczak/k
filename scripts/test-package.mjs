@@ -45,8 +45,14 @@ try {
   assert.equal(run("k-print", [], hello).toString().trim(), '"ok"');
 
   const integer = run("k-int", ["--parse"], "42\n");
-  const incremented = run("k", ["--lib", path.join(packageDir, "Examples/arithmetics.k"),
-    "--export", "inc", "inc"], integer);
+  const bitKlib = path.join(scratch, "bit.klib");
+  const bitsKlib = path.join(scratch, "bits.klib");
+  const arithKlib = path.join(scratch, "arithmetics.klib");
+  run("k-compile", [path.join(packageDir, "lib/bit.k"), bitKlib]);
+  run("k-compile", ["--lib", bitKlib, path.join(packageDir, "lib/bits.k"), bitsKlib]);
+  run("k-compile", ["--lib", bitsKlib, path.join(packageDir, "lib/arithmetics.k"), arithKlib]);
+  const incremented = run("k", ["--lib", arithKlib,
+    "--use", "inc", "inc"], integer);
   assert.equal(run("k-int", ["--print"], incremented).toString().trim(), "43");
 
   const object = path.join(scratch, "ok.ko");

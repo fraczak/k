@@ -5,6 +5,29 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.7.0] — 2026-11-07 — Standard Library Modularization and In-Memory Library Loading
+
+- **Standard Library Modularization into `lib/`**:
+  - Reorganize core library modules from `Examples/` into a dedicated `lib/` directory:
+    - `lib/bit.k`: Basic bit, boolean, and ternary ordering schemas (`bit[]`, `bool[]`, `order[]`).
+    - `lib/bits.k`: Arbitrary-width bit sequences and 8-bit bytes (`bits[]`, `byte[]`).
+    - `lib/arithmetics.k`: Arbitrary-precision signed integers (`int[]`) and arithmetic relations.
+    - `lib/list.k`: Parametric linked lists (`list[X]`).
+    - `lib/btrie.k`: Parametric binary tries and optional values (`opt[V]`, `btrie[V]`).
+    - `lib/string.k`: ASCII bytes, Unicode codepoints, and strings (`ascii[]`, `unicode[]`, `string[]`).
+    - `lib/ieee.k`: Binary64 IEEE 754 float types and conversion (`float64[]`).
+    - `lib/djson.k`: Universal dynamic JSON schema and RFC 8259 parser (`djson[]`).
+  - Remove all hardcoded content hashes (`@hash`) from standard library source files.
+- **In-Memory Library Loading & Dependency Comments (`# --lib ... --use ...`)**:
+  - Add leading `# --lib <dependency> --use <specs>` header comments to document library dependencies and symbol usage at the top of `.k` files without hardcoded hashes.
+  - `# --lib` lines remain strictly human-readable comments (never synthesized as text preambles), preserving exact 1-to-1 source line numbers in diagnostics, AST nodes, and warnings.
+  - `--lib <dependency.klib>` brings all library relations and patterns into scope in memory during compilation.
+  - `--use <spec>` establishes in-memory symbol and pattern aliases (`name`, `libname:localname`, `pattern[Params]:localname[Params]`) without modifying source text.
+- **Toolchain & REPL Integration**:
+  - Pass `--lib` and `--use` directly into compiler options across `compileLibrary`, `compileObject`, `k.mjs`, `kvm.mjs`, LLVM, and Wasm backends.
+  - REPL `:load` brings session library definitions into scope ambiently in memory.
+  - Update all benchmarks, test harnesses, documentation, and shell pipelines to use `lib/` modules.
+
 ## [8.6.1] — 2026-11-04 — REPL `:all-patterns` and Shared-Graph Boundary Pattern Printing
 
 - **REPL `:all-patterns` (alias `:all-pat`)**:

@@ -58,7 +58,7 @@ given. `-o` / `--output` is an alternative to the positional output path.
 
 ```sh
 node objects/compile.mjs 'greet = {} |hello;' /tmp/k-demo.klib
-node objects/compile.mjs --lib /tmp/k-demo.klib --export greet 'greet' /tmp/k-greet.ko
+node objects/compile.mjs --lib /tmp/k-demo.klib --use greet 'greet' /tmp/k-greet.ko
 node codecs/unit.mjs --parse | node k.mjs /tmp/k-greet.ko |
   node codecs/k-print.mjs
 ```
@@ -67,22 +67,64 @@ This prints `"hello"`. `--lib` loads a dependency; it does not select library
 output. These are equivalent ways to generate a library from source:
 
 ```sh
-node objects/compile.mjs Examples/arithmetics.k /tmp/k-math.klib
-node objects/compile.mjs --format klib Examples/arithmetics.k /tmp/k-math.klib
+node objects/compile.mjs lib/bit.k /tmp/bit.klib
+node objects/compile.mjs --lib /tmp/bit.klib lib/bits.k /tmp/bits.klib
+node objects/compile.mjs --lib /tmp/bits.klib lib/arithmetics.k /tmp/k-math.klib
 ```
 
-Only one `--lib` is accepted by the current CLI. The dependency's relations are
-available under canonical hashes; friendly aliases require explicit
-`--export name` or `--export libraryName:localName` mappings. Repeat
-`--export` for each needed alias. Source can reference hashes directly.
+Only one `--lib` is accepted on the command line by current CLI tools. Chained
+libraries carry forward definitions from their predecessors, so compiling a
+series of libraries extends the environment cumulatively.
 
-For example, increment a decimal input using a library relation:
+### Source header comments (`# --lib ... --use ...`)
 
-```sh
-printf '42\n' | node codecs/int.mjs --parse |
-  node k.mjs --lib /tmp/k-math.klib --export inc 'inc' |
-  node codecs/int.mjs --print
+To clearly document dependencies and recommended compilation options without scattering hardcoded content hashes (`@hash`) throughout source code, `.k` files declare their library dependencies and imported symbols using header comments at the very top of the file:
+
+```k
+# --lib <dependency-path> --use <spec1> <spec2> ...
 ```
+
+#### Syntax & Convention
+
+1. **Placement**: Comments appear in the first comment block at the very top of the file, before any relation or pattern definitions.
+2. **Comment prefix**: Lines start with `# --lib`. Because `#` is a standard one-line comment character in k, the line is fully valid k syntax and is treated purely as a comment. It is **not** an active compiler directive.
+3. **Target library**: `<dependency-path>` indicates the library providing the symbols (for example, `lib/bits.k` or `lib/string.k`).
+4. **Symbol specs**: `--use` lists the symbols used from the library:
+   - `name`: references a library relation or pattern under the same name.
+   - `libname:localname`: aliases a library relation or pattern `libname` under a local name `localname`.
+   - `pattern[Params]`: references a named pattern with its parameter signature (e.g. `btrie[V]` or `byte[]`).
+   - `pattern[Params]:localname[Params]`: aliases a named pattern under a local name (e.g. `float64[]:number[]`).
+
+Multiple `# --lib` lines can be declared to document multiple dependencies:
+
+```k
+# --lib lib/bits.k --use trim inv_loop inv cmp
+# --lib lib/bits.k --use inc:inc_bits dec:dec_bits plus:plus_bits minus:minus_bits mul:mul_bits
+```
+
+#### How `--lib` and `--use` Work
+
+When source code is compiled with library dependencies (`k-compile`, `k.mjs`, `compileLibrary`, `compileObject`, or the REPL's `:load`):
+
+1. **In-Memory Symbol Availability**: When `--lib file.klib` is supplied, all relations and patterns defined in the library are available in memory during compilation.
+2. **No Text Synthesis or Line Offset**: The compiler never synthesizes code or prepends text to the user's source files. Source text remains untouched, preserving exact 1-to-1 line numbers in AST nodes, diagnostics, warnings, and error messages.
+3. **Local Precedence**: Definitions written in the current `.k` file take precedence over library definitions. For example, if a library provides `inc` and the file defines its own `inc`, the local definition takes precedence while library definitions with distinct names (or aliases such as `inc_bits`) remain accessible.
+4. **In-Memory Aliasing (`--use`)**: When `--use <spec>` is provided on the command line (or via `useSpecs` in the API), aliases are registered directly in memory in the compiler symbol tables without altering source text.
+
+#### Command-Line Usage
+
+- Compile a file using a pre-compiled library:
+  ```sh
+  node objects/compile.mjs --lib /tmp/bits.klib lib/arithmetics.k /tmp/arithmetics.klib
+  ```
+- Command-line `--use spec` flags create in-memory aliases when needed:
+  ```sh
+  printf '42\n' | node codecs/int.mjs --parse |
+    node k.mjs --lib /tmp/k-math.klib --use inc 'inc' |
+    node codecs/int.mjs --print
+  ```
+    node codecs/int.mjs --print
+  ```
 
 This prints `43`. Numeral names such as `5` in the arithmetic library are
 relations producing bit trees. `5 int` constructs a signed integer; numeral

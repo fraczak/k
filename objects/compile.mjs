@@ -8,8 +8,7 @@ import {
   compileLibrary,
   compileLibraryBuffer,
   decodeObject,
-  loadLibrary,
-  buildExportPreamble
+  loadLibrary
 } from "../object.mjs";
 import { objectToKVMArtifact } from "../kvm.mjs";
 
@@ -34,7 +33,7 @@ function helpText() {
     "  --format fmt       Output format: ko, klib, or kvm.",
     "                     Overrides extension detection.",
     "  --lib file         Load one .klib or .k library before compiling.",
-    "  --export spec      Export library alias into scope. Repeatable.",
+    "  --use spec         Use library alias in scope (repeatable).",
     "                     spec is 'name' or 'libname:localname'.",
     "  -h, --help         Show this help.",
     "",
@@ -50,7 +49,7 @@ function helpText() {
     `  ${prog} program.k -o program.ko`,
     `  ${prog} program.k program.klib`,
     `  ${prog} program.k program.kvm`,
-    `  ${prog} --lib core.klib --export add program.k program.ko`
+    `  ${prog} --lib core.klib --use add program.k program.ko`
   ].join("\n");
 }
 
@@ -123,7 +122,7 @@ try {
   const libraries = [];
   let format = null;
   let explicitOutput = null;
-  const exports = [];
+  const useSpecs = [];
 
   while (args.length > 0) {
     if (args[0] === "--") {
@@ -147,11 +146,11 @@ try {
       } else {
         libraries.push(loadLibrary(decodeObject(fs.readFileSync(libPath))));
       }
-    } else if (args[0] === "--export") {
+    } else if (args[0] === "--use") {
       args.shift();
       const spec = args.shift();
-      if (!spec) throw new Error("--export requires a spec argument (name or libname:localname)");
-      exports.push(spec);
+      if (!spec) throw new Error("--use requires a spec argument (name or libname:localname)");
+      useSpecs.push(spec);
     } else if (args[0] === "--format") {
       args.shift();
       format = args.shift();
@@ -211,16 +210,14 @@ try {
       : input.kind === "inline"
         ? input.source
         : fs.readFileSync(input.path, "utf8");
-    const preamble = buildExportPreamble(exports, libraries);
-    const source = preamble + rawSource;
-    const opts = { source: input.sourceName, libraries };
+    const opts = { source: input.sourceName, libraries, useSpecs };
 
     if (outputFormat === "ko") {
-      output = compileObjectBuffer(source, opts);
+      output = compileObjectBuffer(rawSource, opts);
     } else if (outputFormat === "klib") {
-      output = compileLibraryBuffer(source, opts);
+      output = compileLibraryBuffer(rawSource, opts);
     } else if (outputFormat === "kvm") {
-      const object = decodeObject(compileObjectBuffer(source, opts));
+      const object = decodeObject(compileObjectBuffer(rawSource, opts));
       output = objectToKVM(object);
     }
   }

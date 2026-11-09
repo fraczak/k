@@ -6,10 +6,21 @@ import { compileWasmArtifact, instantiateWasmArtifact } from "../backends/wasm/s
 import { encodeNumberToValue, decodeValueToNumber } from "../codecs/ieee.mjs";
 import { textToStringValue, stringValueToText } from "../codecs/runtime/unicode-string.mjs";
 
-const core = loadLibrary(compileLibrary(readFileSync(new URL("../core.k", import.meta.url), "utf8")));
-const ieee = loadLibrary(compileLibrary(readFileSync(new URL("../Examples/ieee.k", import.meta.url), "utf8"), {
-  libraries: [core]
-}));
+const ieeeSources = [
+  "lib/bit.k",
+  "lib/bits.k",
+  "lib/list.k",
+  "lib/btrie.k",
+  "lib/string.k",
+  "lib/ieee.k"
+];
+let ieee = null;
+for (const file of ieeeSources) {
+  ieee = loadLibrary(compileLibrary(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), {
+    source: file,
+    libraries: ieee ? [ieee] : []
+  }));
+}
 assert.equal(ieee.relAlias.add, undefined, "Text conversion must not load IEEE arithmetic");
 const parser = await instantiateWasmArtifact(await compileWasmArtifact(ieee.relAlias.parseFloat64, { libraries: [ieee] }));
 const printer = await instantiateWasmArtifact(await compileWasmArtifact(ieee.relAlias.printFloat64, { libraries: [ieee] }));

@@ -3,7 +3,7 @@ import k from "../index.mjs";
 import { Value } from "../Value.mjs";
 import { compileLibrary, extractAliasesFromObject } from "../object.mjs";
 import { validateObjectPayload } from "../objects/validate.mjs";
-import { buildExportPreamble, resolvePatternCanonicalInfo } from "../canonical-pattern.mjs";
+import { buildUsePreamble, resolvePatternCanonicalInfo } from "../canonical-pattern.mjs";
 
 const BIT = "@MjusyRWZnVj8TR4BhFCCcMRrQbdKp9gPtC29LT9nZvjg";
 const LIST = "@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe";
@@ -111,9 +111,11 @@ const aliases = extractAliasesFromObject(library);
 for (const expected of [/bit\[\] = @Mjusy/, /list\[X\] = @JagVex/, /pair\[A, B\] = @KqTB/]) {
   assert.match(aliases, expected);
 }
-const preamble = buildExportPreamble(["bit", "list:my_list"], [library]);
+const preamble = buildUsePreamble(["bit", "list:my_list"], [library]);
 assert.match(preamble, /bit\[\] = @Mjusy/);
 assert.match(preamble, /my_list\[X\] = @JagVex/);
+const usePreamble = buildUsePreamble(["bit list:my_list"], [library]);
+assert.equal(usePreamble, preamble);
 
 {
   const out = evaluate(`
@@ -138,6 +140,15 @@ assert.equal(evaluate(`
   p = {b first, {}|1 second} is_pair;
   {p car, {}|nil cdr}|cons is_pair_list
 `, { libraries: [library] }).tag, "cons");
+
+assert.equal(evaluate(`
+  is_bit = ?my_bit[];
+  is_pair = ?${PAIR}[my_bit[],my_bit[]];
+  is_pair_list = ?my_list[${PAIR}[my_bit[],my_bit[]]];
+  b = {}|0 is_bit;
+  p = {b first, {}|1 second} is_pair;
+  {p car, {}|nil cdr}|cons is_pair_list
+`, { libraries: [library], useSpecs: ["bit:my_bit", "list:my_list"] }).tag, "cons");
 assert.ok(evaluate(`
   @A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[X,Y] = {X x,Y y,Y z};
   {{} x,{} y,{} z} ?@A6vrY7TP9s34tvNgVZsk7N5m4Cr4ZJERYPBevgmqnK7P[{},{}]

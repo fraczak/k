@@ -223,7 +223,7 @@ console.log("==> Starting Polymorphic kVM & Specialization Tests");
 // Test 7: CLI Compilation to Polymorphic .kvm without --input-pattern
 {
   const compileScript = path.join(__dirname, "../objects/compile.mjs");
-  const res = spawnSync(process.execPath, [compileScript, "--format", "kvm", "Examples/arithmetics.k"], {
+  const res = spawnSync(process.execPath, [compileScript, "--format", "kvm", "Examples/nat.k"], {
     cwd: path.join(__dirname, ".."),
     encoding: "utf8"
   });
@@ -236,41 +236,61 @@ console.log("==> Starting Polymorphic kVM & Specialization Tests");
   console.log("Test 7 (CLI Compilation to Polymorphic .kvm): Passed");
 }
 
-// Test 8: CLI Compilation with --lib and explicit --export (no auto-export)
+// Test 8: CLI Compilation with --lib and explicit --use (no auto-export)
 {
   const compileScript = path.join(__dirname, "../objects/compile.mjs");
-  // Fails without explicit --export
-  const failRes = spawnSync(process.execPath, [
-    compileScript,
-    "--lib", "Examples/arithmetics.k",
-    "{succ int x,int y}+"
-  ], {
-    cwd: path.join(__dirname, ".."),
-    encoding: "utf8"
-  });
-  assert.notEqual(failRes.status, 0, "Should fail without explicit --export");
+  const os = await import("node:os");
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-kvm-poly-"));
+  try {
+    let prevLib = null;
+    for (const [idx, src] of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"].entries()) {
+      const nextLib = path.join(tmpDir, `step-${idx}.klib`);
+      const stepRes = spawnSync(process.execPath, [
+        compileScript,
+        ...(prevLib ? ["--lib", prevLib] : []),
+        src,
+        nextLib
+      ], {
+        cwd: path.join(__dirname, ".."),
+        encoding: "utf8"
+      });
+      assert.equal(stepRes.status, 0, `CLI lib step failed: ${stepRes.stderr}`);
+      prevLib = nextLib;
+    }
 
-  // Succeeds with explicit --export
-  const successRes = spawnSync(process.execPath, [
-    compileScript,
-    "--lib", "Examples/arithmetics.k",
-    "--export", "plus:+",
-    "--export", "succ",
-    "--export", "int",
-    "--format", "kvm",
-    "{succ int x,int y}+"
-  ], {
-    cwd: path.join(__dirname, ".."),
-    encoding: "utf8",
-    maxBuffer: 10 * 1024 * 1024
-  });
-  assert.equal(successRes.status, 0, `CLI compile with --export failed: ${successRes.stderr}`);
-  const kvm = JSON.parse(successRes.stdout);
-  assert.equal(kvm.format, "k-vm");
-  assert.equal(kvm.layer, "KVM-P");
-  assert.equal(kvm.isPolymorphic, true);
-  assert.ok(kvm.functions["__main__"]);
-  console.log("Test 8 (CLI Compilation with --lib and explicit --export): Passed");
+    // Fails without explicit --use
+    const failRes = spawnSync(process.execPath, [
+      compileScript,
+      "--lib", prevLib,
+      "{succ int x,int y}+"
+    ], {
+      cwd: path.join(__dirname, ".."),
+      encoding: "utf8"
+    });
+    assert.notEqual(failRes.status, 0, "Should fail without explicit --use");
+
+    // Succeeds with explicit --use
+    const successRes = spawnSync(process.execPath, [
+      compileScript,
+      "--lib", prevLib,
+      "--use", "plus:+ succ int",
+      "--format", "kvm",
+      "{succ int x,int y}+"
+    ], {
+      cwd: path.join(__dirname, ".."),
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024
+    });
+    assert.equal(successRes.status, 0, `CLI compile with --use failed: ${successRes.stderr}`);
+    const kvm = JSON.parse(successRes.stdout);
+    assert.equal(kvm.format, "k-vm");
+    assert.equal(kvm.layer, "KVM-P");
+    assert.equal(kvm.isPolymorphic, true);
+    assert.ok(kvm.functions["__main__"]);
+    console.log("Test 8 (CLI Compilation with --lib and explicit --use): Passed");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 console.log("==> All Polymorphic kVM Tests Passed Successfully!");

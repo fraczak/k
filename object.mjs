@@ -5,7 +5,9 @@ import { TypePatternGraph } from "./TypePatternGraph.mjs";
 import { patterns2filters, prettyRel } from "./pretty.mjs";
 import {
   resolvePatternCanonicalInfo,
-  buildExportPreamble,
+  buildUsePreamble,
+  parseHeaderDirectives,
+  parseHeaderUses,
   canonicalBoundaryFilterSources
 } from "./canonical-pattern.mjs";
 
@@ -540,17 +542,35 @@ function compileLibrary(script, options = {}) {
     importedLibraryMeta(options.libraries),
     buildMeta(annotated, options.source || null, options)
   );
-  const relAlias = serialized.relAlias || {};
+
+  const libRelAlias = {};
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      Object.assign(libRelAlias, lib.relAlias || {});
+    }
+  }
+  Object.assign(libRelAlias, serialized.relAlias || {});
 
   // Key rels by canonical hash, rewrite internal refs to canonical hashes
   const libRels = {};
+  if (options.libraries) {
+    for (const lib of options.libraries) {
+      const lr = lib.rels || lib.defs?.rels || {};
+      for (const [name, rel] of Object.entries(lr)) {
+        if (name !== "__main__") {
+          libRels[name] = rel;
+        }
+      }
+    }
+  }
   for (const [name, rel] of Object.entries(serialized.rels)) {
     if (name === "__main__") continue;
-    const canonicalName = relAlias[name] || name;
+    if (rel._library) continue;
+    const canonicalName = libRelAlias[name] || name;
     const { varRefs, ...relWithoutVarRefs } = rel;
     libRels[canonicalName] = {
       ...relWithoutVarRefs,
-      def: rewriteRefsToCanonical(rel.def, relAlias)
+      def: rewriteRefsToCanonical(rel.def, libRelAlias)
     };
   }
   const libPatterns = {};
@@ -614,11 +634,12 @@ function compileLibrary(script, options = {}) {
     format: "k-object",
     codes: allCodes,
     rels: libRels,
-    relAlias: serialized.relAlias,
+    relAlias: libRelAlias,
     patternAlias,
     compileStats: serialized.compileStats,
     meta: libMeta,
     patterns: libPatterns,
+    source: options.source || null,
     main: null
   };
 }
@@ -1067,7 +1088,9 @@ export {
   decompileObjectBuffer,
   extractAliasesFromObject,
   extractAliasesFromObjectBuffer,
-  buildExportPreamble
+  buildUsePreamble,
+  parseHeaderDirectives,
+  parseHeaderUses
 };
 
 export default {
@@ -1090,5 +1113,7 @@ export default {
   decompileObjectBuffer,
   extractAliasesFromObject,
   extractAliasesFromObjectBuffer,
-  buildExportPreamble
+  buildUsePreamble,
+  parseHeaderDirectives,
+  parseHeaderUses
 };

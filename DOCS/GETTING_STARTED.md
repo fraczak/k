@@ -117,10 +117,12 @@ constraints. Derivation convergence does not prove that every program terminates
 
 ## Libraries and external numbers
 
-Load the integer library and a codec explicitly:
+Load the integer library chain and a codec explicitly:
 
 ```text
-:load Examples/arithmetics.k
+:load lib/bit.k
+:load lib/bits.k
+:load lib/arithmetics.k
 :codec load codecs/int.mjs
 :input int.mjs 42
 ```
@@ -128,13 +130,13 @@ Load the integer library and a codec explicitly:
 Now evaluate `inc` to obtain 43. The codec prints the decimal representation
 alongside the structural value.
 
-For list operations, load the arithmetic library first, then:
+For list operations, load `lib/list.k` and `Examples/poly.k`:
 
 ```text
+:load lib/list.k
 :load Examples/poly.k
 ```
 
-For a smaller self-contained list example, use `:load Examples/list.k`.
 See the [REPL guide](REPL.md) for loading, pattern inspection, and exports.
 
 ## Shell pipelines
@@ -143,14 +145,19 @@ The command-line runtime receives binary schema+payload data, so use codecs
 at text boundaries. From the repository root:
 
 ```sh
+node objects/compile.mjs lib/bit.k /tmp/bit.klib
+node objects/compile.mjs --lib /tmp/bit.klib lib/bits.k /tmp/bits.klib
+node objects/compile.mjs --lib /tmp/bits.klib lib/arithmetics.k /tmp/arithmetics.klib
 printf '42\n' | node codecs/int.mjs --parse |
-  node k.mjs --lib Examples/arithmetics.k --export inc 'inc' |
+  node k.mjs --lib /tmp/arithmetics.klib --use inc 'inc' |
   node codecs/int.mjs --print
 ```
 
-This prints `43`. `--lib` loads definitions; `--export inc` brings the
-friendly name into scope. Library relations are also available by their
-content hashes.
+This prints `43`. When compiling with `--lib /tmp/bits.klib`, all definitions
+from the library are available in memory during compilation.
+For ad-hoc expressions on the CLI, `--use inc` brings the library relation
+into scope under a local alias. Library relations and patterns are also
+accessible by their canonical content hashes.
 
 To compile a small executable object and run it:
 

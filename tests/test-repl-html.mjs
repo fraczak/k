@@ -151,6 +151,9 @@ if (chromiumBin) {
     const vfsList = await evaluateAsync(`window.kRepl.getAllVfsFiles().sort()`);
     const expectedFiles = [
       "arithmetics.k",
+      "bit.k",
+      "bits.k",
+      "btrie.k",
       "core.k",
       "djson.k",
       "djson.mjs",
@@ -159,28 +162,31 @@ if (chromiumBin) {
       "ieee.mjs",
       "int.mjs",
       "json.mjs",
-      "karatsuba-mult.k",
+      "list.k",
       "poly.k",
+      "string.k",
       "unit.mjs",
       "utf8.mjs"
     ].sort();
     assert.deepStrictEqual(vfsList, expectedFiles, `getAllVfsFiles() must match curated files list, got: ${JSON.stringify(vfsList)}`);
 
-    // Test :load arithmetics.k
+    // Test :load bit.k, bits.k, arithmetics.k
     const loadOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":load bit.k");
+      await window.kRepl.executeCommand(":load bits.k");
       await window.kRepl.executeCommand(":load arithmetics.k");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
     assert(loadOut.includes("loaded arithmetics.k"), `Expected loaded arithmetics.k, got: ${loadOut}`);
 
-    // Test :load karatsuba-mult.k
-    const loadKaratsubaOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":load karatsuba-mult.k");
+    // Test :load Examples/arithmetics.k
+    const loadExamplesArithOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":load Examples/arithmetics.k");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(loadKaratsubaOut.includes("loaded karatsuba-mult.k"), `Expected loaded karatsuba-mult.k, got: ${loadKaratsubaOut}`);
+    assert(loadExamplesArithOut.includes("loaded Examples/arithmetics.k"), `Expected loaded Examples/arithmetics.k, got: ${loadExamplesArithOut}`);
 
     // Test evaluating {1 int x, 1 int y} karatsuba
     const karatsubaVal = await evaluateAsync(`(async () => {
@@ -328,7 +334,9 @@ if (chromiumBin) {
 
     // Test JSON codec with float64 in browser: :input json.mjs then {"a":"Woj","n":123}
     await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":load core.k");
+      await window.kRepl.executeCommand(":load list.k");
+      await window.kRepl.executeCommand(":load btrie.k");
+      await window.kRepl.executeCommand(":load string.k");
       await window.kRepl.executeCommand(":load ieee.k");
       await window.kRepl.executeCommand(":codec load json.mjs");
       await window.kRepl.executeCommand(":input json.mjs");
@@ -393,7 +401,10 @@ if (chromiumBin) {
     // Test :load poly.k and evaluate '10 int (gen_list sort)' in WASM mode
     const sortListResult = await evaluateAsync(`(async () => {
       await window.kRepl.executeCommand(":reset");
+      await window.kRepl.executeCommand(":load bit.k");
+      await window.kRepl.executeCommand(":load bits.k");
       await window.kRepl.executeCommand(":load arithmetics.k");
+      await window.kRepl.executeCommand(":load list.k");
       await window.kRepl.executeCommand(":load poly.k");
       await window.kRepl.executeCommand(":codec load int.mjs");
       await window.kRepl.executeCommand("10 int (gen_list sort)");

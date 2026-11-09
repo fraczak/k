@@ -3,7 +3,7 @@ import { withCompiledLibrary, runLibrary, integer, succeeds } from "./helpers/cl
 
 const large = "11111112222223333334444444555555666666777777788888899999900000011111122222233333344444455555";
 
-withCompiledLibrary("Examples/arithmetics.k", (library) => {
+withCompiledLibrary(["lib/bit.k", "lib/bits.k", "lib/arithmetics.k", "Examples/arithmetics.k"], (library) => {
   const run = (aliases, source, input) => runLibrary(library, aliases, source, input);
   const n = BigInt(large);
   for (const [op, expected] of [
@@ -48,7 +48,9 @@ withCompiledLibrary("Examples/arithmetics.k", (library) => {
     [["mod", "int", "10:ten", "3:three"], "{ten x, three y} mod int", "1"],
     [["gcd", "int", "12:twelve", "8:eight"], "{twelve x, eight y} gcd int", "4"],
     [["gcd", "int", "4:four", "_:zero_b"], "{four x, zero_b y} gcd int", "4"],
-    [["lcm", "int", "4:four", "6:six"], "{four x, six y} lcm int", "12"]
+    [["lcm", "int", "4:four", "6:six"], "{four x, six y} lcm int", "12"],
+    [["factorial", "int", "5:five"], "five int factorial", "120"],
+    [["fib", "int", "10:ten"], "ten int fib", "89"]
   ]) assert.equal(integer(run(aliases, source), source), expected, source);
 });
 

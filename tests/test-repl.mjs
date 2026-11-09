@@ -309,8 +309,10 @@ assert.equal(tcoState.value.toJSON(), "zero");
 
 // Verify loading library and evaluating constant/recursive relation from library
 const arithState = createState();
-output = await evaluateInput(":load Examples/arithmetics.k", arithState);
-assert.equal(output[0], "loaded Examples/arithmetics.k");
+await evaluateInput(":load lib/bit.k", arithState);
+await evaluateInput(":load lib/bits.k", arithState);
+output = await evaluateInput(":load lib/arithmetics.k", arithState);
+assert.equal(output[0], "loaded lib/arithmetics.k");
 output = await evaluateInput(":pat bits", arithState);
 assert.equal(
   output[0],
@@ -383,7 +385,9 @@ assert.match(output[0], /^\{\}\|a/);
 
 // Explicit loading of dependencies and codec testing (no auto-loading)
 const intState = createState();
-await evaluateInput(":load Examples/arithmetics.k", intState);
+await evaluateInput(":load lib/bit.k", intState);
+await evaluateInput(":load lib/bits.k", intState);
+await evaluateInput(":load lib/arithmetics.k", intState);
 output = await evaluateInput(":codec load ./codecs/int.mjs", intState);
 assert.match(output[0], /^loaded codec int\.mjs/);
 output = await evaluateInput(":input int.mjs", intState);
@@ -402,8 +406,9 @@ output = await evaluateInput("test utf8", utf8AutoState);
 assert.match(output[0], /utf8\.mjs: test utf8/);
 
 const ieeeAutoState = createState();
-await evaluateInput(":load core.k", ieeeAutoState);
-await evaluateInput(":load Examples/ieee.k", ieeeAutoState);
+for (const file of ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]) {
+  await evaluateInput(`:load ${file}`, ieeeAutoState);
+}
 output = await evaluateInput(":codec load ./codecs/ieee.mjs", ieeeAutoState);
 assert.match(output[0], /^loaded codec ieee\.mjs/);
 assert.ok(ieeeAutoState.codecs["ieee.mjs"], "ieee codec should be registered");
@@ -411,8 +416,9 @@ output = await evaluateInput(":input ieee.mjs 1.5", ieeeAutoState);
 assert.match(output[0], /ieee\.mjs: 1\.5/);
 
 const jsonInputState = createState();
-await evaluateInput(":load core.k", jsonInputState);
-await evaluateInput(":load Examples/ieee.k", jsonInputState);
+for (const file of ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]) {
+  await evaluateInput(`:load ${file}`, jsonInputState);
+}
 await evaluateInput(":codec load ./codecs/json.mjs", jsonInputState);
 output = await evaluateInput(':input json.mjs {"a":"Woj","n":123}', jsonInputState);
 assert.match(output[0], /json\.mjs: \{"a":"Woj","n":123\}/);
@@ -473,16 +479,14 @@ assert.match(output[0], /unit\.mjs: \{\}/);
 const polyFreshState = createState();
 await assert.rejects(
   () => evaluateInput(":load Examples/poly.k", polyFreshState),
-  /Unknown pattern template/
+  /Unknown pattern template|No definition found for/
 );
 
-// Explicitly loading arithmetics.k then poly.k succeeds
+// Explicitly loading dependencies then poly.k succeeds
 const polyExplicitState = createState();
-output = await evaluateInput(
-  ":load Examples/arithmetics.k",
-  polyExplicitState
-);
-assert.equal(output[0], "loaded Examples/arithmetics.k");
+for (const file of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k", "lib/list.k"]) {
+  await evaluateInput(`:load ${file}`, polyExplicitState);
+}
 output = await evaluateInput(
   ":load Examples/poly.k",
   polyExplicitState
@@ -565,8 +569,10 @@ output = await evaluateInput("not = </true | false, /false | true >;\n{} | true 
 assert.match(output[0], /^\{\}\|false/);
 assert.match(output[1], /\(js\)/);
 
-output = await evaluateInput(":load Examples/arithmetics.k", jsState);
-assert.equal(output[0], "loaded Examples/arithmetics.k");
+await evaluateInput(":load lib/bit.k", jsState);
+await evaluateInput(":load lib/bits.k", jsState);
+output = await evaluateInput(":load lib/arithmetics.k", jsState);
+assert.equal(output[0], "loaded lib/arithmetics.k");
 output = await evaluateInput("{ 10 int x, 5 int y } plus", jsState);
 assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
 assert.match(output[1], /\(js\)/);
@@ -589,15 +595,19 @@ output = await evaluateInput(
 assert.match(output[0], /^\{\}\|false/);
 assert.match(output[1], /\(pkir\)/);
 
-output = await evaluateInput(":load Examples/arithmetics.k", pkirState);
-assert.equal(output[0], "loaded Examples/arithmetics.k");
+await evaluateInput(":load lib/bit.k", pkirState);
+await evaluateInput(":load lib/bits.k", pkirState);
+output = await evaluateInput(":load lib/arithmetics.k", pkirState);
+assert.equal(output[0], "loaded lib/arithmetics.k");
 output = await evaluateInput("{ 10 int x, 5 int y } plus", pkirState);
 assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
 assert.match(output[1], /\(pkir\)/);
 
 // Verify open product projection in wasm engine
 const wasmListState = createState({ engine: "wasm" });
-await evaluateInput(":load Examples/arithmetics.k", wasmListState);
+await evaluateInput(":load lib/bit.k", wasmListState);
+await evaluateInput(":load lib/bits.k", wasmListState);
+await evaluateInput(":load lib/arithmetics.k", wasmListState);
 await evaluateInput(":codec load codecs/int.mjs", wasmListState);
 await evaluateInput("len = {()list,0 int len} len_; len_ = ?X <{.list/nil if, .len then} .then, {.list/cons.cdr list, .len inc len} ?X len_ >;", wasmListState);
 await evaluateInput(":input int.mjs [3,3,3]", wasmListState);
@@ -616,7 +626,9 @@ assert.equal(output[0], "output limit set to 40");
 output = await evaluateInput(":limit", limitState);
 assert.equal(output[0], "Current output limit: 40");
 
-output = await evaluateInput(":load Examples/arithmetics.k", limitState);
+await evaluateInput(":load lib/bit.k", limitState);
+await evaluateInput(":load lib/bits.k", limitState);
+output = await evaluateInput(":load lib/arithmetics.k", limitState);
 output = await evaluateInput("{ 10 int x, 5 int y } plus", limitState);
 assert(output[0].includes("..."));
 assert(output[0].length <= 80);
@@ -626,12 +638,13 @@ assert.equal(output[0], "output limit disabled");
 output = await evaluateInput(":limit", limitState);
 assert.equal(output[0], "Current output limit: none");
 
-// Verify Examples/djson.k (json?, get, nth, set, del)
+// Verify lib/djson.k (json?, get, nth, set, del)
 const djsonKState = createState({ engine: "wasm" });
-await evaluateInput(":load core.k", djsonKState);
-await evaluateInput(":load Examples/ieee.k", djsonKState);
-output = await evaluateInput(":load Examples/djson.k", djsonKState);
-assert.equal(output[0], "loaded Examples/djson.k");
+for (const file of ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]) {
+  await evaluateInput(`:load ${file}`, djsonKState);
+}
+output = await evaluateInput(":load lib/djson.k", djsonKState);
+assert.equal(output[0], "loaded lib/djson.k");
 await evaluateInput(":codec load codecs/djson.mjs", djsonKState);
 await evaluateInput(
   ':input djson.mjs ["age", {"name":"Alice","age":30}]',
@@ -768,8 +781,10 @@ assert.equal(
     "@KqTBNkznjWWwync2Mm94XjCez63neJBJtgYcJJEE5kEm[A, B]"
 );
 
-output = await evaluateInput(":load Examples/list.k", patState);
-assert.equal(output[0], "loaded Examples/list.k");
+await evaluateInput(":load lib/bit.k", patState);
+await evaluateInput(":load lib/bits.k", patState);
+output = await evaluateInput(":load lib/list.k", patState);
+assert.equal(output[0], "loaded lib/list.k");
 output = await evaluateInput(":patterns", patState);
 assert(output[0].includes("bit[] = @Mjusy"));
 assert(output[0].includes("list[X] = @JagVex"));
@@ -979,8 +994,8 @@ output = await evaluateInput(":rel reverse", polyExplicitState);
 assert.equal(
   output[0],
   "reverse = ?<{(...) car, X0 cdr} cons, {} nil>=X0 " +
-    "{() xs, nil acc} _reverse ?X0;  " +
-    "-- @JbJ2aQugNct2GGeCJ65zKjN55Bf5YPyGHzsikTCjx82w"
+    "{() x, nil y} rev_append ?X0;  " +
+    "-- @peiZq2evd5u4Qk42AT3W4YmWZZ3JAeXNKTnmDtpb9EZh"
 );
 await evaluateInput(":max-pat-length 30", polyExplicitState);
 output = await evaluateInput(":rel car", polyExplicitState);
@@ -994,26 +1009,26 @@ output = await evaluateInput(":rel reverse", polyExplicitState);
 assert.equal(
   output[0],
   "reverse = ?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X0] " +
-    "{() xs, nil acc} _reverse " +
+    "{() x, nil y} rev_append " +
     "?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[X0];  " +
-    "-- @JbJ2aQugNct2GGeCJ65zKjN55Bf5YPyGHzsikTCjx82w"
+    "-- @peiZq2evd5u4Qk42AT3W4YmWZZ3JAeXNKTnmDtpb9EZh"
 );
 output = await evaluateInput(":rel nil?", polyExplicitState);
 assert.equal(
   output[0],
   "nil? = ?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[(...)] " +
-    "/nil nil " +
+    "un_nil nil " +
     "?@JagVexzgseRr4rVZRmVpsMbr2AKXDjzZnz6Qnf8a9SNe[(...)];  " +
-    "-- @YHZEettEijtfW68ekdSKKiZRfiiEkqJjLDb9NNcJnwcg"
+    "-- @BqMbBgmNtqci4fKjrUh5dwMrAehZcGSeEpEdLaMeCXSA"
 );
 output = await evaluateInput(":rel parseJson", djsonKState);
 assert.equal(
   output[0],
   "parseJson = " +
     "?@Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[] " +
-    "json_value {.rest ws /nil end, .value value} .value " +
+    "json_value {.rest ws un_nil end, .value value} .value " +
     "?@P5C7TQKTSPnFUkYkYzTudJamxAQ3T3fHbvZNqwWMfAA2[];  " +
-    "-- @kTcBn7486jUPMmkJXWpczRiU7XYcTxDsLtmCUwBJKH2N"
+    "-- @BNjpkLgR3SxNvVMuAE9xkBxvJFhaDUhaHHsBBjmx4RRK"
 );
 const shortThresholdState = createState();
 output = await evaluateInput(":max-pat-length", shortThresholdState);

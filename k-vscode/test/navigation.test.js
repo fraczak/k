@@ -249,10 +249,10 @@ function nthOffset(text, needle, n = 0) {
   assert.strictEqual(localHelperRefs[0].uri, "file:///djson.k");
 }
 
-// 4. Smoke-test analyzer on real Examples/*.k files
+// 4. Smoke-test analyzer on real lib/*.k files
 {
-  const ieeePath = path.join(__dirname, "../../Examples/ieee.k");
-  const djsonPath = path.join(__dirname, "../../Examples/djson.k");
+  const ieeePath = path.join(__dirname, "../../lib/ieee.k");
+  const djsonPath = path.join(__dirname, "../../lib/djson.k");
   if (fs.existsSync(ieeePath) && fs.existsSync(djsonPath)) {
     const ieeeSrc = fs.readFileSync(ieeePath, "utf8");
     const djsonSrc = fs.readFileSync(djsonPath, "utf8");
@@ -271,10 +271,12 @@ function nthOffset(text, needle, n = 0) {
     );
     assert.ok(
       djsonAnalysis.definitions.some(
-        (d) =>
-          d.kind === "relation" &&
-          d.name === "scanFloat64" &&
-          d.canonicalTarget?.startsWith("@")
+        (d) => d.kind === "pattern" && d.name === "djson"
+      )
+    );
+    assert.ok(
+      djsonAnalysis.definitions.some(
+        (d) => d.kind === "relation" && d.name === "parseJson"
       )
     );
   }

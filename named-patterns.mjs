@@ -282,13 +282,15 @@ export function expandPatternsInRels(rels, patterns = {}, options = {}) {
         lib.sourceDefs?.patterns ||
         {};
       for (const [name, pat] of Object.entries(libPatterns)) {
-        if (!(name in allPatterns)) {
+        if (name.startsWith("@") && !(name in allPatterns)) {
           allPatterns[name] = pat;
         }
       }
       for (const [name, hash] of Object.entries(lib.patternAlias || {})) {
-        if (libPatterns[name] && !(hash in allPatterns)) {
-          allPatterns[hash] = libPatterns[name];
+        const pat = libPatterns[hash] || libPatterns[name];
+        if (pat) {
+          if (!(hash in allPatterns)) allPatterns[hash] = pat;
+          if (!(name in allPatterns)) allPatterns[name] = pat;
         }
       }
     }
@@ -318,15 +320,17 @@ export function validatePatternDefinitions(
         lib.sourceDefs?.patterns ||
         {};
       for (const [name, pat] of Object.entries(libPatterns)) {
-        if (!(name in allPatterns)) {
+        if (name.startsWith("@") && !(name in allPatterns)) {
           allPatterns[name] = pat;
         }
       }
       for (const [name, hash] of Object.entries(
         lib.patternAlias || {}
       )) {
-        if (libPatterns[name] && !(hash in allPatterns)) {
-          allPatterns[hash] = libPatterns[name];
+        const pat = libPatterns[hash] || libPatterns[name];
+        if (pat) {
+          if (!(hash in allPatterns)) allPatterns[hash] = pat;
+          if (!(name in allPatterns)) allPatterns[name] = pat;
         }
       }
     }

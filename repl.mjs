@@ -859,9 +859,13 @@ function libraryOriginsFromSource(source, fullSource, lib, options) {
     const pat = parsed.defs?.patterns?.[name];
     if (!pat) continue;
     const info = canonicalPatternInfo(name, pat, {
-      libraries: options.libraries,
+      libraries: [
+        ...(options.libraries || []),
+        ...(lib ? [lib] : [])
+      ],
       patterns: {
         ...(options.patterns || {}),
+        ...(lib?.patterns || {}),
         ...(parsed.defs?.patterns || {})
       }
     });
@@ -1340,6 +1344,16 @@ function resolveKFilePath(filePath) {
     const fromRepo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), filePath);
     if (fs.existsSync(fromRepo)) return fromRepo;
   } catch {}
+  if (!filePath.startsWith("lib/") && !filePath.startsWith("Examples/")) {
+    const withLib = `lib/${filePath}`;
+    try {
+      if (fs.existsSync(withLib)) return withLib;
+    } catch {}
+    try {
+      const fromRepoLib = path.resolve(path.dirname(fileURLToPath(import.meta.url)), withLib);
+      if (fs.existsSync(fromRepoLib)) return fromRepoLib;
+    } catch {}
+  }
   const withEx = filePath.startsWith("Examples/") ? filePath : `Examples/${filePath}`;
   try {
     if (fs.existsSync(withEx)) return withEx;
@@ -1348,14 +1362,18 @@ function resolveKFilePath(filePath) {
     const fromRepoEx = path.resolve(path.dirname(fileURLToPath(import.meta.url)), withEx);
     if (fs.existsSync(fromRepoEx)) return fromRepoEx;
   } catch {}
-  const strippedEx = filePath.startsWith("Examples/") ? filePath.slice("Examples/".length) : filePath;
+  const stripped = filePath.startsWith("lib/")
+    ? filePath.slice("lib/".length)
+    : filePath.startsWith("Examples/")
+      ? filePath.slice("Examples/".length)
+      : filePath;
   try {
-    if (fs.existsSync(strippedEx)) return strippedEx;
+    if (fs.existsSync(stripped)) return stripped;
   } catch {}
   try {
     const fromRepoStripped = path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
-      strippedEx
+      stripped
     );
     if (fs.existsSync(fromRepoStripped)) return fromRepoStripped;
   } catch {}
@@ -1374,7 +1392,8 @@ function loadSourceOrKlib(state, targetPath, options = {}) {
   } else {
     restoreCodes(state);
     const source = fs.readFileSync(loadPath, "utf8");
-    const preamble = aliasPreamble(state, definedNamesInSource(source));
+    const usedNames = new Set(definedNamesInSource(source));
+    const preamble = aliasPreamble(state, usedNames);
     const fullSource = [preamble, source].filter(Boolean).join("\n");
     const compileOptions = {
       source: targetPath,

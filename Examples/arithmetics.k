@@ -1,495 +1,108 @@
--- Examples for defining arithmetic functions natively
-yes_no[] = <{} yes, {} no>;
-yes = {}|yes ? yes_no[];
-no  = {}|no ? yes_no[];
-swap_yes_no = ? yes_no[] < /yes no, yes >;
+-- Examples/arithmetics.k — Higher-level arithmetic examples:
+-- factorial, Fibonacci, and exact rational numbers (rat[])
 
+---------------------------------------------------------------
+-- §1. Base Patterns, Primitives & Imported Relations
+---------------------------------------------------------------
 
 bits[] = < {} _, B 0, B 1 > = B;
+int[]  = < bits[] -, bits[] + >;
 
-_ = {}|_ ?bits[];
-0 = _ |0 ?bits[];
+_         = {} |_ ?bits[];
+0b        = |0 ?bits[];
+1b        = |1 ?bits[];
+0         = _ 0b;
+1         = _ 1b;
+pos_int   = |+ ?int[];
+neg_int   = |- ?int[];
+un_pos    = ?int[] /+;
+un_neg    = ?int[] /-;
 
-succ = {inv x, _ y} _inc;
-1 = 0 succ;
-2 = 1 succ;
-3 = 2 succ;
-4 = 3 succ;
-5 = 4 succ;
-6 = 5 succ;
-7 = 6 succ;
-8 = 7 succ;
-9 = 8 succ;
-10 = 9 succ;
-11 = 10 succ;
-12 = 11 succ;
+# --lib lib/arithmetics.k --use nat int abs pos? neg? zero_int? swap_sign inc dec plus minus times div mod gcd lcm
+nat       = @ktrZRefK3zvnUqYYisWBH3MgzcQJD9hs2P5LeSJ7tFrA;
+int       = @BgUayEar88hcmcAYM5giDsucyGbtumbaXpyussK8k7vm;
+abs       = @Ddc8MjqrgS5t9dPUFQKkBHTLmrcxazshhCwN9HHGtd35;
+pos?      = @DExHRdJ6UPsdQEWM6ZenLCUyXLwwZfTRq6CZHf5iahJp;
+neg?      = @Hwv3CjPRgtJDb7ZGn7cReF9iZ25LFpjv2MXRBJyUGBij;
+zero_int? = @eYsSuRAeFTejC7W9mLLtxuSeebLuszMGxadnZsg4iuUf;
+swap_sign = @PXVmSLQzpkiLL8qAWLp3MKRAxvwN72hNs64Q2k5hQQS7;
+inc       = @FpWRmLNa6guwACtpwYUAuX3usE27WqAKPzQxrVRtyKND;
+dec       = @3YRXdfNimGSWfSpCcTzBauTU7HRrjLUFMp4dbRZGhJXv;
+plus      = @mfq4QANXe43SuEGb5wM256eKrE7E28BteUgWUxNCLJa6;
+minus     = @RdyBXVdSsmFBa7gSBprpFEtktzRrkeFZMrQSk6L4JiBz;
+times     = @HCBYSVndz9bsMsBPtFA8auXiMLbJTfELsu9PsXKNSuSw;
+div       = @SMg7EvWCmmVaEuLKFzasvSqdyYthsTcGPueypecetysk;
+mod       = @g3EchGkuPu29bjTRKZMpxePRSzanyffFvCKgwEBz4SuX;
+gcd       = @F32iDHCtp5jvgx2TC6jPJPLSPYX2RyS7EjwxdTMXLCAf;
+lcm       = @C2GmSRuqEVawpDA6WBGanePw7Gq3rmzsRqXNb6yQHryL;
 
-empty = < /_ yes, no >;
-empty? = {empty /yes if, () then} .then;
+---------------------------------------------------------------
+-- §2. Factorial & Fibonacci
+---------------------------------------------------------------
 
-concat = {.x inv x, .y y} concat_; 
-concat_ = ? { bits[] x, bits[] y } 
-  < 
-    {.x empty? if, .y then} .then,
-    < 
-      {.x /0 x, .y |0 y}, 
-      {.x /1 x, .y |1 y}
-    > concat_ 
-  >;
-inv = {()x, _ r} _inv; 
-_inv = ? { bits[] x, bits[] r }
-  < 
-    {.x empty? if, .r then} .then,
-    < 
-      {.x /0 x, .r |0 r}, 
-      {.x /1 x, .r |1 r}
-   > _inv
-  >;
-
-inOrder = {.x inv x, .y inv y, yes inOrder} inOrder_;
-inOrder_ = ?{ bits[] x, bits[] y, < {} yes, {} no > inOrder }
-  < 
-    {.x </0,/1> if1, .y /_ if2, .inOrder swap_yes_no then} .then,
-    {.x /_ if, .inOrder then} .then,
-    < 
-      {.x /0 x, .y /0 y, .inOrder inOrder}, 
-      {.x /1 x, .y /1 y, .inOrder inOrder},
-      {.x /0 x, .y /1 y, .inOrder inOrder}, 
-      {.x /1 y, .y /0 x, .inOrder swap_yes_no inOrder}
-    > inOrder_
-  >;
-
-GT = {inOrder /no if, () then} . then;
-
-EQ = {inOrder /yes if, {.x y, .y x} inOrder /yes and, () then} .then;
-
---------------------------------------
-int[] = < bits[] "+", bits[] "-" >;
-int? = ? int[];
-int_pair[] = { int[] x, int[] y };
-
-remove_leading_zeros = ?bits[] <
-  /1 |1,
-  /_ |_,
-  /0 remove_leading_zeros
+factorial_ = <
+  { .n zero_int? if, .acc then } .then,
+  { .n pos? dec n, { .n x, .acc y } times acc } factorial_
 >;
-nat = remove_leading_zeros <empty? 0, ()>;
-int = nat | '+';
-abs = </'+',/'-'>;
+factorial = { () n, 1 int acc } factorial_;
 
-pos? = {/'+' remove_leading_zeros /1 if, () then} .then;
-neg? = {/'-' if, () then} .then; 
-zero_int? = {/'+' /0 empty? if, () then} .then;
-minus_one? = {/'-' /1 empty? if, () then} .then;
-
-inc = <
-  /'+' {inv x, _ y} _inc nat |'+',
-  minus_one? 0 int,
-  /'-' {inv x, _ y} _dec nat |'-'
->;
-
-_inc = ? { bits[] x, bits[] y } <
-    {.x empty? if, .y |1 then} .then,
-    {.x /0 x, .y |1 y} concat_, 
-    {.x /1 x, .y |0  y} _inc
->; 
-
-dec = <
-  zero_int? 1 |'-',
-  /'+' {inv x, _ y} _dec nat |'+',
-  /'-' {inv x, _ y} _inc nat |'-'
->;
-
-_dec = ? { bits[] x, bits[] y } <
-    {.x /1 x, .y |0  y} concat_, 
-    {.x /0 x, .y |1 y} _dec
->;
-
-
-carry[] = <{} 0,{} 1>;
-c0 = {}|0;
-c1 = {}|1;
-
-plus =
-< 
-  {.x/'+' inv x, .y/'+' inv y, c0 c } _plus inv nat | '+',
-  {.x/'-' inv x, .y/'-' inv y, c0 c } _plus inv nat | '-',
-  {.y/'-' x, .x/'+' y} GT {.x inv x, .y inv y, c0 c} _minus inv nat | '-',
-  {.x/'+' inv x, .y/'-' inv y, c0 c} _minus inv nat |'+',
-  {.x/'-' x, .y/'+' y} GT {.x inv x, .y inv y, c0 c} _minus inv nat | '-',
-  {.y/'+' inv x, .x/'-' inv y, c0 c} _minus inv nat | '+'
->;
-
-swap_sign = <
-  zero_int?,
-  /'+' | '-',
-  /'-' | '+'
->;
-
-minus =
-  {.x x, .y swap_sign y} plus;
-
-_plus = {.x x, .y y, .c c, _ r} _plus_;
-
-_plus_ =
-  -- least significant bit first addition with carry
-  ? { bits[] x, bits[] y, carry[] c, bits[] r } = X
-  <
-    {.x empty? if, .y empty? and, .c/0 c, .r inv then} .then,
-    {.x empty? if, .y empty? and, {.r x, 1 r} _inv then} .then,
-    {.x empty? if, .c/0 and, {.r x, .y r} _inv then} .then,
-
-    <
-      {.x y, .y empty? x, .c c, .r r},
-      {<.c/0 0, 1> x, .y y, .x empty? c0 c, .r r},
-
-      {.x /0 x, .y /0 y, .c/0 c0 c, .r |0 r},
-      {.x /0 x, .y /0 y, .c/1 c0 c, .r |1 r},
-
-      {.x /0 x, .y /1 y, .c/0 c0 c, .r |1 r},
-      {.x /0 x, .y /1 y, .c/1 c1 c, .r |0 r},
-      {.x /1 x, .y /0 y, .c/0 c0 c, .r |1 r},
-      {.x /1 x, .y /0 y, .c/1 c1 c, .r |0 r},
-
-      {.x /1 x, .y /1 y, .c/0 c1 c, .r |0 r},
-      {.x /1 x, .y /1 y, .c/1 c1 c, .r |1 r}
-    > ?X _plus_
-  >
-;
-
-_minus = {.x x, .y y, .c c, _ r} _minus_;
-
-_minus_ =
-  -- least significant bit first substraction with carry
-  ? { bits[] x, bits[] y, carry[] c, bits[] r } = X
-  <
-    {.y empty? if, .c/0 and, {.r x, .x r} _inv then} .then,
-    <
-      {.x/0 x, .y empty? y, .c/1 c1 c, .r |1 r},
-      {.x/1 x, .y empty? y, .c/1 c0 c, .r |0 r},
-
-      {.x/0 x, .y/0   y, .c/0 c0 c, .r |0 r},
-      {.x/0 x, .y/0   y, .c/1 c1 c, .r |1 r},  
-      {.x/0 x, .y/1   y, .c/0 c1 c, .r |1 r},
-      {.x/0 x, .y/1   y, .c/1 c1 c, .r |0 r},
-      {.x/1 x, .y/0   y, .c/0 c0 c, .r |1 r},
-      {.x/1 x, .y/0   y, .c/1 c0 c, .r |0 r},
-      {.x/1 x, .y/1   y, .c/0 c0 c, .r |0 r},
-      {.x/1 x, .y/1   y, .c/1 c1 c, .r |1 r}
-    > ?X _minus_
-  >
-;
-
-sign_plus = {}|'+';
-sign_minus = {}|'-';
-get_sign = </'+' sign_plus, /'-' sign_minus>;
-
-times =
+fib_ = <
+  { .n zero_int? if, .pair then } .then,
   {
-    <
-      {.x/'+' if, .y /'+' and} sign_plus, 
-      {.x/'-' if, .y /'-' and} sign_plus, 
-      sign_minus
-    > sign,
-    {
-      _ result,
-      .x abs inv _x,
-      .y abs y
-    } _times result
-  }
-  <
-    {.sign/'+' if, .result inv int then} .then,
-    {.sign/'-' if, .result inv int swap_sign then} .then 
-  >
-;
-
-_times =
-  ? { bits[] result, bits[] _x, bits[] y } = X
-  <
-    { .y empty? if, .result then } .then,
-    <
-      { 
-        .result |0  result, 
-        ._x _x, 
-        .y /0 y
-      },
-      { 
-        {._x x, .result |0  y, c0 c } _plus result, 
-        ._x _x, 
-        .y /1 y 
-      }
-    > ?X _times
-  >
-;
-
-// ----------------------------------------------------------------------
-// Integer Division: Adaptive Hybrid Algorithm
-// ----------------------------------------------------------------------
-
-shift_in_0 = inv |0 inv nat;
-shift_in_1 = inv |1 inv nat;
-sub_bits = {.x inv x, .y inv y, c0 c} _minus inv nat;
-
-_div_restoring =
-  ? { bits[] x, bits[] y, bits[] q, bits[] r }
-  <
-    {.x empty? if, {.q inv int div, .r rem} then} .then,
-    <
-      {.x /0 x, .r shift_in_0 r, .y y, .q q},
-      {.x /1 x, .r shift_in_1 r, .y y, .q q}
-    >
-    {
-      .x x,
-      .y y,
-      .q q,
-      .r r,
-      {.y x, .r y} inOrder test
-    }
-    <
-      {
-        .test /yes if,
-        {.x x, .y y, .q |1 q, {.r x, .y y} sub_bits r} then
-      } .then,
-      {.test /no  if, {.x x, .y y, .q |0 q, .r r} then} .then
-    >
-    _div_restoring
-  >;
-
-_pad_down = ? { bits[] x, bits[] steps, bits[] _y }
-  <
-    {.x empty? if, {._y _y, .steps steps} then} .then,
-    {
-      .x </0, /1> x,
-      ._y |0 _y,
-      .steps |0 steps
-    } _pad_down
-  >;
-
-_align_down = ? { bits[] x, bits[] y, bits[] _y }
-  <
-    {
-      .x </0, /1> x,
-      .y </0, /1> y,
-      ._y _y
-    } _align_down,
-
-    {
-      .y empty? if,
-      {.x x, ._y _y, _ steps} _pad_down then
-    } .then,
-
-    {
-      .x empty? if,
-      .y empty? and,
-      {._y _y, _ steps} then
-    } .then
-  >;
-
-_div_down = ? { bits[] x, bits[] _y, bits[] steps, bits[] q }
-  {
-    .x x,
-    ._y _y,
-    .steps steps,
-    .q q,
-    ._y inv nat y_scaled
-  }
-  {
-    .x x,
-    ._y _y,
-    .steps steps,
-    .q q,
-    .y_scaled y_scaled,
-    {.y_scaled x, .x y} inOrder test
-  }
-  <
-    {
-      .test /yes if,
-      {
-        {.x int x, .y_scaled int y} minus /+ x,
-        .q |1 q,
-        ._y _y,
-        .steps steps
-      } then
-    } .then,
-    {
-      .test /no if,
-      {.x x, .q |0 q, ._y _y, .steps steps} then
-    } .then
-  >
-  <
-    {
-      .steps empty? if,
-      {.q inv int div, .x rem} then
-    } .then,
-    {
-      .x x,
-      ._y /0 _y,
-      .steps /0 steps,
-      .q q
-    } _div_down
-  >;
-
-_check_2y = ? { bits[] x, bits[] y }
-  <
-    {.x empty? if, {} | down_shift then} .then,
-    {.y empty? if, {} | restore then} .then,
-    {.x </0, /1> empty? if, {} | down_shift then} .then,
-    {
-      .x </0, /1> </0, /1> x,
-      .y </0, /1> y
-    } _check_2y
-  >;
-
-div =
-  {
-    <
-      { .x/'+' if, .y get_sign then } .then,
-      { .x/'-' if, .y swap_sign get_sign then } .then
-    > sign,
-    .x abs remove_leading_zeros x_norm,
-    .y abs remove_leading_zeros y_norm
-  }
-  <
-    {
-      .x_norm empty? if,
-      { 0 int div, 0 rem } then
-    } .then,
-    {
-      {.y_norm x, .x_norm y} GT if,
-      { 0 int div, .x_norm rem } then
-    } .then,
-    {
-      .sign sign,
-      {
-        .x_norm x,
-        .y_norm y,
-        {.x_norm x, .y_norm y} _check_2y choice
-      }
-      <
-        {
-          .choice /down_shift if,
-          {
-            .x x,
-            {.x x, .y y, .y inv _y} _align_down aligned
-          }
-          {
-            .x x,
-            .aligned._y _y,
-            .aligned.steps steps,
-            _ q
-          } _div_down then
-        } .then,
-        {
-          .choice /restore if,
-          {.x x, .y y, 0 r, _ q} _div_restoring then
-        } .then
-      > res
-    }
-    <
-      {.sign/'+' if, {.res.div div, .res.rem rem} then} .then,
-      { .res.div swap_sign div, .res.rem rem }
-    >
-  >;
-
-mod =
-  {{.x int x, .y int y} div .rem rem} .rem;
-
-gcd =
-  <
-    {.y x, .x y} GT, 
-    ()
-  > _gcd
-;
-
-_gcd = ? { bits[] x, bits[] y } <
-  { .y remove_leading_zeros empty? if, .x nat then } .then,
-  { .y x, mod y } _gcd
+    .n pos? dec n,
+    .pair { plus x, .x y } pair
+  } fib_
 >;
+fib = { () n, { 1 int x, 0 int y } pair } fib_ .x;
 
-lcm = 
-  {{.x int x, gcd int y} div .div x, .y int y} times abs
-;
+---------------------------------------------------------------
+-- §3. Rational Numbers (rat[])
+---------------------------------------------------------------
 
-factorial = {()n, 1 int acc} factorial_;
-factorial_ =  <
-  {.n zero_int? if, .acc then} .then,
-  {.n pos? dec n, {.n x, .acc y} times acc} factorial_
->;
-
-fib_ =
-  <
-    {.n int zero_int? if, ."fib(n),fib(n.1)" then} .then,
-    { .n int dec /"+" n,
-      ."fib(n),fib(n.1)" {plus x, .x y} "fib(n),fib(n.1)"
-    } fib_
-  >
-;
-
-fib = {() n, {1 int x, 0 int y} "fib(n),fib(n.1)"} fib_ .x;
-
---------------------
-
-rat = {.n int n, .d int d } normalize_rat;
+rat[] = { int[] n, int[] d };
 
 normalize_rat =
-  < 
-    { .d/"-" if, 
-      {
-        .n swap_sign n, 
-        .d swap_sign d
-      } then
-     } .then,
-    ()
+  <
+    { .d neg? if, { .n swap_sign n, .d swap_sign d } then } .then,
+    { .d pos? if, { .n ?int[] n, .d d } then } .then
   >
-  {() x, {.n abs x,.d abs y} gcd int y}
+  { () x, { .n abs x, .d abs y } gcd int y }
   {
-    {.x.n x,.y y} div .div n, 
-    {.x.d x,.y y} div .div d
-  }
-;
+    { .x.n x, .y y } div .div n,
+    { .x.d x, .y y } div .div d
+  };
 
-plus_rat = 
-  { 
-    .x x, 
-    .y y,
-    {.x.d abs x,.y.d abs y} lcm int lcm
-  }
-  { 
+rat = { .n int n, .d int d } normalize_rat;
+
+plus_rat =
+  { .x x, .y y, { .x.d abs x, .y.d abs y } lcm int lcm }
+  {
     {
-      {.x.n x, {.lcm x, .x.d y} div .div y} times x,
-      {.y.n x, {.lcm x, .y.d y} div .div y} times y
-     } plus n, 
+      { .x.n x, { .lcm x, .x.d y } div .div y } times x,
+      { .y.n x, { .lcm x, .y.d y } div .div y } times y
+    } plus n,
     .lcm d
   }
-  normalize_rat
-;
-
-times_rat = 
-  { 
-    {.x.n x,.y.n y} times n, 
-    {.x.d x,.y.d y} times d
-  } 
   normalize_rat;
 
-minus_rat = 
+times_rat =
   {
-    .x x, 
-    .y {.n swap_sign n, .d d} y
-  } 
+    { .x.n x, .y.n y } times n,
+    { .x.d x, .y.d y } times d
+  }
+  normalize_rat;
+
+minus_rat =
+  { .x x, .y { .n swap_sign n, .d d } y }
   plus_rat;
 
-inverse_rat = 
+inverse_rat =
   { .d n, .n d }
-  normalize_rat
-;
+  normalize_rat;
 
-div_rat = 
-  { .x x, .y inverse_rat y} times_rat
-;
+div_rat =
+  { .x x, .y inverse_rat y } times_rat;
 
-int_rat = 
-  { .n n, .d d, {.n x,.d y} div div }
-  { .div.div int, {.div.rem int n, .d d} rat}
-;
-
-()
+int_rat =
+  { .n n, .d d, { .n x, .d y } div div }
+  { .div.div int, { .div.rem int n, .d d } normalize_rat rat };

@@ -39,8 +39,8 @@ function helpText() {
     "  --input-pattern pattern  Input pattern JSON or file for spec.",
     "  --retype rel             Relation to specialize (default: main).",
     "  --lib file               Load .klib or .k library before build.",
-    "  --export spec     Export library alias into scope. Repeatable.",
-    "                    spec is 'name' or 'libname:localname'.",
+    "  --use spec               Use library alias in scope (repeatable).",
+    "                           spec is 'name' or 'libname:localname'.",
     "  --opt flag               Clang optimization flag (default: -O3).",
     "  -h, --help               Show this help.",
     "",
@@ -52,7 +52,7 @@ function helpText() {
     "Examples:",
     `  ${prog} 'x = |x; x x' -o program.exe`,
     `  ${prog} program.k program.exe`,
-    `  ${prog} --lib Examples/poly.k --export concat 's' -o s.exe`
+    `  ${prog} --lib Examples/poly.k --use concat 's' -o s.exe`
   ].join("\n");
 }
 
@@ -119,7 +119,7 @@ try {
 
   const inputPattern = readPattern(rawInputPattern);
 
-  const { libraries, exportSpecs, usePKIR } =
+  const { libraries, useSpecs, usePKIR } =
     parseCompileOptions(remainingArgs);
   const input = resolveProgramInput(remainingArgs, {
     allowStdinSource: true
@@ -154,7 +154,7 @@ try {
   } else {
     const object = await compileProgramInputToObject(input, {
       libraries,
-      exportSpecs,
+      useSpecs,
       stdin
     });
 

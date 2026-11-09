@@ -5,7 +5,7 @@ import {
   compileLibrary,
   decodeObject,
   loadLibrary,
-  buildExportPreamble
+  buildUsePreamble
 } from "@fraczak/k/backend-api.mjs";
 import {
   compileWasmArtifact,
@@ -27,7 +27,7 @@ function readAll(stream) {
   });
 }
 
-export { buildExportPreamble };
+export { buildUsePreamble };
 
 export function loadLibraryFromPath(libPath) {
   const ext = path.extname(libPath).toLowerCase();
@@ -43,7 +43,7 @@ export function loadLibraryFromPath(libPath) {
 
 function parseCompileOptions(args) {
   const libraries = [];
-  const exportSpecs = [];
+  const useSpecs = [];
   let loadedLibrary = false;
   let usePKIR = false;
 
@@ -61,15 +61,15 @@ function parseCompileOptions(args) {
       if (!libPath) throw new Error("--lib requires a file argument");
       libraries.push(loadLibraryFromPath(libPath));
       loadedLibrary = true;
-    } else if (args[0] === "--export") {
+    } else if (args[0] === "--use") {
       args.shift();
       const spec = args.shift();
       if (!spec) {
         throw new Error(
-          "--export requires a spec argument (name or libname:localname)"
+          "--use requires a spec argument (name or libname:localname)"
         );
       }
-      exportSpecs.push(spec);
+      useSpecs.push(spec);
     } else if (args[0] === "--pkir") {
       args.shift();
       usePKIR = true;
@@ -80,7 +80,7 @@ function parseCompileOptions(args) {
     }
   }
 
-  return { libraries, exportSpecs, usePKIR };
+  return { libraries, useSpecs, usePKIR };
 }
 
 function fileInputType(filePath) {
@@ -126,16 +126,18 @@ async function compileProgramInput(
   input,
   {
     libraries = [],
+    useSpecs = [],
     exportSpecs = [],
     stdin = null,
     inputEnvelopePattern = null,
     usePKIR = false
   } = {}
 ) {
+  const specs = useSpecs.length > 0 ? useSpecs : exportSpecs;
   if (input.kind === "inline-source") {
     return compileWasmArtifact(input.source, {
       libraries,
-      exports: exportSpecs,
+      use: specs,
       source: input.sourceName,
       inputEnvelopePattern,
       usePKIR
@@ -148,7 +150,7 @@ async function compileProgramInput(
     }
     return compileWasmArtifact((await readAll(stdin)).toString("utf8"), {
       libraries,
-      exports: exportSpecs,
+      use: specs,
       source: input.sourceName,
       inputEnvelopePattern,
       usePKIR
@@ -158,7 +160,7 @@ async function compileProgramInput(
   if (input.kind === "source-file") {
     return compileWasmArtifact(fs.readFileSync(input.path, "utf8"), {
       libraries,
-      exports: exportSpecs,
+      use: specs,
       source: input.sourceName,
       inputEnvelopePattern,
       usePKIR

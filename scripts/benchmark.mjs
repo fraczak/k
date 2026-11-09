@@ -159,15 +159,32 @@ function sourceNameForSuite(suite) {
 }
 
 let ieeeDependencies;
+let arithDependencies;
 function dependenciesForSuite(suite) {
-  if (suite !== "ieee") return [];
-  if (!ieeeDependencies) {
-    const core = loadLibrary(compileLibrary(fs.readFileSync(path.join(kRoot, "core.k"), "utf8")));
-    ieeeDependencies = [loadLibrary(compileLibrary(fs.readFileSync(path.join(kRoot, "Examples/ieee.k"), "utf8"), {
-      libraries: [core]
-    }))];
+  if (suite === "ieee") {
+    if (!ieeeDependencies) {
+      let prev = null;
+      for (const f of ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]) {
+        prev = loadLibrary(compileLibrary(fs.readFileSync(path.join(kRoot, f), "utf8"), {
+          source: f,
+          libraries: prev ? [prev] : []
+        }));
+      }
+      ieeeDependencies = [prev];
+    }
+    return ieeeDependencies;
   }
-  return ieeeDependencies;
+  if (!arithDependencies) {
+    let prev = null;
+    for (const f of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"]) {
+      prev = loadLibrary(compileLibrary(fs.readFileSync(path.join(kRoot, f), "utf8"), {
+        source: f,
+        libraries: prev ? [prev] : []
+      }));
+    }
+    arithDependencies = [prev];
+  }
+  return arithDependencies;
 }
 
 function stripTrailingUnitMain(source) {
@@ -472,9 +489,11 @@ async function prepareBackendRunner(job, relation, inputVal, state) {
 
 async function prepareState(suite) {
   const state = createState();
-  if (suite === "ieee") {
-    await evaluateInput(`:load ${path.join(kRoot, "core.k")}`, state);
-    await evaluateInput(`:load ${path.join(kRoot, "Examples/ieee.k")}`, state);
+  const deps = suite === "ieee"
+    ? ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]
+    : ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"];
+  for (const dep of deps) {
+    await evaluateInput(`:load ${path.join(kRoot, dep)}`, state);
   }
   await evaluateInput(`:load ${suiteSourcePath(suite)}`, state);
   return state;

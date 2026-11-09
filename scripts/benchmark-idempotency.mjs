@@ -8,9 +8,9 @@ import { performance } from "node:perf_hooks";
 
 const DEFAULT_EXAMPLES = [
   "Examples/nat.k",
-  "Examples/list.k",
-  "Examples/arithmetics.k",
-  "Examples/ieee.k",
+  "lib/list.k",
+  "lib/arithmetics.k",
+  "lib/ieee.k",
   "Examples/ieee-arithmetics.k"
 ];
 
@@ -24,8 +24,8 @@ for K source files through the .klib object format.
 Arguments:
   example.k ...
       One or more .k source files to benchmark.
-      (default: Examples/nat.k Examples/list.k
-                Examples/arithmetics.k Examples/ieee.k
+      (default: Examples/nat.k lib/list.k
+                lib/arithmetics.k lib/ieee.k
                 Examples/ieee-arithmetics.k)
 
 Options:
@@ -83,17 +83,24 @@ for (const example of benchmarkExamples) {
   for (let i = 0; i < iterations; i++) {
     const out = mkdtempSync(join(tmpdir(), `k-idempotency-bench-${example.replaceAll("/", "_")}-`));
     try {
-      const isIEEE = resolve(example) === resolve("Examples/ieee.k");
-      const isArithmetic = resolve(example) === resolve("Examples/ieee-arithmetics.k");
+      const depsByTarget = new Map([
+        [resolve("lib/bits.k"), ["lib/bit.k"]],
+        [resolve("lib/arithmetics.k"), ["lib/bit.k", "lib/bits.k"]],
+        [resolve("Examples/arithmetics.k"), ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"]],
+        [resolve("lib/list.k"), ["lib/bit.k", "lib/bits.k"]],
+        [resolve("Examples/poly.k"), ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k", "lib/list.k"]],
+        [resolve("lib/btrie.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k"]],
+        [resolve("lib/string.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k"]],
+        [resolve("lib/ieee.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k"]],
+        [resolve("lib/djson.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]],
+        [resolve("Examples/ieee-arithmetics.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]]
+      ]);
+      const deps = depsByTarget.get(resolve(example)) || [];
       let dependency;
-      if (isIEEE || isArithmetic) {
-        dependency = join(out, "core.klib");
-        run(["objects/compile.mjs", "core.k", dependency]);
-      }
-      if (isArithmetic) {
-        const ieee = join(out, "ieee.klib");
-        run(["objects/compile.mjs", "--lib", dependency, "Examples/ieee.k", ieee]);
-        dependency = ieee;
+      for (const [idx, dep] of deps.entries()) {
+        const nextDep = join(out, `dep-${idx}.klib`);
+        run(["objects/compile.mjs", ...(dependency ? ["--lib", dependency] : []), dep, nextDep]);
+        dependency = nextDep;
       }
       const library = dependency ? ["--lib", dependency] : [];
       const t0 = performance.now();

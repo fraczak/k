@@ -28,7 +28,7 @@ function helpText() {
     "  -o, --output path  Specify output file path explicitly.",
     "  --pkir             Lower via Polymorphic K IR (PKIR).",
     "  --lib file         Load one .klib or .k library before compiling.",
-    "  --export spec      Export library alias into scope. Repeatable.",
+    "  --use spec         Use library alias in scope (repeatable).",
     "                     spec is 'name' or 'libname:localname'.",
     "  -h, --help         Show this help.",
     "",
@@ -36,7 +36,7 @@ function helpText() {
     `  ${prog} 'x = |x; x x' program.wasm`,
     `  ${prog} program.k -o program.wasm`,
     `  ${prog} --pkir program.k -o program.wasm`,
-    `  ${prog} --lib core.klib --export add program.k program.wasm`
+    `  ${prog} --lib core.klib --use add program.k program.wasm`
   ].join("\n");
 }
 
@@ -66,7 +66,7 @@ try {
     }
   }
 
-  const { libraries, exportSpecs, usePKIR } =
+  const { libraries, useSpecs, usePKIR } =
     parseCompileOptions(remainingArgs);
   const input = resolveProgramInput(remainingArgs, {
     allowStdinSource: true
@@ -76,7 +76,7 @@ try {
   const outputPath = explicitOutput || positionalOutput || null;
   const artifact = await compileProgramInput(input, {
     libraries,
-    exportSpecs,
+    useSpecs,
     stdin,
     usePKIR
   });

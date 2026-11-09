@@ -202,10 +202,11 @@ function pkirLaneName() {
   return "PKIR (Wasm persistent)";
 }
 
-console.log("==> Initializing state and loading @fraczak/k/Examples/arithmetics.k");
+console.log("==> Initializing state and loading @fraczak/k/lib/arithmetics.k");
 const state = createState();
-const arithmeticsPath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/arithmetics.k"));
-await evaluateInput(`:load ${arithmeticsPath}`, state);
+for (const relPath of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"]) {
+  await evaluateInput(`:load ${fileURLToPath(import.meta.resolve(`@fraczak/k/${relPath}`))}`, state);
+}
 
 for (const op of ops) {
   await evaluateInput(`${benchNames[op]} = {inc x, () y} ${op};`, state);
@@ -217,13 +218,10 @@ function intValue(text) {
 
 console.log("==> Preparing relations");
 const relations = {};
-const arithmeticsSource = fs.readFileSync(arithmeticsPath, "utf8");
-const arithmeticsLibrarySource = arithmeticsSource.replace(/\s*\(\)\s*$/, "\n");
 for (const op of ops) {
   const name = benchNames[op];
   relations[op] = prepareRelation(state, name, {
-    source: `${arithmeticsLibrarySource}\n${name} = {inc x, () y} ${op};\n${name}`,
-    sourceLabel: `@fraczak/k/Examples/arithmetics.k#${name}`
+    sourceLabel: `@fraczak/k/lib/arithmetics.k#${name}`
   });
 }
 codes.load(state.codes);
@@ -776,12 +774,10 @@ const squaringStepTimeoutMs = parsePositiveIntEnv("SQUARING_STEP_TIMEOUT_MS", 60
 console.log("\n=================== SQUARING SCALE & MEMORY BENCHMARK ===================");
 console.log(`Algorithms: times vs karatsuba (${squaringSteps} successive squarings doubling bit length)`);
 
-// Load and initialize Karatsuba multiplication relation
-const karatsubaPath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/karatsuba-mult.k"));
-const karatsubaSource = fs.readFileSync(karatsubaPath, "utf8");
-const karatsubaLibrarySource = karatsubaSource.replace(/\s*\(\)\s*$/, "\n");
 const stateKara = createState();
-await evaluateInput(`:load ${karatsubaPath}`, stateKara);
+for (const relPath of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"]) {
+  await evaluateInput(`:load ${fileURLToPath(import.meta.resolve(`@fraczak/k/${relPath}`))}`, stateKara);
+}
 codes.load(stateKara.codes);
 
 const sInitialVal = intValue(squaringInputText);
@@ -793,8 +789,7 @@ const squaringAlgos = [
     name: "times",
     title: "Long Multiplication (times)",
     expr: "s = {()x,()y}times;",
-    librarySource: arithmeticsLibrarySource,
-    sourceLabel: "@fraczak/k/Examples/arithmetics.k#s",
+    sourceLabel: "@fraczak/k/lib/arithmetics.k#s",
     state: state,
     relName: "s"
   },
@@ -803,8 +798,7 @@ const squaringAlgos = [
     name: "karatsuba",
     title: "Karatsuba Multiplication (karatsuba)",
     expr: "s = {()x,()y}karatsuba;",
-    librarySource: karatsubaLibrarySource,
-    sourceLabel: "@fraczak/k/Examples/karatsuba-mult.k#s",
+    sourceLabel: "@fraczak/k/lib/arithmetics.k#s",
     state: stateKara,
     relName: "s"
   }
@@ -815,7 +809,6 @@ for (const algo of squaringAlgos) {
   await evaluateInput(algo.expr, algo.state);
   codes.load(algo.state.codes);
   algo.rel = prepareRelation(algo.state, algo.relName, {
-    source: `${algo.librarySource}\n${algo.expr}\n${algo.relName}`,
     sourceLabel: algo.sourceLabel
   });
 

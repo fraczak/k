@@ -48,17 +48,22 @@ Regular evaluations include timing; there is no separate timing command.
 ## Loading and aliases
 
 ```text
-:load Examples/arithmetics.k
+:load lib/bit.k
+:load lib/bits.k
+:load lib/arithmetics.k
+:load lib/list.k
 :load Examples/poly.k
 ```
 
 Libraries are loaded explicitly. `poly.k` depends on definitions in
-`arithmetics.k`, so load them in that order. Loading a codec does not
-automatically load its corresponding k library.
+`lib/arithmetics.k` and `lib/list.k`, so load them in dependency order. Loading
+a codec does not automatically load its corresponding k library.
 
 `:load` compiles a `.k` file in the current library context or loads a plain
-JSON `.klib`. It recovers relation and pattern aliases unless `--no-alias`
-is specified. Source libraries' terminal expressions are not run by `:load`.
+JSON `.klib`. All relations and patterns in the current session library context
+are available in memory during compilation. It recovers relation and pattern aliases
+unless `--no-alias` is specified. Source libraries' terminal expressions are not
+run by `:load`.
 
 Names are local aliases for canonical definitions. Rebinding a relation alias
 leaves older definitions addressable by hash in the live session.
@@ -90,8 +95,8 @@ See [patterns and canonical identity](PATTERNS.md).
 inc
 ```
 
-Load `Examples/arithmetics.k` before using `inc`. The codec supplies the
-integer value; the library supplies the relation.
+Load `lib/bit.k`, `lib/bits.k`, and `lib/arithmetics.k` before using `inc`.
+The codec supplies the integer value; the library supplies the relation.
 
 Codecs export `parse` and `print`. Input uses the codec explicitly selected
 with `:input`. When the text is omitted, the next line is parsed as external

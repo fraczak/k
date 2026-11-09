@@ -13,8 +13,7 @@ import {
   compileLibrary,
   compileObjectBuffer,
   decodeObject,
-  loadLibrary,
-  buildExportPreamble
+  loadLibrary
 } from "./object.mjs";
 import codes from "./codes.mjs";
 import { isMainEntrypoint } from "./codecs/runtime/cli-entry.mjs";
@@ -959,7 +958,7 @@ function helpText() {
     "",
     "Options:",
     "  --lib file       Load one .klib or .k library before compiling.",
-    "  --export spec    Export library alias into scope. Repeatable.",
+    "  --use spec       Use library alias in scope (repeatable).",
     "                   spec is 'name' or 'libname:localname'.",
     "  --envelope-free  Run the interpreter in envelope-free mode.",
     "  -h, --help       Show this help.",
@@ -967,7 +966,7 @@ function helpText() {
     "Examples:",
     `  echo '"abc"' | k-parse | ${prog} '{.1 0}' | k-print`,
     `  echo '{"x":1,"y":2}' | k-json --parse | \\`,
-    `    ${prog} --lib Examples/poly.k --export concat \\`,
+    `    ${prog} --lib Examples/poly.k --use concat \\`,
     `      's={()xs,()ys}concat; s' | k-json --print`
   ].join("\n");
 }
@@ -985,7 +984,7 @@ async function main() {
 
   let envelopeFree = false;
   const libraries = [];
-  const exports = [];
+  const useSpecs = [];
 
   // Parse options
   while (args.length > 0) {
@@ -1008,11 +1007,11 @@ async function main() {
         const libBuffer = fs.readFileSync(libPath);
         libraries.push(loadLibrary(decodeObject(libBuffer)));
       }
-    } else if (args[0] === "--export") {
+    } else if (args[0] === "--use") {
       args.shift();
       const spec = args.shift();
-      if (!spec) throw new Error("--export requires a spec argument");
-      exports.push(spec);
+      if (!spec) throw new Error("--use requires a spec argument");
+      useSpecs.push(spec);
     } else if (args[0].startsWith("--")) {
       throw new Error(`Unknown option: ${args[0]}`);
     } else {
@@ -1039,13 +1038,14 @@ async function main() {
         if (error.message === "Cannot run a .klib library without a main relation; load it with --lib.") {
           throw error;
         }
+        const raw = buffer.toString("utf8");
         return {
           kind: "source",
-          source: buildExportPreamble(exports, libraries) + buffer.toString("utf8")
+          source: raw
         };
       }
     }
-    return { kind: "source", source: buildExportPreamble(exports, libraries) + arg };
+    return { kind: "source", source: arg };
   })(args.shift());
 
   const inputStream = (function (arg) {
@@ -1061,7 +1061,7 @@ async function main() {
 
   const object = programInput.kind === "object"
     ? programInput.object
-    : decodeObject(compileObjectBuffer(programInput.source, { libraries }));
+    : decodeObject(compileObjectBuffer(programInput.source, { libraries, useSpecs }));
   const kir = objectToKIRP(object);
   const mainRelName = kir.main;
   const mainRel = kir.rels[mainRelName];

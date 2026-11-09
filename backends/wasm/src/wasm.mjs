@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   annotate,
-  buildExportPreamble,
   decodeWire,
   encodeToWire,
   exportPatternGraph,
@@ -642,19 +641,20 @@ async function compileWasmArtifact(
   source,
   {
     libraries = [],
+    use = [],
     exports = [],
     source: sourceName = null,
     inputEnvelopePattern = null,
     usePKIR = false
   } = {}
 ) {
-  const preamble = buildExportPreamble(exports, libraries);
-  const fullSource = preamble + source;
+  const specs = use.length > 0 ? use : exports;
   const options = {
     libraries,
+    useSpecs: specs,
     ...(sourceName ? { source: sourceName } : {})
   };
-  let defs = annotate(fullSource, options);
+  let defs = annotate(source, options);
 
   let typingMode = "generic";
   if (inputEnvelopePattern) {

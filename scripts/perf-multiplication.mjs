@@ -231,14 +231,11 @@ console.log(
 console.log("-".repeat(72) + "\n");
 
 // 1. Map algorithms to their source files
-const algoFiles = {
-  times: fileURLToPath(
-    import.meta.resolve("../Examples/arithmetics.k")
-  ),
-  karatsuba: fileURLToPath(
-    import.meta.resolve("../Examples/karatsuba-mult.k")
-  )
-};
+const arithLibChain = [
+  fileURLToPath(import.meta.resolve("../lib/bit.k")),
+  fileURLToPath(import.meta.resolve("../lib/bits.k")),
+  fileURLToPath(import.meta.resolve("../lib/arithmetics.k"))
+];
 
 const cacheDir = makeCacheDir("k-mult-perf-");
 
@@ -250,12 +247,12 @@ const algoServers = { llvm: {}, "llvm-pkir": {}, wasm: {}, pkir: {} };
 let commonState = null;
 
 for (const algo of selectedAlgos) {
-  const filePath = algoFiles[algo] || algoFiles.times;
-  const rawSource = fs.readFileSync(filePath, "utf8");
-  const libSource = rawSource.replace(/\s*\(\)\s*$/, "\n");
+  const filePath = arithLibChain[arithLibChain.length - 1];
 
   const algoState = createState();
-  await evaluateInput(`:load ${filePath}`, algoState);
+  for (const libPath of arithLibChain) {
+    await evaluateInput(`:load ${libPath}`, algoState);
+  }
   codes.load(algoState.codes);
 
   if (!commonState) commonState = algoState;
@@ -264,10 +261,7 @@ for (const algo of selectedAlgos) {
   await evaluateInput(`${relName} = {()x, ()y} ${algo};`, algoState);
   codes.load(algoState.codes);
 
-  const relSource =
-    `${libSource}\n${relName} = {()x, ()y} ${algo};\n${relName}`;
   const prepared = prepareRelation(algoState, relName, {
-    source: relSource,
     sourceLabel: `${filePath}#${relName}`
   });
   prepared.state = algoState;

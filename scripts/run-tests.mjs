@@ -43,11 +43,11 @@ const tests = [
   ["tests/test-hash-normalization.mjs", node, ["tests/test-hash-normalization.mjs"]],
   ["tests/test-structural-values.mjs", node, ["tests/test-structural-values.mjs"]],
   ["tests/test-codecs.mjs", node, ["tests/test-codecs.mjs"]],
-  [
-    "tests/test-djson-methods.mjs",
+  ["tests/test-djson-methods.mjs",
     node,
     ["tests/test-djson-methods.mjs"]
   ],
+  ["tests/test-lib.mjs", node, ["tests/test-lib.mjs"]],
   ["tests/test-parse-json.mjs", node, ["tests/test-parse-json.mjs"]],
   ["tests/test-ieee-text.mjs", node, ["tests/test-ieee-text.mjs"]],
   ["tests/test-deep-wire-value.mjs", node, ["tests/test-deep-wire-value.mjs"]],

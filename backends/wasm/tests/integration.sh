@@ -172,13 +172,18 @@ printf '{"x":{"a":{}},"y":{"b":{}}}\n' |
   node "$K_ROOT/codecs/k-print.mjs" |
   grep -qx '"b"'
 
-node "$K_ROOT/objects/compile.mjs" --lib "$K_ROOT/core.k" "$K_ROOT/Examples/ieee.k" "$TMP_DIR/ieee-types.klib"
+node "$K_ROOT/objects/compile.mjs" "$K_ROOT/lib/bit.k" "$TMP_DIR/bit.klib"
+node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/bit.klib" "$K_ROOT/lib/bits.k" "$TMP_DIR/bits.klib"
+node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/bits.klib" "$K_ROOT/lib/list.k" "$TMP_DIR/list.klib"
+node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/list.klib" "$K_ROOT/lib/btrie.k" "$TMP_DIR/btrie.klib"
+node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/btrie.klib" "$K_ROOT/lib/string.k" "$TMP_DIR/string.klib"
+node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/string.klib" "$K_ROOT/lib/ieee.k" "$TMP_DIR/ieee-types.klib"
 node "$K_ROOT/objects/compile.mjs" --lib "$TMP_DIR/ieee-types.klib" "$K_ROOT/Examples/ieee-arithmetics.k" "$TMP_DIR/ieee.klib"
-if node ./bin/k-wasm-compile.mjs --lib "$TMP_DIR/ieee.klib" --lib "$TMP_DIR/ieee.klib" --export mul:times "{()x,()y} times .result" "$TMP_DIR/repeated-lib.wasm" >/dev/null 2>&1; then
+if node ./bin/k-wasm-compile.mjs --lib "$TMP_DIR/ieee.klib" --lib "$TMP_DIR/ieee.klib" --use mul:times "{()x,()y} times .result" "$TMP_DIR/repeated-lib.wasm" >/dev/null 2>&1; then
   echo "--lib unexpectedly accepted more than once" >&2
   exit 1
 fi
-node ./bin/k-wasm-compile.mjs --lib "$TMP_DIR/ieee.klib" --export mul:times "{()x,()y} times .result" "$TMP_DIR/ieee-mul.wasm"
+node ./bin/k-wasm-compile.mjs --lib "$TMP_DIR/ieee.klib" --use mul:times "{()x,()y} times .result" "$TMP_DIR/ieee-mul.wasm"
 echo 0.12 |
   node "$K_ROOT/codecs/ieee.mjs" --parse |
   node ./bin/k-wasm-run.mjs "$TMP_DIR/ieee-mul.wasm" |
