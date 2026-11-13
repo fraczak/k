@@ -5,8 +5,7 @@ import {
   compileObjectBuffer,
   decodeObject,
   loadLibrary,
-  buildUsePreamble,
-  parseHeaderUses
+  buildUsePreamble
 } from "@fraczak/k/object.mjs";
 
 export function readAll(stream) {

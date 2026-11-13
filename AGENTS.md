@@ -4,7 +4,7 @@
 
 - Root `.mjs` files contain the parser interface, compiler, runtime, and library API.
 - `parser.jison` and `valueParser.jison` are the grammar sources.
-- `lib/` contains the layered standard pattern library (`bit.k`, `bits.k`, `arithmetics.k`, `list.k`, `btrie.k`, `string.k`, `ieee.k`, `djson.k`); `Examples/` contains teaching examples; `core.k` defines core schemas.
+- `lib/` contains the pedagogical standard pattern libraries (`generic.k`, `integer.k`, `ieee.k`, `djson.k`); `Examples/` contains teaching examples (`nat.k`, `poly.k`, `ieee-arithmetics.k`); `core.k` defines core schemas.
 - `codecs/` and `objects/` contain stream codecs and artifact tools.
 - `backends/` contains the LLVM and WebAssembly implementations.
 - `browser/` and `scripts/build-repl-html.mjs` implement the standalone Web REPL.

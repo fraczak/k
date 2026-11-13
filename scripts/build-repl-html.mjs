@@ -14,7 +14,7 @@ function printHelp() {
   console.log(`Usage: node scripts/build-repl-html.mjs [options]
 
 Builds the standalone, self-contained K web REPL (repl.html).
-Bundles browser shims, virtual file system (core.k, Examples, Wasm),
+Bundles browser shims, virtual file system (core.k, lib, Examples, Wasm),
 and UI components into a single zero-dependency HTML file.
 
 Options:
@@ -80,12 +80,8 @@ if (fs.existsSync(coreKPath)) {
 
 // Add verified lib/ k-code files
 const verifiedLibs = [
-  "bit.k",
-  "bits.k",
-  "arithmetics.k",
-  "list.k",
-  "btrie.k",
-  "string.k",
+  "generic.k",
+  "integer.k",
   "ieee.k",
   "djson.k"
 ];
@@ -101,9 +97,9 @@ for (const filename of verifiedLibs) {
 
 // Add verified Examples/ k-code files
 const verifiedExamples = [
-  "arithmetics.k",
-  "ieee-arithmetics.k",
-  "poly.k"
+  "nat.k",
+  "poly.k",
+  "ieee-arithmetics.k"
 ];
 const examplesDir = path.join(projectRoot, "Examples");
 for (const filename of verifiedExamples) {
@@ -1709,28 +1705,24 @@ const htmlContent = `<!DOCTYPE html>
           <select id="example-select" title="Choose an example or expression">
             <option value="">-- Example / Expression --</option>
             <optgroup label="Standard Libraries (lib/)">
-              <option value="lib/bit.k">lib/bit.k</option>
-              <option value="lib/bits.k">lib/bits.k</option>
-              <option value="lib/arithmetics.k">lib/arithmetics.k</option>
-              <option value="lib/list.k">lib/list.k</option>
-              <option value="lib/btrie.k">lib/btrie.k</option>
-              <option value="lib/string.k">lib/string.k</option>
+              <option value="core.k">core.k</option>
+              <option value="lib/generic.k">lib/generic.k</option>
+              <option value="lib/integer.k">lib/integer.k</option>
               <option value="lib/ieee.k">lib/ieee.k</option>
               <option value="lib/djson.k">lib/djson.k</option>
             </optgroup>
             <optgroup label="Examples">
-              <option value="core.k">core.k</option>
               <option value="Examples/nat.k">Examples/nat.k</option>
-              <option value="Examples/arithmetics.k">Examples/arithmetics.k</option>
               <option value="Examples/poly.k">Examples/poly.k</option>
               <option value="Examples/ieee-arithmetics.k">Examples/ieee-arithmetics.k</option>
             </optgroup>
             <optgroup label="Quick Expressions">
               <option value="expr:{} | ok">{} | ok</option>
               <option value="expr:not = &lt; / true | false, / false | true &gt;; {} | true not">not (boolean relation)</option>
-              <option value="expr:1 succ">1 succ</option>
-              <option value="expr:{10 int x, 5 int y} plus">{10 int x, 5 int y} plus (int)</option>
-              <option value="expr:{10 int x, 5 int y} karatsuba">{10 int x, 5 int y} karatsuba</option>
+              <option value="expr:0 succ">0 succ (nat)</option>
+              <option value="expr:1 inc">1 inc (int)</option>
+              <option value="expr:{{}|_|0|1|0|1 nat x, {}|_|1|0|1 nat y} plus">{10 x, 5 y} plus (int)</option>
+              <option value="expr:{{}|_|0|1|0|1 nat x, {}|_|1|0|1 nat y} times">{10 x, 5 y} times (Karatsuba)</option>
               <option value="expr::rels">:rels (list relations)</option>
               <option value="expr::engine">:engine (show engine)</option>
               <option value="expr::engine wasm">:engine wasm</option>
@@ -1880,7 +1872,7 @@ const htmlContent = `<!DOCTYPE html>
               <tbody>
                 <tr>
                   <td><code>name = relExpr;</code></td>
-                  <td><b>Relation Alias:</b> Defines a local alias for a relation expression.<br><i>e.g.</i> <code>swap = { . y x, . x y };</code></td>
+                  <td><b>Relation Alias:</b> Defines a local alias for a relation expression.<br><i>e.g.</i> <code>swap = { .y x, .x y };</code></td>
                 </tr>
                 <tr>
                   <td><code>name[P1, ..., Pn] = filter;</code></td>
@@ -1889,7 +1881,7 @@ const htmlContent = `<!DOCTYPE html>
                     pattern template.<br>
                     <i>e.g.</i><br>
                     <code>bit[] = &lt; {} 0, {} 1 &gt;;</code> or<br>
-                    <code>list[X] = &lt; {} nil, ... &gt; = Y;</code>
+                    <code>list[X] = &lt; {} nil, { X car, Y cdr } cons &gt; = Y;</code>
                   </td>
                 </tr>
               </tbody>
@@ -1948,8 +1940,8 @@ const htmlContent = `<!DOCTYPE html>
           <div class="help-section">
             <h4>REPL Commands</h4>
             <table class="help-table">
-              <tr><td><code>:engine [wasm|pkir|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code>, <code>pkir</code>, or <code>js</code>)</td></tr>
-              <tr><td><code>:load &lt;file&gt;</code></td><td>Load a <code>.k</code> source or <code>.klib</code> library into current state</td></tr>
+              <tr><td><code>:engine [wasm|pkir|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code>, <code>pkir</code>, or <code>js</code>; shortcuts: <code>:wasm</code>, <code>:pkir</code>, <code>:js</code>)</td></tr>
+              <tr><td><code>:load [--no-alias] &lt;file&gt;</code></td><td>Load a <code>.k</code> source or <code>.klib</code> library into current state (use <code>--no-alias</code> to import by hash only)</td></tr>
               <tr>
                 <td><code>:pattern &lt;name&gt;</code></td>
                 <td>
@@ -1975,23 +1967,41 @@ const htmlContent = `<!DOCTYPE html>
               <tr><td><code>:rels</code></td><td>List all relation aliases</td></tr>
               <tr><td><code>:limit [num|none]</code></td><td>Display or set maximum characters for value output</td></tr>
               <tr><td><code>:max-pat-length [num|none]</code></td><td>Display or set max inline pattern length in <code>:rel</code> (default <code>45</code>, alias <code>:maxPatLength</code>)</td></tr>
-              <tr><td><code>:codecs</code></td><td>List all loaded format codecs</td></tr>
-              <tr><td><code>:codec load &lt;file.mjs&gt;</code></td><td>Load a codec from file (or load through Files)</td></tr>
+              <tr><td><code>:codecs</code></td><td>List all loaded format codecs (alias <code>:codec list</code>)</td></tr>
+              <tr><td><code>:codec load &lt;file.mjs&gt;</code></td><td>Load a codec from VFS (or via <b>Files</b>)</td></tr>
               <tr><td><code>:codec unload &lt;file.mjs&gt;</code></td><td>Unload a loaded codec</td></tr>
               <tr><td><code>:input &lt;codec.mjs&gt; [text]</code></td><td>Parse input using specified codec (opens dialog if text omitted)</td></tr>
               <tr><td><code>:klib &lt;file&gt;</code></td><td>Export current state as a <code>.klib</code> binary file</td></tr>
+              <tr><td><code>:ko &lt;file&gt; &lt;expr&gt;</code></td><td>Export executable <code>.ko</code> object using <code>&lt;expr&gt;</code> as main</td></tr>
               <tr><td><code>:reset</code></td><td>Clear state and reset to initial environment</td></tr>
               <tr><td><code>:help</code></td><td>Show command reference</td></tr>
             </table>
           </div>
 
           <div class="help-section">
+            <h4>Libraries &amp; Examples (VFS)</h4>
+            <p style="margin-bottom: 8px; color: var(--text-muted); line-height: 1.45;">
+              Libraries and examples are bundled in the Virtual File System and can be loaded with <code>:load &lt;file&gt;</code> or from the toolbar. Leading <code># --lib ...</code> lines are ordinary comments; load prerequisites in dependency order before dependents.
+            </p>
+            <table class="help-table">
+              <tr><td><code>core.k</code></td><td>Standalone bit, Unicode string, and self-hosted pattern schemas (<code>bit[]</code>, <code>bits[]</code>, <code>list[X]</code>, <code>string[]</code>, <code>pattern[]</code>)</td></tr>
+              <tr><td><code>lib/generic.k</code></td><td>Algebraic types, binary tries, and string/bit codecs (<code>bool[]</code>, <code>order[]</code>, <code>opt[V]</code>, <code>btrie[V]</code>); load <code>core.k</code> first</td></tr>
+              <tr><td><code>lib/integer.k</code></td><td>Self-contained signed arbitrary-precision integers (<code>int[]</code>, <code>plus</code>, <code>minus</code>, Karatsuba <code>times</code>, <code>divmod</code>, <code>div</code>, <code>mod</code>, <code>gcd</code>, <code>lcm</code>)</td></tr>
+              <tr><td><code>lib/ieee.k</code></td><td>Binary64 float types, predicates, negation, and conversions (<code>float64[]</code>); load <code>core.k</code> first</td></tr>
+              <tr><td><code>lib/djson.k</code></td><td>RFC 8259 JSON parser (<code>parse_json</code>) and <code>djson[]</code> operations; load <code>core.k</code>, <code>lib/generic.k</code>, <code>lib/ieee.k</code> first</td></tr>
+              <tr><td><code>Examples/nat.k</code></td><td>Small Peano natural-number arithmetic example (<code>nat[]</code>, <code>add</code>, <code>mult</code>)</td></tr>
+              <tr><td><code>Examples/poly.k</code></td><td>Polymorphic list operations indexed by <code>int[]</code>; load <code>lib/integer.k</code> first</td></tr>
+              <tr><td><code>Examples/ieee-arithmetics.k</code></td><td>Binary64 arithmetic returning <code>{result, flags}</code>; load <code>core.k</code> and <code>lib/ieee.k</code> first</td></tr>
+            </table>
+          </div>
+
+          <div class="help-section">
             <h4>Expressions &amp; Snippets</h4>
-            <p style="margin-bottom: 8px; color: var(--text-muted);">Any raw K expression entered at the prompt is compiled and evaluated on top of the current state using WebAssembly.</p>
+            <p style="margin-bottom: 8px; color: var(--text-muted);">Any raw k expression entered at the prompt is compiled and evaluated on top of the current state (default engine: WebAssembly; switch via <code>:engine</code>). A line ending with <code>;</code> closes a definition block; end a line with <code>\</code> to continue.</p>
             <ul>
-              <li><code>{} | ok</code> &mdash; Constant relation producing variant <code>ok</code> with empty document payload <code>{}</code></li>
-              <li><code>not = &lt; / true | false, / false | true &gt;;</code> &mdash; Polymorphic negation via branch projections and ordered choice</li>
-              <li><code>{} | true not</code> &mdash; Compose constant relation <code>{} | true</code> with <code>not</code> (evaluates to <code>{} | false</code>)</li>
+              <li><code>{} |ok</code> &mdash; Constant relation producing variant <code>ok</code> with empty document payload <code>{}</code></li>
+              <li><code>not = &lt; /true |false, /false |true &gt;;</code> &mdash; Polymorphic negation via branch projections and ordered choice</li>
+              <li><code>{} |true not</code> &mdash; Compose constant relation <code>{} |true</code> with <code>not</code> (evaluates to <code>{} |false</code>)</li>
               <li><code>bool? = ?&lt; {} true, {} false &gt;;</code> &mdash; Define a boolean pattern filter relation</li>
               <li>
                 <code>bit[] = &lt; {} 0, {} 1 &gt;;</code>
@@ -1999,11 +2009,11 @@ const htmlContent = `<!DOCTYPE html>
               </li>
               <li>
                 <code>? list[bool[]]</code>
-                &mdash; Instantiated pattern filter matching booleans
+                &mdash; Instantiated pattern filter matching a list of booleans (requires <code>list[X]</code> and <code>bool[]</code> in scope)
               </li>
-              <li><code>not = bool? ?X &lt; / true | false, {} | true &gt; ?X;</code> &mdash; Filtered boolean negation: guarded by <code>bool?</code>, defaulting to <code>{} | true</code></li>
-              <li><code>swap = { . y x, . x y };</code> &mdash; Define a product field-swapping relation</li>
-              <li><code>{ {} | ok x, {} | nil y } swap</code> &mdash; Construct a product and pass it through <code>swap</code></li>
+              <li><code>not = bool? ?X &lt; /true |false, {} |true &gt; ?X;</code> &mdash; Filtered boolean negation: guarded by <code>bool?</code>, defaulting to <code>{} |true</code></li>
+              <li><code>swap = { .y x, .x y };</code> &mdash; Define a product field-swapping relation</li>
+              <li><code>{ {} |ok x, {} |nil y } swap</code> &mdash; Construct a product and pass it through <code>swap</code></li>
             </ul>
           </div>
 

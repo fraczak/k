@@ -43,9 +43,8 @@ cases; shared helpers live outside the discovered directory.
 | Objects and portable export | `test-k-object.mjs`, `test-kir.mjs`, `test-validate-object.mjs` |
 | Interactive state and browser UI | `test-repl.mjs`, `test-repl-html.mjs`, `test-tree-view.mjs` |
 | Execution layers | `test-kvm.mjs`, `test-kvm-polymorphic.mjs`, `test-access-table.mjs`, `test-pkir.mjs` |
-| Libraries | Arithmetic, IEEE, list, Karatsuba, and dynamic JSON suites |
-| JSON text parsing | `test-parse-json.mjs`: grammar, Unicode escapes, binary64 boundaries, Wasm, and CLI |
-| IEEE text conversion | `test-ieee-text.mjs`: parsing, exact printing, special values, and binary64 round-trips |
+| Libraries | `test-generic.mjs`, `test-integer.mjs`, `test-ieee.mjs`, `test-djson.mjs`, `test-lib.mjs`, and example suites (`test-arithmetics.mjs`, `test-poly.mjs`, `test-ieee-arithmetic.mjs`, `test-djson-methods.mjs`) |
+| JSON text parsing | `test-parse-json.mjs`: RFC 8259 grammar, Unicode escapes, binary64 rounding, Wasm, and CLI |
 
 `test-hash-fuzz.mjs` uses a deterministic generator to check renaming and
 definition-order invariance; it is not a general cryptographic collision test.
@@ -55,8 +54,8 @@ expected values, and case descriptions reused by supported execution paths.
 A rendered payload alone can hide envelope differences, so keep pattern
 comparisons when checking structural correctness.
 
-Arithmetic and Karatsuba tests share CLI setup in `helpers/cli.mjs`. They still
-run the library through `k.mjs` and compare numerical results with BigInt;
+Arithmetic tests share CLI setup in `helpers/cli.mjs`. They run
+`lib/integer.k` through `k.mjs` and compare numerical results with BigInt;
 codec modules prepare and decode the wire values in process. The dedicated
 codec and shell suites cover the codec command-line boundary.
 

@@ -6,8 +6,6 @@ import { patterns2filters, prettyRel } from "./pretty.mjs";
 import {
   resolvePatternCanonicalInfo,
   buildUsePreamble,
-  parseHeaderDirectives,
-  parseHeaderUses,
   canonicalBoundaryFilterSources
 } from "./canonical-pattern.mjs";
 
@@ -372,7 +370,11 @@ function buildMeta(annotated, source, options = {}) {
         lib.defs?.patterns ||
         lib.sourceDefs?.patterns ||
         {};
-      Object.assign(allPatterns, lp);
+      for (const [patName, patDef] of Object.entries(lp)) {
+        if (patName.startsWith("@") && !(patName in allPatterns)) {
+          allPatterns[patName] = patDef;
+        }
+      }
     }
   }
   if (options.patterns) {
@@ -574,6 +576,7 @@ function compileLibrary(script, options = {}) {
     };
   }
   const libPatterns = {};
+  const inheritedPatterns = {};
   const patternAlias = {};
   if (options.libraries) {
     for (const lib of options.libraries) {
@@ -582,7 +585,13 @@ function compileLibrary(script, options = {}) {
         lib.defs?.patterns ||
         lib.sourceDefs?.patterns ||
         {};
-      Object.assign(libPatterns, lp);
+      for (const [k, v] of Object.entries(lp)) {
+        if (k.startsWith("@")) {
+          if (!(k in libPatterns)) libPatterns[k] = v;
+        } else {
+          inheritedPatterns[k] = v;
+        }
+      }
       Object.assign(patternAlias, lib.patternAlias || {});
     }
   }
@@ -620,11 +629,13 @@ function compileLibrary(script, options = {}) {
     }
   }
 
+  const exportedPatterns = { ...inheritedPatterns, ...libPatterns };
+
   const libraryMetaHashes = new Set([
     ...Object.keys(allCodes),
     ...Object.keys(libRels),
     ...Object.values(patternAlias),
-    ...Object.keys(libPatterns).filter((k) => k.startsWith("@"))
+    ...Object.keys(exportedPatterns).filter((k) => k.startsWith("@"))
   ]);
   const libMeta = Object.fromEntries(
     Object.entries(meta).filter(([hash]) => libraryMetaHashes.has(hash))
@@ -638,7 +649,7 @@ function compileLibrary(script, options = {}) {
     patternAlias,
     compileStats: serialized.compileStats,
     meta: libMeta,
-    patterns: libPatterns,
+    patterns: exportedPatterns,
     source: options.source || null,
     main: null
   };
@@ -1088,9 +1099,7 @@ export {
   decompileObjectBuffer,
   extractAliasesFromObject,
   extractAliasesFromObjectBuffer,
-  buildUsePreamble,
-  parseHeaderDirectives,
-  parseHeaderUses
+  buildUsePreamble
 };
 
 export default {
@@ -1113,7 +1122,5 @@ export default {
   decompileObjectBuffer,
   extractAliasesFromObject,
   extractAliasesFromObjectBuffer,
-  buildUsePreamble,
-  parseHeaderDirectives,
-  parseHeaderUses
+  buildUsePreamble
 };

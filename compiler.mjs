@@ -27,18 +27,28 @@ function compileTypes(representatives, rels, options = {}) {
         }
       }
     }
-    const useSpecs = [...(options.useSpecs || options.use || [])];
-    for (const spec of useSpecs) {
-      const parts = spec.trim().split(/[\s,]+/);
-      for (const item of parts) {
-        if (!item) continue;
-        const [rawLib, rawLocal] = item.includes(":") ? item.split(":", 2) : [item, item];
-        const libName = rawLib.replace(/\[.*\]$/, "").trim();
-        const localName = rawLocal.replace(/\[.*\]$/, "").trim();
-        for (const lib of options.libraries) {
-          const relHash = lib.relAlias?.[libName] || (libName.startsWith("@") ? libName : null);
-          if (relHash) {
-            relAlias[localName] = relHash;
+    if (options._useRelAlias) {
+      for (const [localName, relHash] of Object.entries(options._useRelAlias)) {
+        if (rels[localName]?._library) {
+          relAlias[localName] = relHash;
+        }
+      }
+    } else {
+      const useSpecs = [...(options.useSpecs || options.use || [])];
+      for (const spec of useSpecs) {
+        const parts = spec.trim().split(/[\s,]+/);
+        for (const item of parts) {
+          if (!item) continue;
+          const [rawLib, rawLocal] = item.includes(":") ? item.split(":", 2) : [item, item];
+          if (/\[.*\]$/.test(rawLib.trim()) || /\[.*\]$/.test(rawLocal.trim())) continue;
+          const libName = rawLib.replace(/\[.*\]$/, "").trim();
+          const localName = rawLocal.replace(/\[.*\]$/, "").trim();
+          if (!rels[localName]?._library) continue;
+          for (const lib of options.libraries) {
+            const relHash = lib.relAlias?.[libName] || (libName.startsWith("@") ? libName : null);
+            if (relHash) {
+              relAlias[localName] = relHash;
+            }
           }
         }
       }

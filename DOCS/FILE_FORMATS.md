@@ -67,38 +67,40 @@ This prints `"hello"`. `--lib` loads a dependency; it does not select library
 output. These are equivalent ways to generate a library from source:
 
 ```sh
-node objects/compile.mjs lib/bit.k /tmp/bit.klib
-node objects/compile.mjs --lib /tmp/bit.klib lib/bits.k /tmp/bits.klib
-node objects/compile.mjs --lib /tmp/bits.klib lib/arithmetics.k /tmp/k-math.klib
+node objects/compile.mjs lib/integer.k /tmp/integer.klib
+node objects/compile.mjs --format klib lib/integer.k /tmp/integer.klib
 ```
 
 Only one `--lib` is accepted on the command line by current CLI tools. Chained
 libraries carry forward definitions from their predecessors, so compiling a
 series of libraries extends the environment cumulatively.
 
-### Source header comments (`# --lib ... --use ...`)
+### Source dependency comments
 
-To clearly document dependencies and recommended compilation options without scattering hardcoded content hashes (`@hash`) throughout source code, `.k` files declare their library dependencies and imported symbols using header comments at the very top of the file:
+To document expected dependencies and recommended `--use` symbols without
+scattering hardcoded content hashes (`@hash`) throughout source code, `.k` files
+can include ordinary `# --lib ...` comments near the top of the file:
 
 ```k
 # --lib <dependency-path> --use <spec1> <spec2> ...
 ```
 
-#### Syntax & Convention
+Because `#` is a standard one-line comment character in k, these lines are valid
+k syntax and are ignored completely by the compiler and CLI tools (they are
+**not** parsed as compiler directives). By convention, `# --lib <path> --use ...`
+lists:
 
-1. **Placement**: Comments appear in the first comment block at the very top of the file, before any relation or pattern definitions.
-2. **Comment prefix**: Lines start with `# --lib`. Because `#` is a standard one-line comment character in k, the line is fully valid k syntax and is treated purely as a comment. It is **not** an active compiler directive.
-3. **Target library**: `<dependency-path>` indicates the library providing the symbols (for example, `lib/bits.k` or `lib/string.k`).
-4. **Symbol specs**: `--use` lists the symbols used from the library:
-   - `name`: references a library relation or pattern under the same name.
-   - `libname:localname`: aliases a library relation or pattern `libname` under a local name `localname`.
-   - `pattern[Params]`: references a named pattern with its parameter signature (e.g. `btrie[V]` or `byte[]`).
-   - `pattern[Params]:localname[Params]`: aliases a named pattern under a local name (e.g. `float64[]:number[]`).
+- `<dependency-path>`: the expected dependency (for example, `core.k` or `lib/generic.k`).
+- `--use` specs:
+  - `name`: references a library relation or pattern under the same name.
+  - `libname:localname`: aliases a library relation or pattern `libname` under `localname`.
+  - `pattern[Params]`: references a named pattern with its parameter signature (e.g. `btrie[V]` or `byte[]`).
+  - `pattern[Params]:localname[Params]`: aliases a named pattern under `localname` (e.g. `float64[]:number[]`).
 
-Multiple `# --lib` lines can be declared to document multiple dependencies:
+Multiple `# --lib` comment lines may appear when a file uses several libraries:
 
 ```k
-# --lib lib/bits.k --use trim inv_loop inv cmp inc_bits dec_bits plus_bits minus_bits mul_bits
+# --lib core.k --use bit[] bits[]
 ```
 
 #### How `--lib` and `--use` Work
@@ -107,27 +109,28 @@ When source code is compiled with library dependencies (`k-compile`, `k.mjs`, `c
 
 1. **Content-Addressed Availability (Hash-Only)**: When `--lib file.klib` is supplied, all relations and patterns defined in the library are available in memory indexed strictly by their content hashes (`@<hash>`). Friendly names (the aliases recorded in library metadata) are **never** in scope by default.
 2. **Explicit Symbol Scope (`--use`)**: To bring a library relation or pattern into scope under a friendly name, `--use <spec>` must be specified (or `useSpecs` passed in the compiler API). The compiler resolves the spec against the library's metadata aliases and binds the friendly or aliased name directly in the in-memory symbol tables.
-3. **No Automatic Ingestion or Precedence Ambiguity**: Because library friendly names are not in scope without `--use`, there is no implicit shadowing or "precedence". Local definitions define local names; library definitions are accessed by `@<hash>` or by the names explicitly brought into scope via `--use`.
+3. **No Automatic Ingestion or Precedence Ambiguity**: Because library friendly names are not in scope without `--use`, there is no implicit shadowing or "precedence". Local definitions define local names; library definitions are accessed by `@<hash>` or by the names explicitly brought into scope via `--use`. If a name declared via `--use` is redefined (by another `--use` binding or by a local definition), the compiler emits a warning and the later definition wins.
 4. **No Text Synthesis or Line Offset**: The compiler never synthesizes source code or prepends preamble text to user files. Source text remains completely untouched, preserving exact 1-to-1 line numbers in AST nodes, diagnostics, warnings, and error messages.
 
 #### Command-Line Usage
 
-- Compile a file using a pre-compiled library and explicit `--use` bindings (as documented in the file's header comments):
+- Compile a library or dependent file using explicit `--lib` / `--use` flags:
   ```sh
-  node objects/compile.mjs --lib /tmp/bits.klib \
-    --use "trim inv_loop inv cmp inc_bits dec_bits plus_bits minus_bits mul_bits" \
-    lib/arithmetics.k /tmp/arithmetics.klib
+  node objects/compile.mjs lib/integer.k /tmp/integer.klib
+  node objects/compile.mjs --lib /tmp/integer.klib \
+    --use "int[] nat int pos? neg? zero? gt? inc dec" \
+    Examples/poly.k /tmp/poly.klib
   ```
 - Command-line `--use spec` flags bring relations into scope for evaluation:
   ```sh
   printf '42\n' | node codecs/int.mjs --parse |
-    node k.mjs --lib /tmp/k-math.klib --use inc 'inc' |
+    node k.mjs --lib /tmp/integer.klib --use inc 'inc' |
     node codecs/int.mjs --print
   ```
 
-This prints `43`. Numeral names such as `5` in the arithmetic library are
-relations producing bit trees. `5 int` constructs a signed integer; numeral
-names are not builtin literals.
+This prints `43`. `lib/integer.k` defines `0` and `1` as signed integers
+and `nat` to lift unsigned bit sequences such as `{} |_ |1 |0 |1 nat` (5);
+numeral names are not builtin literals.
 
 ## Inspect and decompile
 

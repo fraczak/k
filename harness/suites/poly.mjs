@@ -10,7 +10,6 @@ import {
   lowerToKVM,
   run,
   run_converged,
-  valueForCode,
   Value
 } from "../../backend-api.mjs";
 import { compileLibrary, loadLibrary, decodeObject, compileObjectBuffer } from "../../object.mjs";
@@ -19,24 +18,23 @@ import { BenchmarkSuite } from "../suite.mjs";
 import { inputPatternForObjectRelation } from "../../backends/llvm/src/executable.mjs";
 import { prepareRelation } from "../../backends/llvm/tests/perf-support.mjs";
 
+const POLY_USE_SPECS = ["int[] nat int pos? neg? zero? gt? inc dec"];
+
 export async function createPolySuite({ listLength = 40, cacheDir = null } = {}) {
   const ops = ["reverse", "concat", "split_by", "get_nth", "length"];
   const benchNames = Object.fromEntries(ops.map(op => [op, `bench_${op}`]));
 
-  let depLib = null;
-  for (const relPath of ["../../lib/bit.k", "../../lib/bits.k", "../../lib/arithmetics.k", "../../lib/list.k"]) {
-    const filePath = fileURLToPath(import.meta.resolve(relPath));
-    depLib = loadLibrary(compileLibrary(fs.readFileSync(filePath, "utf8"), {
-      source: filePath,
-      libraries: depLib ? [depLib] : []
-    }));
-  }
+  const integerPath = fileURLToPath(import.meta.resolve("../../lib/integer.k"));
+  const depLib = loadLibrary(compileLibrary(fs.readFileSync(integerPath, "utf8"), {
+    source: integerPath
+  }));
 
   const polyPath = fileURLToPath(import.meta.resolve("../../Examples/poly.k"));
   const polySource = fs.readFileSync(polyPath, "utf8");
   const polyLib = loadLibrary(compileLibrary(polySource, {
     source: polyPath,
-    libraries: [depLib]
+    libraries: [depLib],
+    use: POLY_USE_SPECS
   }));
 
   const state = {
@@ -60,7 +58,7 @@ export async function createPolySuite({ listLength = 40, cacheDir = null } = {})
   }
 
   function intValue(text) {
-    return valueForCode(parseIntValue(text), state.typeAliases.int, codes.find);
+    return parseIntValue(text);
   }
 
   function makeList(elements) {

@@ -8,11 +8,7 @@ import { closedPatternToCodeHash, valueForCode } from "../repl-codecs.mjs";
 
 const state = createState({ engine: "js" });
 for (const file of [
-  "lib/bit.k",
-  "lib/bits.k",
-  "lib/list.k",
-  "lib/btrie.k",
-  "lib/string.k",
+  "core.k",
   "lib/ieee.k",
   "Examples/ieee-arithmetics.k"
 ]) {

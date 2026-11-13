@@ -1,7 +1,5 @@
+# --lib lib/ieee.k --use bit[] sign[] exp11[] frac52[] float64[] all_ones_exponent? exp0 finite_float64? frac0 inf_float64? nan_float64? neg_inf neg_zero negate_float64 pos_inf pos_zero qnan zero_exponent? zero_float64?
 -- IEEE binary64 arithmetic.
-
-bit[]  = < {} 0, {} 1 >;
-sign[] = < {} "+", {} "-" >;
 
 0   = {} |0 ?bit[];
 1   = {} |1 ?bit[];
@@ -13,32 +11,19 @@ sign[] = < {} "+", {} "-" >;
 +?  = ?sign[] /"+" +;
 -?  = ?sign[] /"-" -;
 
-# --lib lib/bit.k --use not_bit and_bit or_bit xor_bit
-not_bit = @WAu2W28Cay64FmGXCumzmrgbMiEnSjyNUETbSzXtCvEw;
-and_bit = @4iKmE8nmJDxBMREydctSER6UnbA5ufURFJjr4mtKt9AZ;
-or_bit  = @FYe6xjtJKkYaiVT6UahWqGsfmihAyvwiqWE4zaEYekkz;
-xor_bit = @QecMdpq96xrRQyYENRgJvqhbYnxyqb66Uxc4mrdWSFpu;
-
-# --lib lib/ieee.k --use exp11[] frac52[] float64[]
-exp11[]   = @F2KGfE24DhFGChv6pVAb4pkC9YWvt5izpnnwFDTLfG2h[];
-frac52[]  = @ziwtSeiWqhQZjbpnB2TpWhSJCDTWfX2QzGvPd3DdVJCZ[];
-float64[] = @AR4sFGMwXgjj5p7dhi8sJKDWNbrXxLefQUCBRNm5fP6t[];
-
-# --lib lib/ieee.k --use all_ones_exponent? exp0 finite_float64? frac0 inf_float64? nan_float64? neg_inf neg_zero negate_float64 pos_inf pos_zero qnan zero_exponent? zero_float64?
-all_ones_exponent? = @G4gtCwkTyvUKAjhAKFFj5bfAMfW53t8A6CRxXpTyafcS;
-exp0 = @5CevJXf7TxM9xpnE6d7wUPxCNUCb8hjcyDxK27Qdb99d;
-finite_float64? = @rXgbm83aU9KXZKsnUTKaMa6xE4L4SYr53QKWj55HgTXX;
-frac0 = @cEAdYip46Ce9nsZS8HvRg6iHqeLaAzWBcB5PvWyZHcPz;
-inf_float64? = @EHkVn6SrkQf9xx5j7nxBpA4wrMbrmnkNZGAGVHZESTbE;
-nan_float64? = @C4gMueJKY8pkL4sXhA9Mm4myUdMfMnKLDNsJijr4Gzmw;
-neg_inf = @dDUVHjeQsLRfZ9P2faLv7uHd94w8XUxhug9xJr3CxhGA;
-neg_zero = @KkPWjqrqkhgNXTTeG8J7ZZhBUjVmN9nRnp42j6nRtb8V;
-negate_float64 = @3V9Ve52CnGsvJ9xxHgBwL47L4ac3Xh98bPuLJLHgeU78;
-pos_inf = @8paZ6U6NYfRBsnQHEJQFxtSWsET5WyAZBDUWaZkcPtmz;
-pos_zero = @QTRfm3S4BKsqqt7WDPAPhfNA2dajxcj9iyAtvnqpMcdf;
-qnan = @tS5xBCNSeuX3ahkFgk8wpX8nB6XrH9teHvYhhKxTFu7h;
-zero_exponent? = @NqwhAUhQMnLpZgCevmmMtDFcSLtfxLgkbq85ckwgrKHy;
-zero_float64? = @4p9tjLASFGTZCbW7sha7JzZDBkCNuVwyLhLKiQfBJSNV;
+not_bit = ?bit[] < /0 1, /1 0 > ?bit[];
+and_bit = ?{ bit[] x, bit[] y } <
+  { .x 0? _x, .y ?bit[] _y } 0,
+  { .x 1? _x, .y ?bit[] y } .y
+> ?bit[];
+or_bit = ?{ bit[] x, bit[] y } <
+  { .x 1? _x, .y ?bit[] _y } 1,
+  { .x 0? _x, .y ?bit[] y } .y
+> ?bit[];
+xor_bit = ?{ bit[] x, bit[] y } <
+  { .x 0? _x, .y ?bit[] y } .y,
+  { .x 1? _x, .y ?bit[] y } .y not_bit
+> ?bit[];
 
 // Arithmetic-specific patterns and ripple-carry helpers.
 

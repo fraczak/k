@@ -55,7 +55,7 @@ const columnGroups = [
   },
   {
     title: "int",
-    source: "Examples/arithmetics.k",
+    source: "lib/integer.k",
     columns: [
       { key: "int.factorial", label: "factorial" },
       { key: "int.gcd.90d", label: "gcd" },

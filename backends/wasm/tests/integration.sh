@@ -176,10 +176,9 @@ compile_step() {
   local prev="$1"
   local src="$2"
   local out="$3"
+  local use_spec="$4"
   local uses=()
-  while IFS= read -r line; do
-    [ -n "$line" ] && uses+=(--use "$line")
-  done < <(node -e 'import("'$K_ROOT'/canonical-pattern.mjs").then(m => { for (const u of m.parseHeaderUses(fs.readFileSync(process.argv[1],"utf8"))) console.log(u.use); })' "$src" 2>/dev/null || true)
+  [ -n "$use_spec" ] && uses=(--use "$use_spec")
   if [ -n "$prev" ]; then
     node "$K_ROOT/objects/compile.mjs" --lib "$prev" "${uses[@]}" "$src" "$out"
   else
@@ -187,13 +186,9 @@ compile_step() {
   fi
 }
 
-compile_step "" "$K_ROOT/lib/bit.k" "$TMP_DIR/bit.klib"
-compile_step "$TMP_DIR/bit.klib" "$K_ROOT/lib/bits.k" "$TMP_DIR/bits.klib"
-compile_step "$TMP_DIR/bits.klib" "$K_ROOT/lib/list.k" "$TMP_DIR/list.klib"
-compile_step "$TMP_DIR/list.klib" "$K_ROOT/lib/btrie.k" "$TMP_DIR/btrie.klib"
-compile_step "$TMP_DIR/btrie.klib" "$K_ROOT/lib/string.k" "$TMP_DIR/string.klib"
-compile_step "$TMP_DIR/string.klib" "$K_ROOT/lib/ieee.k" "$TMP_DIR/ieee-types.klib"
-compile_step "$TMP_DIR/ieee-types.klib" "$K_ROOT/Examples/ieee-arithmetics.k" "$TMP_DIR/ieee.klib"
+compile_step "" "$K_ROOT/core.k" "$TMP_DIR/core.klib" ""
+compile_step "$TMP_DIR/core.klib" "$K_ROOT/lib/ieee.k" "$TMP_DIR/ieee-types.klib" "bit[] bits[]"
+compile_step "$TMP_DIR/ieee-types.klib" "$K_ROOT/Examples/ieee-arithmetics.k" "$TMP_DIR/ieee.klib" "bit[] sign[] exp11[] frac52[] float64[] all_ones_exponent? exp0 finite_float64? frac0 inf_float64? nan_float64? neg_inf neg_zero negate_float64 pos_inf pos_zero qnan zero_exponent? zero_float64?"
 if node ./bin/k-wasm-compile.mjs --lib "$TMP_DIR/ieee.klib" --lib "$TMP_DIR/ieee.klib" --use mul:times "{()x,()y} times .result" "$TMP_DIR/repeated-lib.wasm" >/dev/null 2>&1; then
   echo "--lib unexpectedly accepted more than once" >&2
   exit 1

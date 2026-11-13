@@ -57,7 +57,7 @@ function printHelp() {
   console.log(`Usage: node scripts/perf-int.mjs [options]
 
 Big Integer Arithmetic Performance Benchmark Harness.
-Benchmarks plus, minus, times, and squaring scale on arithmetics.k
+Benchmarks plus, minus, times, and squaring scale on lib/integer.k
 across Native JS, kVM interpreter, LLVM, Wasm, and PKIR backends.
 
 Options:
@@ -202,9 +202,9 @@ function pkirLaneName() {
   return "PKIR (Wasm persistent)";
 }
 
-console.log("==> Initializing state and loading @fraczak/k/lib/arithmetics.k");
+console.log("==> Initializing state and loading @fraczak/k/lib/integer.k");
 const state = createState();
-for (const relPath of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"]) {
+for (const relPath of ["core.k", "lib/integer.k"]) {
   await evaluateInput(`:load ${fileURLToPath(import.meta.resolve(`@fraczak/k/${relPath}`))}`, state);
 }
 
@@ -221,7 +221,7 @@ const relations = {};
 for (const op of ops) {
   const name = benchNames[op];
   relations[op] = prepareRelation(state, name, {
-    sourceLabel: `@fraczak/k/lib/arithmetics.k#${name}`
+    sourceLabel: `@fraczak/k/lib/integer.k#${name}`
   });
 }
 codes.load(state.codes);
@@ -263,7 +263,7 @@ if (runLLVM) {
       inputPattern: tc.inputPattern,
       cacheDir,
       sourceLabel:
-        `@fraczak/k/Examples/arithmetics.k#${relation.relationName}`,
+        `@fraczak/k/lib/integer.k#${relation.relationName}`,
       usePKIR: false
     });
   }
@@ -283,7 +283,7 @@ if (runLLVMPKIR) {
       inputPattern: tc.inputPattern,
       cacheDir,
       sourceLabel:
-        `@fraczak/k/Examples/arithmetics.k#${relation.relationName}`,
+        `@fraczak/k/lib/integer.k#${relation.relationName}`,
       usePKIR: true
     });
   }
@@ -444,7 +444,7 @@ function printBenchmarkDescription() {
   if (runPKIR) lanes.push(pkirLaneName());
 
   console.log("==> Benchmark description");
-  console.log("    source: @fraczak/k/Examples/arithmetics.k");
+  console.log("    source: @fraczak/k/lib/integer.k");
   console.log(`    benchmark relations: ${Object.values(benchNames).join(", ")}`);
   console.log(`    operations: ${ops.join(", ")}`);
   console.log(`    decimal inputs: ${inputTexts.join(", ")}`);
@@ -732,7 +732,7 @@ if (runPKIR && testSuite.some(tc => tc.pkirConformance !== "ok")) process.exitCo
 
 // =======================================================================
 // Squaring Scale & Memory Profiling Benchmark
-// Expressions: s = {()x,()y}times; and s = {()x,()y}karatsuba;
+// Expression: s = {()x,()y}times;
 // =======================================================================
 
 function countBitsValue(val) {
@@ -772,13 +772,7 @@ const squaringInputText = process.env.SQUARING_INPUT || "987654321";
 const squaringStepTimeoutMs = parsePositiveIntEnv("SQUARING_STEP_TIMEOUT_MS", 60000);
 
 console.log("\n=================== SQUARING SCALE & MEMORY BENCHMARK ===================");
-console.log(`Algorithms: times vs karatsuba (${squaringSteps} successive squarings doubling bit length)`);
-
-const stateKara = createState();
-for (const relPath of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"]) {
-  await evaluateInput(`:load ${fileURLToPath(import.meta.resolve(`@fraczak/k/${relPath}`))}`, stateKara);
-}
-codes.load(stateKara.codes);
+console.log(`Algorithm: times (Karatsuba, ${squaringSteps} successive squarings doubling bit length)`);
 
 const sInitialVal = intValue(squaringInputText);
 const { inputWire: sInitWire, inputPattern: sInputPattern } = wireInput(sInitialVal);
@@ -787,19 +781,10 @@ const squaringAlgos = [
   {
     id: "times",
     name: "times",
-    title: "Long Multiplication (times)",
+    title: "Karatsuba Multiplication (times)",
     expr: "s = {()x,()y}times;",
-    sourceLabel: "@fraczak/k/lib/arithmetics.k#s",
+    sourceLabel: "@fraczak/k/lib/integer.k#s",
     state: state,
-    relName: "s"
-  },
-  {
-    id: "karatsuba",
-    name: "karatsuba",
-    title: "Karatsuba Multiplication (karatsuba)",
-    expr: "s = {()x,()y}karatsuba;",
-    sourceLabel: "@fraczak/k/lib/arithmetics.k#s",
-    state: stateKara,
     relName: "s"
   }
 ];
@@ -1049,7 +1034,7 @@ for (let step = 1; step <= squaringSteps; step++) {
 const sep130 = "=".repeat(130);
 const line130 = "-".repeat(130);
 
-if (squaringLanes.length === 1 && (squaringLanes[0].id === "llvm" || squaringLanes[0].id === "llvm-pkir")) {
+if (squaringAlgos.length === 2 && squaringLanes.length === 1 && (squaringLanes[0].id === "llvm" || squaringLanes[0].id === "llvm-pkir")) {
   const laneId = squaringLanes[0].id;
   const laneName = squaringLanes[0].name;
   // LLVM Only side-by-side comparison table

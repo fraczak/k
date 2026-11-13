@@ -116,45 +116,43 @@ witness derivation. General wire semantics are specified in
 `del`, `push`, `keys`, and `values`. The specializing JSON codec and dynamic
 JSON codec serve different schemas; they are not interchangeable encodings.
 
-The library references earlier `lib/` types by their canonical hashes. Its
-`number[]` is the IEEE `float64[]`; the sign, exponent, and fraction schemas
-are shared too. In the REPL, load `lib/bit.k`, `lib/bits.k`, `lib/list.k`,
-`lib/btrie.k`, `lib/string.k`, `lib/ieee.k`, then `lib/djson.k`. When
-compiling, chain the `lib/` modules in order so each `.klib` carries forward
-the accumulated definitions.
+`lib/integer.k` is completely self-contained, `lib/generic.k` and `lib/ieee.k`
+depend on `core.k`, and `lib/djson.k` composes `core.k`, `lib/generic.k`,
+and `lib/ieee.k`. Its `number[]` is the IEEE `float64[]`; the sign, exponent,
+and fraction schemas are shared too. In the REPL, load `core.k`,
+`lib/generic.k`, `lib/ieee.k`, then `lib/djson.k`. When compiling on the CLI,
+chain each module in order with `--lib` so the single compiled `.klib` carries
+forward all accumulated definitions.
 
-`lib/ieee.k` contains the binary64 representation, constructors and
-predicates, and text conversion. Heavy add/subtract/multiply/divide definitions
-are in `Examples/ieee-arithmetics.k`; load that file after `lib/ieee.k`
-when arithmetic is needed. JSON parsing uses `lib/ieee.k` alone.
+`lib/ieee.k` contains the binary64 representation, constructors, identity
+predicates (`zero_float64?`, `finite_float64?`, `inf_float64?`, `nan_float64?`),
+negation (`negate_float64`), and rational/integer conversions
+(`ratio_to_float64`, `bits_to_float64`). Heavy floating-point arithmetic is in
+`Examples/ieee-arithmetics.k`; load that file after `lib/ieee.k` when arithmetic
+is needed. IEEE text parsing and formatting are handled at boundaries by
+`codecs/ieee.mjs`, while JSON decimal number parsing lives inside `lib/djson.k`.
 
-`parseFloat64`: `string[]` → `float64[]` accepts JSON-style decimal syntax,
-an optional leading `+`, surrounding ASCII JSON whitespace, and the words
-`Infinity` and `NaN` with optional signs. Overflow yields signed infinity;
-underflow preserves signed zero. Invalid text is undefined.
-`printFloat64`: `float64[]` → `string[]` produces an exact decimal expansion
-for finite values, preserving signed zero. It prints infinities as `Infinity`
-or `-Infinity`, and all NaNs as `NaN`. Parsing NaN text selects one canonical
-payload; NaN payloads are not preserved through text.
-The printer prioritizes exact round-trips over shortest formatting: `0.1`
-prints as `0.1000000000000000055511151231257827021181583404541015625`.
-
-The library also defines `parseJson`: `string[]` → `djson[]`, entirely in k.
-It consumes one complete JSON document, including nested containers, Unicode
-escapes, and decimal numbers rounded to binary64. Invalid JSON, unpaired
+`lib/djson.k` defines `parse_json`: `string[]` → `djson[]`, entirely in k.
+It consumes one complete RFC 8259 JSON document, including nested containers,
+Unicode escapes, and decimal numbers rounded to binary64. Invalid JSON, unpaired
 surrogate escapes, and numbers that overflow to infinity are undefined.
 For example, decode UTF-8 to a k string, then parse that string in k:
 
 ```sh
-node objects/compile.mjs lib/bit.k /tmp/bit.klib
-node objects/compile.mjs --lib /tmp/bit.klib lib/bits.k /tmp/bits.klib
-node objects/compile.mjs --lib /tmp/bits.klib lib/list.k /tmp/list.klib
-node objects/compile.mjs --lib /tmp/list.klib lib/btrie.k /tmp/btrie.klib
-node objects/compile.mjs --lib /tmp/btrie.klib lib/string.k /tmp/string.klib
-node objects/compile.mjs --lib /tmp/string.klib lib/ieee.k /tmp/ieee.klib
-node objects/compile.mjs --lib /tmp/ieee.klib lib/djson.k /tmp/djson.klib
+node objects/compile.mjs core.k /tmp/core.klib
+node objects/compile.mjs --lib /tmp/core.klib \
+  --use 'bit[] bits[] list[X] byte[] ascii[] bmp_hi_common[] bmp_hi_private_use[] plane0[] plane_02_10[] unicode[] string[]' \
+  lib/generic.k /tmp/generic.klib
+node objects/compile.mjs --lib /tmp/generic.klib \
+  --use 'bit[] bits[]' \
+  lib/ieee.k /tmp/ieee.klib
+node objects/compile.mjs --lib /tmp/ieee.klib \
+  --use 'bit[] bits[] list[] byte[] ascii[] bmp_hi_common[] bmp_hi_private_use[] plane0[] plane_02_10[] unicode[] string[]' \
+  --use 'bool[] false? true? order[] lt? eq? gt? opt[] reverse trim_bits inc_bits btrie[] btrie_empty btrie_get btrie_set btrie_del btrie_entries_raw btrie_max_key btrie_bfs_values string_to_bits bits_to_string' \
+  --use 'sign[] float64[] pos_zero neg_zero finite_float64? ratio_to_float64' \
+  lib/djson.k /tmp/djson.klib
 printf '%s' '{"answer":42}' | node codecs/utf8.mjs --parse |
-  node k.mjs --lib /tmp/djson.klib --use parseJson 'parseJson' |
+  node k.mjs --lib /tmp/djson.klib --use parse_json 'parse_json' |
   node codecs/djson.mjs --print
 ```
 
@@ -162,18 +160,22 @@ This prints `{"answer":42}`. Exact conversion near binary64 limits is expensive
 in the envelope-aware JavaScript interpreter; the Wasm backend runs the same
 relation with much less overhead.
 
-The compiled IEEE library also supports a complete text round-trip in k:
+The IEEE library can also convert bit sequences directly to `float64[]` and
+format them with `codecs/ieee.mjs`:
 
 ```sh
-printf '%s' '1.5' | node codecs/utf8.mjs --parse |
-  node k.mjs --lib /tmp/ieee.klib --use parseFloat64 --use printFloat64 'parseFloat64 printFloat64' |
-  node codecs/utf8.mjs --print
+node codecs/unit.mjs --parse |
+  node k.mjs --lib /tmp/ieee.klib --use bits_to_float64 '{} |_ |0 |1 |0 |1 |0 |1 bits_to_float64' |
+  node codecs/ieee.mjs --print
 ```
 
-For arithmetic, compile the optional layer against the same IEEE library:
+For arithmetic, compile the optional layer against the same IEEE library
+using explicit `--use` bindings:
 
 ```sh
-node objects/compile.mjs --lib /tmp/ieee.klib Examples/ieee-arithmetics.k /tmp/ieee-arithmetics.klib
+node objects/compile.mjs --lib /tmp/ieee.klib \
+  --use 'bit[] sign[] exp11[] frac52[] float64[] all_ones_exponent? exp0 finite_float64? frac0 inf_float64? nan_float64? neg_inf neg_zero negate_float64 pos_inf pos_zero qnan zero_exponent? zero_float64?' \
+  Examples/ieee-arithmetics.k /tmp/ieee-arithmetics.klib
 ```
 
 `k-parse` and `k-print` use [textual k values](TEXTUAL_VALUES.md), rather than

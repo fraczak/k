@@ -14,8 +14,7 @@ import {
   objectToFunction,
   runConvergedObject,
   decompileObjectBuffer,
-  extractAliasesFromObject,
-  parseHeaderUses
+  extractAliasesFromObject
 } from "../object.mjs";
 
 const value = parseValue("{a:{b:x,c:{}}}");
@@ -102,25 +101,20 @@ const recursiveNatPattern = new RegExp(
 assert.equal(natRoundTripSource, natDecompiledSource);
 assert.match(natDecompiledSource, recursiveNatPattern);
 
-const bitLib = loadLibrary(decodeObject(compileLibraryBuffer(
-  fs.readFileSync("lib/bit.k", "utf8"),
-  { source: "lib/bit.k" }
+const coreLib = loadLibrary(decodeObject(compileLibraryBuffer(
+  fs.readFileSync("core.k", "utf8"),
+  { source: "core.k" }
 )));
-const bitsLib = loadLibrary(decodeObject(compileLibraryBuffer(
-  fs.readFileSync("lib/bits.k", "utf8"),
-  { source: "lib/bits.k", libraries: [bitLib] }
-)));
-const arithRaw = fs.readFileSync("lib/arithmetics.k", "utf8");
-const arithUses = parseHeaderUses(arithRaw).map((u) => u.use);
-const arithmeticsLibraryBuffer = compileLibraryBuffer(
-  arithRaw,
-  { source: "lib/arithmetics.k", libraries: [bitsLib], use: arithUses }
+const integerRaw = fs.readFileSync("lib/integer.k", "utf8");
+const integerLibraryBuffer = compileLibraryBuffer(
+  integerRaw,
+  { source: "lib/integer.k", libraries: [coreLib] }
 );
-const arithmeticsDecompiledSource = decompileObjectBuffer(arithmeticsLibraryBuffer);
-const arithmeticsRoundTripSource = decompileObjectBuffer(
-  compileLibraryBuffer(arithmeticsDecompiledSource, { source: "lib/arithmetics.decompiled.k" })
+const integerDecompiledSource = decompileObjectBuffer(integerLibraryBuffer);
+const integerRoundTripSource = decompileObjectBuffer(
+  compileLibraryBuffer(integerDecompiledSource, { source: "lib/integer.decompiled.k" })
 );
-assert.equal(arithmeticsRoundTripSource, arithmeticsDecompiledSource);
+assert.equal(integerRoundTripSource, integerDecompiledSource);
 
 // Imported relations have canonical keys without local aliases. They still
 // need legal definition names when the complete library is decompiled.

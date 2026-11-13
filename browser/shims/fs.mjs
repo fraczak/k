@@ -60,12 +60,8 @@ export function getVfsFile(path) {
 
 const CURATED_VFS_FILES = [
   "core.k",
-  "bit.k",
-  "bits.k",
-  "arithmetics.k",
-  "list.k",
-  "btrie.k",
-  "string.k",
+  "generic.k",
+  "integer.k",
   "ieee.k",
   "djson.k",
   "ieee-arithmetics.k",

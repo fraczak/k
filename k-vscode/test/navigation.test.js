@@ -266,7 +266,7 @@ function nthOffset(text, needle, n = 0) {
     );
     assert.ok(
       ieeeAnalysis.definitions.some(
-        (d) => d.kind === "relation" && d.name === "scanFloat64"
+        (d) => d.kind === "relation" && d.name === "ratio_to_float64"
       )
     );
     assert.ok(
@@ -276,7 +276,7 @@ function nthOffset(text, needle, n = 0) {
     );
     assert.ok(
       djsonAnalysis.definitions.some(
-        (d) => d.kind === "relation" && d.name === "parseJson"
+        (d) => d.kind === "relation" && d.name === "parse_json"
       )
     );
   }

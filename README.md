@@ -63,25 +63,21 @@ relations, libraries, and codecs.
 
 | File | Purpose |
 | --- | --- |
-| [lib/bit.k](lib/bit.k) | Bit, boolean, and ternary ordering (`bit[]`, `bool[]`, `order[]`) |
-| [lib/bits.k](lib/bits.k) | Arbitrary-width bit strings and 8-bit bytes (`bits[]`, `byte[]`) |
-| [lib/arithmetics.k](lib/arithmetics.k) | Signed arbitrary-precision integer arithmetic (`int[]`, `plus`, `minus`, `times`, `karatsuba`, `div`, `mod`, `gcd`, `lcm`) |
-| [lib/list.k](lib/list.k) | Parametric linked lists (`list[X]`) |
-| [lib/btrie.k](lib/btrie.k) | Parametric binary tries and optional values (`opt[V]`, `btrie[V]`) |
-| [lib/string.k](lib/string.k) | ASCII bytes, Unicode codepoints, and strings (`ascii[]`, `unicode[]`, `string[]`) |
-| [lib/ieee.k](lib/ieee.k) | Binary64 types and `parseFloat64` / `printFloat64` (`float64[]`) |
-| [lib/djson.k](lib/djson.k) | JSON text parsing (`parseJson`) and dynamic JSON operations (`djson[]`) |
-| [core.k](core.k) | Standalone bit, Unicode string, and self-hosted pattern schemas |
+| [core.k](core.k) | Standalone bit, Unicode string, and self-hosted pattern schemas (`bit[]`, `bits[]`, `list[X]`, `string[]`, `pattern[]`) |
+| [lib/generic.k](lib/generic.k) | Algebraic types, binary tries, and string/bit codecs (`bool[]`, `order[]`, `opt[V]`, `btrie[V]`, `string_to_bits`, `bits_to_string`) |
+| [lib/integer.k](lib/integer.k) | Signed arbitrary-precision integer arithmetic (`int[]`, `nat`, `int`, `plus`, `minus`, `times` via Karatsuba, `divmod`, `div`, `mod`, `gcd`, `lcm`) |
+| [lib/ieee.k](lib/ieee.k) | Binary64 types, predicates, negation, and rational conversions (`float64[]`, `negate_float64`, `bits_to_float64`, `ratio_to_float64`) |
+| [lib/djson.k](lib/djson.k) | RFC 8259 JSON parser (`parse_json`) and dynamic JSON operations (`djson[]`, `get`, `nth`, `set`, `del`, `push`, `keys`, `values`) |
 | [Examples/nat.k](Examples/nat.k) | Small Peano arithmetic example |
-| [Examples/arithmetics.k](Examples/arithmetics.k) | Factorial, Fibonacci, and exact rational arithmetic (`rat[]`); load `lib/bit.k`, `lib/bits.k`, and `lib/arithmetics.k` first |
-| [Examples/poly.k](Examples/poly.k) | Polymorphic list operations indexed by `int[]`; load `lib/bit.k`, `lib/bits.k`, `lib/arithmetics.k`, and `lib/list.k` first |
-| [Examples/ieee-arithmetics.k](Examples/ieee-arithmetics.k) | Binary64 arithmetic returning `{result, flags}`; load `lib/bit.k` through `lib/ieee.k` first |
+| [Examples/poly.k](Examples/poly.k) | Polymorphic list operations indexed by `int[]`; load `lib/integer.k` first |
+| [Examples/ieee-arithmetics.k](Examples/ieee-arithmetics.k) | Binary64 arithmetic returning `{result, flags}`; load `core.k` and `lib/ieee.k` first |
 
-Load libraries explicitly with `:load` in the REPL. Source files document
-dependencies and imported symbols via `# --lib <dependency> --use <specs>`
-header comments at the top of the file. Supplying `--lib <dependency.klib>`
-brings all library definitions into scope in memory during compilation.
-Command-line `--use` flags allow defining in-memory aliases. See
+Load libraries explicitly with `:load` in the REPL. Leading
+`# --lib <dependency> --use <specs>` lines in source files are ordinary
+human-readable comments documenting expected dependencies. On the CLI,
+`--lib <dependency.klib>` makes library definitions available in memory by
+content hash (`@<hash>`), while `--use` explicitly brings requested friendly
+names or aliases into compilation scope. See
 [file formats and tools](DOCS/FILE_FORMATS.md).
 
 ## JavaScript API

@@ -21,9 +21,7 @@ export {
   compileLibrary,
   decodeObject,
   loadLibrary,
-  buildUsePreamble,
-  parseHeaderDirectives,
-  parseHeaderUses
+  buildUsePreamble
 } from "./object.mjs";
 export { createState, evaluateInput } from "./repl.mjs";
 export { parse as parseFloat64, print as printFloat64 } from "./codecs/ieee.mjs";

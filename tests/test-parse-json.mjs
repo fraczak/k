@@ -5,40 +5,36 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import k from "../index.mjs";
 import { compileLibrary, loadLibrary } from "../object.mjs";
-import { parseHeaderUses } from "../canonical-pattern.mjs";
+import { useSpecsFor } from "./helpers/cli.mjs";
 import { compileWasmArtifact, instantiateWasmArtifact } from "../backends/wasm/src/wasm.mjs";
 import { fromJsonValue } from "../codecs/djson.mjs";
 import { textToStringValue } from "../codecs/runtime/unicode-string.mjs";
 import { parse as utf8 } from "../codecs/utf8.mjs";
 import { encodeToWire, decodeWire } from "../codecs/runtime/codec-sdk.mjs";
 
-let ieee = null;
+let prev = null;
 for (const file of [
-  "lib/bit.k",
-  "lib/bits.k",
-  "lib/list.k",
-  "lib/btrie.k",
-  "lib/string.k",
+  "core.k",
+  "lib/generic.k",
   "lib/ieee.k"
 ]) {
   const fileSource = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-  const uses = parseHeaderUses(fileSource).map((u) => u.use);
-  ieee = loadLibrary(compileLibrary(fileSource, {
+  const uses = useSpecsFor(file);
+  prev = loadLibrary(compileLibrary(fileSource, {
     source: file,
-    libraries: ieee ? [ieee] : [],
+    libraries: prev ? [prev] : [],
     use: uses
   }));
 }
 const djsonSource = readFileSync(new URL("../lib/djson.k", import.meta.url), "utf8");
-const djsonUses = parseHeaderUses(djsonSource).map((u) => u.use);
 const library = loadLibrary(compileLibrary(djsonSource, {
   source: "lib/djson.k",
-  libraries: [ieee],
-  use: djsonUses
+  libraries: [prev],
+  use: useSpecsFor("lib/djson.k")
 }));
-const wasm = await instantiateWasmArtifact(await compileWasmArtifact(library.relAlias.parseJson, { libraries: [library] }));
+const wasm = await instantiateWasmArtifact(await compileWasmArtifact(library.relAlias.parse_json, { libraries: [library] }));
 const fast = text => wasm.executeValue(textToStringValue(text));
-const parse = k.compile(library.relAlias.parseJson, { libraries: [library] });
+const parse = k.compile(library.relAlias.parse_json, { libraries: [library] });
 const payload = value => JSON.parse(JSON.stringify(value));
 function check(text, evaluate = text => parse(textToStringValue(text))) {
   const actual = evaluate(text);
@@ -91,20 +87,15 @@ const text = '{"answer":42,"ok":true}';
 const scratch = mkdtempSync(path.join(os.tmpdir(), "k-json-test-"));
 try {
   const chain = [
-    "lib/bit.k",
-    "lib/bits.k",
-    "lib/list.k",
-    "lib/btrie.k",
-    "lib/string.k",
+    "core.k",
+    "lib/generic.k",
     "lib/ieee.k",
     "lib/djson.k"
   ];
   let prev = null;
   for (let i = 0; i < chain.length; i++) {
     const out = path.join(scratch, `step-${i}.klib`);
-    const fileSource = readFileSync(new URL(`../${chain[i]}`, import.meta.url), "utf8");
-    const uses = parseHeaderUses(fileSource).map((u) => u.use);
-    const useArgs = uses.flatMap((u) => ["--use", u]);
+    const useArgs = useSpecsFor(chain[i]).flatMap((u) => ["--use", u]);
     const args = ["objects/compile.mjs", ...(prev ? ["--lib", prev] : []), ...useArgs, chain[i], out];
     const built = spawnSync(process.execPath, args, {
       cwd: new URL("..", import.meta.url)
@@ -114,7 +105,7 @@ try {
     prev = out;
   }
   const artifact = prev;
-  const cli = spawnSync(process.execPath, ["k.mjs", "--lib", artifact, "--use", "parseJson", "parseJson"], {
+  const cli = spawnSync(process.execPath, ["k.mjs", "--lib", artifact, "--use", "parse_json", "parse_json"], {
     cwd: new URL("..", import.meta.url), input: encodeToWire(utf8(text))
   });
   assert.ifError(cli.error);

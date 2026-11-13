@@ -35,7 +35,7 @@ assert(html.includes("<style>"), "repl.html must contain inlined CSS styles");
 assert(html.includes('<script type="module">'), "repl.html must contain inlined module script");
 assert(!html.includes('<script src="http'), "repl.html must NOT contain external remote scripts");
 assert(html.includes("wasm-in-process"), "repl.html must mention wasm-in-process engine");
-assert(html.includes("arithmetics.k"), "repl.html must embed standard examples");
+assert(html.includes("nat.k"), "repl.html must embed standard examples");
 assert(html.includes("btn-codecs"), "repl.html must contain Codecs button");
 assert(html.includes("codecs-modal"), "repl.html must contain Codecs modal");
 assert(html.includes("enabled-codecs-grid"), "repl.html must contain enabled codecs grid");
@@ -150,63 +150,60 @@ if (chromiumBin) {
     // Verify VFS curated files
     const vfsList = await evaluateAsync(`window.kRepl.getAllVfsFiles().sort()`);
     const expectedFiles = [
-      "arithmetics.k",
-      "bit.k",
-      "bits.k",
-      "btrie.k",
       "core.k",
       "djson.k",
       "djson.mjs",
-      "ieee.k",
+      "generic.k",
       "ieee-arithmetics.k",
+      "ieee.k",
       "ieee.mjs",
       "int.mjs",
+      "integer.k",
       "json.mjs",
-      "list.k",
+      "nat.k",
       "poly.k",
-      "string.k",
       "unit.mjs",
       "utf8.mjs"
     ].sort();
     assert.deepStrictEqual(vfsList, expectedFiles, `getAllVfsFiles() must match curated files list, got: ${JSON.stringify(vfsList)}`);
 
-    // Test :load bit.k, bits.k, arithmetics.k
+    // Test :load Examples/nat.k (then :reset so 0 alias does not linger)
+    const loadNatOut = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":load Examples/nat.k");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      await window.kRepl.executeCommand(":reset");
+      return lines[lines.length - 1];
+    })()`);
+    assert(loadNatOut.includes("loaded Examples/nat.k"), `Expected loaded Examples/nat.k, got: ${loadNatOut}`);
+
+    // Test :load core.k, integer.k
     const loadOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":load bit.k");
-      await window.kRepl.executeCommand(":load bits.k");
-      await window.kRepl.executeCommand(":load arithmetics.k");
+      await window.kRepl.executeCommand(":load core.k");
+      await window.kRepl.executeCommand(":load integer.k");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(loadOut.includes("loaded arithmetics.k"), `Expected loaded arithmetics.k, got: ${loadOut}`);
+    assert(loadOut.includes("loaded integer.k"), `Expected loaded integer.k, got: ${loadOut}`);
 
-    // Test :load Examples/arithmetics.k
-    const loadExamplesArithOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":load Examples/arithmetics.k");
+    // Test evaluating {1 x, 1 y} times
+    const timesVal = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand("{1 x, 1 y} times");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(loadExamplesArithOut.includes("loaded Examples/arithmetics.k"), `Expected loaded Examples/arithmetics.k, got: ${loadExamplesArithOut}`);
+    assert(timesVal.includes("{}|_|1|+"), `Expected {}|_|1|+ in output, got: ${timesVal}`);
 
-    // Test evaluating {1 int x, 1 int y} karatsuba
-    const karatsubaVal = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand("{1 int x, 1 int y} karatsuba");
-      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
-      return lines[lines.length - 1];
-    })()`);
-    assert(karatsubaVal.includes("{}|_|1|+"), `Expected {}|_|1|+ in output, got: ${karatsubaVal}`);
-
-    // Test evaluating 10
+    // Test evaluating {}|_|0|1|0|1 (bits 10)
     const valOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand("10");
+      await window.kRepl.executeCommand("{}|_|0|1|0|1");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
-    assert(valOut.includes("{}|_|0|1|0|1"), `Expected 10 in output, got: ${valOut}`);
+    assert(valOut.includes("{}|_|0|1|0|1"), `Expected 10 bits in output, got: ${valOut}`);
 
-    // Test {10 int x, 5 int y} plus
+    // Test {{}|_|0|1|0|1 nat x, {}|_|1|0|1 nat y} plus
     const plusOut = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand("{10 int x, 5 int y} plus");
+      await window.kRepl.executeCommand("{{}|_|0|1|0|1 nat x, {}|_|1|0|1 nat y} plus");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
@@ -232,9 +229,9 @@ if (chromiumBin) {
     const badgeCount = await evaluateAsync(`document.getElementById("codecs-count-badge")?.textContent`);
     assert.strictEqual(badgeCount, "1", "Codecs badge count should be 1 after loading int.mjs codec");
 
-    // Test evaluating 10 int with int.mjs codec active -> output should format using int.mjs serializer
+    // Test evaluating {}|_|0|1|0|1 nat with int.mjs codec active -> output should format using int.mjs serializer
     const formattedVal = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand("10 int");
+      await window.kRepl.executeCommand("{}|_|0|1|0|1 nat");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
@@ -334,10 +331,10 @@ if (chromiumBin) {
 
     // Test JSON codec with float64 in browser: :input json.mjs then {"a":"Woj","n":123}
     await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand(":load list.k");
-      await window.kRepl.executeCommand(":load btrie.k");
-      await window.kRepl.executeCommand(":load string.k");
+      await window.kRepl.executeCommand(":load core.k");
+      await window.kRepl.executeCommand(":load generic.k");
       await window.kRepl.executeCommand(":load ieee.k");
+      await window.kRepl.executeCommand(":load djson.k");
       await window.kRepl.executeCommand(":codec load json.mjs");
       await window.kRepl.executeCommand(":input json.mjs");
     })()`);
@@ -398,16 +395,14 @@ if (chromiumBin) {
     })()`);
     assert(ieeeResult.includes('ieee.mjs: 3.14159'), `Expected ieee.mjs: 3.14159, got: ${ieeeResult}`);
 
-    // Test :load poly.k and evaluate '10 int (gen_list sort)' in WASM mode
+    // Test :load poly.k and evaluate '{}|_|0|1|0|1 nat (gen_list sort)' in WASM mode
     const sortListResult = await evaluateAsync(`(async () => {
       await window.kRepl.executeCommand(":reset");
-      await window.kRepl.executeCommand(":load bit.k");
-      await window.kRepl.executeCommand(":load bits.k");
-      await window.kRepl.executeCommand(":load arithmetics.k");
-      await window.kRepl.executeCommand(":load list.k");
+      await window.kRepl.executeCommand(":load core.k");
+      await window.kRepl.executeCommand(":load integer.k");
       await window.kRepl.executeCommand(":load poly.k");
       await window.kRepl.executeCommand(":codec load int.mjs");
-      await window.kRepl.executeCommand("10 int (gen_list sort)");
+      await window.kRepl.executeCommand("{}|_|0|1|0|1 nat (gen_list sort)");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
@@ -415,7 +410,7 @@ if (chromiumBin) {
 
     // Test deep tail-loop list generation and compaction (10,000 elements) in browser WASM mode
     const deepWasmResult = await evaluateAsync(`(async () => {
-      await window.kRepl.executeCommand("{{{10 int x, 10 int y} times x, 10 int y} times x, 10 int y} times (gen_list car)");
+      await window.kRepl.executeCommand("ten = {}|_|0|1|0|1 nat; {{{ten x, ten y} times x, ten y} times x, ten y} times (gen_list car)");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       return lines[lines.length - 1];
     })()`);
@@ -510,12 +505,12 @@ if (chromiumBin) {
     assert.strictEqual(treeCheck.unfoldedHasE, true, "Unfolding level 4 should lazily populate its children");
 
     // 2. Test recursive pattern tree with cycle detection
-    await evaluateAsync(`window.kRepl.executeCommand("10")`);
+    await evaluateAsync(`window.kRepl.executeCommand("{}|_|0|1|0|1 ?bits[]")`);
     const patCycleCheck = await evaluateAsync(`(() => {
       const entries = document.querySelectorAll(".terminal-entry");
       const lastEntry = entries[entries.length - 1];
       const patSection = lastEntry.querySelector(".k-tree-pat-section");
-      if (!patSection) return { error: "No pattern section for 10" };
+      if (!patSection) return { error: "No pattern section for {}|_|0|1|0|1 ?bits[]" };
 
       const cycleBadges = patSection.querySelectorAll(".k-badge-cycle");
       const varDefs = patSection.querySelectorAll(".k-pat-vardef");
@@ -529,13 +524,13 @@ if (chromiumBin) {
     assert.strictEqual(patCycleCheck.hasCycleBadge, true, "Pattern tree for recursive type should have cycle badge");
     assert.strictEqual(patCycleCheck.hasVarDef, true, "Pattern tree for recursive type should have variable definition (=X0)");
 
-    // 3. Test variant chain depth limits and Expand All / Collapse All on 10
+    // 3. Test variant chain depth limits and Expand All / Collapse All on {}|_|0|1|0|1
     const variantDepthAndActionsCheck = await evaluateAsync(`(() => {
       const entries = document.querySelectorAll(".terminal-entry");
       const lastEntry = entries[entries.length - 1];
       const valSection = lastEntry.querySelector(".k-tree-value-section");
 
-      // Hierarchy for 10 (variant chain: + -> 1 -> 0 -> 1 -> ...)
+      // Hierarchy for {}|_|0|1|0|1 (variant chain: 1 -> 0 -> 1 -> 0 -> _)
       const v1 = valSection?.querySelector(".k-tree-section-body > .k-tree-node.k-tree-variant");
       const v2 = v1?.querySelector(".k-tree-children .k-tree-node.k-tree-variant");
       const v3 = v2?.querySelector(".k-tree-children .k-tree-node.k-tree-variant");
@@ -799,7 +794,7 @@ if (chromiumBin) {
     const wasmLenCheck = await evaluateAsync(`(async () => {
       await window.kRepl.executeCommand(":engine wasm");
       await window.kRepl.executeCommand(":codec load int.mjs");
-      await window.kRepl.executeCommand("len = {()list,0 int len} len_; len_ = ?X <{.list/nil if, .len then} .then, {.list/cons.cdr list, .len inc len} ?X len_ >;");
+      await window.kRepl.executeCommand("len = {()list,0 nat len} len_; len_ = ?X <{.list/nil if, .len then} .then, {.list/cons.cdr list, .len inc len} ?X len_ >;");
       await window.kRepl.executeCommand(":input int.mjs [1,2,3]");
       await window.kRepl.executeCommand("len");
       const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);

@@ -85,10 +85,9 @@ compile_step() {
   local prev="$1"
   local src="$2"
   local out="$3"
+  local use_spec="$4"
   local uses=()
-  while IFS= read -r line; do
-    [ -n "$line" ] && uses+=(--use "$line")
-  done < <(node -e 'import("./canonical-pattern.mjs").then(m => { for (const u of m.parseHeaderUses(fs.readFileSync(process.argv[1],"utf8"))) console.log(u.use); })' "$src" 2>/dev/null || true)
+  [ -n "$use_spec" ] && uses=(--use "$use_spec")
   if [ -n "$prev" ]; then
     ./objects/compile.mjs --lib "$prev" "${uses[@]}" "$src" "$out"
   else
@@ -96,13 +95,9 @@ compile_step() {
   fi
 }
 
-compile_step "" lib/bit.k "$TMP_DIR/bit.klib"
-compile_step "$TMP_DIR/bit.klib" lib/bits.k "$TMP_DIR/bits.klib"
-compile_step "$TMP_DIR/bits.klib" lib/list.k "$TMP_DIR/list.klib"
-compile_step "$TMP_DIR/list.klib" lib/btrie.k "$TMP_DIR/btrie.klib"
-compile_step "$TMP_DIR/btrie.klib" lib/string.k "$TMP_DIR/string.klib"
-compile_step "$TMP_DIR/string.klib" lib/ieee.k "$TMP_DIR/ieee-types.klib"
-compile_step "$TMP_DIR/ieee-types.klib" Examples/ieee-arithmetics.k "$TMP_DIR/ieee.klib"
+compile_step "" core.k "$TMP_DIR/core.klib" ""
+compile_step "$TMP_DIR/core.klib" lib/ieee.k "$TMP_DIR/ieee-types.klib" "bit[] bits[]"
+compile_step "$TMP_DIR/ieee-types.klib" Examples/ieee-arithmetics.k "$TMP_DIR/ieee.klib" "bit[] sign[] exp11[] frac52[] float64[] all_ones_exponent? exp0 finite_float64? frac0 inf_float64? nan_float64? neg_inf neg_zero negate_float64 pos_inf pos_zero qnan zero_exponent? zero_float64?"
 MUL=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^mul = @' | sed 's/^mul = \(@[^;]*\);.*$/\1/'`
 DIV=`./objects/extract-aliases.mjs "$TMP_DIR/ieee.klib" | grep '^div = @' | sed 's/^div = \(@[^;]*\);.*$/\1/'`
 ARG=0.12

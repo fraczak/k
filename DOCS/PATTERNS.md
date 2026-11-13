@@ -36,15 +36,15 @@ Relations can refer to other definitions in the same source, including recursive
 references. Labels can be identifiers or quoted strings with escapes. Line
 comments use `--`, `//`, `#`, or `%`; block comments use `/* ... */`.
 
-### Source header comments and library dependencies
+### Source dependency comments
 
-Files document their library dependencies and imported symbols using header comments at the very top of the file:
+Files can document expected library dependencies and imported symbols using ordinary `#` comments near the top of the file:
 
 ```k
 # --lib <dependency-path> --use <spec1> <spec2> ...
 ```
 
-Because `#` is a standard line comment character in k, these lines are valid k syntax and remain purely comments. They document the dependency relations for readers and build tools. When compiling with `--lib`, definitions from the library are available in memory by their content hashes (`@<hash>`), and `--use` brings requested friendly names or aliases into the local compilation scope. See [file formats and tools](FILE_FORMATS.md#source-header-comments---lib-----use---) for complete details.
+Because `#` is a standard line comment character in k, these lines are ignored completely by the compiler and tools. When compiling with `--lib`, definitions from the library are available in memory strictly by their content hashes (`@<hash>`), and `--use` brings requested friendly names or aliases into the local compilation scope. See [file formats and tools](FILE_FORMATS.md#source-dependency-comments) for complete details.
 
 ## Pattern syntax
 

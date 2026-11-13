@@ -64,7 +64,7 @@ const cases = [
   { name: "ieee.mul", suite: "ieee", rel: "mul", input: { x: "-2", y: "4" } },
   { name: "ieee.div", suite: "ieee", rel: "div", input: { x: "1", y: "2" } },
   { name: "int.times.220d", suite: "arithmetics", rel: "times", input: { shape: "int-pair", x: bigA, y: bigB } },
-  { name: "int.gcd.90d", suite: "arithmetics", rel: "gcd", input: { shape: "bits-pair", x: gcdA, y: gcdB } },
+  { name: "int.gcd.90d", suite: "arithmetics", rel: "gcd", input: { shape: "int-pair", x: gcdA, y: gcdB } },
   { name: "int.factorial.101", suite: "arithmetics", rel: "factorial", input: { shape: "int", x: "101" } },
   { name: "int.factorial.242", suite: "arithmetics", rel: "factorial", input: { shape: "int", x: "242" } },
   { name: "int.factorial.1174", suite: "arithmetics", rel: "factorial", input: { shape: "int", x: "1174" } }
@@ -150,41 +150,48 @@ function sha256() {
   return crypto.createHash("sha256");
 }
 
+const ARITHMETIC_FACTORIAL_SOURCE = `
+_factorial = ?{ int[] n, int[] acc } <
+  { .n zero? _n, .acc acc } .acc,
+  { .n pos? dec n, { .n x, .acc y } times acc } _factorial
+> ?int[];
+factorial = ?int[] { () n, 1 acc } _factorial ?int[];
+`;
+
 function suiteSourcePath(suite) {
   return path.join(kRoot, sourceNameForSuite(suite));
 }
 
 function sourceNameForSuite(suite) {
-  return suite === "ieee" ? "Examples/ieee-arithmetics.k" : "Examples/arithmetics.k";
+  return suite === "ieee" ? "Examples/ieee-arithmetics.k" : "lib/integer.k";
 }
 
 let ieeeDependencies;
-let arithDependencies;
+const EXPLICIT_USES = {
+  "lib/ieee.k": ["bit[] bits[]"]
+};
+function compileDepChain(files) {
+  let prev = null;
+  for (const f of files) {
+    const src = fs.readFileSync(path.join(kRoot, f), "utf8");
+    const use = EXPLICIT_USES[f] || [];
+    prev = loadLibrary(compileLibrary(src, {
+      source: f,
+      libraries: prev ? [prev] : [],
+      use
+    }));
+  }
+  return [prev];
+}
+
 function dependenciesForSuite(suite) {
   if (suite === "ieee") {
     if (!ieeeDependencies) {
-      let prev = null;
-      for (const f of ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]) {
-        prev = loadLibrary(compileLibrary(fs.readFileSync(path.join(kRoot, f), "utf8"), {
-          source: f,
-          libraries: prev ? [prev] : []
-        }));
-      }
-      ieeeDependencies = [prev];
+      ieeeDependencies = compileDepChain(["core.k", "lib/ieee.k"]);
     }
     return ieeeDependencies;
   }
-  if (!arithDependencies) {
-    let prev = null;
-    for (const f of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"]) {
-      prev = loadLibrary(compileLibrary(fs.readFileSync(path.join(kRoot, f), "utf8"), {
-        source: f,
-        libraries: prev ? [prev] : []
-      }));
-    }
-    arithDependencies = [prev];
-  }
-  return arithDependencies;
+  return [];
 }
 
 function stripTrailingUnitMain(source) {
@@ -194,7 +201,8 @@ function stripTrailingUnitMain(source) {
 function sourceForCase(testCase) {
   const sourcePath = suiteSourcePath(testCase.suite);
   const source = stripTrailingUnitMain(fs.readFileSync(sourcePath, "utf8"));
-  return `${source}\n${testCase.rel}\n`;
+  const extra = testCase.rel === "factorial" ? ARITHMETIC_FACTORIAL_SOURCE : "";
+  return `${source}${extra}\n${testCase.rel}\n`;
 }
 
 function relationPattern(relDef, index) {
@@ -489,13 +497,15 @@ async function prepareBackendRunner(job, relation, inputVal, state) {
 
 async function prepareState(suite) {
   const state = createState();
-  const deps = suite === "ieee"
-    ? ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]
-    : ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"];
-  for (const dep of deps) {
-    await evaluateInput(`:load ${path.join(kRoot, dep)}`, state);
+  if (suite === "ieee") {
+    for (const dep of ["core.k", "lib/ieee.k"]) {
+      await evaluateInput(`:load ${path.join(kRoot, dep)}`, state);
+    }
+    await evaluateInput(`:load ${suiteSourcePath(suite)}`, state);
+    return state;
   }
-  await evaluateInput(`:load ${suiteSourcePath(suite)}`, state);
+  await evaluateInput(`:load ${path.join(kRoot, "lib/integer.k")}`, state);
+  await evaluateInput(ARITHMETIC_FACTORIAL_SOURCE, state);
   return state;
 }
 

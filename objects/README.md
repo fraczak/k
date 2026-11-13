@@ -21,13 +21,13 @@ node objects/validate.mjs /tmp/k-ok.ko
 `--lib` loads a dependency. It does not select library output; use a `.klib`
 output filename or `--format klib`.
 
-When compiling source files, required library dependencies and friendly aliases
-can be documented directly in the source file header via
-`# --lib <dependency> --use <specs>` comments. When `--lib` is provided on the
-command line, all library relations and patterns are available in memory during
-compilation. CLI `--use` flags allow creating in-memory aliases when needed.
+Leading `# --lib <dependency> --use <specs>` lines in source files are ordinary
+human-readable comments documenting expected dependencies. When `--lib` is
+provided on the command line, library definitions are available in memory
+indexed strictly by content hash (`@<hash>`), and CLI `--use` flags explicitly
+bring requested friendly names or aliases into compilation scope.
 
 The [file-format reference](../DOCS/FILE_FORMATS.md) is the source for container
-fields, executable/library distinctions, header directives, aliases, and
+fields, executable/library distinctions, dependency comments, aliases, and
 complete workflows.
 [KIR-P](../DOCS/KIR_V1.md) documents the portable backend export.

@@ -273,7 +273,7 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
   }
   const formalParams = pat.params || [];
   const formalCount = formalParams.length;
-  const allPatterns = { ...(options.patterns || {}) };
+  const allPatterns = {};
   if (options.libraries) {
     for (const lib of options.libraries) {
       const lp =
@@ -281,8 +281,15 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
         lib.defs?.patterns ||
         lib.sourceDefs?.patterns ||
         {};
-      Object.assign(allPatterns, lp);
+      for (const [patName, patDef] of Object.entries(lp)) {
+        if (patName.startsWith("@") && !(patName in allPatterns)) {
+          allPatterns[patName] = patDef;
+        }
+      }
     }
+  }
+  if (options.patterns) {
+    Object.assign(allPatterns, options.patterns);
   }
   if (name && pat) allPatterns[name] = pat;
 
@@ -413,31 +420,6 @@ export function resolvePatternCanonicalInfo(name, pat, options = {}) {
 
 export function canonicalPatternHash(name, pat, options = {}) {
   return resolvePatternCanonicalInfo(name, pat, options).hash;
-}
-
-export function parseHeaderDirectives(source) {
-  if (!source || typeof source !== "string") return [];
-  const directives = [];
-  const lines = source.split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("--") || trimmed.startsWith("//") || trimmed.startsWith("%")) {
-      continue;
-    }
-    if (trimmed.startsWith("#")) {
-      const match = trimmed.match(/^#\s*--?lib\s+(\S+)\s+--use\s+(.+)$/);
-      if (match) {
-        directives.push({ lib: match[1], use: match[2].trim() });
-      }
-      continue;
-    }
-    break;
-  }
-  return directives;
-}
-
-export function parseHeaderUses(source) {
-  return parseHeaderDirectives(source);
 }
 
 function buildMapsForLibrary(lib) {
@@ -929,8 +911,6 @@ export default {
   resolvePatternCanonicalInfo,
   canonicalPatternHash,
   buildUsePreamble,
-  parseHeaderDirectives,
-  parseHeaderUses,
   canonicalBoundaryFilterSources,
   instantiateCanonicalFilter
 };

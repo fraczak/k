@@ -7,10 +7,8 @@ import { createState, evaluateInput } from "../backend-api.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const polySources = [
-  "lib/bit.k",
-  "lib/bits.k",
-  "lib/arithmetics.k",
-  "lib/list.k",
+  "core.k",
+  "lib/integer.k",
   "Examples/poly.k"
 ];
 
@@ -63,14 +61,14 @@ async function evalK(snippet) {
 {
   const res0 = await evalK(`
     l = {{}|item0 car, {{}|item1 car, {{}|item2 car, nil cdr} cons cdr} cons cdr} cons;
-    {0 int n, l xs} get_nth
+    {0 nat n, l xs} get_nth
   `);
   assert.match(res0, /\|item0/);
 
-  const res1 = await evalK(`{1 int n, l xs} get_nth`);
+  const res1 = await evalK(`{1 n, l xs} get_nth`);
   assert.match(res1, /\|item1/);
 
-  const res2 = await evalK(`{2 int n, l xs} get_nth`);
+  const res2 = await evalK(`{{}|_|0|1 nat n, l xs} get_nth`);
   assert.match(res2, /\|item2/);
   console.log("Test 4 (get_nth): Passed");
 }
@@ -79,7 +77,7 @@ async function evalK(snippet) {
 {
   const res = await evalK(`
     l = {{}|a car, {{}|b car, {{}|c car, {{}|d car, nil cdr} cons cdr} cons cdr} cons cdr} cons;
-    {2 int n, l xs} split_by
+    {{}|_|0|1 nat n, l xs} split_by
   `);
   assert.match(res, /first/);
   assert.match(res, /second/);
@@ -90,12 +88,12 @@ async function evalK(snippet) {
 {
   const resTake = await evalK(`
     l = {{}|a car, {{}|b car, {{}|c car, nil cdr} cons cdr} cons cdr} cons;
-    {2 int n, l xs} take
+    {{}|_|0|1 nat n, l xs} take
   `);
   assert.match(resTake, /\|a car.*\|b car/);
 
   const resDrop = await evalK(`
-    {2 int n, l xs} drop
+    {{}|_|0|1 nat n, l xs} drop
   `);
   assert.match(resDrop, /\|c car/);
   console.log("Test 6 (take & drop): Passed");
@@ -104,7 +102,7 @@ async function evalK(snippet) {
 // Test 7: Repeat
 {
   const res = await evalK(`
-    {3 int n, {}|val x} repeat
+    {{}|_|1|1 nat n, {}|val x} repeat
   `);
   assert.match(res, /\|val car.*\|val car.*\|val car/);
   console.log("Test 7 (repeat): Passed");
@@ -124,7 +122,7 @@ async function evalK(snippet) {
 {
   const res = await evalK(`
     l1 = {{}|k1 car, {{}|k2 car, nil cdr} cons cdr} cons;
-    l2 = {1 int car, {2 int car, nil cdr} cons cdr} cons;
+    l2 = {1 car, {{}|_|0|1 nat car, nil cdr} cons cdr} cons;
     {l1 xs, l2 ys} zip
   `);
   assert.match(res, /\|k1 x/);
@@ -138,19 +136,22 @@ async function evalK(snippet) {
   assert.match(resNil, /\|nil/);
 
   const resSingle = await evalK(`
-    l = {1 int car, nil cdr} cons;
+    l = {1 car, nil cdr} cons;
     l sort
   `);
   assert.match(resSingle, /1/);
 
   const resSplit = await evalK(`
-    l4 = {1 int car, {2 int car, {3 int car, {4 int car, nil cdr} cons cdr} cons cdr} cons cdr} cons;
+    n2 = {}|_|0|1 nat;
+    n3 = {}|_|1|1 nat;
+    n4 = {}|_|0|0|1 nat;
+    l4 = {1 car, {n2 car, {n3 car, {n4 car, nil cdr} cons cdr} cons cdr} cons cdr} cons;
     l4 split
   `);
   assert.match(resSplit, /first.*second/);
 
   const resSorted = await evalK(`
-    gt_int? = { { .x /"+" x, .y /"+" y } GT if, () then } .then;
+    gt_int? = { { .x x, .y y } gt? if, () then } .then;
     _merge = <
       {.xs /nil if, .ys then} .then,
       {.ys /nil if, .xs then} .then,
@@ -167,7 +168,11 @@ async function evalK(snippet) {
         |cons split {.first _sort xs, .second _sort ys} _merge
       >
     > ? list[X];
-    l = {5 int car, {2 int car, {4 int car, {1 int car, {3 int car, nil cdr} cons cdr} cons cdr} cons cdr} cons cdr} cons;
+    n2 = {}|_|0|1 nat;
+    n3 = {}|_|1|1 nat;
+    n4 = {}|_|0|0|1 nat;
+    n5 = {}|_|1|0|1 nat;
+    l = {n5 car, {n2 car, {n4 car, {1 car, {n3 car, nil cdr} cons cdr} cons cdr} cons cdr} cons cdr} cons;
     l _sort
   `);
   assert.match(resSorted, /\|1.*\|0\|1.*\|1\|1.*\|0\|0\|1.*\|1\|0\|1/);

@@ -1,11 +1,11 @@
+# --lib lib/integer.k --use int[] nat int pos? neg? zero? gt? inc dec
 -- Examples/poly.k — Polymorphic list operations indexed by int[]
 
 ---------------------------------------------------------------
--- §1. Base Patterns, Primitives & Imported Relations
+-- §1. Base Patterns & Primitives
 ---------------------------------------------------------------
 
 bits[]  = < {} _, B 0, B 1 > = B;
-int[]   = < bits[] -, bits[] + >;
 list[X] = < {} nil, { X car, L cdr } cons > = L;
 
 _         = {} |_ ?bits[];
@@ -24,25 +24,21 @@ cdr       = ?list[X] /cons .cdr;
 nil?      = un_nil nil;
 singleton = { () car, nil cdr } cons;
 
-# --lib lib/arithmetics.k --use nat int neg? zero_int? GT inc dec
-nat       = @ktrZRefK3zvnUqYYisWBH3MgzcQJD9hs2P5LeSJ7tFrA;
-int       = @BgUayEar88hcmcAYM5giDsucyGbtumbaXpyussK8k7vm;
-neg?      = @Hwv3CjPRgtJDb7ZGn7cReF9iZ25LFpjv2MXRBJyUGBij;
-zero_int? = @eYsSuRAeFTejC7W9mLLtxuSeebLuszMGxadnZsg4iuUf;
-GT        = @qWipdJHEEG3KccU4RVFLrWciLCvP2Cbz7myNxjNtvUCP;
-inc       = @FpWRmLNa6guwACtpwYUAuX3usE27WqAKPzQxrVRtyKND;
-dec       = @3YRXdfNimGSWfSpCcTzBauTU7HRrjLUFMp4dbRZGhJXv;
-
-# --lib lib/list.k --use rev_append reverse
-rev_append = @7xb2uLU5cS7XgmFbKMrvg4UwpcTQ3whSMzBMeaSnGwkm;
-reverse    = @peiZq2evd5u4Qk42AT3W4YmWZZ3JAeXNKTnmDtpb9EZh;
-
 ---------------------------------------------------------------
 -- §2. Polymorphic List Operations
 ---------------------------------------------------------------
 
--- Decrement a positive integer and normalize
-pred_int = dec un_pos nat pos_int;
+-- Reverse-append x onto y: {x, y} -> list
+rev_append = ?{ list[X] x, list[X] y } <
+  { .x un_nil if, .y then } .then,
+  { .x cdr x, { .x car car, .y cdr } cons y } rev_append
+> ?list[X];
+
+-- Reverse a list: xs -> list
+reverse = { () x, nil y } rev_append;
+
+-- Decrement a positive integer
+pred_int = pos? dec;
 
 -- Concatenate two lists: {xs, ys} -> list
 concat = { .xs reverse x, .ys y } rev_append;
@@ -52,17 +48,17 @@ length_loop = <
   { .xs un_nil if, .acc then } .then,
   { .xs cdr xs, .acc inc acc } length_loop
 >;
-length = { () xs, 0 int acc } length_loop;
+length = { () xs, 0 nat acc } length_loop;
 
 -- Get N-th element of a list (0-indexed): {n, xs} -> element
 get_nth = <
-  { .n zero_int? if, .xs car then } .then,
+  { .n zero? if, .xs car then } .then,
   { .n pred_int n, .xs cdr xs } get_nth
 >;
 
 -- Split list at index N: {n, xs} -> {first, second}
 split_by_loop = <
-  { .n zero_int? if, { .acc reverse first, .xs second } then } .then,
+  { .n zero? if, { .acc reverse first, .xs second } then } .then,
   { .xs un_nil if, { .acc reverse first, nil second } then } .then,
   { .n pred_int n, .xs cdr xs, { .xs car car, .acc cdr } cons acc } split_by_loop
 >;
@@ -73,14 +69,14 @@ take = split_by .first;
 
 -- Drop the first N elements of a list: {n, xs} -> list
 drop = <
-  { .n zero_int? if, .xs then } .then,
+  { .n zero? if, .xs then } .then,
   { .xs un_nil if, nil then } .then,
   { .n pred_int n, .xs cdr xs } drop
 >;
 
 -- Repeat element X, N times: {n, x} -> list
 repeat_loop = <
-  { .n zero_int? if, .acc then } .then,
+  { .n zero? if, .acc then } .then,
   { .n pred_int n, .x x, { .x car, .acc cdr } cons acc } repeat_loop
 >;
 repeat = { .n n, .x x, nil acc } repeat_loop;
@@ -105,13 +101,6 @@ gen_list_loop = <
   { .n dec n, { .n car, .list cdr } cons list } gen_list_loop
 >;
 gen_list = { () n, nil list } gen_list_loop;
-
--- Identity filter on {x, y} when x > y
-gt? = <
-  { .x un_neg if1, .y un_pos if2, () then } .then,
-  { { .x un_neg y, .y un_neg x } GT if, () then } .then,
-  { { .x un_pos x, .y un_pos y } GT if, () then } .then
->;
 
 -- Split list into two halves by alternating elements: xs -> {first, second}
 split_loop = <

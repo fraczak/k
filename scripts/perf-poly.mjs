@@ -193,22 +193,19 @@ function pkirLaneName() {
 }
 
 
-console.log("==> Loading @fraczak/k/lib/{bit,bits,arithmetics,list}.k as libraries");
-let depLib = null;
-for (const relPath of ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k", "lib/list.k"]) {
-  const filePath = fileURLToPath(import.meta.resolve(`@fraczak/k/${relPath}`));
-  depLib = loadLibrary(compileLibrary(fs.readFileSync(filePath, "utf8"), {
-    source: filePath,
-    libraries: depLib ? [depLib] : []
-  }));
-}
+console.log("==> Loading @fraczak/k/lib/integer.k as library");
+const integerPath = fileURLToPath(import.meta.resolve("@fraczak/k/lib/integer.k"));
+const depLib = loadLibrary(compileLibrary(fs.readFileSync(integerPath, "utf8"), {
+  source: integerPath
+}));
 
 console.log("==> Compiling @fraczak/k/Examples/poly.k with library dependencies");
 const polyPath = fileURLToPath(import.meta.resolve("@fraczak/k/Examples/poly.k"));
 const polySource = fs.readFileSync(polyPath, "utf8");
 const polyLib = loadLibrary(compileLibrary(polySource, {
   source: polyPath,
-  libraries: [depLib]
+  libraries: [depLib],
+  use: ["int[] nat int pos? neg? zero? gt? inc dec"]
 }));
 
 const state = {

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Multiplication Algorithm & Multi-Backend Performance Harness
+ * Multiplication Performance Harness
  *
- * Compares multiplication algorithms ('times' vs 'karatsuba')
+ * Benchmarks lib/integer.k multiplication ('times', Karatsuba)
  * across available execution backends:
  *   - LLVM (native binary via Clang/LLVM)
  *   - WebAssembly (persistent runner via Wasm)
@@ -65,8 +65,8 @@ function hasFlag(flag) {
 function printHelp() {
   console.log(`Usage: node scripts/perf-multiplication.mjs [options]
 
-Multiplication Algorithm & Multi-Backend Performance Harness.
-Compares multiplication algorithms ('times' vs 'karatsuba') across
+Multiplication Performance Harness.
+Benchmarks lib/integer.k multiplication ('times', Karatsuba) across
 available execution backends (LLVM, Wasm, PKIR, kVM, JS).
 
 Options:
@@ -80,7 +80,7 @@ Options:
       (default: llvm,llvm-pkir,wasm,pkir,kvm,js)
   --algos <csv>
       Comma-separated list of multiplication algorithms to test:
-      times, karatsuba. (default: times,karatsuba)
+      times. (default: times)
   --steps <n>
       Number of squaring steps in squaring mode. (default: 8)
   --input <int>
@@ -123,7 +123,7 @@ const backendsArg = getArg(
 );
 const selectedBackends = backendsArg
   .split(",").map(b => b.trim().toLowerCase()).filter(Boolean);
-const algosArg = getArg("--algos", "times,karatsuba");
+const algosArg = getArg("--algos", "times");
 const selectedAlgos = algosArg
   .split(",").map(a => a.trim().toLowerCase()).filter(Boolean);
 
@@ -232,9 +232,8 @@ console.log("-".repeat(72) + "\n");
 
 // 1. Map algorithms to their source files
 const arithLibChain = [
-  fileURLToPath(import.meta.resolve("../lib/bit.k")),
-  fileURLToPath(import.meta.resolve("../lib/bits.k")),
-  fileURLToPath(import.meta.resolve("../lib/arithmetics.k"))
+  fileURLToPath(import.meta.resolve("../core.k")),
+  fileURLToPath(import.meta.resolve("../lib/integer.k"))
 ];
 
 const cacheDir = makeCacheDir("k-mult-perf-");

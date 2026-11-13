@@ -5,6 +5,23 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.8.0] — 2026-11-13 — Standard Library Consolidation, Tail-Recursive Conventions, and Plain Dependency Comments
+
+- **Standard Library Consolidation (`lib/`)**:
+  - Reorganize standard library modules into four focused files (`lib/generic.k`, `lib/integer.k`, `lib/ieee.k`, `lib/djson.k`), replacing `lib/bit.k`, `lib/bits.k`, `lib/arithmetics.k`, `lib/list.k`, `lib/btrie.k`, and `lib/string.k`.
+  - Make `lib/integer.k` completely self-contained with zero dependencies (defines `bit[]` and `bits[]` locally alongside arbitrary-precision signed integer arithmetic, Karatsuba `times`, `divmod`, `div`, `mod`, `gcd`, and `lcm`).
+  - Rename `parseJson` to `parse_json` in `lib/djson.k` and align helper names and signatures across `lib/`.
+  - Enforce uniform style and correctness conventions across all `lib/` modules: every `?`-suffixed relation is an identity filter (`?X -> ?X`), all recursive loops are strictly tail-recursive, internal helpers use `_`-prefixed names, discarded fields use descriptive `_<field>` labels, and redundant `()` compositions are removed.
+  - Add dedicated per-library specification test suites (`tests/test-generic.mjs`, `tests/test-integer.mjs`, `tests/test-ieee.mjs`, `tests/test-djson.mjs`) and update browser REPL (`scripts/build-repl-html.mjs`), example files, and `k-vscode` tests.
+- **Plain Comment Handling & Library Isolation**:
+  - Remove `parseHeaderDirectives` and `parseHeaderUses` from `canonical-pattern.mjs`, `object.mjs`, `backend-api.mjs`, and `backends/llvm/src/cli.mjs` so `# --lib ...` comments are never parsed specially and remain strictly ordinary K comments across tests, scripts, and integration pipelines.
+  - Strengthen scope binding and transitive library pattern forwarding in `index.mjs`, `compiler.mjs`, `canonical-pattern.mjs`, and `object.mjs`, including `--use` redefinition warnings and expanded coverage in `tests/test-library-isolation.mjs`.
+- **Example Cleanup & Browser REPL Documentation**:
+  - Remove obsolete `Examples/arithmetics.k` (superseded by `lib/integer.k`) and unused `Examples/esc.k`.
+  - Include `Examples/nat.k` in the browser REPL VFS alongside the remaining examples and update the `repl.html` dropdown and Help reference.
+- **Documentation Cleanup**:
+  - Update `README.md`, `AGENTS.md`, `DOCS/CODECS.md`, `DOCS/FILE_FORMATS.md`, `DOCS/GETTING_STARTED.md`, `DOCS/PATTERNS.md`, `DOCS/REPL.md`, `objects/README.md`, and `tests/README.md` for the consolidated `lib/` structure, plain dependency comment convention, valid CLI pipelines, and fixed internal anchor links.
+
 ## [8.7.1] — 2026-11-08 — Content-Addressable Library Isolation and Scope Binding Fixes
 
 - **Strict Content-Addressable Library Isolation**:

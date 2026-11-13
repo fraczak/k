@@ -48,15 +48,12 @@ Regular evaluations include timing; there is no separate timing command.
 ## Loading and aliases
 
 ```text
-:load lib/bit.k
-:load lib/bits.k
-:load lib/arithmetics.k
-:load lib/list.k
+:load lib/integer.k
 :load Examples/poly.k
 ```
 
 Libraries are loaded explicitly. `poly.k` depends on definitions in
-`lib/arithmetics.k` and `lib/list.k`, so load them in dependency order. Loading
+`lib/integer.k`, so load them in dependency order. Loading
 a codec does not automatically load its corresponding k library.
 
 `:load` compiles a `.k` file in the current library context or loads a plain
@@ -95,7 +92,7 @@ See [patterns and canonical identity](PATTERNS.md).
 inc
 ```
 
-Load `lib/bit.k`, `lib/bits.k`, and `lib/arithmetics.k` before using `inc`.
+Load `lib/integer.k` before using `inc`.
 The codec supplies the integer value; the library supplies the relation.
 
 Codecs export `parse` and `print`. Input uses the codec explicitly selected

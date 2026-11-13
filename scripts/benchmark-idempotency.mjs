@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { readFileSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { useSpecsFor } from "../tests/helpers/cli.mjs";
 
 const DEFAULT_EXAMPLES = [
   "Examples/nat.k",
-  "lib/list.k",
-  "lib/arithmetics.k",
+  "lib/generic.k",
+  "lib/integer.k",
   "lib/ieee.k",
   "Examples/ieee-arithmetics.k"
 ];
@@ -24,8 +25,8 @@ for K source files through the .klib object format.
 Arguments:
   example.k ...
       One or more .k source files to benchmark.
-      (default: Examples/nat.k lib/list.k
-                lib/arithmetics.k lib/ieee.k
+      (default: Examples/nat.k lib/generic.k
+                lib/integer.k lib/ieee.k
                 Examples/ieee-arithmetics.k)
 
 Options:
@@ -84,25 +85,23 @@ for (const example of benchmarkExamples) {
     const out = mkdtempSync(join(tmpdir(), `k-idempotency-bench-${example.replaceAll("/", "_")}-`));
     try {
       const depsByTarget = new Map([
-        [resolve("lib/bits.k"), ["lib/bit.k"]],
-        [resolve("lib/arithmetics.k"), ["lib/bit.k", "lib/bits.k"]],
-        [resolve("Examples/arithmetics.k"), ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k"]],
-        [resolve("lib/list.k"), ["lib/bit.k", "lib/bits.k"]],
-        [resolve("Examples/poly.k"), ["lib/bit.k", "lib/bits.k", "lib/arithmetics.k", "lib/list.k"]],
-        [resolve("lib/btrie.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k"]],
-        [resolve("lib/string.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k"]],
-        [resolve("lib/ieee.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k"]],
-        [resolve("lib/djson.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]],
-        [resolve("Examples/ieee-arithmetics.k"), ["lib/bit.k", "lib/bits.k", "lib/list.k", "lib/btrie.k", "lib/string.k", "lib/ieee.k"]]
+        [resolve("lib/generic.k"), ["core.k"]],
+        [resolve("lib/integer.k"), []],
+        [resolve("Examples/poly.k"), ["lib/integer.k"]],
+        [resolve("lib/ieee.k"), ["core.k"]],
+        [resolve("lib/djson.k"), ["core.k", "lib/generic.k", "lib/ieee.k"]],
+        [resolve("Examples/ieee-arithmetics.k"), ["core.k", "lib/ieee.k"]]
       ]);
+      const useArgsFor = (filePath) =>
+        useSpecsFor(filePath).flatMap((u) => ["--use", u]);
       const deps = depsByTarget.get(resolve(example)) || [];
       let dependency;
       for (const [idx, dep] of deps.entries()) {
         const nextDep = join(out, `dep-${idx}.klib`);
-        run(["objects/compile.mjs", ...(dependency ? ["--lib", dependency] : []), dep, nextDep]);
+        run(["objects/compile.mjs", ...(dependency ? ["--lib", dependency, ...useArgsFor(dep)] : []), dep, nextDep]);
         dependency = nextDep;
       }
-      const library = dependency ? ["--lib", dependency] : [];
+      const library = dependency ? ["--lib", dependency, ...useArgsFor(example)] : [];
       const t0 = performance.now();
       run(["objects/compile.mjs", ...library, example, join(out, "1.klib")]);
       run(["objects/decompile.mjs", join(out, "1.klib"), join(out, "1.k")]);
