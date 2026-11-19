@@ -37,17 +37,15 @@ djson[] = <
 > = J;
 
 -- Variant identity filters (fail on mismatch, preserve input unchanged on match).
-null?   = ?djson[] { /null _n, () then } .then ?djson[];
-bool?   = ?djson[] { /bool < false?, true? > _b, () then } .then ?djson[];
-number? = ?djson[] { /number _n, () then } .then ?djson[];
-string? = ?djson[] { /string _s, () then } .then ?djson[];
-list?   = ?djson[] { /list < /nil |nil, /trie |trie > _l, () then } .then ?djson[];
-object? = ?djson[] { /object < /nil |nil, /trie |trie > _o, () then } .then ?djson[];
+null?   = ?djson[] /null |null ?djson[];
+bool?   = ?djson[] /bool |bool ?djson[];
+number? = ?djson[] /number |number ?djson[];
+string? = ?djson[] /string |string ?djson[];
+list?   = ?djson[] /list |list ?djson[];
+object? = ?djson[] /object |object ?djson[];
 
-json? = ?djson[] < null?, bool?, number?, string?, list?, object? > ?djson[];
-
-empty_list   = btrie_empty |list;
-empty_object = btrie_empty |object;
+empty_list   = btrie_empty |list ?djson[];
+empty_object = btrie_empty |object ?djson[];
 
 
 -- -----------------------------------------------------------------------------
