@@ -1,13 +1,13 @@
 -- =============================================================================
--- lib/integer.k -- Signed Arbitrary-Precision Integer Arithmetic
+-- lib/integer.k -- Arbitrary-Precision Integer Arithmetic
 --
--- Self-contained module (zero dependencies) representing arbitrary-precision
--- signed integers using canonical sign-magnitude representation:
---   int[] = < bits[] "+", bits[] "-" >
+-- Self-contained module (zero dependencies) representing
+-- integers using canonical sign-magnitude representation:
+--   int[] = < bits[] +, bits[] - >
 --
 -- Canonical invariants & style conventions:
 --   * Public bits[] values store MSB at the root and '_' at the leaf.
---   * No redundant leading zero bits except canonical zero: + (_ |0).
+--   * No redundant leading zero bits.
 --   * Zero is always normalized to '+'; there is no negative zero.
 --   * Relations ending in '?' are pure identity filters (?X -> ?X).
 --   * All recursive relations are tail-recursive.
@@ -30,25 +30,19 @@ bits[] = < {} _, B 0, B 1 > = B;
 
 order[] = < {} lt, {} eq, {} gt >;
 
-int[] = < bits[] "+", bits[] "-" >;
+int[] = < bits[] +, bits[] - >;
 
-0 = {} |_ |0 |+;
-1 = {} |_ |1 |+;
+0 = {}|_|+ ?int[];
+1 = {}|_|1|+ ?int[];
+-1 = {}|_|1|- ?int[];
 
--- Strips redundant leading '0' tags while keeping at least one bit for zero (_ |0).
+-- Strips redundant leading '0' tags.
 trim_bits = ?bits[] <
-  /_ |_ |0,
-  /1 |1,
-  /0 /_ |_ |0,
-  /0 trim_bits
-> ?bits[];
-
--- Drops all leading '0' tags (canonical zero becomes empty '_').
-msb_drop_zeros = ?bits[] <
   /_ |_,
   /1 |1,
-  /0 msb_drop_zeros
+  /0 trim_bits
 > ?bits[];
+msb_drop_zeros = trim_bits;
 
 -- Lifts unsigned bits[] magnitude (MSB at root, '_' at leaf) to canonical non-negative int[].
 nat = ?bits[] trim_bits |+ ?int[];
@@ -57,14 +51,14 @@ nat = ?bits[] trim_bits |+ ?int[];
 int = ?int[] <
   /+ trim_bits |+,
   /- trim_bits <
-    /0 /_ |_ |0 |+,
-    /1 |1 |-
+    /_ |_|+,
+    /1 |1|-
   >
 > ?int[];
 
 -- Identity filters (succeed unchanged on matching values, fail otherwise).
-zero? = int { /+ /0 /_ _x, () x } .x ?int[];
-pos?  = int /+ /1 |1 |+ ?int[];
+zero? = int { /+/_ _x, () x } .x ?int[];
+pos?  = int /+/1 |1|+ ?int[];
 neg?  = int /- |- ?int[];
 
 -- Unsigned normalization to/from internal trimmed LSB-first bits[] ('_' = 0).
@@ -102,12 +96,12 @@ _cmp_msb = ?{ bits[] x, bits[] y, order[] ord } <
 > ?order[];
 
 -- Shifts a trimmed LSB-first bits[] left by 1 bit or by a tally `k`.
-lsb_shl1 = ?bits[] < /_ |_, /0 |0 |0, /1 |1 |0 > ?bits[];
+lsb_shl1 = ?bits[] < /_ |_, |0 > ?bits[];
 
 lsb_shl = ?{ bits[] x, bits[] k } <
-  { .x /_ _x, .k _k } {} |_,
-  { .x < /0 |0, /1 |1 > x, .k /_ _k } .x,
-  { .x < /0 |0, /1 |1 > x, .k < /0, /1 > k } { .x |0 x, .k k } lsb_shl
+  .x /_ |_,
+  { .x x, .k /_ _k } .x,
+  { .x |0 x, .k </0,/1> k } lsb_shl
 > ?bits[];
 
 
@@ -116,7 +110,7 @@ lsb_shl = ?{ bits[] x, bits[] k } <
 -- -----------------------------------------------------------------------------
 
 lsb_add = ?{ bits[] x, bits[] y } {
-  .x x, .y y, {} |0 c, {} |_ acc
+  .x x, .y y, {}|0 c, {} |_ acc
 } _lsb_add msb_drop_zeros rev_bits ?bits[];
 
 -- Tail-recursive ripple-carry addition accumulating MSB-first in `acc`.
@@ -458,7 +452,7 @@ _lsb_push_1 = ?bits[] < /_ |_ |1, /0 |0 |1, /1 |1 |1 > ?bits[];
 abs = ?int[] int < /+ |+, /- |+ > ?int[];
 
 negate = ?int[] int <
-  /+ < /0 /_ |_ |0 |+, /1 |1 |- >,
+  /+ < /_ |_|+, |- >,
   /- |+
 > ?int[];
 
@@ -522,7 +516,7 @@ gcd = ?{ int[] x, int[] y } { .x abs /+ a, .y abs /+ b } _gcd ?int[];
 
 -- Non-negative greatest common divisor via Euclidean algorithm.
 _gcd = ?{ bits[] a, bits[] b } <
-  { .a a, .b /0 /_ |_ |0 _b } .a |+,
+  { .a a, .b /_ |_ _b } .a |+,
   { .a a, .b /1 b } {
     .b |1 a,
     { .a x, .b |1 y } nat_divmod .r b
@@ -530,8 +524,8 @@ _gcd = ?{ bits[] a, bits[] b } <
 > ?int[];
 
 lcm = ?{ int[] x, int[] y } { .x abs x, .y abs y } <
-  { .x /+ /0 /_ |_ |0 _x, .y _y } 0,
-  { .x /+ /1 _x, .y /+ /0 /_ |_ |0 _y } 0,
+  { .x /+ /_ |_ _x, .y _y } 0,
+  { .x /+ /1 _x, .y /+ /_ |_ _y } 0,
   { .x /+ /1 x, .y /+ /1 y } {
     {
       .x |1 |+ x,

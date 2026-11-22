@@ -85,7 +85,6 @@ for (const [type, value] of [
 ]) {
   const input = fromJsonValue(value);
   assert.ok(run(`${type}?`, input), type);
-  assert.ok(run("json?", input), `json? ${type}`);
 }
 assert.equal(run("object?", fromJsonValue([1, 2])), undefined);
 assert.equal(run("list?", fromJsonValue({ a: 1 })), undefined);

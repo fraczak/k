@@ -42,71 +42,69 @@ nil? = ?X /nil |nil ?X;
 -- 2. Polymorphic Linked Lists (list[X] from core.k)
 -- -----------------------------------------------------------------------------
 
+list[X] = <{} nil, {X car, L cdr} cons> = L;
+
+-- Reverses any list[X] in O(n) time.
+reverse = ?list[X] { () xs, {} |nil acc } _reverse ?list[X];
 -- Tail-recursively prepends elements of `xs` in reverse order onto `acc`.
-rev_append = ?{ list[X] xs, list[X] acc } <
+_reverse = ?{ list[X] xs, list[X] acc } <
   { .xs /nil _, .acc acc } .acc,
   {
     .xs /cons .cdr xs,
     { .xs /cons .car car, .acc cdr } |cons acc
-  } rev_append
-> ?list[X];
-
--- Reverses any list[X] in O(n) time.
-reverse = ?list[X] { () xs, {} |nil acc } rev_append ?list[X];
-
+  } _reverse
+>;
 
 -- -----------------------------------------------------------------------------
 -- 3. Bit & Bit-Path Helpers (bit[], bits[] from core.k)
 -- -----------------------------------------------------------------------------
 
-eq_bit? = ?{bit[] x, bit[] y} <
-  { .x /0 if, .y /0 and, () then } .then,
-  { .x /1 if, .y /1 and, () then } .then
->;
+bit[] = <{} 0, {} 1>;
+bits[] = <{} _, B 0, B 1> = B;
 
--- Matches canonical zero bits[] (_ |0).
-zero_bits? = ?bits[] { /0 /_ if, () then} .then;
+eq_bit? = ?{bit[] x, bit[] y}=X <
+  { .x /0 |0 x, .y /0 |0 y },
+  { .x /1 |1 x, .y /1 |1 y }
+> ?X;
 
--- Strips redundant leading '0' tags while keeping at least one bit for zero (_ |0).
+-- Strips redundant leading '0' tags (canonical zero is '_').
 trim_bits = ?bits[] <
   /_ |_,
   /1 |1,
-  /0 /_ |_ |0,
   /0 trim_bits
 > ?bits[];
 
--- Tail-recursively reverses `in` onto `acc` (moving leaf-ward bits toward root).
-bits_rev_step = ?{ bits[] in, bits[] acc } <
-  { .in /_ _, .acc acc } .acc,
-  <
-    { .in /0 in, .acc acc } { .in in, .acc |0 acc },
-    { .in /1 in, .acc acc } { .in in, .acc |1 acc }
-  > bits_rev_step
-> ?bits[];
 
 -- Reverses a bit-path in O(n) time.
-rev_bits = ?bits[] { () in, {} |_ acc } bits_rev_step ?bits[];
+rev_bits = ?bits[] { () in, {} |_ acc } _rev_bits ?bits[];
+-- Tail-recursively reverses `in` onto `acc` (moving leaf-ward bits toward root).
+_rev_bits = ?{ bits[] in, bits[] acc } <
+  { .in /_ _, .acc acc } .acc,
+  <
+    { .in /0 in, .acc |0 acc },
+    { .in /1 in, .acc |1 acc }
+  > _rev_bits
+>;
 
+-- Adds 1 to an unsigned bits[] value (MSB at root, '_' at leaf).
+inc_bits = ?bits[] { rev_bits in, {} |1 c, {} |_ acc } _inc_bits ?bits[];
 -- Tail-recursively increments a reversed (LSB-at-root) bit-path into MSB-first.
-bits_inc_rev_step = ?{ bits[] in, bit[] c, bits[] acc } <
+_inc_bits = ?{ bits[] in, bit[] c, bits[] acc } <
   { .in /_ _in, .c /0 _c, .acc acc } .acc,
   { .in /_ _in, .c /1 _c, .acc acc } .acc |1,
   <
-    { .in /0 in, .c /0 _c, .acc acc } { .in in, {} |0 c, .acc |0 acc },
-    { .in /1 in, .c /0 _c, .acc acc } { .in in, {} |0 c, .acc |1 acc },
-    { .in /0 in, .c /1 _c, .acc acc } { .in in, {} |0 c, .acc |1 acc },
-    { .in /1 in, .c /1 _c, .acc acc } { .in in, {} |1 c, .acc |0 acc }
-  > bits_inc_rev_step
-> ?bits[];
-
--- Adds 1 to an unsigned bits[] value (MSB at root, '_' at leaf).
-inc_bits = ?bits[] { rev_bits in, {} |1 c, {} |_ acc } bits_inc_rev_step ?bits[];
+    { .in /0 in, .c /0 |0 c, .acc |0 acc },
+    { .in /1 in, .c /0 |0 c, .acc |1 acc },
+    { .in /0 in, .c /1 |0 c, .acc |1 acc },
+    { .in /1 in, .c /1 |1 c, .acc |0 acc }
+  > _inc_bits
+>;
 
 -- Compares the lengths of two bits[] paths (used by btrie_max_key).
 cmp_bits_len = ?{ bits[] x, bits[] y } <
   { .x /_ _x, .y /_ _y } {} |eq,
-  { .x /_ _x, .y < /0, /1 > _y } {} |lt,
-  { .x < /0, /1 > _x, .y /_ _y } {} |gt,
+  .x /_ |lt,
+  .y /_ |gt,
   { .x < /0, /1 > x, .y < /0, /1 > y } cmp_bits_len
 > ?order[];
 
@@ -125,57 +123,50 @@ btrie_frame[V] = { bit[] dir, opt[V] val, btrie[V] sib };
 btrie_task[V] = { bits[] key_rev, btrie[V] node };
 
 -- Empty trie constructor.
-btrie_empty = {} |nil;
+btrie_empty = {} |nil ?btrie[V];
 
 -- Canonical node packer: collapses empty { nil, nil, nil } nodes back to |nil.
-btrie_pack = <
-  { .val /nil _, .0 /nil 0, .1 /nil 1 } {} |nil,
-  { .val /val val, .0 0, .1 1 } { .val |val val, .0 0, .1 1 } |trie,
-  { .val /nil _, .0 /trie 0, .1 1 } { {} |nil val, .0 |trie 0, .1 1 } |trie,
-  { .val /nil _, .0 /nil 0, .1 /trie 1 } { {} |nil val, {} |nil 0, .1 |trie 1 } |trie
->;
+btrie_pack = ?{ opt[V] val, T 0, T 1 } <
+  { .val /nil _val, .0 /nil _0, .1 /nil _1 } btrie_empty,
+  |trie
+> ?btrie[V]=T;
 
 -- Lookup: { bits[] key, btrie[V] trie } -> V (fails if key is absent).
-btrie_get = ?{ bits[] key, btrie[V] trie } { .key key, .trie /trie trie } <
-  { .key /_ _, .trie .val /val val } .val,
+btrie_get = ?{ bits[] key, btrie[V] trie } <
+  { .key /_ _, .trie /trie .val /val val } .val,
   <
-    { .key /0 key, .trie .0 trie },
-    { .key /1 key, .trie .1 trie }
+    { .key /0 key, .trie /trie .0 trie },
+    { .key /1 key, .trie /trie .1 trie }
   > btrie_get
->;
-
--- Wraps a subtrie bottom-up along a reversed bit path inside an otherwise empty trie.
-btrie_wrap_rev_step = ?{ bits[] key_rev, btrie[V] acc } <
-  { .key_rev /_ _, .acc acc } .acc,
-  <
-    { .key_rev /0 key_rev, .acc acc } {
-      .key_rev key_rev,
-      { {} |nil val, .acc 0, {} |nil 1 } |trie acc
-    },
-    { .key_rev /1 key_rev, .acc acc } {
-      .key_rev key_rev,
-      { {} |nil val, {} |nil 0, .acc 1 } |trie acc
-    }
-  > btrie_wrap_rev_step
-> ?btrie[V];
+> ?V;
 
 -- Insert into an empty trie along `key`.
 btrie_set_empty = ?{ bits[] key, V val } {
   .key rev_bits key_rev,
   { .val |val val, {} |nil 0, {} |nil 1 } |trie acc
-} btrie_wrap_rev_step ?btrie[V];
+} _btrie_set_empty ?btrie[V];
+-- Wraps a subtrie bottom-up along a reversed bit path inside an otherwise empty trie.
+_btrie_set_empty = ?{ bits[] key_rev, btrie[V] acc } <
+  { .key_rev /_ _, .acc acc } .acc,
+  <
+    { .key_rev /0 key_rev, 
+      { {} |nil val, .acc 0, {} |nil 1 } |trie acc
+    },
+    { .key_rev /1 key_rev, 
+      { {} |nil val, {} |nil 0, .acc 1 } |trie acc
+    }
+  > _btrie_set_empty
+>;
 
 -- Rebuilds a btrie[V] bottom-up along a saved zipper stack, pruning empty nodes.
 btrie_zip_step = ?{ btrie[V] child, list[btrie_frame[V]] stack } <
   { .stack /nil _, .child child } .child,
-  { .stack /cons c, .child child } {
-    { .c .car frame, .child child } <
-      { .frame .dir /0 _, .frame .val val, .frame .sib s1, .child c0 }
-        { .val val, .c0 0, .s1 1 },
-      { .frame .dir /1 _, .frame .val val, .frame .sib s0, .child c1 }
-        { .val val, .s0 0, .c1 1 }
-    > btrie_pack child,
-    .c .cdr stack
+  {
+    { .stack /cons .car frame, .child child } <
+      { .frame .dir /0 _, .frame .val val, .frame .sib 1, .child 0 },
+      { .frame .dir /1 _, .frame .val val, .frame .sib 0, .child 1 }
+    > {.val val, .0 0, .1 1} btrie_pack child,
+    .stack /cons .cdr stack
   } btrie_zip_step
 > ?btrie[V];
 
@@ -208,7 +199,7 @@ btrie_set = ?{ bits[] key, V val, btrie[V] trie } {
 
 -- Walks down `trie` along `key`, pruning any target value and recording the zipper.
 btrie_del_down = ?{ bits[] key, btrie[V] trie, list[btrie_frame[V]] stack } <
-  { .trie /nil _, .stack stack } { {} |nil child, .stack stack },
+  { .trie /nil |nil child, .stack stack },
   { .trie /trie trie, .key /_ _, .stack stack } {
     { {} |nil val, .trie .0 0, .trie .1 1 } btrie_pack child,
     .stack stack
@@ -239,15 +230,11 @@ btrie_push_task = ?{ btrie_task[V] task, list[btrie_task[V]] stack } <
   } |cons
 > ?list[btrie_task[V]];
 
-btrie_entries_step = ?{
-  list[btrie_task[V]] stack,
-  list[{ bits[] key, V val }] acc
-} <
+btrie_entries_step = ?{ list[btrie_task[V]] stack, list[{ bits[] key, V val }] acc } <
   { .stack /nil _, .acc acc } .acc reverse,
-  { .stack /cons c, .acc acc } {
-    .c .car .key_rev key_rev,
-    .c .car .node /trie t,
-    .c .cdr stack,
+  { .stack /cons .car .key_rev key_rev,
+    .stack /cons .car .node /trie t,
+    .stack /cons .cdr stack,
     .acc acc
   } {
     {
@@ -289,10 +276,9 @@ btrie_pick_longer_rev = ?{ bits[] cand, opt[bits[]] best } <
 btrie_max_key_step = ?{ list[btrie_task[V]] stack, opt[bits[]] best } <
   { .stack /nil _s, .best /nil _b } {} |nil,
   { .stack /nil _s, .best /val b } .b rev_bits |val,
-  { .stack /cons c, .best best } {
-    .c .car .key_rev key_rev,
-    .c .car .node /trie t,
-    .c .cdr stack,
+  { .stack /cons .car .key_rev key_rev,
+    .stack /cons .car .node /trie t,
+    .stack /cons .cdr stack,
     .best best
   } {
     {
@@ -335,9 +321,8 @@ btrie_bfs_next = ?{ list[btrie[V]] front, list[btrie[V]] back, list[V] acc } <
     {} |nil back,
     .acc acc
   },
-  { .front /cons h, .back back, .acc acc } {
-    .h .cdr front,
-    .h .car node,
+  { .front /cons .cdr front,
+    .front /cons .car node,
     .back back,
     .acc acc
   } <
@@ -360,8 +345,8 @@ btrie_bfs_step = ?{ list[btrie[V]] front, list[btrie[V]] back, list[V] acc } <
 > ?list[V];
 
 btrie_bfs_values = ?btrie[V]
-  { { () car, {} |nil cdr } |cons front, {} |nil back, {} |nil acc } btrie_bfs_step
-  ?list[V];
+  { { () car, {}|nil cdr } |cons front, {}|nil back, {}|nil acc } btrie_bfs_step
+?list[V];
 
 
 -- -----------------------------------------------------------------------------
@@ -495,7 +480,7 @@ eq_char? = ?{ unicode[] x, unicode[] y } {
     } {}
   > _,
   () then
-} .then ?{ unicode[] x, unicode[] y };
+} .then;
 
 -- Bit-level push/take helpers matching codecs/djson.mjs's prefix bit-path encoding.
 -- Each push_* wraps `rest` from LSB (.0) up to MSB (so root-to-leaf order is MSB first).
@@ -603,10 +588,10 @@ string_to_bits_step = ?{ string[] rev, bits[] acc } <
 string_to_bits = ?string[] { reverse rev, {} |_ acc } string_to_bits_step ?bits[];
 
 -- Dual prefix decoder: bits[] -> string[].
-take_bit = <
+take_bit = ?bits[] <
   /0 { {} |0 bit, () rest },
   /1 { {} |1 bit, () rest }
->;
+> ?{bit[] bit, bits[] rest };
 
 take_bit1 = take_bit { { .bit 0 } v, .rest rest };
 take_bit2 = take_bit { .bit 1, .rest take_bit rest } { { .1 1, .rest .bit 0 } v, .rest .rest rest };
@@ -641,7 +626,7 @@ take_plane0 = take_bit3 { .v hi, .rest take_byte rest } {
   .rest .rest rest
 };
 
-take_bmp_common = <
+take_bmp_common = ?bits[] <
   /0 /0 /0 take_bit3 { .v |h08_0F hi, .rest rest },
   /0 /0 /1 take_ascii_bits { .v |h10_7F hi, .rest rest },
   /0 /1 /0 take_ascii_bits { .v |h80_CF hi, .rest rest },
@@ -651,20 +636,20 @@ take_bmp_common = <
   /1 /1 /0 take_bit1 { .v |hFC_FD hi, .rest rest },
   /1 /1 /1 take_bit1 { .v |hFE_FF hi, .rest rest }
 > { .hi hi, .rest take_byte rest } {
-  { .hi hi, .rest .v lo } |bmp_common ch,
+  { .hi hi, .rest .v lo } |bmp_common ?unicode[] ch,
   .rest .rest rest
 };
 
-take_bmp_pua = <
+take_bmp_pua = ?bits[] <
   /0 take_bit4 { .v |hE0_EF hi, .rest rest },
   /1 /0 take_bit3 { .v |hF0_F7 hi, .rest rest },
   /1 /1 { {} |hF8 hi, () rest }
 > { .hi hi, .rest take_byte rest } {
-  { .hi hi, .rest .v lo } |bmp_private_use ch,
+  { .hi hi, .rest .v lo } |bmp_private_use ?unicode[] ch,
   .rest .rest rest
 };
 
-take_plane_02_10 = <
+take_plane_02_10 = ?bits[] <
   /0 /0 take_bit1 { .v |p02_03 plane, .rest rest },
   /0 /1 take_bit2 { .v |p04_07 plane, .rest rest },
   /1 /0 take_bit3 { .v |p08_0F plane, .rest rest },
@@ -674,11 +659,11 @@ take_plane_02_10 = <
   .rest .v mid,
   .rest .rest take_byte rest
 } {
-  { .plane plane, .mid mid, .rest .v lo } |supplementary_planes2_16 ch,
+  { .plane plane, .mid mid, .rest .v lo } |supplementary_planes2_16 ?unicode[] ch,
   .rest .rest rest
 };
 
-take_char = <
+take_char = ?bits[] <
   /0 take_ascii_bits { .v |ascii ch, .rest rest },
   /1 /0 take_plane0 { .v |plane0 ch, .rest rest },
   /1 /1 /0 take_bmp_common,
@@ -688,7 +673,7 @@ take_char = <
     .rest .rest rest
   },
   /1 /1 /1 /1 /1 take_plane_02_10
->;
+> ?{unicode[] ch, bits[] rest };
 
 bits_to_string_step = ?{ bits[] in, string[] acc } <
   { .in /_ _, .acc acc } .acc reverse,

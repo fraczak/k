@@ -5,6 +5,17 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.9.0] — 2026-11-22 — Canonical Empty-Bit Zero Representation and BigInt-Free Integer Codec
+
+- **Canonical Zero Representation (`{}|_` / `{}|_|+`)**:
+  - Represent canonical unsigned zero in `bits[]` as empty `{}` tagged with `_` (`{}|_`) and signed zero in `int[]` as `{}|_|+` (`{"+":{"_":{}}}`), eliminating the redundant `'0'` bit tag across `lib/integer.k`, `lib/generic.k` (`trim_bits`), `lib/ieee.k`, `lib/djson.k`, and `codecs/djson.mjs` (`indexToBitPath(0) => []`).
+  - Clean up `lib/*.k` formatting and internal helpers (`f64_trim_msb`, `dj_lsb_to_msb`, `dj_next_index`, `dj_pack_list`, `dj_parse_expect_val`).
+- **BigInt-Free Integer Codec (`codecs/int.mjs`)**:
+  - Replace `BigInt` parsing and printing in `codecs/int.mjs` with direct 20-bit-chunk conversion over base-10^9 limbs (`decimalToBits` and `printSingleInt`), validating bit tags and `_` leaf structure strictly.
+- **Benchmarks & Tests**:
+  - Add `scripts/perf-bigint-compare.mjs` for end-to-end decimal parse, consecutive squaring, and decimal print comparisons between JS `BigInt` and K backends (`llvm`, `llvm-pkir`, `wasm`, `pkir`, `kvm`, `js`).
+  - Update `tests/test-generic.mjs`, `tests/test-structural-values.mjs`, and `tests/test-repl.mjs` for the canonical zero representation and refreshed `parse_json` content hash.
+
 ## [8.8.0] — 2026-11-13 — Standard Library Consolidation, Tail-Recursive Conventions, and Plain Dependency Comments
 
 - **Standard Library Consolidation (`lib/`)**:

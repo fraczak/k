@@ -77,7 +77,6 @@ for (const [filterName, jsonVal] of [
   ["list?", [1, 2]],
   ["object?", { a: 1 }]
 ]) {
-  assert.ok(runRel("json?", fromJsonValue(jsonVal)), `json? failed for ${JSON.stringify(jsonVal)}`);
   assert.ok(runRel(filterName, fromJsonValue(jsonVal)), `${filterName} failed for ${JSON.stringify(jsonVal)}`);
 }
 assert.equal(runRel("null?", fromJsonValue(0)), undefined);

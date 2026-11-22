@@ -32,12 +32,42 @@ const INT_LIST_PATTERN = patternFromFilter(`
   > = list
 `);
 
-// Build bits Value (MSB outermost) from a non-negative BigInt.
-function buildBits(n) {
-  const bitChars = n === 0n ? ["0"] : n.toString(2).split("");
+const DEC_BASE = 1_000_000_000;
+const DEC_CHUNK = 9;
+const BIT_CHUNK = 20;
+const BIT_BASE = 1 << BIT_CHUNK; // 2^20 * 10^9 < Number.MAX_SAFE_INTEGER
+
+// Build bits Value (MSB outermost) directly from a validated non-negative decimal string.
+function decimalToBits(str) {
   let v = Value.variant("_", Value.product({}));
-  for (let i = bitChars.length - 1; i >= 0; i--) {
-    v = Value.variant(bitChars[i], v);
+  if (str === "0") return v;
+  const limbs = [];
+  const firstLen = str.length % DEC_CHUNK || DEC_CHUNK;
+  limbs.push(Number(str.slice(0, firstLen)));
+  for (let i = firstLen; i < str.length; i += DEC_CHUNK) {
+    limbs.push(Number(str.slice(i, i + DEC_CHUNK)));
+  }
+  let start = 0;
+  while (start < limbs.length) {
+    let rem = 0;
+    for (let i = start; i < limbs.length; i++) {
+      const cur = rem * DEC_BASE + limbs[i];
+      const q = Math.floor(cur / BIT_BASE);
+      limbs[i] = q;
+      rem = cur - q * BIT_BASE;
+    }
+    while (start < limbs.length && limbs[start] === 0) start++;
+    if (start < limbs.length) {
+      for (let b = 0; b < BIT_CHUNK; b++) {
+        v = Value.variant((rem & 1) === 1 ? "1" : "0", v);
+        rem >>>= 1;
+      }
+    } else {
+      while (rem > 0) {
+        v = Value.variant((rem & 1) === 1 ? "1" : "0", v);
+        rem >>>= 1;
+      }
+    }
   }
   return v;
 }
@@ -51,9 +81,8 @@ function parseIntStr(str) {
   if (!/^(0|[1-9][0-9]*)$/.test(str)) {
     throw new Error(`Invalid integer syntax: ${JSON.stringify(str)}`);
   }
-  const n = BigInt(str);
-  if (n === 0n) sign = "+";
-  return Value.variant(sign, buildBits(n));
+  if (str === "0") sign = "+";
+  return Value.variant(sign, decimalToBits(str));
 }
 
 // Parse a list of decimal integers, e.g. "[0,1,2]" or "[]"
@@ -94,15 +123,38 @@ function printSingleInt(value) {
     throw new Error("Not a valid k int value");
   }
   const sign = value.tag;
-  let bits = "";
+  const limbs = []; // base-10^9, least-significant limb at index 0
   let node = value.value;
   while (isVariant(node) && node.tag !== "_") {
-    bits += node.tag;
-    node = node.value;
+    let chunkVal = 0;
+    let chunkBits = 0;
+    while (chunkBits < BIT_CHUNK && isVariant(node) && node.tag !== "_") {
+      if (node.tag !== "0" && node.tag !== "1") {
+        throw new Error("Not a valid k int value");
+      }
+      chunkVal = (chunkVal << 1) | (node.tag === "1" ? 1 : 0);
+      chunkBits++;
+      node = node.value;
+    }
+    const mult = 1 << chunkBits;
+    let carry = chunkVal;
+    for (let i = 0; i < limbs.length; i++) {
+      const cur = limbs[i] * mult + carry;
+      carry = Math.floor(cur / DEC_BASE);
+      limbs[i] = cur - carry * DEC_BASE;
+    }
+    if (carry > 0) {
+      limbs.push(carry);
+    }
   }
-  const n = bits === "" ? 0n : BigInt("0b" + bits);
-  const digits = n.toString(10);
-  if (n === 0n) return "0";
+  if (!isVariant(node) || node.tag !== "_" || !isProduct(node.value) || Object.keys(node.value.product).length !== 0) {
+    throw new Error("Not a valid k int value");
+  }
+  if (limbs.length === 0) return "0";
+  let digits = String(limbs[limbs.length - 1]);
+  for (let i = limbs.length - 2; i >= 0; i--) {
+    digits += String(limbs[i]).padStart(DEC_CHUNK, "0");
+  }
   return (sign === "-" ? "-" : "") + digits;
 }
 

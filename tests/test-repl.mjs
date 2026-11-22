@@ -645,7 +645,7 @@ await evaluateInput(
   djsonKState
 );
 output = await evaluateInput(
-  "{{{}|_|0 index, () json} nth /string key, " +
+  "{{{}|_ index, () json} nth /string key, " +
     "{{}|_|1 index, () json} nth json} get",
   djsonKState
 );
@@ -656,7 +656,7 @@ await evaluateInput(
   djsonKState
 );
 output = await evaluateInput(
-  "{{{}|_|0 index, () json} nth /string key, " +
+  "{{{}|_ index, () json} nth /string key, " +
     "{{}|_|1 index, () json} nth json} del",
   djsonKState
 );
@@ -1015,7 +1015,7 @@ assert.equal(
     "?@Pt3MwQwzUPxQKu58zXR3qUBHWTzfycx5bSZGzcK6EZQK[] " +
     "dj_json_value {.rest dj_ws /nil _, .value value} .value " +
     "?@P5C7TQKTSPnFUkYkYzTudJamxAQ3T3fHbvZNqwWMfAA2[];  " +
-    "-- @w4Qr99UxapJGFraYLvGkAsc9VZFvsSsUV8i5isvG5Z6F"
+    "-- @3dPQGT29U9k4zMc8WizAimZtrhb6BHtY3UZEHtq7FPwN"
 );
 const shortThresholdState = createState();
 output = await evaluateInput(":max-pat-length", shortThresholdState);
