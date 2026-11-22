@@ -16,7 +16,7 @@
  *   >
  *
  * - In `list`, element at index i >= 0 is stored at the canonical binary
- *   bit-path of i (0 -> [0], 1 -> [1], 2 -> [1,0], 3 -> [1,1], ...).
+ *   bit-path of i (0 -> [], 1 -> [1], 2 -> [1,0], 3 -> [1,1], ...).
  * - In `object`, entry with key k is stored at the prefix-free Unicode
  *   character bit-path of k.
  */
@@ -167,7 +167,7 @@ function readBitsMSB(bits, offset, width) {
 }
 
 export function indexToBitPath(index) {
-  if (index === 0) return [0];
+  if (index === 0) return [];
   const bits = [];
   let n = index;
   while (n > 0) {
@@ -179,7 +179,6 @@ export function indexToBitPath(index) {
 }
 
 export function bitPathToIndex(bits) {
-  if (bits.length === 1 && bits[0] === 0) return 0;
   let n = 0;
   for (const b of bits) {
     n = n * 2 + b;

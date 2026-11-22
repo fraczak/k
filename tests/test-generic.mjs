@@ -92,7 +92,7 @@ assert.equal(runRel("lt?", Value.variant("gt", Value.product({}))), undefined);
 assert.equal(runRel("nil?", Value.variant("nil", Value.product({}))).tag, "nil");
 assert.equal(runRel("nil?", Value.variant("val", Value.product({}))), undefined);
 
-// 2. list[X]: reverse & rev_append
+// 2. list[X]: reverse 
 assert.deepEqual(listToArray(runRel("reverse", listFrom([]))).length, 0);
 assert.deepEqual(
   listToArray(runRel("reverse", textToStringValue("abc"))).map((ch) =>
@@ -102,7 +102,7 @@ assert.deepEqual(
 );
 assert.equal(
   stringValueToText(
-    runRel("rev_append", Value.product({
+    runRel("_reverse", Value.product({
       xs: textToStringValue("ab"),
       acc: textToStringValue("cd")
     }))
@@ -110,13 +110,11 @@ assert.equal(
   "bacd"
 );
 
-// 3. bits[]: zero_bits?, trim_bits, inc_bits
-assert.ok(runRel("zero_bits?", bitsFromStr("0")));
-assert.equal(runRel("zero_bits?", bitsFromStr("1")), undefined);
-assert.equal(bitsToStr(runRel("trim_bits", bitsFromStr("000"))), "0");
+// 3. bits[]: trim_bits, inc_bits
+assert.equal(bitsToStr(runRel("trim_bits", bitsFromStr("000"))), "");
 assert.equal(bitsToStr(runRel("trim_bits", bitsFromStr("00101"))), "101");
 
-const expectedBits = ["0", "1", "10", "11", "100", "101", "110", "111", "1000"];
+const expectedBits = ["", "1", "10", "11", "100", "101", "110", "111", "1000"];
 for (let i = 0; i < expectedBits.length - 1; i++) {
   const next = runRel("inc_bits", bitsFromStr(expectedBits[i]));
   assert.equal(bitsToStr(next), expectedBits[i + 1]);

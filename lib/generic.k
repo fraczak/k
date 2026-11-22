@@ -42,53 +42,54 @@ nil? = ?X /nil |nil ?X;
 -- 2. Polymorphic Linked Lists (list[X] from core.k)
 -- -----------------------------------------------------------------------------
 
+list[X] = <{} nil, {X car, L cdr} cons> = L;
+
+-- Reverses any list[X] in O(n) time.
+reverse = ?list[X] { () xs, {} |nil acc } _reverse ?list[X];
 -- Tail-recursively prepends elements of `xs` in reverse order onto `acc`.
-rev_append = ?{ list[X] xs, list[X] acc } <
+_reverse = ?{ list[X] xs, list[X] acc } <
   { .xs /nil _, .acc acc } .acc,
   {
     .xs /cons .cdr xs,
     { .xs /cons .car car, .acc cdr } |cons acc
-  } rev_append
-> ?list[X];
-
--- Reverses any list[X] in O(n) time.
-reverse = ?list[X] { () xs, {} |nil acc } rev_append ?list[X];
-
+  } _reverse
+>;
 
 -- -----------------------------------------------------------------------------
 -- 3. Bit & Bit-Path Helpers (bit[], bits[] from core.k)
 -- -----------------------------------------------------------------------------
+
+bit[] = <{} 0, {} 1>;
+bits[] = <{} _, B 0, B 1> = B;
 
 eq_bit? = ?{bit[] x, bit[] y}=X <
   { .x /0 |0 x, .y /0 |0 y },
   { .x /1 |1 x, .y /1 |1 y }
 > ?X;
 
--- Matches canonical zero bits[] (_ |0).
-zero_bits? = ?bits[] { /0 /_ if, () then} .then;
-
--- Strips redundant leading '0' tags while keeping at least one bit for zero (_ |0).
+-- Strips redundant leading '0' tags (canonical zero is '_').
 trim_bits = ?bits[] <
   /_ |_,
   /1 |1,
-  /0 /_ |_ |0,
   /0 trim_bits
 > ?bits[];
 
+
+-- Reverses a bit-path in O(n) time.
+rev_bits = ?bits[] { () in, {} |_ acc } _rev_bits ?bits[];
 -- Tail-recursively reverses `in` onto `acc` (moving leaf-ward bits toward root).
-bits_rev_step = ?{ bits[] in, bits[] acc } <
+_rev_bits = ?{ bits[] in, bits[] acc } <
   { .in /_ _, .acc acc } .acc,
   <
     { .in /0 in, .acc |0 acc },
     { .in /1 in, .acc |1 acc }
-  > bits_rev_step
-> ?bits[];
+  > _rev_bits
+>;
 
--- Reverses a bit-path in O(n) time.
-rev_bits = ?bits[] { () in, {} |_ acc } bits_rev_step ?bits[];
-
+-- Adds 1 to an unsigned bits[] value (MSB at root, '_' at leaf).
+inc_bits = ?bits[] { rev_bits in, {} |1 c, {} |_ acc } _inc_bits ?bits[];
 -- Tail-recursively increments a reversed (LSB-at-root) bit-path into MSB-first.
-bits_inc_rev_step = ?{ bits[] in, bit[] c, bits[] acc } <
+_inc_bits = ?{ bits[] in, bit[] c, bits[] acc } <
   { .in /_ _in, .c /0 _c, .acc acc } .acc,
   { .in /_ _in, .c /1 _c, .acc acc } .acc |1,
   <
@@ -96,11 +97,8 @@ bits_inc_rev_step = ?{ bits[] in, bit[] c, bits[] acc } <
     { .in /1 in, .c /0 |0 c, .acc |1 acc },
     { .in /0 in, .c /1 |0 c, .acc |1 acc },
     { .in /1 in, .c /1 |1 c, .acc |0 acc }
-  > bits_inc_rev_step
-> ?bits[];
-
--- Adds 1 to an unsigned bits[] value (MSB at root, '_' at leaf).
-inc_bits = ?bits[] { rev_bits in, {} |1 c, {} |_ acc } bits_inc_rev_step ?bits[];
+  > _inc_bits
+>;
 
 -- Compares the lengths of two bits[] paths (used by btrie_max_key).
 cmp_bits_len = ?{ bits[] x, bits[] y } <
@@ -128,10 +126,10 @@ btrie_task[V] = { bits[] key_rev, btrie[V] node };
 btrie_empty = {} |nil ?btrie[V];
 
 -- Canonical node packer: collapses empty { nil, nil, nil } nodes back to |nil.
-btrie_pack = <
-  { .val /nil _, .0 /nil 0, .1 /nil 1 } btrie_empty,
+btrie_pack = ?{ opt[V] val, T 0, T 1 } <
+  { .val /nil _val, .0 /nil _0, .1 /nil _1 } btrie_empty,
   |trie
->;
+> ?btrie[V]=T;
 
 -- Lookup: { bits[] key, btrie[V] trie } -> V (fails if key is absent).
 btrie_get = ?{ bits[] key, btrie[V] trie } <
@@ -140,10 +138,15 @@ btrie_get = ?{ bits[] key, btrie[V] trie } <
     { .key /0 key, .trie /trie .0 trie },
     { .key /1 key, .trie /trie .1 trie }
   > btrie_get
->;
+> ?V;
 
+-- Insert into an empty trie along `key`.
+btrie_set_empty = ?{ bits[] key, V val } {
+  .key rev_bits key_rev,
+  { .val |val val, {} |nil 0, {} |nil 1 } |trie acc
+} _btrie_set_empty ?btrie[V];
 -- Wraps a subtrie bottom-up along a reversed bit path inside an otherwise empty trie.
-btrie_wrap_rev_step = ?{ bits[] key_rev, btrie[V] acc } <
+_btrie_set_empty = ?{ bits[] key_rev, btrie[V] acc } <
   { .key_rev /_ _, .acc acc } .acc,
   <
     { .key_rev /0 key_rev, 
@@ -152,25 +155,17 @@ btrie_wrap_rev_step = ?{ bits[] key_rev, btrie[V] acc } <
     { .key_rev /1 key_rev, 
       { {} |nil val, {} |nil 0, .acc 1 } |trie acc
     }
-  > btrie_wrap_rev_step
-> ?btrie[V];
-
--- Insert into an empty trie along `key`.
-btrie_set_empty = ?{ bits[] key, V val } {
-  .key rev_bits key_rev,
-  { .val |val val, {} |nil 0, {} |nil 1 } |trie acc
-} btrie_wrap_rev_step ?btrie[V];
+  > _btrie_set_empty
+>;
 
 -- Rebuilds a btrie[V] bottom-up along a saved zipper stack, pruning empty nodes.
 btrie_zip_step = ?{ btrie[V] child, list[btrie_frame[V]] stack } <
   { .stack /nil _, .child child } .child,
   {
     { .stack /cons .car frame, .child child } <
-      { .frame .dir /0 _, .frame .val val, .frame .sib s1, .child c0 }
-        { .val val, .c0 0, .s1 1 },
-      { .frame .dir /1 _, .frame .val val, .frame .sib s0, .child c1 }
-        { .val val, .s0 0, .c1 1 }
-    > btrie_pack child,
+      { .frame .dir /0 _, .frame .val val, .frame .sib 1, .child 0 },
+      { .frame .dir /1 _, .frame .val val, .frame .sib 0, .child 1 }
+    > {.val val, .0 0, .1 1} btrie_pack child,
     .stack /cons .cdr stack
   } btrie_zip_step
 > ?btrie[V];
@@ -350,8 +345,8 @@ btrie_bfs_step = ?{ list[btrie[V]] front, list[btrie[V]] back, list[V] acc } <
 > ?list[V];
 
 btrie_bfs_values = ?btrie[V]
-  { { () car, {} |nil cdr } |cons front, {} |nil back, {} |nil acc } btrie_bfs_step
-  ?list[V];
+  { { () car, {}|nil cdr } |cons front, {}|nil back, {}|nil acc } btrie_bfs_step
+?list[V];
 
 
 -- -----------------------------------------------------------------------------

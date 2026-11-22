@@ -1,5 +1,8 @@
-# --lib core.k --use bit[] bits[] list[] byte[] ascii[] bmp_hi_common[] bmp_hi_private_use[] plane0[] plane_02_10[] unicode[] string[]
-# --lib lib/generic.k --use bool[] false? true? order[] lt? eq? gt? opt[] reverse trim_bits inc_bits btrie[] btrie_empty btrie_get btrie_set btrie_del btrie_entries_raw btrie_max_key btrie_bfs_values string_to_bits bits_to_string
+# --lib core.k --use bit[] bits[] list[] byte[] ascii[] bmp_hi_common[] bmp_hi_private_use[] \
+#      plane0[] plane_02_10[] unicode[] string[]
+# --lib lib/generic.k --use bool[] false? true? order[] lt? eq? gt? opt[] reverse trim_bits \
+#      inc_bits btrie[] btrie_empty btrie_get btrie_set btrie_del btrie_entries_raw \
+#      btrie_max_key btrie_bfs_values string_to_bits bits_to_string
 # --lib lib/ieee.k --use sign[] float64[] pos_zero neg_zero finite_float64? ratio_to_float64
 
 -- =============================================================================
@@ -8,7 +11,7 @@
 --
 -- Represents arbitrary JSON documents as the recursive pattern `djson[]`.
 -- Objects store keys at prefix-free Unicode bit-paths (`string_to_bits`);
--- arrays store elements at canonical MSB-first binary index paths (`0 = |_ |0`,
+-- arrays store elements at canonical MSB-first binary index paths (`0 = |_`,
 -- `1 = |_ |1`, `2 = |_ |0 |1`, ...).
 --
 -- Conventions:
@@ -37,12 +40,12 @@ djson[] = <
 > = J;
 
 -- Variant identity filters (fail on mismatch, preserve input unchanged on match).
-null?   = ?djson[] /null |null ?djson[];
-bool?   = ?djson[] /bool |bool ?djson[];
-number? = ?djson[] /number |number ?djson[];
-string? = ?djson[] /string |string ?djson[];
-list?   = ?djson[] /list |list ?djson[];
-object? = ?djson[] /object |object ?djson[];
+null?   = ?X /null |null ?X;
+bool?   = ?X /bool |bool ?X;
+number? = ?X /number |number ?X;
+string? = ?X /string |string ?X;
+list?   = ?X /list |list ?X;
+object? = ?X /object |object ?X;
 
 empty_list   = btrie_empty |list ?djson[];
 empty_object = btrie_empty |object ?djson[];
@@ -88,7 +91,7 @@ del_nth = ?{ bits[] index, djson[] json }
 
 -- Appends to an array at `max_index + 1` (or `0` when empty), safe after holes.
 dj_next_index = ?btrie[V] btrie_max_key <
-  /nil {} |_ |0,
+  /nil {}|_,
   /val inc_bits
 > ?bits[];
 
@@ -98,52 +101,53 @@ push = ?{ djson[] val, djson[] json }
   btrie_set |list
   ?djson[];
 
+
 -- List-mapping helpers shared by `keys_raw`, `keys`, `values_raw`, and `values`.
-dj_entries_keys_step = ?{ list[{ bits[] key, djson[] val }] xs, list[string[]] acc } <
+dj_entries_keys = ?list[{ bits[] key, djson[] val }]
+  { () xs, {}|nil acc } _dj_entries_keys 
+?list[string[]];
+_dj_entries_keys = ?{ list[{ bits[] key, djson[] val }] xs, list[string[]] acc } <
   { .xs /nil _, .acc acc } .acc reverse,
   { .xs /cons c, .acc acc } {
     .c .cdr xs,
     { .c .car .key bits_to_string car, .acc cdr } |cons acc
-  } dj_entries_keys_step
-> ?list[string[]];
+  } _dj_entries_keys
+>;
 
-dj_entries_keys = ?list[{ bits[] key, djson[] val }]
-  { () xs, {} |nil acc } dj_entries_keys_step ?list[string[]];
-
-dj_entries_vals_step = ?{ list[{ bits[] key, djson[] val }] xs, list[djson[]] acc } <
+dj_entries_vals = ?list[{ bits[] key, djson[] val }]
+  { () xs, {}|nil acc } _dj_entries_vals 
+?list[djson[]];
+_dj_entries_vals = ?{ list[{ bits[] key, djson[] val }] xs, list[djson[]] acc } <
   { .xs /nil _, .acc acc } .acc reverse,
   { .xs /cons c, .acc acc } {
     .c .cdr xs,
     { .c .car .val car, .acc cdr } |cons acc
-  } dj_entries_vals_step
-> ?list[djson[]];
+  } _dj_entries_vals
+>;
 
-dj_entries_vals = ?list[{ bits[] key, djson[] val }]
-  { () xs, {} |nil acc } dj_entries_vals_step ?list[djson[]];
-
-dj_strings_to_djsons_step = ?{ list[string[]] xs, list[djson[]] acc } <
+dj_strings_to_djsons = ?list[string[]]
+  { () xs, {}|nil acc } _dj_strings_to_djsons 
+?list[djson[]];
+_dj_strings_to_djsons = ?{ list[string[]] xs, list[djson[]] acc } <
   { .xs /nil _, .acc acc } .acc reverse,
   { .xs /cons c, .acc acc } {
     .c .cdr xs,
     { .c .car |string car, .acc cdr } |cons acc
-  } dj_strings_to_djsons_step
-> ?list[djson[]];
+  } _dj_strings_to_djsons
+>;
 
-dj_strings_to_djsons = ?list[string[]]
-  { () xs, {} |nil acc } dj_strings_to_djsons_step ?list[djson[]];
-
-dj_pack_step = ?{ list[djson[]] xs, bits[] idx, btrie[djson[]] acc } <
+dj_pack_list = ?list[djson[]]
+  { () xs, {}|_ idx, btrie_empty acc } _dj_pack_list
+?btrie[djson[]];
+_dj_pack_list = ?{ list[djson[]] xs, bits[] idx, btrie[djson[]] acc } <
   { .xs /nil _x, .idx _i, .acc acc } .acc,
   { .xs /cons head, .idx idx, .acc acc } {
     .head .cdr xs,
     .idx inc_bits idx,
     { .idx key, .head .car val, .acc trie } btrie_set acc
-  } dj_pack_step
-> ?btrie[djson[]];
+  } _dj_pack_list
+>;
 
-dj_pack_list = ?list[djson[]]
-  { () xs, {} |_ |0 idx, btrie_empty acc } dj_pack_step
-  ?btrie[djson[]];
 
 keys_raw = ?djson[] /object btrie_entries_raw dj_entries_keys ?list[string[]];
 
@@ -161,16 +165,16 @@ values = ?djson[] values_raw dj_pack_list |list ?djson[];
 -- 3. JSON String Characters, Escapes & \uXXXX / Surrogate Decoding
 -- -----------------------------------------------------------------------------
 
-dj_nibble[] = { bit[] "0", bit[] "1", bit[] "2", bit[] "3" };
+dj_nibble[] = { bit[] 0, bit[] 1, bit[] 2, bit[] 3 };
 dj_hex4[]   = { dj_nibble[] h3, dj_nibble[] h2, dj_nibble[] h1, dj_nibble[] h0 };
 
 -- Skips RFC 8259 whitespace (SP 0x20, TAB 0x09, LF 0x0A, CR 0x0D).
-dj_ws_char = /ascii <
-  { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } {}, -- ' '
-  { .6 /0 _6, .5 /0 _5, .4 /0 _4, .3 /1 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 } {}, -- '\t'
-  { .6 /0 _6, .5 /0 _5, .4 /0 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } {}, -- '\n'
-  { .6 /0 _6, .5 /0 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } {}  -- '\r'
->;
+dj_ws_char = ?unicode[] /ascii <
+  { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 }, -- ' '
+  { .6 /0 _6, .5 /0 _5, .4 /0 _4, .3 /1 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 }, -- '\t'
+  { .6 /0 _6, .5 /0 _5, .4 /0 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 }, -- '\n'
+  { .6 /0 _6, .5 /0 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 }  -- '\r'
+> {};
 
 dj_not_ws? = ?string[] {
   <
@@ -197,7 +201,7 @@ dj_not_ws? = ?string[] {
     >
   > _ok,
   () then
-} .then ?string[];
+} .then;
 
 dj_ws = ?string[] <
   dj_not_ws?,
@@ -205,40 +209,41 @@ dj_ws = ?string[] <
 > ?string[];
 
 -- Exact ASCII literal consumers (LSB bit 0 .. MSB bit 6).
-dj_take_quote  = /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- '"'
-dj_take_plus   = /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- '+'
-dj_take_comma  = /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- ','
-dj_take_minus  = /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- '-'
-dj_take_dot    = /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- '.'
-dj_take_slash  = /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- '/'
-dj_take_zero   = /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- '0'
-dj_take_colon  = /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /1 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- ':'
-dj_take_E      = /cons { .car /ascii { .6 /1 _6, .5 /0 _5, .4 /0 _4, .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- 'E'
-dj_take_lbr    = /cons { .car /ascii { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- '['
-dj_take_bsl    = /cons { .car /ascii { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- '\'
-dj_take_rbr    = /cons { .car /ascii { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- ']'
-dj_take_a      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- 'a'
-dj_take_b      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'b'
-dj_take_e      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- 'e'
-dj_take_f      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'f'
-dj_take_l      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'l'
-dj_take_n      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'n'
-dj_take_r      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'r'
-dj_take_s      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- 's'
-dj_take_t      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- 't'
-dj_take_u      = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- 'u'
-dj_take_lbrace = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- '{'
-dj_take_rbrace = /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- '}'
+dj_take_quote  = ?string[] /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- '"'
+dj_take_plus   = ?string[] /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- '+'
+dj_take_comma  = ?string[] /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- ','
+dj_take_minus  = ?string[] /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- '-'
+dj_take_dot    = ?string[] /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- '.'
+dj_take_slash  = ?string[] /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- '/'
+dj_take_zero   = ?string[] /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- '0'
+dj_take_colon  = ?string[] /cons { .car /ascii { .6 /0 _6, .5 /1 _5, .4 /1 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- ':'
+dj_take_E      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /0 _5, .4 /0 _4, .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- 'E'
+dj_take_lbr    = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- '['
+dj_take_bsl    = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- '\'
+dj_take_rbr    = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- ']'
+dj_take_a      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- 'a'
+dj_take_b      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'b'
+dj_take_e      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- 'e'
+dj_take_f      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'f'
+dj_take_l      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'l'
+dj_take_n      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'n'
+dj_take_r      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _c, .cdr r } .r; -- 'r'
+dj_take_s      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- 's'
+dj_take_t      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _c, .cdr r } .r; -- 't'
+dj_take_u      = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- 'u'
+dj_take_lbrace = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _c, .cdr r } .r; -- '{'
+dj_take_rbrace = ?string[] /cons { .car /ascii { .6 /1 _6, .5 /1 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _c, .cdr r } .r; -- '}'
 
 -- Escape character values emitted as core.k `unicode[]`.
-dj_ch_quote = { {} |0 "0", {} |1 "1", {} |0 "2", {} |0 "3", {} |0 "4", {} |1 "5", {} |0 "6" } |ascii; -- '"'
-dj_ch_bsl   = { {} |0 "0", {} |0 "1", {} |1 "2", {} |1 "3", {} |1 "4", {} |0 "5", {} |1 "6" } |ascii; -- '\'
-dj_ch_slash = { {} |1 "0", {} |1 "1", {} |1 "2", {} |1 "3", {} |0 "4", {} |1 "5", {} |0 "6" } |ascii; -- '/'
-dj_ch_bs    = { {} |0 "0", {} |0 "1", {} |0 "2", {} |1 "3", {} |0 "4", {} |0 "5", {} |0 "6" } |ascii; -- '\b'
-dj_ch_tab   = { {} |1 "0", {} |0 "1", {} |0 "2", {} |1 "3", {} |0 "4", {} |0 "5", {} |0 "6" } |ascii; -- '\t'
-dj_ch_lf    = { {} |0 "0", {} |1 "1", {} |0 "2", {} |1 "3", {} |0 "4", {} |0 "5", {} |0 "6" } |ascii; -- '\n'
-dj_ch_ff    = { {} |0 "0", {} |0 "1", {} |1 "2", {} |1 "3", {} |0 "4", {} |0 "5", {} |0 "6" } |ascii; -- '\f'
-dj_ch_cr    = { {} |1 "0", {} |0 "1", {} |1 "2", {} |1 "3", {} |0 "4", {} |0 "5", {} |0 "6" } |ascii; -- '\r'
+ascii = |ascii ?unicode[];
+dj_ch_quote = { {}|0 0, {}|1 1, {}|0 2, {}|0 3, {}|0 4, {}|1 5, {}|0 6 } ascii; -- '"'
+dj_ch_bsl   = { {}|0 0, {}|0 1, {}|1 2, {}|1 3, {}|1 4, {}|0 5, {}|1 6 } ascii; -- '\'
+dj_ch_slash = { {}|1 0, {}|1 1, {}|1 2, {}|1 3, {}|0 4, {}|1 5, {}|0 6 } ascii; -- '/'
+dj_ch_bs    = { {}|0 0, {}|0 1, {}|0 2, {}|1 3, {}|0 4, {}|0 5, {}|0 6 } ascii; -- '\b'
+dj_ch_tab   = { {}|1 0, {}|0 1, {}|0 2, {}|1 3, {}|0 4, {}|0 5, {}|0 6 } ascii; -- '\t'
+dj_ch_lf    = { {}|0 0, {}|1 1, {}|0 2, {}|1 3, {}|0 4, {}|0 5, {}|0 6 } ascii; -- '\n'
+dj_ch_ff    = { {}|0 0, {}|0 1, {}|1 2, {}|1 3, {}|0 4, {}|0 5, {}|0 6 } ascii; -- '\f'
+dj_ch_cr    = { {}|1 0, {}|0 1, {}|1 2, {}|1 3, {}|0 4, {}|0 5, {}|0 6 } ascii; -- '\r'
 
 -- Parses one decimal digit '0'..'9' into its 4-bit nibble.
 dj_digit_nibble = ?ascii[] {
@@ -246,13 +251,13 @@ dj_digit_nibble = ?ascii[] {
 } {
   .3 3, .2 2, .1 1, .0 0
 } <
-  { .3 /0 _3, .2 2, .1 1, .0 0 } { .0 "0", .1 "1", .2 "2", {} |0 "3" },
-  { .3 /1 _3, .2 /0 _2, .1 /0 _1, .0 0 } { .0 "0", {} |0 "1", {} |0 "2", {} |1 "3" }
+  { .3 /0 _3, .2 2, .1 1, .0 0 } { .0 0, .1 1, .2 2, {}|0 3 },
+  { .3 /1 _3, .2 /0 _2, .1 /0 _1, .0 0 } { .0 0, {}|0 1, {}|0 2, {}|1 3 }
 > ?dj_nibble[];
 
 dj_take_digit = /cons { .car /ascii dj_digit_nibble val, .cdr rest };
 
--- Rejects leading-zero continuation digits like "01" / "-01".
+-- Rejects leading-zero continuation digits like 01 / "-01".
 dj_not_digit? = ?string[] {
   <
     /nil {},
@@ -276,12 +281,12 @@ dj_not_digit? = ?string[] {
 
 -- Parses one hex digit '0'..'9', 'A'..'F', or 'a'..'f' into its 4-bit nibble.
 dj_alpha_hex_low3 = <
-  { .2 /0 _2, .1 /0 _1, .0 /1 _0 } { {} |0 "0", {} |1 "1", {} |0 "2", {} |1 "3" }, -- 0xA (10)
-  { .2 /0 _2, .1 /1 _1, .0 /0 _0 } { {} |1 "0", {} |1 "1", {} |0 "2", {} |1 "3" }, -- 0xB (11)
-  { .2 /0 _2, .1 /1 _1, .0 /1 _0 } { {} |0 "0", {} |0 "1", {} |1 "2", {} |1 "3" }, -- 0xC (12)
-  { .2 /1 _2, .1 /0 _1, .0 /0 _0 } { {} |1 "0", {} |0 "1", {} |1 "2", {} |1 "3" }, -- 0xD (13)
-  { .2 /1 _2, .1 /0 _1, .0 /1 _0 } { {} |0 "0", {} |1 "1", {} |1 "2", {} |1 "3" }, -- 0xE (14)
-  { .2 /1 _2, .1 /1 _1, .0 /0 _0 } { {} |1 "0", {} |1 "1", {} |1 "2", {} |1 "3" }  -- 0xF (15)
+  { .2 /0 _2, .1 /0 _1, .0 /1 _0 } { {}|0 0, {}|1 1, {}|0 2, {}|1 3 }, -- 0xA (10)
+  { .2 /0 _2, .1 /1 _1, .0 /0 _0 } { {}|1 0, {}|1 1, {}|0 2, {}|1 3 }, -- 0xB (11)
+  { .2 /0 _2, .1 /1 _1, .0 /1 _0 } { {}|0 0, {}|0 1, {}|1 2, {}|1 3 }, -- 0xC (12)
+  { .2 /1 _2, .1 /0 _1, .0 /0 _0 } { {}|1 0, {}|0 1, {}|1 2, {}|1 3 }, -- 0xD (13)
+  { .2 /1 _2, .1 /0 _1, .0 /1 _0 } { {}|0 0, {}|1 1, {}|1 2, {}|1 3 }, -- 0xE (14)
+  { .2 /1 _2, .1 /1 _1, .0 /0 _0 } { {}|1 0, {}|1 1, {}|1 2, {}|1 3 }  -- 0xF (15)
 >;
 
 dj_hex_nibble = ?ascii[] <
@@ -289,7 +294,9 @@ dj_hex_nibble = ?ascii[] <
   { .6 /1 _6, .5 _5, .4 /0 _4, .3 /0 _3, .2 2, .1 1, .0 0 } dj_alpha_hex_low3
 > ?dj_nibble[];
 
-dj_take_hex1 = ?string[] /cons { .car /ascii dj_hex_nibble val, .cdr rest } ?{ dj_nibble[] val, string[] rest };
+dj_take_hex1 = ?string[] 
+  /cons { .car /ascii dj_hex_nibble val, .cdr rest } 
+?{ dj_nibble[] val, string[] rest };
 
 dj_take_hex4 = ?string[]
   dj_take_hex1
@@ -300,8 +307,8 @@ dj_take_hex4 = ?string[]
   ?{ dj_hex4[] hex, string[] rest };
 
 dj_nibbles_to_byte = {
-  .lo .0 "0", .lo .1 "1", .lo .2 "2", .lo .3 "3",
-  .hi .0 "4", .hi .1 "5", .hi .2 "6", .hi .3 "7"
+  .lo .0 0, .lo .1 1, .lo .2 2, .lo .3 3,
+  .hi .0 4, .hi .1 5, .hi .2 6, .hi .3 7
 };
 
 -- Maps supplementary plane offset `H[9..6]` (0..15 -> Plane 1..16) + { mid, lo } to unicode[].
@@ -309,33 +316,33 @@ dj_plane_to_unicode = ?{ dj_nibble[] off, byte[] mid, byte[] lo } <
   { .off { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _o, .mid mid, .lo lo }
     { .mid mid, .lo lo } |supplementary_plane1,
   { .off { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 } _o, .mid mid, .lo lo }
-    { { {} |0 "0" } |p02_03 plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|0 0 } |p02_03 plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _o, .mid mid, .lo lo }
-    { { {} |1 "0" } |p02_03 plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|1 0 } |p02_03 plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _o, .mid mid, .lo lo }
-    { { {} |0 "0", {} |0 "1" } |p04_07 plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|0 0, {}|0 1 } |p04_07 plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _o, .mid mid, .lo lo }
-    { { {} |1 "0", {} |0 "1" } |p04_07 plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|1 0, {}|0 1 } |p04_07 plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _o, .mid mid, .lo lo }
-    { { {} |0 "0", {} |1 "1" } |p04_07 plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|0 0, {}|1 1 } |p04_07 plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /0 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _o, .mid mid, .lo lo }
-    { { {} |1 "0", {} |1 "1" } |p04_07 plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|1 0, {}|1 1 } |p04_07 plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /0 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _o, .mid mid, .lo lo }
-    { { {} |0 "0", {} |0 "1", {} |0 "2" } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|0 0, {}|0 1, {}|0 2 } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /1 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _o, .mid mid, .lo lo }
-    { { {} |1 "0", {} |0 "1", {} |0 "2" } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|1 0, {}|0 1, {}|0 2 } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /1 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 } _o, .mid mid, .lo lo }
-    { { {} |0 "0", {} |1 "1", {} |0 "2" } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|0 0, {}|1 1, {}|0 2 } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _o, .mid mid, .lo lo }
-    { { {} |1 "0", {} |1 "1", {} |0 "2" } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|1 0, {}|1 1, {}|0 2 } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /1 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _o, .mid mid, .lo lo }
-    { { {} |0 "0", {} |0 "1", {} |1 "2" } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|0 0, {}|0 1, {}|1 2 } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _o, .mid mid, .lo lo }
-    { { {} |1 "0", {} |0 "1", {} |1 "2" } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|1 0, {}|0 1, {}|1 2 } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _o, .mid mid, .lo lo }
-    { { {} |0 "0", {} |1 "1", {} |1 "2" } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|0 0, {}|1 1, {}|1 2 } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _o, .mid mid, .lo lo }
-    { { {} |1 "0", {} |1 "1", {} |1 "2" } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
+    { { {}|1 0, {}|1 1, {}|1 2 } |p08_0F plane, .mid mid, .lo lo } |supplementary_planes2_16,
   { .off { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _o, .mid mid, .lo lo }
     { {} |p10 plane, .mid mid, .lo lo } |supplementary_planes2_16
 > ?unicode[];
@@ -357,11 +364,11 @@ dj_decode_surrogate = ?{ dj_hex4[] hex, string[] rest }
     .low .rest rest
   } {
     {
-      { .h1 .2 "0", .h1 .3 "1", .h20 "2", .h21 "3" } off,
+      { .h1 .2 0, .h1 .3 1, .h20 2, .h21 3 } off,
       {
-        .l20 "0", .l21 "1",
-        .h0 .0 "2", .h0 .1 "3", .h0 .2 "4", .h0 .3 "5",
-        .h1 .0 "6", .h1 .1 "7"
+        .l20 0, .l21 1,
+        .h0 .0 2, .h0 .1 3, .h0 .2 4, .h0 .3 5,
+        .h1 .0 6, .h1 .1 7
       } mid,
       { .l1 hi, .l0 lo } dj_nibbles_to_byte lo
     } dj_plane_to_unicode value,
@@ -375,45 +382,45 @@ dj_bmp_to_unicode = ?dj_hex4[] {
 } <
   -- 0x0000..0x07FF: ASCII or plane0
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _h3, .h2 { .3 /0 _23, .2 /0 _22, .1 /0 _21, .0 /0 _20 } _h2, .h1 .3 /0 _13, .h1 .2 b6, .h1 .1 b5, .h1 .0 b4, .h0 h0, .lo_byte _lb }
-    { .h0 .0 "0", .h0 .1 "1", .h0 .2 "2", .h0 .3 "3", .b4 "4", .b5 "5", .b6 "6" } |ascii,
+    { .h0 .0 0, .h0 .1 1, .h0 .2 2, .h0 .3 3, .b4 4, .b5 5, .b6 6 } ascii,
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _h3, .h2 { .3 /0 _23, .2 /0 _22, .1 /0 _21, .0 /0 _20 } _h2, .h1 .3 /1 _b7, .h1 .2 b6, .h1 .1 b5, .h1 .0 b4, .h0 h0, .lo_byte _lb }
-    { .h0 .0 "0", .h0 .1 "1", .h0 .2 "2", .h0 .3 "3", .b4 "4", .b5 "5", .b6 "6", {} |1 "7", {} |0 "8", {} |0 "9", {} |0 "10" } |plane0,
+    { .h0 .0 0, .h0 .1 1, .h0 .2 2, .h0 .3 3, .b4 4, .b5 5, .b6 6, {}|1 7, {}|0 8, {}|0 9, {}|0 10 } |plane0,
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _h3, .h2 { .3 /0 _23, .2 /0 _22, .1 /0 _21, .0 /1 _20 } _h2, .h1 _h1, .h0 _h0, .lo_byte lo_byte }
-    { .lo_byte .0 "0", .lo_byte .1 "1", .lo_byte .2 "2", .lo_byte .3 "3", .lo_byte .4 "4", .lo_byte .5 "5", .lo_byte .6 "6", .lo_byte .7 "7", {} |1 "8", {} |0 "9", {} |0 "10" } |plane0,
+    { .lo_byte .0 0, .lo_byte .1 1, .lo_byte .2 2, .lo_byte .3 3, .lo_byte .4 4, .lo_byte .5 5, .lo_byte .6 6, .lo_byte .7 7, {}|1 8, {}|0 9, {}|0 10 } |plane0,
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _h3, .h2 .3 /0 _23, .h2 .2 /0 _22, .h2 .1 /1 _21, .h2 .0 b8, .h1 _h1, .h0 _h0, .lo_byte lo_byte }
-    { .lo_byte .0 "0", .lo_byte .1 "1", .lo_byte .2 "2", .lo_byte .3 "3", .lo_byte .4 "4", .lo_byte .5 "5", .lo_byte .6 "6", .lo_byte .7 "7", .b8 "8", {} |1 "9", {} |0 "10" } |plane0,
+    { .lo_byte .0 0, .lo_byte .1 1, .lo_byte .2 2, .lo_byte .3 3, .lo_byte .4 4, .lo_byte .5 5, .lo_byte .6 6, .lo_byte .7 7, .b8 8, {}|1 9, {}|0 10 } |plane0,
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _h3, .h2 .3 /0 _23, .h2 .2 /1 _22, .h2 .1 b9, .h2 .0 b8, .h1 _h1, .h0 _h0, .lo_byte lo_byte }
-    { .lo_byte .0 "0", .lo_byte .1 "1", .lo_byte .2 "2", .lo_byte .3 "3", .lo_byte .4 "4", .lo_byte .5 "5", .lo_byte .6 "6", .lo_byte .7 "7", .b8 "8", .b9 "9", {} |1 "10" } |plane0,
+    { .lo_byte .0 0, .lo_byte .1 1, .lo_byte .2 2, .lo_byte .3 3, .lo_byte .4 4, .lo_byte .5 5, .lo_byte .6 6, .lo_byte .7 7, .b8 8, .b9 9, {}|1 10 } |plane0,
 
   -- 0x0800..0x0FFF: h08_0F
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /0 _0 } _h3, .h2 .3 /1 _23, .h2 .2 b2, .h2 .1 b1, .h2 .0 b0, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .b0 "0", .b1 "1", .b2 "2" } |h08_0F hi, .lo lo } |bmp_common,
+    { { .b0 0, .b1 1, .b2 2 } |h08_0F hi, .lo lo } |bmp_common,
 
   -- 0x1000..0x7FFF: h10_7F (hi_byte - 0x10)
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", {} |0 "4", {} |0 "5", {} |0 "6" } |h10_7F hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, {}|0 4, {}|0 5, {}|0 6 } |h10_7F hi, .lo lo } |bmp_common,
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /0 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", {} |1 "4", {} |0 "5", {} |0 "6" } |h10_7F hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, {}|1 4, {}|0 5, {}|0 6 } |h10_7F hi, .lo lo } |bmp_common,
   { .h3 { .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", {} |0 "4", {} |1 "5", {} |0 "6" } |h10_7F hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, {}|0 4, {}|1 5, {}|0 6 } |h10_7F hi, .lo lo } |bmp_common,
   { .h3 { .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", {} |1 "4", {} |1 "5", {} |0 "6" } |h10_7F hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, {}|1 4, {}|1 5, {}|0 6 } |h10_7F hi, .lo lo } |bmp_common,
   { .h3 { .3 /0 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", {} |0 "4", {} |0 "5", {} |1 "6" } |h10_7F hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, {}|0 4, {}|0 5, {}|1 6 } |h10_7F hi, .lo lo } |bmp_common,
   { .h3 { .3 /0 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", {} |1 "4", {} |0 "5", {} |1 "6" } |h10_7F hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, {}|1 4, {}|0 5, {}|1 6 } |h10_7F hi, .lo lo } |bmp_common,
   { .h3 { .3 /0 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", {} |0 "4", {} |1 "5", {} |1 "6" } |h10_7F hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, {}|0 4, {}|1 5, {}|1 6 } |h10_7F hi, .lo lo } |bmp_common,
 
   -- 0x8000..0xCFFF: h80_CF (drop bit 15 of h3, keep bits 14..8)
   { .h3 .3 /1 _3, .h3 .2 /0 _6, .h3 .1 b5, .h3 .0 b4, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", .b4 "4", .b5 "5", {} |0 "6" } |h80_CF hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, .b4 4, .b5 5, {}|0 6 } |h80_CF hi, .lo lo } |bmp_common,
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /0 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .h2 .0 "0", .h2 .1 "1", .h2 .2 "2", .h2 .3 "3", {} |0 "4", {} |0 "5", {} |1 "6" } |h80_CF hi, .lo lo } |bmp_common,
+    { { .h2 .0 0, .h2 .1 1, .h2 .2 2, .h2 .3 3, {}|0 4, {}|0 5, {}|1 6 } |h80_CF hi, .lo lo } |bmp_common,
 
   -- 0xD000..0xD7FF: hD0_D7 (0xD800..0xDFFF intentionally excluded!)
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 } _h3, .h2 .3 /0 _23, .h2 .2 b2, .h2 .1 b1, .h2 .0 b0, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .b0 "0", .b1 "1", .b2 "2" } |hD0_D7 hi, .lo lo } |bmp_common,
+    { { .b0 0, .b1 1, .b2 2 } |hD0_D7 hi, .lo lo } |bmp_common,
 
   -- 0xE000..0xEFFF: hE0_EF
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /0 _0 } _h3, .h2 h2, .h1 _h1, .h0 _h0, .lo_byte lo }
@@ -421,17 +428,17 @@ dj_bmp_to_unicode = ?dj_hex4[] {
 
   -- 0xF000..0xFFFF: hF0_F7 / hF8 / hF9 / hFA_FB / hFC_FD / hFE_FF
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _h3, .h2 .3 /0 _23, .h2 .2 b2, .h2 .1 b1, .h2 .0 b0, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .b0 "0", .b1 "1", .b2 "2" } |hF0_F7 hi, .lo lo } |bmp_private_use,
+    { { .b0 0, .b1 1, .b2 2 } |hF0_F7 hi, .lo lo } |bmp_private_use,
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _h3, .h2 { .3 /1 _23, .2 /0 _22, .1 /0 _21, .0 /0 _20 } _h2, .h1 _h1, .h0 _h0, .lo_byte lo }
     { {} |hF8 hi, .lo lo } |bmp_private_use,
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _h3, .h2 { .3 /1 _23, .2 /0 _22, .1 /0 _21, .0 /1 _20 } _h2, .h1 _h1, .h0 _h0, .lo_byte lo }
     { {} |hF9 hi, .lo lo } |bmp_common,
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _h3, .h2 .3 /1 _23, .h2 .2 /0 _22, .h2 .1 /1 _21, .h2 .0 b0, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .b0 "0" } |hFA_FB hi, .lo lo } |bmp_common,
+    { { .b0 0 } |hFA_FB hi, .lo lo } |bmp_common,
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _h3, .h2 .3 /1 _23, .h2 .2 /1 _22, .h2 .1 /0 _21, .h2 .0 b0, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .b0 "0" } |hFC_FD hi, .lo lo } |bmp_common,
+    { { .b0 0 } |hFC_FD hi, .lo lo } |bmp_common,
   { .h3 { .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 /1 _0 } _h3, .h2 .3 /1 _23, .h2 .2 /1 _22, .h2 .1 /1 _21, .h2 .0 b0, .h1 _h1, .h0 _h0, .lo_byte lo }
-    { { .b0 "0" } |hFE_FF hi, .lo lo } |bmp_common
+    { { .b0 0 } |hFE_FF hi, .lo lo } |bmp_common
 > ?unicode[];
 
 
@@ -460,10 +467,7 @@ dj_rev_bits = ?bits[] { () src, {} |_ acc } dj_rev_bits_step ?bits[];
 
 dj_trim_lsb = ?bits[] dj_rev_bits dj_msb_drop_zeros dj_rev_bits ?bits[];
 
-dj_lsb_to_msb = ?bits[] dj_rev_bits dj_msb_drop_zeros <
-  /_ {} |_ |0,
-  /1 |1
-> ?bits[];
+dj_lsb_to_msb = ?bits[] dj_rev_bits dj_msb_drop_zeros ?bits[];
 
 dj_lsb_shl1 = ?bits[] < /_ {} |_, /0 |0 |0, /1 |1 |0 > ?bits[];
 dj_lsb_shl3 = dj_lsb_shl1 dj_lsb_shl1 dj_lsb_shl1;
@@ -494,14 +498,14 @@ dj_lsb_dec_step = ?{ bits[] src, bits[] os } <
 dj_lsb_dec = ?bits[] { () src, {} |_ os } dj_lsb_dec_step ?bits[];
 
 dj_pop_lsb = ?bits[] <
-  /_ { {} |0 bit, {} |_ tail },
-  /0 { {} |0 bit, () tail },
-  /1 { {} |1 bit, () tail }
+  /_ { {}|0 bit, {} |_ tail },
+  /0 { {}|0 bit, () tail },
+  /1 { {}|1 bit, () tail }
 > ?{ bit[] bit, bits[] tail };
 
 dj_pop_lsb_strict = ?bits[] <
-  /0 { {} |0 bit, () tail },
-  /1 { {} |1 bit, () tail }
+  /0 { {}|0 bit, () tail },
+  /1 { {}|1 bit, () tail }
 > ?{ bit[] bit, bits[] tail };
 
 dj_push_bit_acc = ?{ bit[] bit, bits[] acc } <
@@ -510,33 +514,33 @@ dj_push_bit_acc = ?{ bit[] bit, bits[] acc } <
 > .acc ?bits[];
 
 dj_full_add_bit = ?{ bit[] a, bit[] b, bit[] c } <
-  { .a /0 _a, .b /0 _b, .c /0 _c } { {} |0 s, {} |0 c },
+  { .a /0 _a, .b /0 _b, .c /0 _c } { {}|0 s, {}|0 c },
   <
     { .a /1 _a, .b /0 _b, .c /0 _c },
     { .a /0 _a, .b /1 _b, .c /0 _c },
     { .a /0 _a, .b /0 _b, .c /1 _c }
-  > { {} |1 s, {} |0 c },
+  > { {}|1 s, {}|0 c },
   <
     { .a /1 _a, .b /1 _b, .c /0 _c },
     { .a /1 _a, .b /0 _b, .c /1 _c },
     { .a /0 _a, .b /1 _b, .c /1 _c }
-  > { {} |0 s, {} |1 c },
-  { .a /1 _a, .b /1 _b, .c /1 _c } { {} |1 s, {} |1 c }
+  > { {}|0 s, {}|1 c },
+  { .a /1 _a, .b /1 _b, .c /1 _c } { {}|1 s, {}|1 c }
 > ?{ bit[] s, bit[] c };
 
 dj_full_sub_bit = ?{ bit[] a, bit[] b, bit[] c } <
-  { .a /0 _a, .b /0 _b, .c /0 _c } { {} |0 s, {} |0 c },
-  { .a /1 _a, .b /0 _b, .c /0 _c } { {} |1 s, {} |0 c },
+  { .a /0 _a, .b /0 _b, .c /0 _c } { {}|0 s, {}|0 c },
+  { .a /1 _a, .b /0 _b, .c /0 _c } { {}|1 s, {}|0 c },
   <
     { .a /1 _a, .b /1 _b, .c /0 _c },
     { .a /1 _a, .b /0 _b, .c /1 _c }
-  > { {} |0 s, {} |0 c },
+  > { {}|0 s, {}|0 c },
   <
     { .a /0 _a, .b /1 _b, .c /0 _c },
     { .a /0 _a, .b /0 _b, .c /1 _c },
     { .a /1 _a, .b /1 _b, .c /1 _c }
-  > { {} |1 s, {} |1 c },
-  { .a /0 _a, .b /1 _b, .c /1 _c } { {} |0 s, {} |1 c }
+  > { {}|1 s, {}|1 c },
+  { .a /0 _a, .b /1 _b, .c /1 _c } { {}|0 s, {}|1 c }
 > ?{ bit[] s, bit[] c };
 
 dj_lsb_add_step = ?{ bits[] x, bits[] y, bit[] c, bits[] acc } <
@@ -564,7 +568,7 @@ dj_lsb_add_step = ?{ bits[] x, bits[] y, bit[] c, bits[] acc } <
   } dj_lsb_add_step
 > ?bits[];
 
-dj_lsb_add = ?{ bits[] x, bits[] y } { .x x, .y y, {} |0 c, {} |_ acc } dj_lsb_add_step dj_trim_lsb ?bits[];
+dj_lsb_add = ?{ bits[] x, bits[] y } { .x x, .y y, {}|0 c, {} |_ acc } dj_lsb_add_step dj_trim_lsb ?bits[];
 
 dj_lsb_sub_step = ?{ bits[] x, bits[] y, bit[] c, bits[] acc } <
   { .x acc, .y /_ _y, .c /0 _c, .acc src } { .src src, .acc acc } dj_rev_bits_step,
@@ -589,7 +593,7 @@ dj_lsb_sub_step = ?{ bits[] x, bits[] y, bit[] c, bits[] acc } <
   } dj_lsb_sub_step
 > ?bits[];
 
-dj_lsb_sub = ?{ bits[] x, bits[] y } { .x x, .y y, {} |0 c, {} |_ acc } dj_lsb_sub_step dj_trim_lsb ?bits[];
+dj_lsb_sub = ?{ bits[] x, bits[] y } { .x x, .y y, {}|0 c, {} |_ acc } dj_lsb_sub_step dj_trim_lsb ?bits[];
 
 dj_lsb_cmp_step = ?{ bits[] x, bits[] y, order[] ord } <
   { .x /_ _x, .y /_ _y, .ord ord } .ord,
@@ -710,29 +714,29 @@ dj_json_escape = <
 -- Matches ASCII >= 0x20, explicitly excluding '"' (0x22) and '\' (0x5C).
 dj_plain_ascii = ?ascii[] <
   -- 0x40..0x7F excluding 0x5C ('\' = 1011100)
-  { .6 /1 _6, .5 /1 _5, .4 "4", .3 "3", .2 "2", .1 "1", .0 "0" }
-    { {} |1 "6", {} |1 "5", .4 "4", .3 "3", .2 "2", .1 "1", .0 "0" },
-  { .6 /1 _6, .5 /0 _5, .4 /0 _4, .3 "3", .2 "2", .1 "1", .0 "0" }
-    { {} |1 "6", {} |0 "5", {} |0 "4", .3 "3", .2 "2", .1 "1", .0 "0" },
-  { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /0 _3, .2 "2", .1 "1", .0 "0" }
-    { {} |1 "6", {} |0 "5", {} |1 "4", {} |0 "3", .2 "2", .1 "1", .0 "0" },
-  { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /0 _2, .1 "1", .0 "0" }
-    { {} |1 "6", {} |0 "5", {} |1 "4", {} |1 "3", {} |0 "2", .1 "1", .0 "0" },
-  { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 "0" }
-    { {} |1 "6", {} |0 "5", {} |1 "4", {} |1 "3", {} |1 "2", {} |1 "1", .0 "0" },
+  { .6 /1 _6, .5 /1 _5, .4 4, .3 3, .2 2, .1 1, .0 0 }
+    { {}|1 6, {}|1 5, .4 4, .3 3, .2 2, .1 1, .0 0 },
+  { .6 /1 _6, .5 /0 _5, .4 /0 _4, .3 3, .2 2, .1 1, .0 0 }
+    { {}|1 6, {}|0 5, {}|0 4, .3 3, .2 2, .1 1, .0 0 },
+  { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /0 _3, .2 2, .1 1, .0 0 }
+    { {}|1 6, {}|0 5, {}|1 4, {}|0 3, .2 2, .1 1, .0 0 },
+  { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /0 _2, .1 1, .0 0 }
+    { {}|1 6, {}|0 5, {}|1 4, {}|1 3, {}|0 2, .1 1, .0 0 },
+  { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /1 _1, .0 0 }
+    { {}|1 6, {}|0 5, {}|1 4, {}|1 3, {}|1 2, {}|1 1, .0 0 },
   { .6 /1 _6, .5 /0 _5, .4 /1 _4, .3 /1 _3, .2 /1 _2, .1 /0 _1, .0 /1 _0 }
-    { {} |1 "6", {} |0 "5", {} |1 "4", {} |1 "3", {} |1 "2", {} |0 "1", {} |1 "0" },
+    { {}|1 6, {}|0 5, {}|1 4, {}|1 3, {}|1 2, {}|0 1, {}|1 0 },
   -- 0x20..0x3F excluding 0x22 ('"' = 0100010)
-  { .6 /0 _6, .5 /1 _5, .4 /1 _4, .3 "3", .2 "2", .1 "1", .0 "0" }
-    { {} |0 "6", {} |1 "5", {} |1 "4", .3 "3", .2 "2", .1 "1", .0 "0" },
-  { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 "2", .1 "1", .0 "0" }
-    { {} |0 "6", {} |1 "5", {} |0 "4", {} |1 "3", .2 "2", .1 "1", .0 "0" },
-  { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /1 _2, .1 "1", .0 "0" }
-    { {} |0 "6", {} |1 "5", {} |0 "4", {} |0 "3", {} |1 "2", .1 "1", .0 "0" },
-  { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 "0" }
-    { {} |0 "6", {} |1 "5", {} |0 "4", {} |0 "3", {} |0 "2", {} |0 "1", .0 "0" },
+  { .6 /0 _6, .5 /1 _5, .4 /1 _4, .3 3, .2 2, .1 1, .0 0 }
+    { {}|0 6, {}|1 5, {}|1 4, .3 3, .2 2, .1 1, .0 0 },
+  { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /1 _3, .2 2, .1 1, .0 0 }
+    { {}|0 6, {}|1 5, {}|0 4, {}|1 3, .2 2, .1 1, .0 0 },
+  { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /1 _2, .1 1, .0 0 }
+    { {}|0 6, {}|1 5, {}|0 4, {}|0 3, {}|1 2, .1 1, .0 0 },
+  { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 0 }
+    { {}|0 6, {}|1 5, {}|0 4, {}|0 3, {}|0 2, {}|0 1, .0 0 },
   { .6 /0 _6, .5 /1 _5, .4 /0 _4, .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 /1 _0 }
-    { {} |0 "6", {} |1 "5", {} |0 "4", {} |0 "3", {} |0 "2", {} |1 "1", {} |1 "0" }
+    { {}|0 6, {}|1 5, {}|0 4, {}|0 3, {}|0 2, {}|1 1, {}|1 0 }
 > ?ascii[];
 
 dj_plain_char = ?unicode[] <
@@ -778,10 +782,10 @@ dj_scan_int_part = ?string[] <
   dj_take_zero dj_not_digit? { () rest, {} |_ mant },
   dj_take_digit {
     .val <
-      { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 } { {} |0 "3", {} |0 "2", {} |0 "1", {} |1 "0" },
-      { .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 0 }     { {} |0 "3", {} |0 "2", {} |1 "1", .0 "0" },
-      { .3 /0 _3, .2 /1 _2, .1 1,     .0 0 }     { {} |0 "3", {} |1 "2", .1 "1",     .0 "0" },
-      { .3 /1 _3, .2 2,     .1 1,     .0 0 }     { {} |1 "3", .2 "2",     .1 "1",     .0 "0" }
+      { .3 /0 _3, .2 /0 _2, .1 /0 _1, .0 /1 _0 } { {}|0 3, {}|0 2, {}|0 1, {}|1 0 },
+      { .3 /0 _3, .2 /0 _2, .1 /1 _1, .0 0 }     { {}|0 3, {}|0 2, {}|1 1, .0 0 },
+      { .3 /0 _3, .2 /1 _2, .1 1,     .0 0 }     { {}|0 3, {}|1 2, .1 1,     .0 0 },
+      { .3 /1 _3, .2 2,     .1 1,     .0 0 }     { {}|1 3, .2 2,     .1 1,     .0 0 }
     > dj_nibble_to_lsb acc,
     .rest rest,
     {} |_ cnt
@@ -944,7 +948,7 @@ dj_parse_expect_val = ?{ string[] rest, list[dj_parse_frame[]] stack } {
     } |got_val,
     { .rest rest, .stack stack } {
       .rest rest,
-      { { btrie_empty tree, {} |_ |0 index } |arr car, .stack cdr } |cons stack
+      { { btrie_empty tree, {} |_ index } |arr car, .stack cdr } |cons stack
     } |expect_val
   >,
   { .rest dj_take_lbrace dj_ws rest, .stack stack } <

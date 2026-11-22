@@ -34,7 +34,7 @@ const listWire = encodeToWire(parsedList, INT_LIST_PATTERN);
 const decodedList = decodeWire(listWire).value;
 assert.equal(
   valueWithEnvelopeToK(decodedList),
-  "{{}|_|0|+ car, {{}|_|1|+ car, {{}|_|0|1|+ car, {}|nil cdr}|cons cdr}|cons cdr}|cons ?<{<<X1 0, X1 1, {}=X2 _>=X1 +, X1 -> car, X0 cdr} cons, X2 nil>=X0"
+  "{{}|_|+ car, {{}|_|1|+ car, {{}|_|0|1|+ car, {}|nil cdr}|cons cdr}|cons cdr}|cons ?<{<<X1 0, X1 1, {}=X2 _>=X1 +, X1 -> car, X0 cdr} cons, X2 nil>=X0"
 );
 assert.equal(printInt(decodedList), "[0,1,2]");
 
