@@ -347,6 +347,7 @@ export class BitChunkCompilerV4 {
     this.stats = {
       loop1Compiled: 0,
       loop2Compiled: 0,
+      stackLoopCompiled: 0,
       fsmCompressedCompiled: 0,
       fsmHeterogeneousCompiled: 0,
       totalTableEntries: 0
@@ -367,6 +368,8 @@ export class BitChunkCompilerV4 {
       if (tbl.kind === "loop") {
         if (tbl.arity === 1) this.stats.loop1Compiled++;
         else this.stats.loop2Compiled++;
+      } else if (tbl.kind === "stack-loop") {
+        this.stats.stackLoopCompiled++;
       } else if (tbl.fsmMode === "dont-care") {
         this.stats.fsmCompressedCompiled++;
       } else {
@@ -404,6 +407,7 @@ export class BitChunkCompilerV4 {
     const peekedSet = new Set();
     const shiftedSet = new Set();
     const accSet = new Set();
+    const outEmitSet = new Set();
     const loopNodes = [];
     const seen = new Set();
     const walk = (n) => {
@@ -416,6 +420,11 @@ export class BitChunkCompilerV4 {
         for (let p = 0; p < P; p++) {
           const e = n.nextExprs[p];
           if (e.kind === "splice" && e.newPrefix && e.newPrefix.length > 0) accSet.add(p);
+        }
+        if (n.outEmitPrefixes) {
+          for (let q = 0; q < compiled.outCount; q++) {
+            if (n.outEmitPrefixes[q] && n.outEmitPrefixes[q].length > 0) outEmitSet.add(q);
+          }
         }
       }
       if (n.cases) for (const c of Object.values(n.cases)) walk(c);
@@ -436,11 +445,26 @@ export class BitChunkCompilerV4 {
       }
     }
     const guardAccSet = new Set(guardAccPorts);
+
+    // Mixed read+write stack port (e.g. deferred-zero LIFO stack `z` in `_lsb_trim`, both pushed
+    // and popped across register modes): synthesize a general virtual-stack TMC chunk table!
+    const mixedStackPorts = [];
+    for (const p of accSet) {
+      if (peekedSet.has(p) && !guardAccSet.has(p)) mixedStackPorts.push(p);
+    }
+    if (mixedStackPorts.length > 0) {
+      return this._trySynthesizeStackLoop(
+        compiled, bp, regPort, regTags, regTagToIdx,
+        peekedSet, mixedStackPorts, outEmitSet
+      );
+    }
     const streamPorts = [...peekedSet].filter((p) => !guardAccSet.has(p)).sort((a, b) => a - b);
     const accPorts = [...accSet].filter((p) => !peekedSet.has(p) || guardAccSet.has(p)).sort((a, b) => a - b);
+    const outEmitPorts = [...outEmitSet].sort((a, b) => a - b);
 
     if (streamPorts.length < 1 || streamPorts.length > 2) return null;
-    if (accPorts.length > 1) return null;
+    if (accPorts.length > 1 || outEmitPorts.length > 1) return null;
+    if (accPorts.length > 0 && outEmitPorts.length > 0) return null;
     const guardAccPort = guardAccPorts.length === 1 && accPorts[0] === guardAccPorts[0] ? guardAccPorts[0] : -1;
 
     const streamSpecs = streamPorts.map((p) => {
@@ -460,6 +484,15 @@ export class BitChunkCompilerV4 {
       const tbl = this.codec.getNodeTable(bp.inPlist, leaf.nodeId);
       if (!tbl || tbl.maxWidth === 0) return null;
       accSpec = { p, leaf, tbl };
+    }
+
+    let outEmitSpec = null;
+    if (outEmitPorts.length === 1) {
+      const q = outEmitPorts[0];
+      const leaf = compiled.outLeaves[q];
+      const tbl = this.codec.getNodeTable(bp.outPlist, leaf.nodeId);
+      if (!tbl || tbl.maxWidth === 0) return null;
+      outEmitSpec = { q, leaf, tbl };
     }
 
     // Choose token-aligned raw window widths `W_raw = numTokens * w` so that total
@@ -599,13 +632,32 @@ export class BitChunkCompilerV4 {
               nextGuardTag = ae.newPrefix[0];
             }
           }
+        } else if (outEmitSpec) {
+          const pref = cur.outEmitPrefixes?.[outEmitSpec.q];
+          if (pref && pref.length > 0) {
+            for (const t of pref) {
+              const ent = outEmitSpec.tbl.byTag.get(t);
+              if (!ent || !sameUnionLayout(bp.outPlist, outEmitSpec.leaf.nodeId, ent.target)) {
+                cleanLoop = false;
+                break;
+              }
+              iterEmitEntries.push(ent);
+              iterBits += ent.width;
+            }
+          }
         }
         if (!cleanLoop || emitBitsTotal + iterBits > 24) break;
 
         for (let si = 0; si < streamPorts.length; si++) tokPos[si] = localTokPos[si];
         regIdx = nextRegIdx;
         curGuardTag = nextGuardTag;
-        for (let i = iterEmitEntries.length - 1; i >= 0; i--) emitTokens.push(iterEmitEntries[i]);
+        if (outEmitSpec) {
+          // TMC forward output emission (`outDq.pushBits`): preserve chronological order!
+          for (let i = 0; i < iterEmitEntries.length; i++) emitTokens.push(iterEmitEntries[i]);
+        } else {
+          // Accumulator prepend (`accDq.unshiftBits`): reverse chronological order!
+          for (let i = iterEmitEntries.length - 1; i >= 0; i--) emitTokens.push(iterEmitEntries[i]);
+        }
         emitBitsTotal += iterBits;
         iters++;
 
@@ -613,9 +665,16 @@ export class BitChunkCompilerV4 {
       }
 
       let emitCode = 0;
-      for (let i = emitTokens.length - 1; i >= 0; i--) {
-        const ent = emitTokens[i];
-        emitCode = ((emitCode << ent.width) | ent.code) >>> 0;
+      if (outEmitSpec) {
+        for (let i = 0; i < emitTokens.length; i++) {
+          const ent = emitTokens[i];
+          emitCode = ((emitCode << ent.width) | ent.code) >>> 0;
+        }
+      } else {
+        for (let i = emitTokens.length - 1; i >= 0; i--) {
+          const ent = emitTokens[i];
+          emitCode = ((emitCode << ent.width) | ent.code) >>> 0;
+        }
       }
 
       return {
@@ -725,6 +784,8 @@ export class BitChunkCompilerV4 {
         regTagToIdx,
         streamPort0: streamPorts[0],
         accPort: accSpec ? accSpec.p : -1,
+        outEmitPort: outEmitSpec ? outEmitSpec.q : -1,
+        isTmc: Boolean(outEmitSpec),
         guardValidTags,
         guardPrefix,
         tblIters,
@@ -804,6 +865,8 @@ export class BitChunkCompilerV4 {
         streamPort0: streamPorts[0],
         streamPort1: streamPorts[1],
         accPort: accSpec ? accSpec.p : -1,
+        outEmitPort: outEmitSpec ? outEmitSpec.q : -1,
+        isTmc: Boolean(outEmitSpec),
         guardValidTags,
         guardPrefix,
         tblIters,
@@ -814,6 +877,511 @@ export class BitChunkCompilerV4 {
         tblNextReg
       };
     }
+  }
+
+  // =========================================================================
+  // 1b. Stack-Port TMC Variable-Width Bit-Chunk Compiler
+  //     (1 input stream + 1 LIFO stack port + 1 mode register + TMC output,
+  //      e.g. single-pass online `_lsb_trim`!)
+  // =========================================================================
+
+  _trySynthesizeStackLoop(compiled, bp, regPort, regTags, regTagToIdx, peekedSet, mixedStackPorts, outEmitSet) {
+    if (regPort < 0 || mixedStackPorts.length !== 1) return null;
+    const stackPort = mixedStackPorts[0];
+    const streamPorts = [...peekedSet].filter((p) => p !== stackPort).sort((a, b) => a - b);
+    const outEmitPorts = [...outEmitSet].sort((a, b) => a - b);
+    if (streamPorts.length !== 1 || outEmitPorts.length !== 1) return null;
+
+    const streamPort = streamPorts[0];
+    const outEmitPort = outEmitPorts[0];
+    const R = regTags.length;
+
+    const streamLeaf = compiled.inLeaves[streamPort];
+    const streamTbl = this.codec.getNodeTable(bp.inPlist, streamLeaf.nodeId);
+    const stackLeaf = compiled.inLeaves[stackPort];
+    const stackTbl = this.codec.getNodeTable(bp.inPlist, stackLeaf.nodeId);
+    const outLeaf = compiled.outLeaves[outEmitPort];
+    const outTbl = this.codec.getNodeTable(bp.outPlist, outLeaf.nodeId);
+    if (!streamTbl || !stackTbl || !outTbl) return null;
+    if (streamTbl.maxWidth === 0 || stackTbl.maxWidth === 0 || outTbl.maxWidth === 0) return null;
+
+    // Identify unique bottom sentinel tag on `stackTbl` (unit `{}` target; all others self-recursive)
+    let bottomEntry = null;
+    for (const ent of stackTbl.byTag.values()) {
+      const te = bp.inPlist[ent.target];
+      if (te && te[0] === "closed-product" && te[1].length === 0) {
+        if (bottomEntry) return null;
+        bottomEntry = ent;
+      } else if (!sameUnionLayout(bp.inPlist, stackLeaf.nodeId, ent.target)) {
+        return null;
+      }
+    }
+    if (!bottomEntry) return null;
+
+    // Classify each register mode `r` by walking reachable nodes from `compiled.root` with `regPort = regTags[r]`
+    const modeInfo = [];
+    for (let r = 0; r < R; r++) {
+      let touchesStream = false;
+      let touchesStack = false;
+      let pushesStack = false;
+      const seen = new Set();
+      const modeNodes = [];
+      const walkMode = (n) => {
+        if (!n || seen.has(n.id)) return;
+        seen.add(n.id);
+        if ((n.kind === "peek" || n.kind === "shift") && n.p === regPort) {
+          walkMode(n.cases[regTags[r]]);
+          return;
+        }
+        if (n.kind === "peek" || n.kind === "shift") {
+          modeNodes.push(n);
+          if (n.p === streamPort) touchesStream = true;
+          if (n.p === stackPort) touchesStack = true;
+          for (const c of Object.values(n.cases)) walkMode(c);
+        } else if (n.kind === "loop") {
+          const se = n.nextExprs[stackPort];
+          if (se.kind === "splice" && se.newPrefix && se.newPrefix.length > 0) pushesStack = true;
+        }
+      };
+      walkMode(compiled.root);
+      modeInfo.push({ r, touchesStream, touchesStack, pushesStack, modeNodes });
+    }
+
+    // Helper: minimal unitMask on `portIdx` restricted to a subset of DAG nodes
+    const analyzeSubsetMask = (tbl, baseNodeId, portIdx, nodes) => {
+      const w = tbl.maxWidth;
+      const fullMask = (1 << w) - 1;
+      if (w <= 1) return fullMask;
+      const pNodes = nodes.filter((n) => n.p === portIdx);
+      if (pNodes.length === 0) return fullMask;
+      const contEntries = [];
+      const contTagSet = new Set();
+      for (const ent of tbl.byTag.values()) {
+        if (sameUnionLayout(bp.inPlist, baseNodeId, ent.target)) {
+          contEntries.push(ent);
+          contTagSet.add(ent.tag);
+        }
+      }
+      if (contEntries.length === 0) return fullMask;
+      let curMask = fullMask;
+      for (let b = 0; b < w; b++) {
+        const cand = curMask & ~(1 << b);
+        if (cand === 0) continue;
+        const mt = buildMaskedTokenTable(tbl, bp.inPlist, baseNodeId, cand, contTagSet);
+        let sep = true;
+        for (const ent of contEntries) {
+          if (!mt.classRep[maskSingleCode(ent.code, w, cand)]) { sep = false; break; }
+        }
+        if (!sep) continue;
+        let eq = true;
+        for (let mk = 0; mk < mt.buckets.length && eq; mk++) {
+          if (!mt.classRep[mk]) continue;
+          const tags = mt.buckets[mk].map((raw) => tbl.decodeTable[raw].tag);
+          if (tags.length <= 1) continue;
+          for (const dn of pNodes) {
+            const ref = dn.cases[tags[0]];
+            for (let i = 1; i < tags.length; i++) {
+              if (!areLoopEquivalent(ref, dn.cases[tags[i]])) { eq = false; break; }
+            }
+            if (!eq) break;
+          }
+        }
+        if (eq) curMask = cand;
+      }
+      return curMask;
+    };
+
+    const modeTables = new Array(R).fill(null);
+    let totalTableSize = 0;
+    let totalMemoryBytes = 0;
+    let maxInputW = 0;
+    let maxFlushW = 0;
+    let scanSens = null;
+    let flushSens = null;
+
+    const streamUnitMask = analyzePortUnitMask(compiled, bp, streamTbl, streamLeaf.nodeId, streamPort, true);
+    const streamMaskedTbl = buildMaskedTokenTable(streamTbl, bp.inPlist, streamLeaf.nodeId, streamUnitMask);
+
+    for (const mi of modeInfo) {
+      if (!mi.touchesStream && mi.touchesStack && !mi.pushesStack) {
+        // --- Mode Type A: Stack-only flush mode (e.g. `mode=1` in `_lsb_trim`) ---
+        const zMask = analyzeSubsetMask(stackTbl, stackLeaf.nodeId, stackPort, mi.modeNodes);
+        const zMasked = buildMaskedTokenTable(stackTbl, bp.inPlist, stackLeaf.nodeId, zMask);
+        const maxToksByRaw = Math.floor(16 / stackTbl.maxWidth);
+        const maxToksByKey = Math.floor(Math.min(8, this.maxKeyBits) / zMasked.kBits);
+        const numToks = Math.max(1, Math.min(maxToksByRaw, maxToksByKey));
+        const ext = buildBitExtractor(stackTbl.maxWidth, zMask, numToks);
+        const keySpan = 1 << ext.keyBits;
+
+        const tblIters = new Uint8Array(keySpan);
+        const tblConsume = new Uint8Array(keySpan);
+        const tblEmitBits = new Uint8Array(keySpan);
+        const tblEmitCode = new Uint32Array(keySpan);
+        const tblNextReg = new Uint8Array(keySpan);
+
+        let maxC = 0;
+        for (let key = 0; key < keySpan; key++) {
+          let regIdx = mi.r;
+          let zPos = 0;
+          let iters = 0;
+          const emitTokens = [];
+          let emitBits = 0;
+
+          while (iters < 16 && regIdx === mi.r) {
+            let localZ = zPos;
+            const zPeek = [];
+            let cur = compiled.root;
+            let ok = true;
+            while (cur.kind === "peek" || cur.kind === "shift") {
+              let tok = null;
+              if (cur.p === regPort) {
+                tok = regTags[regIdx];
+              } else if (cur.p === stackPort) {
+                if (cur.kind === "shift") {
+                  if (zPeek.length > 0) tok = zPeek.shift();
+                  else {
+                    if (localZ >= numToks) { ok = false; break; }
+                    const mk = (key >>> ((numToks - 1 - localZ) * ext.kBitsPerTok)) & ((1 << ext.kBitsPerTok) - 1);
+                    const ent = zMasked.classRep[mk];
+                    if (!ent) { ok = false; break; }
+                    localZ++;
+                    tok = ent.tag;
+                  }
+                } else {
+                  while (zPeek.length <= cur.depth) {
+                    if (localZ >= numToks) { ok = false; break; }
+                    const mk = (key >>> ((numToks - 1 - localZ) * ext.kBitsPerTok)) & ((1 << ext.kBitsPerTok) - 1);
+                    const ent = zMasked.classRep[mk];
+                    if (!ent) { ok = false; break; }
+                    localZ++;
+                    zPeek.push(ent.tag);
+                  }
+                  if (!ok) break;
+                  tok = zPeek[cur.depth];
+                }
+              } else {
+                ok = false;
+                break;
+              }
+              const nxt = cur.cases[tok];
+              if (!nxt) { ok = false; break; }
+              cur = nxt;
+            }
+            if (!ok || cur.kind !== "loop" || cur.drainOncePorts.length > 0) break;
+            // Verify streamPort untouched and stackPort purely consumed
+            const inE = cur.nextExprs[streamPort];
+            if (inE.kind !== "splice" || inE.consumeCount > 0 || (inE.newPrefix?.length || 0) > 0) break;
+            const zE = cur.nextExprs[stackPort];
+            if (zE.kind !== "splice" || (zE.newPrefix?.length || 0) > 0 || (zE.unconsumed?.length || 0) > 0) break;
+
+            let nextRegIdx = regIdx;
+            const rE = cur.nextExprs[regPort];
+            if (rE.kind === "const" && rE.tokens.length === 1) {
+              nextRegIdx = regTagToIdx.get(rE.tokens[0]);
+              if (nextRegIdx === undefined) break;
+            } else if (rE.kind !== "splice" || rE.consumeCount > 0 || (rE.newPrefix?.length || 0) > 0) {
+              break;
+            }
+
+            const pref = cur.outEmitPrefixes?.[outEmitPort] || [];
+            const iterEnts = [];
+            let iterB = 0;
+            let clean = true;
+            for (const t of pref) {
+              const ent = outTbl.byTag.get(t);
+              if (!ent || !sameUnionLayout(bp.outPlist, outLeaf.nodeId, ent.target)) { clean = false; break; }
+              iterEnts.push(ent);
+              iterB += ent.width;
+            }
+            if (!clean || emitBits + iterB > 24) break;
+            zPos = localZ;
+            regIdx = nextRegIdx;
+            for (const e of iterEnts) emitTokens.push(e);
+            emitBits += iterB;
+            iters++;
+            if (zPos === 0) break;
+          }
+
+          let emitCode = 0;
+          for (const e of emitTokens) emitCode = ((emitCode << e.width) | e.code) >>> 0;
+          const cBits = zPos * stackTbl.maxWidth;
+          tblIters[key] = iters;
+          tblConsume[key] = cBits;
+          tblEmitBits[key] = emitBits;
+          tblEmitCode[key] = emitCode;
+          tblNextReg[key] = regIdx;
+          if (cBits > maxC) maxC = cBits;
+        }
+
+        if (maxC > 0) {
+          modeTables[mi.r] = {
+            kind: "stack-only",
+            W_raw: ext.W_raw,
+            keyBits: ext.keyBits,
+            extract: ext.extract,
+            canPadTail: stackTbl.hasInvalidAllOnes,
+            tblIters,
+            tblConsume,
+            tblEmitBits,
+            tblEmitCode,
+            tblNextReg,
+            maxConsumeBits: maxC
+          };
+          totalTableSize += keySpan;
+          totalMemoryBytes += keySpan * 8;
+          if (maxC > maxFlushW) maxFlushW = maxC;
+          flushSens = `${ext.kBitsPerTok}/${ext.w}b`;
+        }
+      } else if (mi.touchesStream) {
+        // --- Mode Type B: Input-scan mode with virtual LIFO stack simulation ---
+        const buildScanSubTable = (zIsEmpty, keyCap) => {
+          const maxToksByRaw = Math.floor(12 / streamTbl.maxWidth);
+          const maxToksByKey = Math.floor(keyCap / streamMaskedTbl.kBits);
+          const numToks = Math.max(1, Math.min(maxToksByRaw, maxToksByKey));
+          const ext = buildBitExtractor(streamTbl.maxWidth, streamUnitMask, numToks);
+          const keySpan = 1 << ext.keyBits;
+
+          const tblIters = new Uint8Array(keySpan);
+          const tblConsume = new Uint8Array(keySpan);
+          const tblEmitBits = new Uint8Array(keySpan);
+          const tblEmitCode = new Uint32Array(keySpan);
+          const tblPushBits = new Uint8Array(keySpan);
+          const tblPushCode = new Uint32Array(keySpan);
+          const tblNextReg = new Uint8Array(keySpan);
+
+          let maxC = 0;
+          for (let key = 0; key < keySpan; key++) {
+            let regIdx = mi.r;
+            let tokPos = 0;
+            let vStack = zIsEmpty ? [bottomEntry.tag] : [];
+            const emitTokens = [];
+            let emitBits = 0;
+            let iters = 0;
+            let lastClean = null;
+
+            for (let step = 0; step < 32; step++) {
+              let localTok = tokPos;
+              const inPeek = [];
+              let localZ = 0;
+              const zPeek = [];
+              let cur = compiled.root;
+              let ok = true;
+
+              while (cur.kind === "peek" || cur.kind === "shift") {
+                let tok = null;
+                if (cur.p === regPort) {
+                  tok = regTags[regIdx];
+                } else if (cur.p === streamPort) {
+                  if (cur.kind === "shift") {
+                    if (inPeek.length > 0) tok = inPeek.shift();
+                    else {
+                      if (localTok >= numToks) { ok = false; break; }
+                      const mk = (key >>> ((numToks - 1 - localTok) * ext.kBitsPerTok)) & ((1 << ext.kBitsPerTok) - 1);
+                      const ent = streamMaskedTbl.classRep[mk];
+                      if (!ent) { ok = false; break; }
+                      localTok++;
+                      tok = ent.tag;
+                    }
+                  } else {
+                    while (inPeek.length <= cur.depth) {
+                      if (localTok >= numToks) { ok = false; break; }
+                      const mk = (key >>> ((numToks - 1 - localTok) * ext.kBitsPerTok)) & ((1 << ext.kBitsPerTok) - 1);
+                      const ent = streamMaskedTbl.classRep[mk];
+                      if (!ent) { ok = false; break; }
+                      localTok++;
+                      inPeek.push(ent.tag);
+                    }
+                    if (!ok) break;
+                    tok = inPeek[cur.depth];
+                  }
+                } else if (cur.p === stackPort) {
+                  if (cur.kind === "shift") {
+                    if (zPeek.length > 0) tok = zPeek.shift();
+                    else {
+                      if (localZ >= vStack.length) { ok = false; break; }
+                      tok = vStack[localZ++];
+                    }
+                  } else {
+                    while (zPeek.length <= cur.depth) {
+                      if (localZ >= vStack.length) { ok = false; break; }
+                      zPeek.push(vStack[localZ++]);
+                    }
+                    if (!ok) break;
+                    tok = zPeek[cur.depth];
+                  }
+                } else {
+                  ok = false;
+                  break;
+                }
+                const nxt = cur.cases[tok];
+                if (!nxt) { ok = false; break; }
+                cur = nxt;
+              }
+
+              if (!ok || cur.kind !== "loop" || cur.drainOncePorts.length > 0) break;
+
+              const inE = cur.nextExprs[streamPort];
+              if (inE.kind !== "splice" || (inE.newPrefix?.length || 0) > 0 || (inE.unconsumed?.length || 0) > 0) break;
+
+              // Update virtual LIFO stack
+              const zE = cur.nextExprs[stackPort];
+              let nextVStack;
+              if (zE.kind === "const") {
+                if (!zIsEmpty || localZ !== vStack.length) break;
+                nextVStack = zE.tokens.slice();
+              } else if (zE.kind === "splice") {
+                const netPop = zE.consumeCount - (zE.unconsumed?.length || 0);
+                if (netPop > vStack.length) break;
+                nextVStack = [...(zE.newPrefix || []), ...vStack.slice(netPop)];
+              } else {
+                break;
+              }
+              if (nextVStack.length > 16) break;
+
+              // Register update
+              let nextRegIdx = regIdx;
+              const rE = cur.nextExprs[regPort];
+              if (rE.kind === "const" && rE.tokens.length === 1) {
+                nextRegIdx = regTagToIdx.get(rE.tokens[0]);
+                if (nextRegIdx === undefined) break;
+              } else if (rE.kind !== "splice" || rE.consumeCount > 0 || (rE.newPrefix?.length || 0) > 0) {
+                break;
+              }
+
+              // Output emit
+              const pref = cur.outEmitPrefixes?.[outEmitPort] || [];
+              const iterEnts = [];
+              let iterB = 0;
+              let clean = true;
+              for (const t of pref) {
+                const ent = outTbl.byTag.get(t);
+                if (!ent || !sameUnionLayout(bp.outPlist, outLeaf.nodeId, ent.target)) { clean = false; break; }
+                iterEnts.push(ent);
+                iterB += ent.width;
+              }
+              if (!clean || emitBits + iterB > 24) break;
+
+              // Verify remaining push tags are valid and <= 24b
+              if (zIsEmpty && (nextVStack.length === 0 || nextVStack[nextVStack.length - 1] !== bottomEntry.tag)) break;
+              const candPush = zIsEmpty ? nextVStack.slice(0, -1) : nextVStack;
+              let candPushBits = 0;
+              for (const t of candPush) {
+                const ent = stackTbl.byTag.get(t);
+                if (!ent || !sameUnionLayout(bp.inPlist, stackLeaf.nodeId, ent.target)) { clean = false; break; }
+                candPushBits += ent.width;
+              }
+              if (!clean || candPushBits > 24) break;
+
+              tokPos = localTok;
+              vStack = nextVStack;
+              regIdx = nextRegIdx;
+              for (const e of iterEnts) emitTokens.push(e);
+              emitBits += iterB;
+              iters++;
+
+              if (zIsEmpty && tokPos > 0 && regIdx === mi.r && vStack.length === 1 && vStack[0] === bottomEntry.tag) {
+                lastClean = { tokPos, emitLen: emitTokens.length, emitBits, iters, regIdx };
+              }
+            }
+
+            // When starting from an empty stack (`zIsEmpty`) and we already have a clean
+            // zero-push checkpoint, prefer stopping there (keeping `z` empty with 0 stack traffic!)
+            let finalTokPos = tokPos;
+            let finalIters = iters;
+            let finalReg = regIdx;
+            let finalEmitTokens = emitTokens;
+            let finalEmitBits = emitBits;
+            let pushTags = zIsEmpty ? vStack.slice(0, -1) : vStack;
+
+            if (zIsEmpty && lastClean !== null && pushTags.length > 0 && lastClean.tokPos >= 1) {
+              finalTokPos = lastClean.tokPos;
+              finalIters = lastClean.iters;
+              finalReg = lastClean.regIdx;
+              finalEmitTokens = emitTokens.slice(0, lastClean.emitLen);
+              finalEmitBits = lastClean.emitBits;
+              pushTags = [];
+            }
+
+            let emitCode = 0;
+            for (const e of finalEmitTokens) emitCode = ((emitCode << e.width) | e.code) >>> 0;
+            let pushCode = 0;
+            let pushBits = 0;
+            for (const t of pushTags) {
+              const ent = stackTbl.byTag.get(t);
+              pushCode = ((pushCode << ent.width) | ent.code) >>> 0;
+              pushBits += ent.width;
+            }
+
+            const cBits = finalTokPos * streamTbl.maxWidth;
+            tblIters[key] = finalIters;
+            tblConsume[key] = cBits;
+            tblEmitBits[key] = finalEmitBits;
+            tblEmitCode[key] = emitCode;
+            tblPushBits[key] = pushBits;
+            tblPushCode[key] = pushCode;
+            tblNextReg[key] = finalReg;
+            if (cBits > maxC) maxC = cBits;
+          }
+
+          return {
+            W_raw: ext.W_raw,
+            keyBits: ext.keyBits,
+            kBitsPerTok: ext.kBitsPerTok,
+            rawBitsPerTok: ext.w,
+            extract: ext.extract,
+            canPadTail: streamTbl.hasInvalidAllOnes,
+            tableSize: keySpan,
+            tblIters,
+            tblConsume,
+            tblEmitBits,
+            tblEmitCode,
+            tblPushBits,
+            tblPushCode,
+            tblNextReg,
+            maxConsumeBits: maxC
+          };
+        };
+
+        const emptyCap = Math.min(10, this.maxKeyBits); // 10b (5 tokens, 1,024 entries = 13 KB L1-resident!)
+        const nonEmptyCap = Math.min(8, this.maxKeyBits); // 8b (4 tokens, 256 entries = 3.25 KB!)
+        const emptyTbl = buildScanSubTable(true, emptyCap);
+        const nonEmptyTbl = buildScanSubTable(false, nonEmptyCap);
+        if (emptyTbl.maxConsumeBits > 0) {
+          modeTables[mi.r] = { kind: "input-scan", emptyTbl, nonEmptyTbl };
+          totalTableSize += emptyTbl.tableSize + nonEmptyTbl.tableSize;
+          totalMemoryBytes += (emptyTbl.tableSize + nonEmptyTbl.tableSize) * 13;
+          if (emptyTbl.W_raw > maxInputW) maxInputW = emptyTbl.W_raw;
+          scanSens = `${emptyTbl.kBitsPerTok}/${emptyTbl.rawBitsPerTok}b`;
+        }
+      }
+    }
+
+    if (maxInputW === 0) return null;
+
+    return {
+      kind: "stack-loop",
+      arity: 1,
+      name: compiled.name,
+      isTmc: true,
+      W_raw0: maxInputW,
+      W_flush: maxFlushW,
+      scanSens,
+      flushSens,
+      R,
+      regPort,
+      regTags,
+      regTagToIdx,
+      streamPort0: streamPort,
+      stackPort,
+      outEmitPort,
+      bottomTag: bottomEntry.tag,
+      bottomCode: bottomEntry.code,
+      bottomWidth: bottomEntry.width,
+      rawBitsPerTok0: streamTbl.maxWidth,
+      modeTables,
+      tableSize: totalTableSize,
+      memoryBytes: totalMemoryBytes
+    };
   }
 
   // =========================================================================
@@ -1079,6 +1647,7 @@ export class BitChunkCompilerV4 {
    */
   getTableMemoryBytes(tbl) {
     if (!tbl) return 0;
+    if (tbl.kind === "stack-loop") return tbl.memoryBytes;
     if (tbl.kind === "loop") {
       // 1-stream: tblIters(1) + tblConsume0(1) + tblEmitBits(1) + tblEmitCode(4) + tblNextReg(1) = 8 B/entry
       // 2-stream: + tblConsume1(1) = 9 B/entry
@@ -1191,6 +1760,71 @@ export class BitChunkCompilerV4 {
         memoryBytes: 0,
         streamCycle: streamRes.cycleNodes.map((i) => idxToLabel[i]),
         howardIters: allRes.iterations
+      };
+    }
+
+    if (chunkTbl.kind === "stack-loop") {
+      // --- Stack-Port TMC Loop graph (amortizing deferred stack flush reads via `t = 1 + push/W_flush`) ---
+      const R = chunkTbl.R;
+      const finalIdx = 2 * R;
+      const edges = [];
+      const dedup = new Set();
+      const addEdge = (from, to, w, t, label) => {
+        const k = `${from}:${to}:${w}:${t.toFixed(4)}`;
+        if (dedup.has(k)) return;
+        dedup.add(k);
+        edges.push({ from, to, w, t, label });
+      };
+      const flushRate = chunkTbl.W_flush > 0 ? chunkTbl.W_flush : 2;
+      for (let r = 0; r < R; r++) {
+        const mt = chunkTbl.modeTables[r];
+        if (!mt || mt.kind !== "input-scan") continue;
+        const uEmpty = 2 * r;
+        const uNonEmpty = 2 * r + 1;
+
+        // Transitions from `zEmpty = 1`
+        const eTbl = mt.emptyTbl;
+        for (let k = 0; k < eTbl.tableSize; k++) {
+          const c = eTbl.tblConsume[k];
+          const p = eTbl.tblPushBits[k];
+          if (c === 0) {
+            addEdge(uEmpty, finalIdx, chunkTbl.rawBitsPerTok0, 1, "exit0");
+          } else if (p === 0 && c === eTbl.W_raw) {
+            addEdge(uEmpty, uEmpty, c, 1, `scan(${c}b)`);
+          } else if (p > 0 && c === eTbl.W_raw) {
+            // Full window of deferred tokens pushed onto stack (amortized flush cost = p / flushRate)
+            addEdge(uEmpty, uNonEmpty, c, 1 + p / flushRate, `push(${c}b)`);
+          } else if (p === 0 && c > 0) {
+            // Clean prefix before trailing zeros: next lookup starts on those trailing zeros!
+            // Model the 2-step worst-case pair `[prefix c] + [W_raw]` -> average `(c + W_raw)/2`
+            addEdge(uEmpty, uEmpty, c + eTbl.W_raw, 2 + eTbl.W_raw / (2 * flushRate), `pair(${c}+${eTbl.W_raw}b)`);
+          }
+        }
+        // Transitions from `zEmpty = 0` (non-empty stack)
+        const nTbl = mt.nonEmptyTbl;
+        for (let k = 0; k < nTbl.tableSize; k++) {
+          const c = nTbl.tblConsume[k];
+          const p = nTbl.tblPushBits[k];
+          const nxtR = nTbl.tblNextReg[k];
+          if (c === 0) {
+            // Immediately switches to flush mode -> flushes stack and returns to `uEmpty` (cost 1 + amortized already paid!)
+            addEdge(uNonEmpty, uEmpty, chunkTbl.rawBitsPerTok0, 1, "flush_return");
+          } else if (nxtR === r && c === nTbl.W_raw) {
+            addEdge(uNonEmpty, uNonEmpty, c, 1 + p / flushRate, `push_cont(${c}b)`);
+          } else if (nxtR !== r) {
+            addEdge(uNonEmpty, uEmpty, c, 1, `flush_transition(${c}b)`);
+          }
+        }
+      }
+      const numNodes = 2 * R + 1;
+      const streamRes = computeMWTR(numNodes, edges);
+      const allRes = computeMWTR(numNodes, [...edges, { from: finalIdx, to: 0, w: 0, t: 0, label: "vf->vs" }]);
+      return {
+        rhoStream: streamRes.rho,
+        rhoAll: allRes.rho,
+        memoryBytes: this.getTableMemoryBytes(chunkTbl),
+        streamCycle: streamRes.cycleNodes.map((i) => (i < 2 * R ? `r=${i >> 1},e=${i & 1 ? 0 : 1}` : "v_f")),
+        howardIters: streamRes.iterations
       };
     }
 

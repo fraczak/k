@@ -14,9 +14,9 @@ Compiling recursive K relations statically into monolithic finite-state transduc
 
 This report describes a hybrid execution and compilation architecture that resolves both constraints without modifying the `k-wire` serialization contract:
 
-1. **Incremental multi-port pushdown transducer network:** Relations compile to finite blueprints over parallel bit-addressable channels (`BitDeque`). Recursive references remain unexpanded black-hole stubs until demanded by runtime data, while local graph-rewriting rules (splicing, bundle fusion, immediate retirement, barrier-waiter flushing, and tail-recursive constructor settlement) maintain bounded live topology ($O(1)$ active nodes on flat tail loops; $O(\log n)$ active nodes with $\Theta(n^{\log_2 3})$ traffic on continuation-stack Karatsuba multiplication).
-2. **Static symbolic transducer compilation:** Eligible acyclic sub-relations and self-recursive tail loops are compiled statically via continuation-passing symbolic execution into single-node deterministic decision DAGs with inlined finite helpers and automatically promoted in-node registers.
-3. **Variable-width `k-wire` bit-chunk lowering and MWTR symbol-size selection:** Compiled DAGs are lowered directly onto raw `k-wire` bits into flat typed-array transition tables consuming variable-width bit chunks (`1..W_raw` bits per lookup, not restricted to single-token boundaries) via sub-token prefix guards, automatic don't-care SWAR bit compression, and heterogeneous cross-schema chunking. Per-transducer chunk widths are selected under a global table-memory budget using Howard's max-plus policy-improvement algorithm for the Minimum Weight-to-Time Ratio (MWTR) criterion ([speed-eval.pdf](file:///home/wojtek/gits/K/k/DOCS/speed-eval.pdf)).
+1. **Incremental multi-port pushdown transducer network:** Relations compile to finite blueprints over parallel bit-addressable channels (`BitDeque` separating consumer `plist` and producer `prodPlist` schemas). Recursive references remain unexpanded black-hole stubs until demanded by runtime data, while local graph-rewriting rules (splicing, bundle fusion, immediate retirement, barrier-waiter flushing, tail-recursive constructor settlement, and sequential sibling settlement on branching tree recursion) maintain bounded live topology ($O(1)$ active nodes on flat tail loops; $O(\log n)$ active nodes with $\Theta(n^{\log_2 3})$ traffic on both continuation-stack and direct non-tail Karatsuba multiplication).
+2. **Static symbolic transducer compilation:** Eligible acyclic sub-relations, self-recursive tail loops, and **tail-modulo-constructor (TMC) guarded streaming loops** are compiled statically via continuation-passing symbolic execution into single-node deterministic decision DAGs with inlined finite helpers and automatically promoted in-node registers.
+3. **Variable-width `k-wire` bit-chunk lowering and MWTR symbol-size selection:** Compiled DAGs are lowered directly onto raw `k-wire` bits into flat typed-array transition tables consuming variable-width bit chunks (`1..W_raw` bits per lookup, not restricted to single-token boundaries) via sub-token prefix guards, automatic don't-care SWAR bit compression, forward-streaming TMC `pushBits` kernels, virtual-stack chunk synthesis for LIFO stack loops, and heterogeneous cross-schema chunking. Per-transducer chunk widths are selected under a global table-memory budget using Howard's max-plus policy-improvement algorithm for the Minimum Weight-to-Time Ratio (MWTR) criterion ([speed-eval.pdf](file:///home/wojtek/gits/K/k/DOCS/speed-eval.pdf)).
 
 ```mermaid
 flowchart LR
@@ -394,25 +394,73 @@ Whereas call-stack evaluators require uniform tail recursion to avoid $O(n)$ sta
 
 1. **Stateful flat iteration and reversing loops:** When post-call computation cannot emit output before the recursive call terminates (e.g., `_rev_bits`, `_lsb_sub` whose borrow validation and zero-trimming depend on the MSB, or `_nat_divmod` threading remainder state), non-tail recursion chains $O(n)$ live downstream nodes (`[STUB(R)] -> [post_n] -> ... -> [post_1]`). Tail recursion collapses live topology to $O(1)$ nodes (`14` on 1024-bit `mod`) and directly matches the current static loop compiler.
 2. **Output-guarded (tail-modulo-constructor) streaming recursion:** Writing naturally streaming relations (`lsb_add`, `half_max_tally`, `lsb_split`) in accumulator tail-recursive form forces $O(n)$ buffering in `acc` followed by a full `_rev_bits` reversal pass, roughly doubling wire bit traffic and eliminating online latency. In contrast, under a non-tail output-guarded definition (`R = ... R |out_bit`), the downstream `VID(|out_bit)` emits to `outDq` *before* pulling `STUB(R)`, then splices `STUB(R)` directly onto `outDq` and retires—achieving $O(1)$ live nodes, $O(1)$ FIFO memory, and zero reversal passes.
-3. **Tree recursion via explicit continuation stacks:** Manually encoding a CEK continuation stack (`_k_stack[]`, `|eval`, `|apply`, `|cons`) inside `k-wire` double-encodes continuations in a runtime whose unexpanded `STUB`s already suspend unreached work. Even with `MUX -> DEMUX` bundle fusion and tail-recursive constructor settlement, each frame still incurs `MUX`/`DEMUX` serialization of `car`. Direct non-tail tree recursion eliminates frame serialization entirely, with one scheduling caveat: whereas `_k_stack[]` explicitly enforces strict depth-first evaluation, a binary downstream consumer (such as `lsb_sub(z1, z0)`) pulling two sibling recursive `STUB`s in bit-by-bit lockstep keeps two branches open per depth level ($O(n)$ live nodes instead of $O(\log n)$) unless the scheduler settles sibling `STUB`s sequentially.
+3. **Tree recursion via explicit continuation stacks:** Manually encoding a CEK continuation stack (`_k_stack[]`, `|eval`, `|apply`, `|cons`) inside `k-wire` double-encodes continuations in a runtime whose unexpanded `STUB`s already suspend unreached work. Even with `MUX -> DEMUX` bundle fusion and tail-recursive constructor settlement, each frame still incurs `MUX`/`DEMUX` serialization of `car`. Direct non-tail tree recursion eliminates frame serialization entirely, with one scheduling caveat: whereas `_k_stack[]` explicitly enforces strict depth-first evaluation, a binary downstream consumer (such as `lsb_sub(z1, z0)`) pulling two sibling recursive `STUB`s in bit-by-bit lockstep keeps multiple branches open per depth level unless the scheduler settles branching sibling `STUB`s sequentially.
+
+### 7.1 Empirical Validation: TMC Compilation, Stack-Port Chunking, and Direct Karatsuba
+
+Implementation and test suite: [integer-streaming.k](file:///home/wojtek/gits/K/k/experiments/transducer/v4/integer-streaming.k), [test-tmc.mjs](file:///home/wojtek/gits/K/k/experiments/transducer/v4/test-tmc.mjs), [fsm-compiler.mjs](file:///home/wojtek/gits/K/k/experiments/transducer/v3/fsm-compiler.mjs), [bit-chunk-compiler.mjs](file:///home/wojtek/gits/K/k/experiments/transducer/v4/bit-chunk-compiler.mjs), [network-v4.mjs](file:///home/wojtek/gits/K/k/experiments/transducer/v4/network-v4.mjs).
+
+To test these architectural predictions directly, [integer-streaming.k](file:///home/wojtek/gits/K/k/experiments/transducer/v4/integer-streaming.k) rewrites `lib/integer.k` as a semantically identical drop-in module replacing accumulator tail recursion with TMC guarded streaming (`lsb_shl`/`_lsb_shl_nz`, `lsb_add`/`_lsb_add`, `half_max_tally`, single-pass online `lsb_trim`/`_lsb_trim`, multi-output `lsb_split`/`_lsb_split_raw`, and TMC quotient streaming in `nat_divmod`/`_nat_divmod`) and replacing the 92-line explicit `_k_stack[]` Karatsuba state machine with 27 lines of direct 3-way recursion (`lsb_mul`).
+
+Four compiler and runtime extensions support these idioms generically without relation-specific hardcoding:
+- **Symbolic TMC loop compilation (`selfOut(q)`):** `TransducerCompilerV3` tracks at most one direct self-call along each execution path, representing its return leaves as `selfOut(q)` and lifting any surrounding constructor/product wrapper (`self |0`, `self |1`, `self { .lo |0 lo, .hi hi }`) into per-output forward emission prefixes (`outEmitPrefixes`) on `loop` leaves.
+- **Chronological forward `pushBits` chunk tables with online yield:** `BitChunkCompilerV4` synthesizes TMC chunk tables (`isTmc = true`) packing `tblEmitCode` in forward chronological order for `outEmitDq.pushBits(...)`. Pipelined TMC nodes yield once `outEmitDq.lenBits >= 64` when downstream consumers exist, bounding intermediate buffers to $O(1)$.
+- **General stack-port TMC chunk synthesis (`stack-loop`):** For mode-switched loops pairing one input stream with an internal LIFO stack port (such as `_lsb_trim`'s deferred-zero tally `z` under `mode ∈ {0, 1}`), `BitChunkCompilerV4` classifies modes statically into `stack-only` flush modes (`16b` SWAR table, 256 entries / 2 KB) and `input-scan` modes (`10b` empty-stack + `8b` non-empty-stack virtual-LIFO tables, 1,280 entries / 16.25 KB; **18.25 KB total**). Preferring clean empty-stack checkpoints eliminates stack traffic on 63/64 random 6-bit windows while pushing/flushing long zero runs at `8b–16b`/lookup.
+- **Static branching-recursion sequential settlement (`isBranchingRecursive`):** `BlueprintRegistryV2` computes `maxCallsPerPath` over each recursive SCC (`product`/`comp` sum, `union` max), classifying tree recursion (`lsb_mul`: 3 calls/path) separately from linear recursion (`_nat_divmod`, `_gcd`: 1 call/path). When a branching-recursive `STUB` expands, the scheduler settles its outputs to completion (following `_splicedTo` chains) before returning to sibling consumers, guaranteeing $O(\log n)$ active nodes and $O(n)$ buffer bytes.
+
+*(Developing this suite also exposed and fixed three latent V3/V4 bugs masked by inlining in `lib/integer.k`: shared-port destructive `SHIFT` inside `product` in `fsm-compiler.mjs`, producer-vs-consumer schema conflation on `VID` prepend-splices solved by `BitDeque.prodPlist`, and unannotated `open-union` exit encoding in `_commitCompiledLeaf`.)*
+
+**Synthesized TMC Bit-Chunk Catalog (`integer-streaming.k`):**
+
+| Transducer | Target | Bit-Chunk Window | Table Entries (Bytes) | MWTR $\rho^*$ (Base → Chunk) | Notes |
+| :--- | :---: | :---: | ---: | :---: | :--- |
+| `_lsb_shl_nz` | `TMC_LOOP` | **`16b`** | 256 (2.0 KB) | `2.0 → 16.0 b/rd` | 1/2b SWAR, forward `pushBits`, zero per-step guard |
+| `_lsb_add` | `TMC_LOOP` | **`6b × 6b`** | 8,192 (72.0 KB) | `1.0 → 12.0 b/rd` | Reg `c`, forward `pushBits`, $O(1)$ tail splice on `c=0` |
+| `half_max_tally` | `TMC_LOOP` | **`12b × 12b`** | 4,096 (36.0 KB) | `1.0 → 24.0 b/rd` | 1/2b SWAR on both ports, online `k` stream |
+| `_lsb_split_raw` | `TMC_LOOP` | **`8b × 8b`** | 4,096 (36.0 KB) | `2.0 → 16.0 b/rd` | Multi-output TMC (`lo` forward `pushBits`, `hi` passthrough) |
+| `_lsb_trim` | `TMC_LOOP` | **`10b / 16b`** | 1,536 (18.2 KB) | `— → 4.6 b/rd` | General `stack-loop` (reg `mode`, LIFO `z`, 1/2b SWAR flush) |
+
+**Individual Streaming Relations A/B Comparison (`lib/integer.k` vs `integer-streaming.k`):**
+
+| Benchmark | `lib/integer.k` (Tail-Rec) | `integer-streaming.k` (TMC) | Impact |
+| :--- | --- | --- | --- |
+| `lsb_add(512b)` | `0.29 ms`, `7,177 b`, `10n` | **`0.14 ms`, `5,123 b`, `4n`** | **2.07× faster**, **-29% bits**, **-60% nodes** |
+| `lsb_add(512b + 8b)` | `0.23 ms`, `5,161 b`, `10n` | **`0.14 ms`, `3,111 b`, `4n`** | **1.64× faster**, **-40% bits** ($O(1)$ tail splice) |
+| `half_max_tally(512b)` | `0.26 ms`, `5,120 b`, `4n` | **`0.16 ms`, `4,608 b`, `2n`** | **1.63× faster**, **-10% bits**, **-50% nodes** |
+| `lsb_split(512b@256)` | `0.47 ms`, `5,128 b`, `5n` | **`0.23 ms`, `5,131 b`, `6n`** | **2.04× faster** (zero reversals) |
+| `lsb_trim(512b)` | `0.25 ms`, `3,654 b`, `5n` | `0.27 ms`, **`2,055 b`**, `5n` | **-44% bits** (1 pass vs 2 reversals) |
+| `divmod(512b)` | `50.52 ms`, peak `323 B` | `52.51 ms`, **peak `260 B`** | **-20% peak FIFO** (`q_rev` eliminated) |
+| `plus(512b)` | `0.45 ms`, `10,231 b`, `20n` | **`0.36 ms`, `9,207 b`, `14n`** | **1.25× faster**, **-10% bits**, **-30% nodes** |
+
+**Karatsuba `times` Scaling (16-bit to 2048-bit × 2048-bit = 4,096-bit product):**
+
+| Scale Case | `ORIG` (`_k_stack[]`) | `NAT` (TMC, no seq-sched) | **`NAT` (TMC + seq-sched)** | Improvement vs `ORIG` |
+| --- | --- | --- | --- | --- |
+| 16-bit (L0) | `2.9 ms`, `3,599 b`, `52n`, `91 B` | `0.6 ms`, `47n`, `85 B` | **`0.5 ms`, `2,574 b`, `47n`, `85 B`** | **-28% bits** |
+| 64-bit (L2) | `10.3 ms`, `38,720 b`, `90n`, `146 B` | `5.8 ms`, `76n`, `149 B` | **`5.5 ms`, `22,461 b`, `75n`, `146 B`** | **1.87× faster**, **-42% bits** |
+| 128-bit (L3) | `37.2 ms`, `119,474 b`, `112n`, `289 B` | `14.7 ms`, `94n`, `249 B` | **`18.6 ms`, `67,181 b`, `89n`, `220 B`** | **2.00× faster**, **-44% bits** |
+| 256-bit (L4) | `77.9 ms`, `401,709 b`, `154n`, `623 B` | `54.4 ms`, `126n`, `513 B` | **`41.0 ms`, `226,886 b`, `114n`, `388 B`** | **1.90× faster**, **-44% bits** |
+| 512-bit (L5) | `272.0 ms`, `1,292,489 b`, `200n`, `1,311 B` | `131.4 ms`, `161n`, `1,033 B` | **`136.9 ms`, `722,443 b`, `137n`, `723 B`** | **1.99× faster**, **-44% bits** |
+| 1024-bit (L6) | `778.9 ms`, `3,869,150 b`, `248n`, `2,641 B` | `386.9 ms`, `194n`, `2,017 B` | **`395.0 ms`, `2,147,124 b`, `156n`, `1,377 B`** | **1.97× faster**, **-45% bits**, **-48% FIFO** |
+| **2048-bit (L7)** | `2,436.7 ms`, `11,814,428 b`, `300n`, `5,312 B` | `1,246.5 ms`, `228n`, `3,913 B` | **`1,355.0 ms`, `6,539,919 b`, `174n`, `2,665 B`** | **1.80× faster, -45% bits, -42% nodes, -50% FIFO** |
+
+At 1024-bit Karatsuba, direct natural recursion + TMC + stack-port chunking reduces total allocated nodes by **36%** (`269,796 → 172,621`), compiled loop iterations by **43%** (`606,129 → 343,667`), `MUX/DEMUX` frame fusions from `2,095 → 0`, and executes **98.4%** of all loop iterations inside bit-chunk tables (`5,445` unchunked iterations vs `33,436` prior to stack-port chunking), sustaining **`12.15` `k-wire` bits/read** with exact $\Theta(n^{\log_2 3})$ doubling (`2.97×–3.05×`).
 
 ---
 
 ## 8. Further Work
 
-1. **Tail-Modulo-Constructor (Guarded Streaming) Loop Compilation and Sequential Sibling Scheduling:**
-   Extending `TransducerCompilerV3` and `BitChunkCompilerV4` to recognize tail-modulo-output-prefix self-calls—emitting variable-width chunks forward via `outDq.pushBits(emitCode, emitBits)` rather than reversing into `accDq.unshiftBits(...)`—will allow K libraries to express online relations (`lsb_add`, `lsb_split`, `half_max_tally`, list/stream transforms) in direct streaming style with $O(1)$ FIFO memory and no `_rev_bits` passes. Pairing this with sequential sibling `STUB` settlement in the scheduler will allow direct non-tail tree recursion (such as Karatsuba without `_k_stack[]`) to retain $O(\log n)$ peak active nodes without continuation-frame serialization.
-2. **Flat Bytecode / WebAssembly / Native Lowering of Outer Orchestrators:**
-   Because inner compiled loops now operate as pure typed-array kernels over linear `BitDeque` buffers, the dominant remaining overhead on tree-recursive workloads is JS object allocation in outer non-tail orchestrators (`_lsb_mul_small`, `_lsb_mul`, `_nat_divmod`). Lowering outer blueprints and small-domain loops into a flat bytecode or WebAssembly/native runtime over linear-memory `BitDeque`s and L1-resident chunk tables would remove heap allocation from the critical path.
-3. **Cache-Aware and Inter-Transducer Global MWTR Optimization:**
+1. **Flat Bytecode / WebAssembly / Native Lowering of Outer Orchestrators:**
+   Because inner compiled loops now operate as pure typed-array kernels over linear `BitDeque` buffers, the dominant remaining overhead on tree-recursive workloads is JS object allocation in outer non-tail orchestrators (`_lsb_mul_small`, `lsb_mul`, `_nat_divmod`). Lowering outer blueprints and small-domain loops into a flat bytecode or WebAssembly/native runtime over linear-memory `BitDeque`s and L1-resident chunk tables would remove heap allocation from the critical path.
+2. **Cache-Aware and Inter-Transducer Global MWTR Optimization:**
    The current MWTR allocator models each lookup at unit cost $t(e) = 1$ under a hard byte limit $M_{\max}$. Two natural extensions are:
    - Incorporating a cache-hierarchy latency model $t(e, M_{\text{total}})$ capturing the L1/L2 spill cliff observed empirically between `43 KB` and `359 KB`, so symbol sizes self-tune to the host cache.
    - Extending MWTR analysis across composed inter-transducer graphs (incorporating static or profiled call frequencies) and supporting two-level / wildcard-compressed transition tables for wide union alphabets where single flat tables scale exponentially.
-4. **Cross-Transducer Pipeline Fusion (Deforestation):**
-   Composed compiled transducers such as `_lsb_sub -> _rev_bits -> msb_drop_zeros -> rev_bits` currently communicate via intermediate `BitDeque`s. Statically composing same-direction streaming producer–consumer DAGs (e.g., `int -> trim_bits` or `trim_bits -> _rev_bits`) would eliminate intermediate buffering and further reduce wire traffic.
-5. **General Polymorphism and Open-Pattern Compilation:**
+3. **Cross-Transducer Pipeline Fusion (Deforestation):**
+   Composed compiled transducers such as `_lsb_sub -> _rev_bits -> msb_drop_zeros -> rev_bits` or `_lsb_split_raw -> _lsb_trim` currently communicate via intermediate `BitDeque`s. Statically composing same-direction streaming producer–consumer DAGs (e.g., `int -> trim_bits`, `trim_bits -> _rev_bits`, or `_lsb_split_raw -> _lsb_trim`) would eliminate intermediate buffering and further reduce wire traffic.
+4. **General Polymorphism and Open-Pattern Compilation:**
    Extending beyond closed monomorphic schemas and runtime schema refinement requires either call-site monomorphization or boundary remapping that exposes only inspected fields/tags while treating uninspected subtrees as opaque copy/skip bit spans backed by `fastSkipSubtree`.
-6. **Non-Arithmetic Workloads (Unicode, Trees, Self-Hosted ASTs):**
+5. **Non-Arithmetic Workloads (Unicode, Trees, Self-Hosted ASTs):**
    Evaluating the architecture on K's Unicode string schemas (`ascii` 3b + 7×1b bit fields, BMP/supplementary planes), recursive algebraic trees, and self-hosted compiler passes over `CORE_PATTERN_PROPERTY_LIST` will exercise heterogeneous variable-width chunking and multi-symbol lookahead on irregular bitstreams.
-7. **Formal Soundness Verification:**
-   Mechanizing a small-step bisimulation proof between the local bit-packed graph-rewriting semantics (barrier-waiter flushing, `MUX -> DEMUX` fusion with lookahead unwind, tail-recursive constructor settlement, closed-tail padding, and loop-equivalent don't-care bit masks) and K's reference relational semantics would establish formal correctness guarantees prior to production integration.
+6. **Formal Soundness Verification:**
+   Mechanizing a small-step bisimulation proof between the local bit-packed graph-rewriting semantics (barrier-waiter flushing, `MUX -> DEMUX` fusion with lookahead unwind, tail-recursive constructor settlement, sequential branching-stub settlement, closed-tail padding, virtual-stack chunking, and loop-equivalent don't-care bit masks) and K's reference relational semantics would establish formal correctness guarantees prior to production integration.

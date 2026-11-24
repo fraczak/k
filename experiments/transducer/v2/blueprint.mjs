@@ -308,6 +308,7 @@ export class BlueprintRegistryV2 {
     }
     this.blueprints = new Map();
     this._finiteCache = new Map();
+    this._branchingCache = new Map();
   }
 
   displayName(hash) {
@@ -354,6 +355,93 @@ export class BlueprintRegistryV2 {
     const res = check(relHash);
     this._finiteCache.set(relHash, res);
     return res;
+  }
+
+  /**
+   * Returns `true` iff `relHash` belongs to a recursive cycle (SCC) that makes
+   * >= 2 recursive calls along a single execution path (e.g., tree recursion
+   * such as direct Karatsuba `lsb_mul` calling `z0`, `z2`, `z3`), as opposed
+   * to linear / tail recursion (`_nat_divmod`, `_gcd`, `_lsb_mul_small`).
+   */
+  isBranchingRecursive(relHash) {
+    if (this._branchingCache.has(relHash)) {
+      return this._branchingCache.get(relHash);
+    }
+    const directRefs = (h) => {
+      const rel = this.library.rels[h];
+      const refs = new Set();
+      if (!rel) return refs;
+      const walk = (ast) => {
+        if (!ast) return;
+        if (ast.op === "ref") refs.add(ast.ref);
+        else if (ast.op === "comp") for (const s of ast.comp) walk(s);
+        else if (ast.op === "union") for (const b of ast.union) walk(b);
+        else if (ast.op === "product") for (const f of ast.product) walk(f.exp);
+      };
+      walk(rel.def);
+      return refs;
+    };
+    // BFS all nodes reachable from `relHash` in >= 1 step
+    const reachableFromRoot = new Set();
+    const q = [...directRefs(relHash)];
+    for (let i = 0; i < q.length; i++) {
+      const h = q[i];
+      if (reachableFromRoot.has(h)) continue;
+      reachableFromRoot.add(h);
+      for (const nxt of directRefs(h)) {
+        if (!reachableFromRoot.has(nxt)) q.push(nxt);
+      }
+    }
+    if (!reachableFromRoot.has(relHash)) {
+      this._branchingCache.set(relHash, false);
+      return false;
+    }
+    // SCC = nodes reachable from relHash that can also reach relHash
+    const scc = new Set([relHash]);
+    for (const h of reachableFromRoot) {
+      if (h === relHash) continue;
+      const seen = new Set();
+      const stack = [...directRefs(h)];
+      while (stack.length > 0) {
+        const cur = stack.pop();
+        if (cur === relHash) { scc.add(h); break; }
+        if (seen.has(cur) || !reachableFromRoot.has(cur)) continue;
+        seen.add(cur);
+        for (const nxt of directRefs(cur)) stack.push(nxt);
+      }
+    }
+    const maxCallsPerPath = (ast) => {
+      if (!ast) return 0;
+      if (ast.op === "ref") return scc.has(ast.ref) ? 1 : 0;
+      if (ast.op === "comp") {
+        let sum = 0;
+        for (const s of ast.comp) sum += maxCallsPerPath(s);
+        return sum;
+      }
+      if (ast.op === "product") {
+        let sum = 0;
+        for (const f of ast.product) sum += maxCallsPerPath(f.exp);
+        return sum;
+      }
+      if (ast.op === "union") {
+        let best = 0;
+        for (const b of ast.union) {
+          const v = maxCallsPerPath(b);
+          if (v > best) best = v;
+        }
+        return best;
+      }
+      return 0;
+    };
+    let branching = false;
+    for (const h of scc) {
+      if (maxCallsPerPath(this.library.rels[h]?.def) >= 2) {
+        branching = true;
+        break;
+      }
+    }
+    this._branchingCache.set(relHash, branching);
+    return branching;
   }
 
   getBlueprint(relHash) {

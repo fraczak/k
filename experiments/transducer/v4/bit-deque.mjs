@@ -38,6 +38,9 @@ export class BitDeque {
     this.path = path;
     this.plist = plist;
     this.nodeId = nodeId;
+    this.prodPlist = plist;
+    this.prodNodeId = nodeId;
+    this._splicedTo = null;
     this.upstream = upstream;
     this.downstream = downstream;
     this.scopeId = scopeId;

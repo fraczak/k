@@ -37,7 +37,8 @@ function cloneState(st) {
   return {
     peeks: st.peeks.map((a) => a.slice()),
     drained: st.drained.slice(),
-    schemas: st.schemas.map((s) => ({ plist: s.plist, nodeId: s.nodeId }))
+    schemas: st.schemas.map((s) => ({ plist: s.plist, nodeId: s.nodeId })),
+    selfCall: st.selfCall
   };
 }
 
@@ -52,6 +53,7 @@ function svalKey(v) {
   switch (v.kind) {
     case "unit": return "U";
     case "port": return `P(${v.p},${v.depth})`;
+    case "selfOut": return `SO(${v.q})`;
     case "cons": return `C(${v.tag},${svalKey(v.tail)})`;
     case "bundle": {
       const parts = [];
@@ -68,7 +70,62 @@ function stateKey(st) {
   for (let p = 0; p < st.peeks.length; p++) {
     parts.push(`${st.peeks[p].join(".")}|${st.drained[p] ? 1 : 0}|${schemaKey(st.schemas[p])}`);
   }
+  if (st.selfCall) parts.push("SC");
   return parts.join(";");
+}
+
+function containsSelfOut(v) {
+  if (!v) return false;
+  if (v.kind === "selfOut") return true;
+  if (v.kind === "cons") return containsSelfOut(v.tail);
+  if (v.kind === "bundle") {
+    for (const c of v.fields.values()) if (containsSelfOut(c)) return true;
+  }
+  if (v.kind === "cont") return containsSelfOut(v.inVal);
+  return false;
+}
+
+function buildSelfOutVal(plist, nodeId, leafIdxBox) {
+  const [kind, edges] = plist[nodeId];
+  if (kind === "closed-product" && edges.length > 0) {
+    const fields = new Map();
+    for (const [label, target] of edges) {
+      fields.set(label, buildSelfOutVal(plist, target, leafIdxBox));
+    }
+    return { kind: "bundle", fields };
+  }
+  const q = leafIdxBox.next++;
+  return { kind: "selfOut", q };
+}
+
+function collectPortIds(v, out = new Set()) {
+  if (!v) return out;
+  if (v.kind === "port") out.add(v.p);
+  else if (v.kind === "cons") collectPortIds(v.tail, out);
+  else if (v.kind === "bundle") {
+    for (const c of v.fields.values()) collectPortIds(c, out);
+  } else if (v.kind === "cont") {
+    collectPortIds(v.inVal, out);
+  }
+  return out;
+}
+
+function portsUsedByPaths(inVal, usedPaths) {
+  const out = new Set();
+  if (!usedPaths || usedPaths.size === 0) return out;
+  for (const pk of usedPaths) {
+    if (pk === "") {
+      collectPortIds(inVal, out);
+      continue;
+    }
+    let cur = inVal;
+    for (const seg of pk.split(".")) {
+      if (cur?.kind !== "bundle") break;
+      cur = cur.fields.get(seg);
+    }
+    collectPortIds(cur, out);
+  }
+  return out;
 }
 
 function collectPortRefs(v, out = []) {
@@ -294,6 +351,7 @@ export class TransducerCompilerV3 {
     let nodeCount = 0;
     let evalSteps = 0;
     let hasLoopLeaf = false;
+    let hasTmcEmit = false;
     let hasExitLeaf = false;
     let hasFail = false;
     const dnodeById = new Map();
@@ -373,7 +431,7 @@ export class TransducerCompilerV3 {
       return n;
     };
 
-    const makeLoopLeaf = (nextInVal, st) => {
+    const makeLoopLeaf = (nextInVal, st, outEmitPrefixes = null) => {
       const rawNext = svalToLeaves(nextInVal);
       if (rawNext.length !== P) bail();
       const nextExprs = rawNext.map((v) => {
@@ -403,12 +461,42 @@ export class TransducerCompilerV3 {
         else drainOncePorts.push(p);
       }
 
-      const sig = `loop:${JSON.stringify(nextExprs)}|d:${drainOncePorts.join(",")}|u:${unitClosedPorts.join(",")}`;
+      const emitPrefs = outEmitPrefixes || Array.from({ length: Q }, () => []);
+      if (emitPrefs.some((a) => a.length > 0)) hasTmcEmit = true;
+
+      const sig = `loop:${JSON.stringify(nextExprs)}|e:${JSON.stringify(emitPrefs)}|d:${drainOncePorts.join(",")}|u:${unitClosedPorts.join(",")}`;
       if (dedupMap.has(sig)) return dedupMap.get(sig);
       hasLoopLeaf = true;
-      const n = allocNode({ kind: "loop", nextExprs, drainOncePorts, unitClosedPorts });
+      const n = allocNode({ kind: "loop", nextExprs, outEmitPrefixes: emitPrefs, drainOncePorts, unitClosedPorts });
       dedupMap.set(sig, n);
       return n;
+    };
+
+    const makeTmcLoopLeaf = (outVal, st) => {
+      const { nextInVal, callSt } = st.selfCall;
+      // Ensure no input stream side-effects occurred after the self-call
+      for (let p = 0; p < P; p++) {
+        if (st.drained[p] !== callSt.drained[p]) bail();
+        if (st.peeks[p].length !== callSt.peeks[p].length) bail();
+        for (let i = 0; i < st.peeks[p].length; i++) {
+          if (st.peeks[p][i] !== callSt.peeks[p][i]) bail();
+        }
+      }
+      const rawOut = svalToLeaves(outVal);
+      if (rawOut.length !== Q) bail();
+      const outEmitPrefixes = [];
+      for (let q = 0; q < Q; q++) {
+        const pref = [];
+        let cur = rawOut[q];
+        while (cur && cur.kind === "cons") {
+          pref.push(cur.tag);
+          cur = cur.tail;
+        }
+        // Every output channel q must strictly prepend `pref` onto `selfOut(q)`!
+        if (!cur || cur.kind !== "selfOut" || cur.q !== q) bail();
+        outEmitPrefixes.push(pref);
+      }
+      return makeLoopLeaf(nextInVal, callSt, outEmitPrefixes);
     };
 
     // CPS Symbolic Evaluator
@@ -436,6 +524,7 @@ export class TransducerCompilerV3 {
         }
 
         case "div": {
+          if (inVal.kind === "selfOut") bail();
           if (inVal.kind === "cons") {
             if (inVal.tag === nodeBp.tag) {
               return onSuccess(inVal.tail, st);
@@ -493,18 +582,27 @@ export class TransducerCompilerV3 {
         }
 
         case "product": {
+          // Precompute ports read by each field: if field `idx` shares any port with
+          // any later field `j > idx`, field `idx` MUST NOT destructively `SHIFT` that port!
+          const fieldPortSets = nodeBp.fields.map((f) => portsUsedByPaths(inVal, f.blueprint.usedPaths));
           const evalField = (idx, accMap, curSt) => {
             if (idx === nodeBp.fields.length) {
               return onSuccess({ kind: "bundle", fields: accMap }, curSt);
             }
             const f = nodeBp.fields[idx];
+            let sharesLater = false;
+            for (let j = idx + 1; j < fieldPortSets.length && !sharesLater; j++) {
+              for (const p of fieldPortSets[idx]) {
+                if (fieldPortSets[j].has(p)) { sharesLater = true; break; }
+              }
+            }
             return symEval(
               f.blueprint,
               inVal,
               curSt,
               false,
               inlineDepth,
-              canBacktrack,
+              canBacktrack || sharesLater,
               (val, st2) => {
                 const nextMap = new Map(accMap);
                 nextMap.set(f.label, val);
@@ -543,7 +641,7 @@ export class TransducerCompilerV3 {
             // DAG memoization when `!canBacktrack` — MUST include `getContId(onSuccess)`
             // because `symEval` is CPS and returns the full continuation subtree!
             let mKey = null;
-            if (!canBacktrack && !inTailPos) {
+            if (!canBacktrack && !inTailPos && !curSt.selfCall) {
               mKey = `${getContId(onSuccess)}|${getBpKey(nodeBp)}#${idx}|${svalKey(curVal)}|${stateKey(curSt)}|${inlineDepth}`;
               if (memo.has(mKey)) return memo.get(mKey);
             }
@@ -659,10 +757,17 @@ export class TransducerCompilerV3 {
         }
 
         case "stub": {
-          // 1. Direct self tail-call -> emit `TailLoop` leaf!
+          // 1. Direct self-call -> strict tail loop OR tail-modulo-constructor (TMC) streaming loop!
           if (nodeBp.relHash === relHash) {
-            if (!inTailPos) bail();
-            return makeLoopLeaf(inVal, st);
+            if (st.selfCall !== null || inlineDepth > 0) bail();
+            if (inTailPos) {
+              return makeLoopLeaf(inVal, st);
+            }
+            if (isFinite) bail();
+            const nextSt = cloneState(st);
+            nextSt.selfCall = { nextInVal: inVal, callSt: cloneState(st) };
+            const selfOutVal = buildSelfOutVal(bp.outPlist, 0, { next: 0 });
+            return onSuccess(selfOutVal, nextSt);
           }
           // 2. Finite (acyclic) helper relation -> inline symbolically!
           if (this.registry.isFiniteRel(nodeBp.relHash)) {
@@ -683,6 +788,7 @@ export class TransducerCompilerV3 {
           //    in exit branches of `_lsb_sub`, `_lsb_add`, `_lsb_split`!):
           //    Safe whenever either `!canBacktrack` OR `nodeBp.relHash` is provably total
           //    (cannot fail, so backtracking past it is impossible)!
+          if (containsSelfOut(inVal)) bail();
           if (canBacktrack && !this.isProvablyTotal(nodeBp.relHash)) bail();
           return onSuccess(
             { kind: "cont", bp: nodeBp, bpKey: getBpKey(nodeBp), inVal },
@@ -699,7 +805,8 @@ export class TransducerCompilerV3 {
       const initSt = {
         peeks: inLeaves.map(() => []),
         drained: inLeaves.map((l) => l.isUnit),
-        schemas: inLeaves.map((l) => ({ plist: bp.inPlist, nodeId: l.nodeId }))
+        schemas: inLeaves.map((l) => ({ plist: bp.inPlist, nodeId: l.nodeId })),
+        selfCall: null
       };
       const initInVal = buildInitialInVal(bp.inPlist, 0, { next: 0 });
 
@@ -707,10 +814,10 @@ export class TransducerCompilerV3 {
         bp.root,
         initInVal,
         initSt,
-        !isFinite, // allow self tail-loops for non-finite relations!
+        !isFinite, // allow self tail-loops & TMC loops for non-finite relations!
         0,
         false,
-        (outVal, st) => makeEmitLeaf(outVal, st),
+        (outVal, st) => (st.selfCall ? makeTmcLoopLeaf(outVal, st) : makeEmitLeaf(outVal, st)),
         () => { hasFail = true; return FAIL_NODE; }
       );
 
@@ -777,6 +884,7 @@ export class TransducerCompilerV3 {
         relHash,
         name: bp.name,
         isLoop: hasLoopLeaf,
+        hasTmcEmit,
         inLeaves,
         outLeaves,
         inCount: P,
@@ -854,6 +962,12 @@ export class TransducerCompilerV3 {
       }
       if (n.kind === "loop") {
         const updates = [];
+        if (n.outEmitPrefixes) {
+          for (let q = 0; q < compiled.outCount; q++) {
+            const pref = n.outEmitPrefixes[q];
+            if (pref && pref.length > 0) updates.push(`${oName(q)}.push(${pref.join(",")})`);
+          }
+        }
         for (let p = 0; p < compiled.inCount; p++) {
           const e = n.nextExprs[p];
           if (e.kind === "const") updates.push(`${pName(p)}:=${fmtExpr(e)}`);

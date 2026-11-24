@@ -154,6 +154,7 @@ export class BitPackedTransducerNetworkV4 {
       chunkCompiler = null,
       enableCompiled = true,
       enableChunks = true,
+      sequentialBranchingStubs = true,
       onSnapshot = null
     } = {}
   ) {
@@ -162,6 +163,7 @@ export class BitPackedTransducerNetworkV4 {
     this.compilerV3 = compilerV3 || new TransducerCompilerV3(registry);
     this.enableCompiled = enableCompiled;
     this.enableChunks = enableCompiled && enableChunks;
+    this.sequentialBranchingStubs = sequentialBranchingStubs;
     this.chunkCompiler = chunkCompiler || new BitChunkCompilerV4(this.compilerV3, this.codec);
     this.onSnapshot = onSnapshot;
 
@@ -184,6 +186,7 @@ export class BitPackedTransducerNetworkV4 {
       idSplices: 0,
       barrierWaiterSplices: 0,
       eagerStubSettles: 0,
+      sequentialStubSettles: 0,
       muxDemuxFusions: 0,
       muxTailSplices: 0,
       demuxTailSplices: 0,
@@ -325,6 +328,20 @@ export class BitPackedTransducerNetworkV4 {
       inDq.plist = outDq.plist;
       inDq.nodeId = outDq.nodeId;
     }
+    // Maintain producer schema (`prodPlist`):
+    //  - `VID` prepend-splice wraps `inDq` with an outer tag, so downstream sees `outDq.plist`
+    //    while upstream STILL produces `inDq.prodPlist` (payload schema)!
+    //  - `DIV` splice already stripped the outer tag from `inDq`, so upstream now produces `outDq.prodPlist`.
+    if (counterKey === "divSplices") {
+      if (!plistHasAny(outDq.prodPlist, outDq.prodNodeId)) {
+        inDq.prodPlist = outDq.prodPlist;
+        inDq.prodNodeId = outDq.prodNodeId;
+      }
+    } else if (plistHasAny(inDq.prodPlist, inDq.prodNodeId) && !plistHasAny(outDq.prodPlist, outDq.prodNodeId)) {
+      inDq.prodPlist = outDq.prodPlist;
+      inDq.prodNodeId = outDq.prodNodeId;
+    }
+    outDq._splicedTo = inDq;
     if (node) this.retireNode(node);
     this.retireDeque(outDq);
     this.telemetry[counterKey]++;
@@ -390,9 +407,11 @@ export class BitPackedTransducerNetworkV4 {
     for (let i = 0; i < inL.length; i++) {
       const inDq = inL[i].fifo;
       const outDq = outL[i].fifo;
+      const outProdPlist = outDq.prodPlist || outDq.plist;
+      const outProdNode = outDq.prodPlist ? outDq.prodNodeId : outDq.nodeId;
       const samePat =
-        plistHasAny(outDq.plist, outDq.nodeId) ||
-        canonicalSubPlistKey(inDq.plist, inDq.nodeId) === canonicalSubPlistKey(outDq.plist, outDq.nodeId);
+        plistHasAny(outProdPlist, outProdNode) ||
+        canonicalSubPlistKey(inDq.plist, inDq.nodeId) === canonicalSubPlistKey(outProdPlist, outProdNode);
       if (samePat && (!barrier || barrier.done) && this._trySpliceScalar(null, inDq, outDq, "idSplices")) {
         continue;
       }
@@ -401,8 +420,8 @@ export class BitPackedTransducerNetworkV4 {
         this.codec,
         inDq.plist,
         inDq.nodeId,
-        outDq.plist,
-        outDq.nodeId
+        outProdPlist,
+        outProdNode
       );
       const idNode = this._makeNode("ID", barrier ? "()*" : "()", inDq, outDq, scopeId, {
         dpda,
@@ -568,12 +587,18 @@ export class BitPackedTransducerNetworkV4 {
         const effTargetNode = useRuntimeIn ? rtEdgeInit[1] : bp.targetNodeId;
 
         if (outWire.kind === "fifo") {
-          if (useRuntimeIn && plistHasAny(outWire.plist, outWire.nodeId)) {
-            outWire.plist = effInPlist;
-            outWire.nodeId = effTargetNode;
+          const outProdP = outWire.prodPlist || outWire.plist;
+          const outProdN = outWire.prodPlist ? outWire.prodNodeId : outWire.nodeId;
+          if (useRuntimeIn && plistHasAny(outProdP, outProdN)) {
+            if (outWire.plist === outWire.prodPlist) {
+              outWire.plist = effInPlist;
+              outWire.nodeId = effTargetNode;
+            }
+            outWire.prodPlist = effInPlist;
+            outWire.prodNodeId = effTargetNode;
           }
-          const effOutPlist = bpHasAny ? outWire.plist : bp.outPlist;
-          const effOutNode = bpHasAny ? outWire.nodeId : 0;
+          const effOutPlist = bpHasAny ? (outWire.prodPlist || outWire.plist) : bp.outPlist;
+          const effOutNode = bpHasAny ? (outWire.prodPlist ? outWire.prodNodeId : outWire.nodeId) : 0;
           const samePay = bpHasAny
             ? canonicalSubPlistKey(effInPlist, effTargetNode) === canonicalSubPlistKey(effOutPlist, effOutNode)
             : bp.payloadSamePattern;
@@ -627,14 +652,16 @@ export class BitPackedTransducerNetworkV4 {
         const effInPlist = useRuntimeIn ? scalarIn.plist : bp.inPlist;
         const effInNode = useRuntimeIn ? scalarIn.nodeId : 0;
 
-        if (useRuntimeIn && plistHasAny(outWire.plist, outWire.nodeId)) {
-          const outEdge = outWire.plist[outWire.nodeId]?.[1]?.find(([t]) => t === bp.tag);
-          if (outEdge && plistHasAny(outWire.plist, outEdge[1])) {
-            outWire.plist = graftUnionTagPayload(outWire.plist, outWire.nodeId, bp.tag, effInPlist, effInNode);
+        if (useRuntimeIn && plistHasAny(outWire.prodPlist, outWire.prodNodeId)) {
+          const outEdge = outWire.prodPlist[outWire.prodNodeId]?.[1]?.find(([t]) => t === bp.tag);
+          if (outEdge && plistHasAny(outWire.prodPlist, outEdge[1])) {
+            const grafted = graftUnionTagPayload(outWire.prodPlist, outWire.prodNodeId, bp.tag, effInPlist, effInNode);
+            if (outWire.plist === outWire.prodPlist) outWire.plist = grafted;
+            outWire.prodPlist = grafted;
           }
         }
-        const outEdge = bpHasAny ? outWire.plist?.[outWire.nodeId]?.[1]?.find(([t]) => t === bp.tag) : null;
-        const effOutPlist = outEdge ? outWire.plist : bp.outPlist;
+        const outEdge = bpHasAny ? outWire.prodPlist?.[outWire.prodNodeId]?.[1]?.find(([t]) => t === bp.tag) : null;
+        const effOutPlist = outEdge ? outWire.prodPlist : bp.outPlist;
         const effOutTarget = outEdge ? outEdge[1] : bp.targetNodeId;
         const samePay = bpHasAny
           ? canonicalSubPlistKey(effInPlist, effInNode) === canonicalSubPlistKey(effOutPlist, effOutTarget)
@@ -834,6 +861,8 @@ export class BitPackedTransducerNetworkV4 {
             if (chunkTbl.kind === "loop") {
               const wDesc = chunkTbl.arity === 1 ? `${chunkTbl.W_raw0}b` : `${chunkTbl.W_raw0}bx${chunkTbl.W_raw1}b`;
               kindTag = `CHUNK_${wDesc}(${compiled.name})`;
+            } else if (chunkTbl.kind === "stack-loop") {
+              kindTag = `STACK_CHUNK_${chunkTbl.W_raw0}b(${compiled.name})`;
             } else {
               kindTag = `FSM_CHUNK_${chunkTbl.W_raw0}b(${compiled.name})`;
             }
@@ -1047,7 +1076,25 @@ export class BitPackedTransducerNetworkV4 {
           : this._failMultiOut(node, bitWireLeaves(node.outWire));
       }
       if (node.state === STATE.RETIRED) return "PROGRESS";
+      const settleBranching =
+        this.sequentialBranchingStubs &&
+        this.registry.isBranchingRecursive(node.relHash);
+      const outDqs = settleBranching ? bitWireLeaves(node.outWire).map((l) => l.fifo) : null;
       this.expandStub(node);
+      if (outDqs) {
+        this.telemetry.sequentialStubSettles++;
+        for (let i = 0; i < outDqs.length; i++) {
+          let dq = outDqs[i];
+          while (true) {
+            while (dq._splicedTo) dq = dq._splicedTo;
+            if (!dq.alive || dq.closed || dq.failed) break;
+            if (!dq.upstream) return "NEED_INPUT";
+            const r = this._pullUpstreamOneStep(dq);
+            if (r === "NEED_INPUT") return "NEED_INPUT";
+          }
+          if (dq.failed) return "FAILED";
+        }
+      }
       return "PROGRESS";
     }
 
@@ -1085,20 +1132,28 @@ export class BitPackedTransducerNetworkV4 {
             const rtEdge = node.inFifo.plist?.[node.inFifo.nodeId]?.[1]?.find(([t]) => t === node.tag);
             if (rtEdge && !plistHasAny(node.inFifo.plist, rtEdge[1]) && node.outFifo) {
               const rtTarget = rtEdge[1];
-              if (plistHasAny(node.outFifo.plist, node.outFifo.nodeId)) {
-                node.outFifo.plist = node.inFifo.plist;
-                node.outFifo.nodeId = rtTarget;
+              const outProdP = node.outFifo.prodPlist || node.outFifo.plist;
+              const outProdN = node.outFifo.prodPlist ? node.outFifo.prodNodeId : node.outFifo.nodeId;
+              if (plistHasAny(outProdP, outProdN)) {
+                if (node.outFifo.plist === node.outFifo.prodPlist) {
+                  node.outFifo.plist = node.inFifo.plist;
+                  node.outFifo.nodeId = rtTarget;
+                }
+                node.outFifo.prodPlist = node.inFifo.plist;
+                node.outFifo.prodNodeId = rtTarget;
               }
+              const effOutP = node.outFifo.prodPlist || node.outFifo.plist;
+              const effOutN = node.outFifo.prodPlist ? node.outFifo.prodNodeId : node.outFifo.nodeId;
               const samePay =
                 canonicalSubPlistKey(node.inFifo.plist, rtTarget) ===
-                canonicalSubPlistKey(node.outFifo.plist, node.outFifo.nodeId);
+                canonicalSubPlistKey(effOutP, effOutN);
               node.dpda = new BitPatternDPDA(
                 samePay ? "copy" : "coerce",
                 this.codec,
                 node.inFifo.plist,
                 rtTarget,
-                node.outFifo.plist,
-                node.outFifo.nodeId
+                effOutP,
+                effOutN
               );
               node.canBypass = samePay && !node.barrier;
             }
@@ -1119,18 +1174,20 @@ export class BitPackedTransducerNetworkV4 {
             node.needsRuntimeSchema &&
             node.inFifo.plist &&
             !plistHasAny(node.inFifo.plist, node.inFifo.nodeId) &&
-            (plistHasAny(node.dpda.inPlist) || plistHasAny(node.outFifo.plist, node.outFifo.nodeId))
+            (plistHasAny(node.dpda.inPlist) || plistHasAny(node.outFifo.prodPlist, node.outFifo.prodNodeId))
           ) {
-            if (plistHasAny(node.outFifo.plist, node.outFifo.nodeId)) {
-              const outEdge = node.outFifo.plist[node.outFifo.nodeId]?.[1]?.find(([t]) => t === node.tag);
-              if (outEdge && plistHasAny(node.outFifo.plist, outEdge[1])) {
-                node.outFifo.plist = graftUnionTagPayload(
-                  node.outFifo.plist, node.outFifo.nodeId, node.tag, node.inFifo.plist, node.inFifo.nodeId
+            if (plistHasAny(node.outFifo.prodPlist, node.outFifo.prodNodeId)) {
+              const outEdge = node.outFifo.prodPlist[node.outFifo.prodNodeId]?.[1]?.find(([t]) => t === node.tag);
+              if (outEdge && plistHasAny(node.outFifo.prodPlist, outEdge[1])) {
+                const grafted = graftUnionTagPayload(
+                  node.outFifo.prodPlist, node.outFifo.prodNodeId, node.tag, node.inFifo.plist, node.inFifo.nodeId
                 );
+                if (node.outFifo.plist === node.outFifo.prodPlist) node.outFifo.plist = grafted;
+                node.outFifo.prodPlist = grafted;
               }
             }
-            const outEdge = node.outFifo.plist?.[node.outFifo.nodeId]?.[1]?.find(([t]) => t === node.tag);
-            const effOutPlist = outEdge ? node.outFifo.plist : node.dpda.outPlist;
+            const outEdge = node.outFifo.prodPlist?.[node.outFifo.prodNodeId]?.[1]?.find(([t]) => t === node.tag);
+            const effOutPlist = outEdge ? node.outFifo.prodPlist : node.dpda.outPlist;
             const effOutTarget = outEdge ? outEdge[1] : 0;
             const samePay =
               canonicalSubPlistKey(node.inFifo.plist, node.inFifo.nodeId) ===
@@ -1591,6 +1648,161 @@ export class BitPackedTransducerNetworkV4 {
       return progressed ? "CONTINUE" : "FALLBACK";
     }
 
+    // --- STACK-LOOP Variable-Width Bit-Chunk Fast Path (1 stream + 1 LIFO stack + mode reg + TMC out!) ---
+    if (stbl.kind === "stack-loop") {
+      if (node.curDNode !== node.compiled.root) return "DONE";
+      const rp = stbl.regPort;
+      if (!node.portIsConst[rp]) {
+        if (node.peekBuf[rp].length === 0) {
+          const r = this._ensurePeekTag(node, rp, 0);
+          if (r.status !== "OK") return r.status === "WAIT" ? "WAIT" : (r.status === "NEED_INPUT" ? "NEED_INPUT" : "FALLBACK");
+        }
+        const dr = this._drainUnitClosedPort(node, rp);
+        if (dr === "NEED_INPUT") return "NEED_INPUT";
+        if (dr === "FAILED") return "FAILED";
+        node.portIsConst[rp] = true;
+      }
+      if (node.peekBuf[rp].length !== 1) return "FALLBACK";
+      let regIdx = stbl.regTagToIdx.get(node.peekBuf[rp][0].tag);
+      if (regIdx === undefined) return "FALLBACK";
+
+      const saveReg = () => {
+        const newTag = stbl.regTags[regIdx];
+        const ent = this.codec.encodeTag(node.portSchemaPlist[rp], node.portSchemaNode[rp], newTag);
+        node.peekBuf[rp] = [ent];
+      };
+
+      const pIn = stbl.streamPort0;
+      const pStack = stbl.stackPort;
+      const outEmitDq = node.outLeaves[stbl.outEmitPort].fifo;
+
+      while (true) {
+        const mt = stbl.modeTables[regIdx];
+        if (!mt) break;
+
+        if (mt.kind === "stack-only") {
+          if (node.portIsConst[pStack] || node.peekBuf[pStack].length > 0) break;
+          const stackDq = node.inLeaves[pStack].fifo;
+          const W = mt.W_raw;
+          let raw;
+          if (stackDq.lenBits >= W) {
+            raw = stackDq.peekBits(W);
+          } else if (mt.canPadTail && stackDq.closed && !stackDq.failed && stackDq.lenBits > 0) {
+            raw = stackDq.peekBitsPaddedOnes(W);
+          } else {
+            const e = this._ensureBits(stackDq, W);
+            if (e === "WAIT") { saveReg(); return "WAIT"; }
+            if (e === "NEED_INPUT") { saveReg(); return "NEED_INPUT"; }
+            if (e === "READY") raw = stackDq.peekBits(W);
+            else if (mt.canPadTail && stackDq.closed && !stackDq.failed && stackDq.lenBits > 0) raw = stackDq.peekBitsPaddedOnes(W);
+            else break;
+          }
+          const key = mt.extract(raw);
+          const iters = mt.tblIters[key];
+          if (iters === 0) break;
+          const c = mt.tblConsume[key];
+          if (c > stackDq.lenBits) break;
+          stackDq.shiftBits(c);
+          const eBits = mt.tblEmitBits[key];
+          if (eBits > 0) outEmitDq.pushBits(mt.tblEmitCode[key], eBits);
+          regIdx = mt.tblNextReg[key];
+          this.telemetry.strideSuperSteps++;
+          this.telemetry.strideIterationsRetired += iters;
+          this.telemetry.chunkBitsConsumed += c;
+          this.telemetry.compiledLoopIterations += iters;
+          if (outEmitDq.downstream && outEmitDq.lenBits >= 64) {
+            saveReg();
+            return "YIELD";
+          }
+          continue;
+        }
+
+        // `mt.kind === "input-scan"`
+        if (node.portIsConst[pIn] || node.peekBuf[pIn].length > 0) break;
+        let zIsEmpty = false;
+        if (node.portIsConst[pStack]) {
+          if (node.peekBuf[pStack].length === 1 && node.peekBuf[pStack][0].tag === stbl.bottomTag) {
+            zIsEmpty = true;
+          } else {
+            break;
+          }
+        } else {
+          if (node.peekBuf[pStack].length > 0) break;
+          const stackDq = node.inLeaves[pStack].fifo;
+          if (stackDq.lenBits < stbl.bottomWidth) {
+            const e = this._ensureBits(stackDq, stbl.bottomWidth);
+            if (e === "WAIT") { saveReg(); return "WAIT"; }
+            if (e === "NEED_INPUT") { saveReg(); return "NEED_INPUT"; }
+            if (e !== "READY") break;
+          }
+          zIsEmpty =
+            stackDq.lenBits === stbl.bottomWidth &&
+            stackDq.closed &&
+            !stackDq.failed &&
+            stackDq.peekBits(stbl.bottomWidth) === stbl.bottomCode;
+        }
+
+        const sub = zIsEmpty ? mt.emptyTbl : mt.nonEmptyTbl;
+        const inDq = node.inLeaves[pIn].fifo;
+        const W = sub.W_raw;
+        let raw;
+        if (inDq.lenBits >= W) {
+          raw = inDq.peekBits(W);
+        } else {
+          const e = this._ensureBits(inDq, W);
+          if (e === "WAIT") { saveReg(); return "WAIT"; }
+          if (e === "NEED_INPUT") { saveReg(); return "NEED_INPUT"; }
+          if (e === "READY") {
+            raw = inDq.peekBits(W);
+          } else if (sub.canPadTail && inDq.closed && !inDq.failed && inDq.lenBits > 0) {
+            raw = inDq.peekBitsPaddedOnes(W);
+          } else {
+            break;
+          }
+        }
+        const key = sub.extract(raw);
+        const iters = sub.tblIters[key];
+        if (iters === 0) break;
+        const c = sub.tblConsume[key];
+        if (c > inDq.lenBits) break;
+        inDq.shiftBits(c);
+        const eBits = sub.tblEmitBits[key];
+        if (eBits > 0) outEmitDq.pushBits(sub.tblEmitCode[key], eBits);
+        const pushBits = sub.tblPushBits[key];
+        if (pushBits > 0) {
+          let stackDq = node.inLeaves[pStack].fifo;
+          if (node.portIsConst[pStack]) {
+            // Re-materialize local LIFO stack deque holding `[pushBits, bottomSentinel]`
+            stackDq = this.createDeque(`stk_${pStack}`, node.scopeId, {
+              path: node.inLeaves[pStack].pathKey,
+              plist: node.portSchemaPlist[pStack],
+              nodeId: node.portSchemaNode[pStack]
+            });
+            stackDq.downstream = node;
+            if (stbl.bottomWidth > 0) stackDq.pushBits(stbl.bottomCode, stbl.bottomWidth, false);
+            stackDq.close();
+            node.inLeaves[pStack].fifo = stackDq;
+            node.portIsConst[pStack] = false;
+            node.peekBuf[pStack].length = 0;
+            node.portUnitDrained[pStack] = false;
+          }
+          stackDq.unshiftBits(sub.tblPushCode[key], pushBits);
+        }
+        regIdx = sub.tblNextReg[key];
+        this.telemetry.strideSuperSteps++;
+        this.telemetry.strideIterationsRetired += iters;
+        this.telemetry.chunkBitsConsumed += c;
+        this.telemetry.compiledLoopIterations += iters;
+        if (outEmitDq.downstream && outEmitDq.lenBits >= 64) {
+          saveReg();
+          return "YIELD";
+        }
+      }
+
+      saveReg();
+      return "FALLBACK";
+    }
+
     // --- LOOP Variable-Width Bit-Chunk Fast Path ---
     if (node.curDNode !== node.compiled.root) return "DONE";
 
@@ -1625,6 +1837,8 @@ export class BitPackedTransducerNetworkV4 {
     const accP = stbl.accPort;
     if (accP >= 0 && (node.portIsConst[accP] || node.peekBuf[accP].length > 0)) return "FALLBACK";
     const accDq = accP >= 0 ? node.inLeaves[accP].fifo : null;
+    const outEmitP = stbl.outEmitPort ?? -1;
+    const outEmitDq = outEmitP >= 0 ? node.outLeaves[outEmitP].fifo : null;
 
     // Peek-guarded accumulator check (uses SUB-TOKEN bit-prefix when available, e.g. 1 bit of `x` in `lsb_shl`!)
     if (stbl.guardPrefix && accDq) {
@@ -1670,12 +1884,19 @@ export class BitPackedTransducerNetworkV4 {
         if (c0 > dq0.lenBits) break;
         dq0.shiftBits(c0);
         const eBits = tblEmitBits[idx];
-        if (eBits > 0 && accDq) accDq.unshiftBits(tblEmitCode[idx], eBits);
+        if (eBits > 0) {
+          if (outEmitDq) outEmitDq.pushBits(tblEmitCode[idx], eBits);
+          else if (accDq) accDq.unshiftBits(tblEmitCode[idx], eBits);
+        }
         regIdx = tblNextReg[idx];
         this.telemetry.strideSuperSteps++;
         this.telemetry.strideIterationsRetired += iters;
         this.telemetry.chunkBitsConsumed += c0;
         this.telemetry.compiledLoopIterations += iters;
+        if (outEmitDq && outEmitDq.downstream && outEmitDq.lenBits >= 64) {
+          saveReg();
+          return "YIELD";
+        }
       }
     } else {
       const p1 = stbl.streamPort1;
@@ -1727,12 +1948,19 @@ export class BitPackedTransducerNetworkV4 {
         dq0.shiftBits(c0);
         dq1.shiftBits(c1);
         const eBits = tblEmitBits[idx];
-        if (eBits > 0 && accDq) accDq.unshiftBits(tblEmitCode[idx], eBits);
+        if (eBits > 0) {
+          if (outEmitDq) outEmitDq.pushBits(tblEmitCode[idx], eBits);
+          else if (accDq) accDq.unshiftBits(tblEmitCode[idx], eBits);
+        }
         regIdx = tblNextReg[idx];
         this.telemetry.strideSuperSteps++;
         this.telemetry.strideIterationsRetired += iters;
         this.telemetry.chunkBitsConsumed += c0 + c1;
         this.telemetry.compiledLoopIterations += iters;
+        if (outEmitDq && outEmitDq.downstream && outEmitDq.lenBits >= 64) {
+          saveReg();
+          return "YIELD";
+        }
       }
     }
 
@@ -1757,7 +1985,7 @@ export class BitPackedTransducerNetworkV4 {
       // Variable-width `k-wire` bit-chunk fast path (for BOTH `LOOP`s and `FSM`s!)
       if (node.chunkTbl) {
         const fs = this._tryChunkFastPath(node);
-        if (fs === "WAIT") return "PROGRESS";
+        if (fs === "WAIT" || fs === "YIELD") return "PROGRESS";
         if (fs === "NEED_INPUT") return "NEED_INPUT";
         if (fs === "FAILED") return this._failMultiOut(node, node.outLeaves);
       }
@@ -1821,6 +2049,23 @@ export class BitPackedTransducerNetworkV4 {
 
         if (d.kind === "loop") {
           this.telemetry.compiledLoopIterations++;
+          let shouldYield = false;
+          if (d.outEmitPrefixes) {
+            for (let q = 0; q < comp.outCount; q++) {
+              const pref = d.outEmitPrefixes[q];
+              if (pref && pref.length > 0) {
+                const outDq = node.outLeaves[q].fifo;
+                const effP = (outDq.prodPlist && !plistHasAny(outDq.prodPlist, outDq.prodNodeId))
+                  ? outDq.prodPlist : node.bpOutPlist;
+                const effN = (outDq.prodPlist && !plistHasAny(outDq.prodPlist, outDq.prodNodeId))
+                  ? outDq.prodNodeId : comp.outLeaves[q].nodeId;
+                for (const tok of pref) {
+                  this.codec.pushTag(outDq, effP, effN, tok);
+                }
+                if (outDq.downstream && outDq.lenBits >= 64) shouldYield = true;
+              }
+            }
+          }
           for (let p = 0; p < comp.inCount; p++) {
             const e = d.nextExprs[p];
             if (e.kind === "const") {
@@ -1852,6 +2097,7 @@ export class BitPackedTransducerNetworkV4 {
             }
           }
           node.curDNode = comp.root;
+          if (shouldYield) return "PROGRESS";
           continue;
         }
 
@@ -1927,7 +2173,11 @@ export class BitPackedTransducerNetworkV4 {
 
     for (let q = 0; q < comp.outCount; q++) {
       const outDq = node.outLeaves[q].fifo;
-      materializeExprToDeque(d.outExprs[q], outDq, node.bpOutPlist, comp.outLeaves[q].nodeId);
+      const effP = (outDq.prodPlist && !plistHasAny(outDq.prodPlist, outDq.prodNodeId))
+        ? outDq.prodPlist : node.bpOutPlist;
+      const effN = (outDq.prodPlist && !plistHasAny(outDq.prodPlist, outDq.prodNodeId))
+        ? outDq.prodNodeId : comp.outLeaves[q].nodeId;
+      materializeExprToDeque(d.outExprs[q], outDq, effP, effN);
     }
     return "PROGRESS";
   }

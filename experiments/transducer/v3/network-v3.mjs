@@ -255,6 +255,15 @@ export class CompiledTransducerNetworkV3 extends MultiPortTransducerNetwork {
         if (d.kind === "loop") {
           // Execute IN-PLACE loop transition! Zero node allocations, zero stub expansions!
           this.telemetry.compiledLoopIterations++;
+          if (d.outEmitPrefixes) {
+            for (let q = 0; q < comp.outCount; q++) {
+              const pref = d.outEmitPrefixes[q];
+              if (pref && pref.length > 0) {
+                const outDq = node.outLeaves[q].fifo;
+                for (const tok of pref) outDq.push(tok);
+              }
+            }
+          }
           for (let p = 0; p < comp.inCount; p++) {
             const e = d.nextExprs[p];
             if (e.kind === "const") {
