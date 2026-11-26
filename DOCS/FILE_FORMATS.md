@@ -12,7 +12,7 @@ Run the examples below from the repository root after `npm install`.
 | `.ko` | Compiled executable object with a main relation | `k-compile`, `k`, backend tools |
 | `.klib` | Compiled definitions with no main relation | `k-compile`, `:klib`, `--lib`, `:load` |
 | `.kvm` | JSON kVM artifact: polymorphic `KVM-P` template or specialized `KVM` program | `k-compile`, specialization API, backends |
-| `.pkir` | JSON experimental PKIR relation (`format: "pk-ir"`, version 1) | JavaScript API, backends |
+| `.ktvm` / `.ktvmp` | Textual DSL or JSON kTVM module (`format: "k-tvm"`, version 1) | JavaScript API (`ktvm/`) |
 | `.wasm` | WebAssembly module with k runner metadata | `k-wasm-compile`, `k-wasm-run` |
 
 A source file executed directly needs a terminal expression. A library can
@@ -219,15 +219,17 @@ node codecs/unit.mjs --parse | node kvm.mjs /tmp/k-ok.ko |
   node codecs/k-print.mjs
 ```
 
-## PKIR and targets
+## kTVM and target backends
 
-[PKIR](POLYMORPHIC_IR.md) is a separate experimental execution representation.
-`compileRelationToPKIR` in `backend-api.mjs` creates a relation artifact;
-`executePKIR` interprets it and `specializePKIR` resolves layout accesses.
+[kTVM](KTVM_SPEC.md) is the packed-wire transducer VM (`ktvm/`), which lowers
+KIR-P relations into polymorphic `.ktvmp` or concrete `.ktvm` modules
+(`format: "k-tvm"`, version 1) and executes them directly over `k-wire`
+bitstreams via its JavaScript interpreter, WebAssembly backend (`ktvm/wasm/`),
+and native LLVM backend (`ktvm/llvm/`).
 
-The backend compile commands accept `.pkir` input, or `--pkir` when compiling
-source through that path. They also accept source, executable objects, and kVM
-programs. A library still needs an entry relation.
+The kVM backend compile commands accept source, executable objects (`.ko`),
+and kVM programs (`.kvm`). A `.klib` library still needs an entry relation.
 
-See the [WebAssembly](../backends/wasm/README.md) and
+See the [kTVM specification](KTVM_SPEC.md),
+[WebAssembly](../backends/wasm/README.md), and
 [LLVM](../backends/llvm/README.md) guides for target compilation and execution.

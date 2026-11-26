@@ -2,7 +2,7 @@
 
 The experimental LLVM backend lowers k programs to LLVM IR and links them with
 the C runtime. It supports source/object execution, compiled native executables,
-kVM input, and the experimental PKIR path.
+and kVM input.
 
 Commands belong to the root package. Install dependencies from the repository
 root and ensure Clang is available:
@@ -46,8 +46,8 @@ node backends/llvm/bin/k-llvm-compile.mjs '?{} {} |ok' /tmp/k-ok.ll
 | `k-llvm-compile` | Emit textual LLVM IR |
 | `k-llvm-build` | Link a standalone executable that reads/writes k wire values |
 
-Compile/build commands accept inline source or a source, `.ko`, `.kvm`, or
-`.pkir` input. A `.klib` needs a selected relation, supplied through the
+Compile/build commands accept inline source or a source, `.ko`, or `.kvm`
+input. A `.klib` needs a selected relation, supplied through the
 tool's `--retype` option or linked into source with a terminal expression.
 Source is read from stdin when omitted. The execution command instead requires
 a program argument and reads binary input from stdin or an optional filename.
@@ -57,7 +57,6 @@ Common compile options:
 - `-o` / `--output path`: output path instead of a positional output.
 - `--lib file`: one `.k` or `.klib` dependency.
 - `--use name` or `--use libraryName:localName`: repeatable alias imports.
-- `--pkir`: compile source through PKIR.
 - `--retype relation`: select the relation for envelope specialization.
 - `--opt flag`: Clang optimization flag.
 
@@ -93,7 +92,7 @@ k_result k_main(k_rt *rt, k_value *input);
 [runtime/krt.h](runtime/krt.h) defines helpers and ownership through the runtime;
 [runtime/krt.c](runtime/krt.c) implements values, arenas, and wire support.
 [kvm2llvm.mjs](src/kvm2llvm.mjs) lowers kVM functions;
-[llvm.mjs](src/llvm.mjs) coordinates object and PKIR paths.
+[llvm.mjs](src/llvm.mjs) coordinates object and kVM compilation paths.
 
 Unsupported operations must produce diagnostics rather than silently change
 semantics. Backend coverage and artifact formats remain experimental.

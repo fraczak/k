@@ -9,28 +9,26 @@ import {
 } from "../src/cli.mjs";
 import {
   compileObjectToLLVM,
-  compileLLVMArtifactFromKVM,
-  compileLLVMArtifactFromPKIR
+  compileLLVMArtifactFromKVM
 } from "../src/llvm.mjs";
 import { inputPatternForObjectRelation } from "../src/executable.mjs";
 
 function helpText() {
   const prog = argv[1] || "k-llvm-compile.mjs";
   return [
-    "Compile a k .ko/.klib object, source, .kvm, or .pkir into LLVM IR.",
+    "Compile a k .ko/.klib object, source, or .kvm into LLVM IR.",
     "",
     `Usage: ${prog} [options]`,
     "       [source-snippet | input-file [output.ll]]",
     "",
     "Arguments:",
     "  source-snippet   Inline k source snippet (in the style of k.mjs).",
-    "  input-file       Source .k, .ko, .klib, .kvm, or .pkir file.",
+    "  input-file       Source .k, .ko, .klib, or .kvm file.",
     "                   Reads UTF-8 source from stdin when omitted.",
     "  output.ll        Output LLVM IR path (default: stdout).",
     "",
     "Options:",
     "  -o, --output path  Specify output file path explicitly.",
-    "  --pkir             Lower via Polymorphic K IR (PKIR).",
     "  --retype rel       Relation to compile (default: object main).",
     "  --lib file         Load one .klib or .k library before compiling.",
     "  --use spec         Use library alias in scope (repeatable).",
@@ -40,7 +38,6 @@ function helpText() {
     "Examples:",
     `  ${prog} 'x = |x; x x' program.ll`,
     `  ${prog} program.k -o program.ll`,
-    `  ${prog} --pkir program.k -o program.ll`,
     `  ${prog} --lib core.klib --use add program.k program.ll`
   ].join("\n");
 }
@@ -78,7 +75,7 @@ try {
     }
   }
 
-  const { libraries, useSpecs, usePKIR } =
+  const { libraries, useSpecs } =
     parseCompileOptions(remainingArgs);
   const input = resolveProgramInput(remainingArgs, {
     allowStdinSource: true
@@ -89,15 +86,7 @@ try {
   const outputPath = explicitOutput || positionalOutput || null;
 
   let llvm;
-  if (input.kind === "pkir") {
-    const pkir = JSON.parse(fs.readFileSync(input.path, "utf8"));
-    const entry = relation || pkir.entry || pkir.name || "__main__";
-    llvm = compileLLVMArtifactFromPKIR(pkir, {
-      relation: entry,
-      inputPattern: pkir.inputPattern,
-      outputPattern: pkir.outputPattern
-    });
-  } else if (input.kind === "kvm") {
+  if (input.kind === "kvm") {
     const kvm = JSON.parse(fs.readFileSync(input.path, "utf8"));
     const entry = relation || kvm.entry || kvm.relation || "__main__";
     const mainFunc = kvm.functions?.[entry];
@@ -117,8 +106,7 @@ try {
     const targetRel = relation || object.main;
     const res = compileObjectToLLVM(object, {
       relation: targetRel,
-      inputPattern: inputPatternForObjectRelation(object, targetRel),
-      usePKIR
+      inputPattern: inputPatternForObjectRelation(object, targetRel)
     });
     llvm = res.llvm;
   }

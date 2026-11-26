@@ -83,8 +83,8 @@ const djsonLib = loadLibrary(compileLibrary(readSrc("lib/djson.k"), {
   libraries: [coreLib, genericLib, ieeeLib],
   use: useSpecsFor("lib/djson.k")
 }));
-const streamLib = loadLibrary(compileLibrary(readSrc("experiments/transducer/v4/integer-streaming.k"), {
-  source: "experiments/transducer/v4/integer-streaming.k",
+const streamLib = loadLibrary(compileLibrary(readSrc("ktvm/fixtures/integer-streaming.k"), {
+  source: "ktvm/fixtures/integer-streaming.k",
   libraries: [coreLib],
   use: useSpecsFor("lib/integer.k")
 }));

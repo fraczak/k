@@ -1,12 +1,12 @@
 # `kTVM`: Formal Specification and Textual DSL (v0.1)
 
-**Status:** Draft Formal Specification (branch `packed-wire-compiler`)  
+**Status:** Implemented Formal Specification  
 **Scope:** Formal abstract machine model, operational semantics, polymorphic schema specialization (`kTVM-P` → `kTVM`), static bit-chunk acceleration contract, and textual DSL grammar for **kTVM** (the K Transducer Virtual Machine).  
 **Related Specifications:**
 - Wire format contract: [WIRE_FORMAT.md](../codecs/WIRE_FORMAT.md), [prefix-codec.mjs](../codecs/runtime/prefix-codec.mjs)
 - Patterns & relations: [PATTERNS.md](PATTERNS.md), [KIR_V1.md](KIR_V1.md)
-- Register VM reference: [KVM_EXECUTION_MODEL.md](KVM_EXECUTION_MODEL.md), [POLYMORPHIC_IR.md](POLYMORPHIC_IR.md)
-- Empirical foundation: [TRANSDUCER_EXPERIMENT_REPORT.md](TRANSDUCER_EXPERIMENT_REPORT.md)
+- Register VM reference: [KVM_EXECUTION_MODEL.md](KVM_EXECUTION_MODEL.md)
+- Empirical evaluation: [KVM_VS_KTVM_COMPARATIVE_STUDY.md](KVM_VS_KTVM_COMPARATIVE_STUDY.md)
 - Throughput criterion (MWTR): [speed-eval.pdf](speed-eval.pdf)
 
 ---
@@ -22,7 +22,7 @@ Its design rests on five core principles:
 3. **Two-Tier Execution ISA (Network + Kernel):**
    - The **Network Layer** dynamically instantiates finite transducer DAGs over bit-addressable `BitDeque` channels, supporting lazy demand-driven recursion (`spawn`), bounded-topology branching recursion (`spawn_seq` / `after`), deterministic multi-port switching (`switch`), bit-exact speculative backtracking (`spec`), strict partiality draining (`drain`/`barrier`/`gate`), and $O(1)$ zero-copy graph rewrites (`splice`, `wrap`/`match`, `mux`/`demux` fusion).
    - The **Kernel Layer** executes compiled single-node deterministic state machines, tail-modulo-constructor (TMC) streaming loops, local-register/local-stack automata, and static **variable-width bit-chunk tables** selected under Howard's Minimum Weight-to-Time Ratio (MWTR) criterion.
-4. **Formal Soundness by Construction:** Every operational invariant discovered empirically during the V1–V4 transducer prototypes (dual consumer/producer channel schemas, exact value-boundary alignment, upstream-failure vs. local-mismatch separation, strict discarded-input draining, iterative non-recursive pushdown traversal) is encoded directly into the machine state and static validation rules.
+4. **Formal Soundness by Construction:** Every operational invariant (dual producer/consumer channel schemas, exact value-boundary alignment, upstream-failure vs. local-mismatch separation, strict discarded-input draining, iterative non-recursive pushdown traversal) is encoded directly into the machine state and static validation rules.
 5. **Backend & Storage Independence:** The textual DSL (`.ktvmp` / `.ktvm`) is both human-readable and machine-verifiable, serving as the single contract between the K front-end/optimizers and multiple execution targets (JS reference VM, C/LLVM, WebAssembly). The `BitDeque` channel model is encapsulated behind an abstract ADT interface so alternative backing representations can be explored without altering VM semantics.
 
 ```mermaid
@@ -114,7 +114,7 @@ Where:
 
 ### 3.2 Dual-Schema Suffix Invariant $\mathcal{I}(c)$
 
-Separating consumer schema $\sigma_{\text{cons}}(c)$ from producer suffix schema $\sigma_{\text{prod}}(c)$ is essential whenever a prefix constructor (`wrap |tag`) or partial product emitter (`mux`) emits prefix bits ahead of an upstream producer.
+Separating producer suffix schema $\sigma_{\text{prod}}(c)$ from consumer schema $\sigma_{\text{cons}}(c)$ is essential whenever a prefix constructor (`wrap |tag`) or partial product emitter (`mux`) emits prefix bits ahead of an upstream producer.
 
 Let $w_{\text{read}}(c) \in \{0,1\}^*$ denote the ghost history of bits already shifted by `c.cons` since the last aligned boundary ($w_{\text{read}}(c) = \varepsilon$ whenever `c.aligned = true`). Every well-formed channel $c$ maintains:
 
@@ -239,7 +239,7 @@ Every `proc` body instantiates a finite acyclic local subgraph when expanded, re
 
 | Instruction | Signature / Syntax | Small-Step Operational Semantics |
 | --- | --- | --- |
-| **`chan`** | `chan %c : $S` | Allocate fresh `BitDeque` `%c` in current scope: `buf = ε`, `status = OPEN`, `consSchema = prodSchema = $S`, `aligned = true`. |
+| **`chan`** | `chan %c : $S` | Allocate fresh `BitDeque` `%c` in current scope: `buf = ε`, `status = OPEN`, `prodSchema = consSchema = $S`, `aligned = true`. |
 | **`barrier`** | `barrier %b` | Allocate barrier `%b` (`guards = ∅`, `status = PENDING`, `waiters = ∅`). |
 | **`drain`** | `drain %c : $S [-> %b]` | Register `%c` in `%b.guards` (if `%b` given). Runs iterative `dpda_skip($S)` on `%c`. When `%c` reaches valid end-of-value and `CLOSED`: mark guard done; if all guards of `%b` done, set `%b.status := PASSED` and wake all `%b.waiters`. If `%c` fails or has invalid wire bits: set `%b.status := FAILED`, wake waiters, and retire. |
 | **`gate`** | `gate %b, %in -> %out` | Wait until `%b.status != PENDING` (pulling `%b`'s pending guard drains first). If `PASSED`: execute `splice(%in -> %out)` and retire. If `FAILED`: `fail(%out)`, cancel `%in`, and retire. |
@@ -269,7 +269,7 @@ Let `spec (in_0, ..., in_{m-1}) -> (out_0, ..., out_{r-1})` have branches $B_0, 
 3. **Speculative Branch ($i < k - 1$):**
    - Create fresh child scope $s_i$ with `parent = s_par`.
    - For each input $j \in [0, m-1]$, allocate tap channel `in'_j` in $s_i$ backed by a `TAP` producer that pulls from `in_j`, records every bit transferred into `replay_j`, and forwards to `in'_j`.
-   - For each output $l \in [0, r-1]$, allocate staging channel `out'_l` in $s_i$ (`consSchema = prodSchema = prodSchema(out_l)`).
+   - For each output $l \in [0, r-1]$, allocate staging channel `out'_l` in $s_i$ (`prodSchema = consSchema = prodSchema(out_l)`).
    - Instantiate $B_i$ inside $s_i$ connected to `(in'_0..in'_{m-1}) -> (out'_0..out'_{r-1})`.
    - Drive $s_i$ by pulling `out'_0 .. out'_{r-1}` until either:
      - **Case A (All `out'_l` are `CLOSED` — Commit):** Discard all `replay_j`, detach `TAP` nodes (splicing any remaining unread `in'_j` bits back if needed — note: valid K branches drain or consume their inputs cleanly; any still-unread bits in `in'_j` are unshifted back to `in_j` only if unconsumed, otherwise `in_j` advances to the post-branch position), `splice(out'_l -> out_l)` for all $l$, destroy child scope $s_i$, and retire `spec`.
@@ -627,7 +627,7 @@ proc @_reverse__int(%xs: $list_int, %acc: $list_int) -> (%out: $list_int) total 
 }
 ```
 
-### 10.2 Guarded Streaming TMC Kernel + Bit-Chunk Table: `_lsb_add` (`integer-streaming.k`)
+### 10.2 Guarded Streaming TMC Kernel + Bit-Chunk Table: `_lsb_add` (`ktvm/fixtures/integer-streaming.k`)
 
 Demonstrates in-register carry promotion (`reg c : enum(2)`), forward streaming `push_bits`, cooperative `yield`, $O(1)$ zero-copy tail splicing on `carry == 0`, and accelerated `chunk_table` dispatch with short-tail fallback to the exact bit-level CFG:
 
@@ -756,7 +756,7 @@ table &tab_lsb_add chunk_table {
 }
 ```
 
-### 10.3 Virtual-Stack Kernel: Online `_lsb_trim` (`integer-streaming.k`)
+### 10.3 Virtual-Stack Kernel: Online `_lsb_trim` (`ktvm/fixtures/integer-streaming.k`)
 
 Demonstrates a first-class kernel-local LIFO bit-stack (`stack z : bits`) accelerating single-pass trailing-zero trimming without an external `BitDeque` channel:
 
@@ -870,28 +870,29 @@ proc @lsb_mul_karatsuba(%x: $bits, %y: $bits) -> (%out: $bits) branching total {
 
 ---
 
-## 11. Implementation Roadmap and Evolution Hooks
+## 11. Implementation Structure and Evolution Hooks
 
-### 11.1 Production Milestones (`k/ktvm/`, Peer Backend Alongside `kVM`)
+### 11.1 Production Implementation (`ktvm/`, Peer Backend Alongside `kVM`)
 
-1. **Milestone 1 — Standalone `kTVM` Core & Iterative Reference VM (`k/ktvm/`):**
+1. **Core IR, Validator, Specializer & Reference VM (`ktvm/`):**
    - `ast.mjs`, `parser.mjs`, `printer.mjs`, `json.mjs`: round-trip `.ktvmp`/`.ktvm` DSL + `format: "k-tvm"` JSON export.
    - `schema.mjs`: Moore quotient minimization, prefix derivatives, and bridge to K's `intersectPropertyListPatterns`.
    - `validator.mjs`: enforces all 6 static validation rules (Section 8)—including SPSC linearity, `(prodSchema, consSchema)` checking, DAG acyclicity, and always-on table-to-`CFG` bisimulation verification.
    - `bit-deque.mjs`: power-of-2 ring-buffer `BitDeque` ADT with configurable byte quotas (`maxBitDequeBytes`).
    - `specialize.mjs`: standalone `specializeKTVM(ktvmp, entry, S_in)` → `SchemaError` or concrete envelope-free `.ktvm` + `S_out`.
-   - `vm.mjs`: strictly iterative small-step reference interpreter + iterative `k-wire` boundary codec + runtime quotas (`maxBitDequeBytes`, `maxNodes`, `maxSteps`).
-   - Standalone tests covering all 4 worked examples (Section 10), partiality (`barrier`/`gate`), `spec` rollback/upstream-abort, `tee`, quotas, and malformed wire hardening.
-2. **Milestone 2 — `KIR-P → kTVM-P` Lowering & Full K Parity:**
-   - `lower-kir.mjs`: lower all `KIR-P` opcodes (`usedPaths`, deterministic `switch` vs. `spec`, `isBranchingRecursive` `after %tok`, optional `retypeObjectRelationForBackend` fallback).
-   - Integrate into `backend-api.mjs`, `harness/cli.mjs`, and `npm test` while keeping `k/lib/*.k` untouched.
-   - Pass 100% parity on `npm run conformance`, `lib/generic.k`, `lib/integer.k`, `lib/ieee.k`, `lib/djson.k`, and `integer-streaming.k`, plus differential fuzzing.
-3. **Milestone 3 — Verified `kTVM → kTVM` Optimization Passes (`k/ktvm/optimize/`):**
-   - CPS symbolic `kernel` fusion & TMC forward streaming (register & local LIFO `stack` promotion).
+   - `vm.mjs` & `wire.mjs`: strictly iterative small-step reference interpreter + iterative `k-wire` boundary codec + runtime quotas (`maxBitDequeBytes`, `maxNodes`, `maxSteps`).
+   - Verified by `ktvm/test-ktvm.mjs`.
+2. **`KIR-P → kTVM-P` Lowering & Full Standard-Library Parity (`ktvm/lower-kir.mjs`):**
+   - Lowers all `KIR-P` opcodes (`usedPaths`, deterministic `switch` vs. `spec`, `isBranchingRecursive` `after %tok`, optional `retypeObjectRelationForBackend` fallback).
+   - Exposed via `backend-api.mjs`, `harness/cli.mjs`, and `npm test` while keeping `lib/*.k` untouched.
+   - Verified by `ktvm/test-conformance.mjs` against `conformance/`, `lib/generic.k`, `lib/integer.k`, `lib/ieee.k`, `lib/djson.k`, `ktvm/fixtures/integer-streaming.k`, and differential fuzzing.
+3. **Verified `kTVM → kTVM` Optimization Passes (`ktvm/optimize/`):**
+   - CPS symbolic `kernel` fusion, bounded short-bit unfolding, entry-guard `spec → switch` compilation, and TMC forward streaming (register & local LIFO `stack` promotion).
    - Bit-chunk / stack-chunk / heterogeneous FSM table synthesis (`SWAR` compression, `64 KB` default L1 Howard `MWTR` budget, graceful wide-alphabet `CFG` fallback, always-on bisimulation verification).
-4. **Milestone 4 — WebAssembly Backend (`k/ktvm/wasm/`) & C/LLVM Follow-Up:**
-   - Lower concrete `.ktvm` to WAT/Wasm via `wabt`: flat active-node slab pool, `<= 128b`-inline + segmented-slab `BitDeque`s with global quota, static data segments for chunk tables, and iterative worklist pull scheduler.
-   - Benchmark head-to-head against `main`'s Wasm/LLVM backends across `perf:int`, `perf:mult`, `perf:ieee`, `perf:poly`, and `djson`, followed by native C/LLVM (`k/ktvm/llvm/`).
+   - Verified by `ktvm/test-optimize.mjs`.
+4. **WebAssembly & Native C/LLVM Backends (`ktvm/wasm/`, `ktvm/llvm/`):**
+   - `ktvm/wasm/` lowers concrete `.ktvm` to WAT/Wasm via `wabt` with a flat active-node slab pool, `<= 128b`-inline + segmented-slab `BitDeque`s with global quota, static data segments for chunk tables, and an iterative worklist pull scheduler. Integrated directly into the terminal and browser REPLs (`:engine ktvm` / `--ktvm`) and verified by `ktvm/wasm/test-wasm.mjs`.
+   - `ktvm/llvm/` lowers concrete `.ktvm` to C/LLVM IR linked against `ktvm/llvm/runtime.h`, verified by `ktvm/llvm/test-llvm.mjs` and benchmarked head-to-head against kVM in [KVM_VS_KTVM_COMPARATIVE_STUDY.md](KVM_VS_KTVM_COMPARATIVE_STUDY.md).
 
 ### 11.2 Intentionally Isolated Evolution Hooks
 

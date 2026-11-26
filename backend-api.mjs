@@ -36,23 +36,6 @@ export {
   isIdentityIntrinsic,
   unsupportedIntrinsic
 } from "./intrinsics.mjs";
-export { buildAccessTable, AccessTable } from "./access-table.mjs";
-export {
-  PKIR_FORMAT,
-  PKIR_VERSION,
-  compileRelationToPKIR,
-  executePKIR,
-  specializePKIR,
-  valueToKVal,
-  kvalToValue,
-  lowerPKIRToKVM
-} from "./pkir.mjs";
-export {
-  compileWasmArtifactFromPKIR
-} from "./backends/wasm/src/wasm.mjs";
-export {
-  compileLLVMArtifactFromPKIR
-} from "./backends/llvm/src/llvm.mjs";
 export {
   KTVM_FORMAT,
   KTVM_VERSION,

@@ -11,12 +11,13 @@ const manifest = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"
 assert.equal(manifest.name, expected.name);
 assert.equal(manifest.version, expected.version);
 for (const file of ["parser.mjs", "valueParser.mjs", "core.k", "LICENSE",
-  "backends/wasm/runtime.wat", "backends/llvm/runtime/krt.c"]) {
+  "backends/wasm/runtime.wat", "backends/llvm/runtime/krt.c",
+  "ktvm/wasm/runtime.wat", "ktvm/llvm/runtime.h"]) {
   assert.ok(fs.existsSync(path.join(packageDir, file)), file);
 }
 assert.ok(!fs.existsSync(path.join(packageDir, "browser/vfs-data.mjs")),
   "Generated VFS data must not be packed");
-for (const file of ["AGENTS.md", "CLAUDE.md"]) {
+for (const file of ["AGENTS.md", "CLAUDE.md", "experiments", "DOCS/speed-eval.pdf"]) {
   assert.ok(!fs.existsSync(path.join(packageDir, file)), file);
 }
 
@@ -63,7 +64,18 @@ try {
   run("k-wasm-compile", ["?{} {} |ok", wasm]);
   assert.equal(run("k-print", [], run("k-wasm-run", [wasm], unit)).toString().trim(), '"ok"');
 
-  console.log(`Package ${manifest.name}@${manifest.version}: API, ${Object.keys(manifest.bin).length} CLIs, codecs, objects and Wasm passed on ${process.version}`);
+  const { decodeObject } = await import(pathToFileURL(path.join(packageDir, "object.mjs")));
+  const { compileObjectToKTVMWasm, instantiateKTVMWasm } = await import(
+    pathToFileURL(path.join(packageDir, "ktvm/wasm/index.mjs"))
+  );
+  const okObj = decodeObject(fs.readFileSync(object));
+  const ktvmArtifact = await compileObjectToKTVMWasm(okObj, "__main__", [["closed-product", []]]);
+  const ktvmRunner = await instantiateKTVMWasm(ktvmArtifact);
+  const ktvmRes = ktvmRunner.executeWire(unit, { decodeValue: true });
+  assert.equal(ktvmRes.status, "OK");
+  assert.equal(ktvmRes.value.tag, "ok");
+
+  console.log(`Package ${manifest.name}@${manifest.version}: API, ${Object.keys(manifest.bin).length} CLIs, codecs, objects, Wasm, and kTVM passed on ${process.version}`);
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true });
 }

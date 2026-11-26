@@ -8,14 +8,14 @@ client. The source parser and runtime can run without a browser.
 
 | Command | Coverage |
 | --- | --- |
-| `npm test` | Registered runtime, patterns, paper examples, codecs, hashes, objects, REPL, browser, kVM, PKIR, library, and shell suites |
+| `npm test` | Registered runtime, patterns, paper examples, codecs, hashes, objects, REPL, browser, kVM, kTVM, library, and shell suites |
 | `npm run conformance` | Shared source/object/KIR-P fixtures |
 | `npm run test:wasm` | Wasm runtime/lowering and backend shell integration |
 | `npm run test:llvm` | LLVM runtime/lowering, field-layout regression, shell integration, and shared fixtures |
 | `npm run test:backends` | Both backend suites |
 | `npm --prefix k-vscode test` | Editor grammar and expression-background tests |
 | `node tests/test-paper-examples.mjs` | Publication examples, including canonical hashes and the half adder |
-| `npm run test:package -- /path/to/installed/@fraczak/k` | Packed installation, API, command help, codec pipeline, objects, and Wasm |
+| `npm run test:package -- /path/to/installed/@fraczak/k` | Packed installation, API, command help, codec pipeline, objects, Wasm, and kTVM |
 
 The backend and editor suites are separate commands; `npm test` does not run
 every suite in this table. The paper command is also available as a focused check.
@@ -42,7 +42,7 @@ cases; shared helpers live outside the discovered directory.
 | Wire values and codecs | `test-codecs.mjs`, `test-deep-wire-value.mjs`, `test-structural-values.mjs` |
 | Objects and portable export | `test-k-object.mjs`, `test-kir.mjs`, `test-validate-object.mjs` |
 | Interactive state and browser UI | `test-repl.mjs`, `test-repl-html.mjs`, `test-tree-view.mjs` |
-| Execution layers | `test-kvm.mjs`, `test-kvm-polymorphic.mjs`, `test-access-table.mjs`, `test-pkir.mjs` |
+| Execution layers | `test-kvm.mjs`, `test-kvm-polymorphic.mjs`, `ktvm/test-ktvm.mjs`, `ktvm/test-conformance.mjs`, `ktvm/test-optimize.mjs`, `ktvm/wasm/test-wasm.mjs`, `ktvm/llvm/test-llvm.mjs` |
 | Libraries | `test-generic.mjs`, `test-integer.mjs`, `test-ieee.mjs`, `test-djson.mjs`, `test-lib.mjs`, and example suites (`test-arithmetics.mjs`, `test-poly.mjs`, `test-ieee-arithmetic.mjs`, `test-djson-methods.mjs`) |
 | JSON text parsing | `test-parse-json.mjs`: RFC 8259 grammar, Unicode escapes, binary64 rounding, Wasm, and CLI |
 

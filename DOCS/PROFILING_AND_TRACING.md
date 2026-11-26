@@ -1,13 +1,13 @@
 # Profiling and benchmarks
 
-Benchmarks compare reference JavaScript, kVM, Wasm, LLVM, and PKIR execution.
+Benchmarks compare reference JavaScript, kVM, Wasm, LLVM, and kTVM execution.
 Run commands from the repository root; LLVM lanes need Clang.
 
 ## Entry points
 
 | Command | Workload |
 | --- | --- |
-| `npm run compare` | Shared harness for polymorphic list operations |
+| `npm run compare` | Shared harness for polymorphic list operations (JS, kVM, Wasm, LLVM, kTVM) |
 | `npm run perf:poly` | List operations across execution lanes |
 | `npm run perf:poly:trace` | List timing phases and call profiles |
 | `npm run perf:int` | Integer arithmetic |
@@ -66,5 +66,7 @@ The kVM interpreter increments `context.profile` counters, and backend
 performance helpers collect profiles and phase timings.
 
 Generated benchmark reports are measurements of a particular run, not language
-or performance guarantees. Use the [test suites](../tests/README.md) for
-regression verification.
+or performance guarantees. For an in-depth architectural comparison of kVM and
+kTVM across arithmetic, list, IEEE 754, and JSON workloads, see the
+[kVM vs. kTVM comparative study](KVM_VS_KTVM_COMPARATIVE_STUDY.md). Use the
+[test suites](../tests/README.md) for regression verification.

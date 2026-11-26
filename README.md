@@ -107,8 +107,8 @@ by hand.
 
 The [compiler guide](DOCS/ARCHITECTURE.md) maps the implementation and execution
 layers. [WebAssembly](backends/wasm/README.md),
-[LLVM](backends/llvm/README.md), and the [VS Code extension](k-vscode/README.md)
-have their own usage instructions.
+[LLVM](backends/llvm/README.md), [kTVM](DOCS/KTVM_SPEC.md), and the
+[VS Code extension](k-vscode/README.md) have their own usage instructions.
 
 k is experimental: syntax, diagnostics, libraries, and artifact formats may
 change. Release history is in [CHANGELOG.md](CHANGELOG.md).

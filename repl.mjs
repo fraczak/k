@@ -64,13 +64,13 @@ import {
 } from "./repl-codecs.mjs";
 
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
-const VALID_ENGINES = ["wasm", "pkir", "ktvm", "js"];
+const VALID_ENGINES = ["wasm", "ktvm", "js"];
 const VALID_ENGINES_TEXT = VALID_ENGINES.join(", ");
 const COMMAND_NAMES = [
   "help", "rel", "pattern", "pat", "patterns", "pats",
   "all-patterns", "all-pat",
   "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
-  "engine", "wasm", "pkir", "ktvm", "js", "limit",
+  "engine", "wasm", "ktvm", "js", "limit",
   "max-pat-length", "maxPatLength",
   "quit", "exit"
 ];
@@ -1550,8 +1550,7 @@ async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
 
   const wasmCompileStart = performance.now();
   const wasmBytes = await compileWasmArtifactFromObject(obj, {
-    inputEnvelopePattern: inputValue?.pattern,
-    usePKIR: state.engine === "pkir" || state.usePKIR
+    inputEnvelopePattern: inputValue?.pattern
   });
   const runner = await instantiateWasmArtifact(wasmBytes);
   const wasmCompileMs = performance.now() - wasmCompileStart;
@@ -1959,10 +1958,6 @@ async function evaluateCommand(line, state) {
       state.engine = "wasm";
       return ["engine set to wasm"];
     }
-    case "pkir": {
-      state.engine = "pkir";
-      return ["engine set to pkir"];
-    }
     case "ktvm": {
       state.engine = "ktvm";
       return ["engine set to ktvm"];
@@ -2055,7 +2050,7 @@ async function evaluateCommand(line, state) {
 
 function helpText() {
   return [
-    ":engine [wasm|pkir|ktvm|js] display or switch evaluation engine",
+    ":engine [wasm|ktvm|js] display or switch evaluation engine",
     ":rel name            show relation definition",
     ":rels                list relation aliases",
     ":pattern name        show named pattern definition (alias :pat)",
@@ -2094,12 +2089,11 @@ function cliUsage() {
   console.log("Usage: k-repl [options]");
   console.log("");
   console.log("Options:");
-  console.log("  --engine=<wasm|pkir|ktvm|js>  Select engine: wasm, pkir, ktvm, js");
-  console.log("                                (default: wasm).");
-  console.log("  --pkir                        Shortcut for --engine=pkir.");
-  console.log("  --ktvm                        Shortcut for --engine=ktvm.");
-  console.log("  --wasm                        Shortcut for --engine=wasm.");
-  console.log("  --js                          Shortcut for --engine=js.");
+  console.log("  --engine=<wasm|ktvm|js>  Select engine: wasm, ktvm, js");
+  console.log("                           (default: wasm).");
+  console.log("  --ktvm                   Shortcut for --engine=ktvm.");
+  console.log("  --wasm                   Shortcut for --engine=wasm.");
+  console.log("  --js                     Shortcut for --engine=js.");
   console.log("  --limit=<num>            Set maximum characters for output.");
   console.log("  --max-pat-length=<num>   Set max inline pattern length in :rel");
   console.log("                           (default: 45).");
@@ -2209,8 +2203,6 @@ if (isMainEntrypoint()) {
       engine = "js";
     } else if (arg === "--wasm") {
       engine = "wasm";
-    } else if (arg === "--pkir") {
-      engine = "pkir";
     } else if (arg === "--ktvm") {
       engine = "ktvm";
     } else if (arg.startsWith("--engine=")) {

@@ -34,9 +34,9 @@ shows compilation and execution costs for the selected engine.
 | `:codec unload name` | Remove a codec |
 | `:codec list` / `:codecs` | List registered codecs |
 | `:input codec.mjs [text]` | Parse inline text, or prompt for the next input line |
-| `:engine [wasm\|pkir\|js]` | Show or select the evaluation engine |
-| `:wasm` / `:pkir` / `:js` | Engine shortcuts |
-| `:limit [number\|none]` | Show or change the output limit (default: 4096 characters) |
+| `:engine [wasm\|ktvm\|js]` | Show or select the evaluation engine |
+| `:wasm` / `:ktvm` / `:js` | Engine shortcuts |
+| `:limit [number\|none]` | Show or change the output limit (default: `none`) |
 | `:max-pat-length [number\|none]` | Show or change max inline pattern length in `:rel` (default: 45, alias `:maxPatLength`) |
 | `:klib file` | Export the current library |
 | `:ko file expression` | Export an executable object |
@@ -111,17 +111,19 @@ See [writing codecs](CODECS.md) for the module contract.
 
 The terminal REPL provides:
 
-- `wasm` (default): compile and execute through WebAssembly;
-- `pkir`: execute through the experimental polymorphic IR;
+- `wasm` (default): compile and execute through the kVM WebAssembly backend;
+- `ktvm`: compile and execute through the packed-wire kTVM WebAssembly backend;
 - `js`: use the envelope-aware JavaScript reference evaluator.
 
 Choose an engine or output limit at startup:
 
 ```sh
 node repl.mjs --engine=js
-node repl.mjs --engine=pkir
+node repl.mjs --engine=ktvm
 node repl.mjs --engine=wasm --limit=8192
 ```
+
+Shortcuts `--wasm`, `--ktvm`, and `--js` are equivalent to `--engine=...`.
 
 Large values are rendered iteratively and truncated at the configured limit.
 Use `:limit none` to disable truncation.
@@ -143,10 +145,12 @@ See [file formats](FILE_FORMATS.md) for inspection, validation, and CLI executio
 
 ## Browser REPL
 
-`npm run build:repl-html` creates a self-contained `repl.html` with an
-in-process WebAssembly backend, bundled libraries/codecs, and a virtual
-filesystem. It is also [hosted online](https://fraczak.github.io/k/).
+`npm run build:repl-html` creates a self-contained `repl.html` with in-process
+WebAssembly (`wasm`), kTVM-Wasm (`ktvm`), and JavaScript (`js`) engines, bundled
+libraries/codecs, and a virtual filesystem. It is also
+[hosted online](https://fraczak.github.io/k/).
 
-The browser adds file loading, codec management, interactive input dialogs, and
-value-tree inspection. Uploaded and exported files use the virtual filesystem
-and browser downloads rather than the terminal's filesystem access.
+The browser adds an interactive engine-switcher badge, file loading, codec
+management, interactive input dialogs, and value-tree inspection. Uploaded and
+exported files use the virtual filesystem and browser downloads rather than the
+terminal's filesystem access.

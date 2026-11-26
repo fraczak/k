@@ -7,7 +7,6 @@
  * across available execution backends:
  *   - LLVM (native binary via Clang/LLVM)
  *   - WebAssembly (persistent runner via Wasm)
- *   - PKIR (persistent runner via Wasm/PKIR)
  *   - kVM Interpreter (envelope-free bytecode engine)
  *   - Native JS (envelope-free convergence engine)
  *
@@ -67,7 +66,7 @@ function printHelp() {
 
 Multiplication Performance Harness.
 Benchmarks lib/integer.k multiplication ('times', Karatsuba) across
-available execution backends (LLVM, Wasm, PKIR, kVM, JS).
+available execution backends (LLVM, Wasm, kVM, JS).
 
 Options:
   --mode <squaring|sizes>
@@ -76,8 +75,8 @@ Options:
       (default: squaring)
   --backends <csv>
       Comma-separated list of execution backends to test:
-      llvm, llvm-pkir, wasm, pkir, kvm, js.
-      (default: llvm,llvm-pkir,wasm,pkir,kvm,js)
+      llvm, wasm, kvm, js.
+      (default: llvm,wasm,kvm,js)
   --algos <csv>
       Comma-separated list of multiplication algorithms to test:
       times. (default: times)
@@ -116,7 +115,7 @@ if (hasFlag("-h") || hasFlag("--help")) {
 }
 
 const mode = getArg("--mode", "squaring"); // 'squaring' or 'sizes'
-const defaultBackends = "llvm,llvm-pkir,wasm,pkir,kvm,js";
+const defaultBackends = "llvm,wasm,kvm,js";
 const backendsArg = getArg(
   "--backends",
   process.env.BACKENDS || defaultBackends
@@ -241,7 +240,7 @@ const cacheDir = makeCacheDir("k-mult-perf-");
 // 2. Prepare Squaring Relations & Binaries
 // For squaring: relation name `s_${algo} = {()x, ()y} ${algo}; s_${algo}`
 const algoRelations = {};
-const algoServers = { llvm: {}, "llvm-pkir": {}, wasm: {}, pkir: {} };
+const algoServers = { llvm: {}, wasm: {} };
 
 let commonState = null;
 
@@ -284,26 +283,6 @@ for (const algo of selectedAlgos) {
     }
   }
 
-  // LLVM (via PKIR)
-  if (selectedBackends.includes("llvm-pkir")) {
-    const exePath = path.join(cacheDir, `perf_mult_llvm_pkir_${algo}`);
-    try {
-      compileObjectToExecutable(
-        algoRelations[algo].object, exePath, {
-          clangOpt: "-O2",
-          inputPattern: parseIntValue("0").pattern,
-          usePKIR: true
-        }
-      );
-      algoServers["llvm-pkir"][algo] =
-        new PersistentExecutable(exePath);
-    } catch (e) {
-      console.warn(
-        `[WARN] Failed to compile LLVM-PKIR for ${algo}: ${e.message}`
-      );
-    }
-  }
-
   // Wasm
   if (selectedBackends.includes("wasm")) {
     const wasmPath = path.join(cacheDir, `perf_mult_wasm_${algo}.wasm`);
@@ -328,31 +307,6 @@ for (const algo of selectedAlgos) {
       );
     }
   }
-
-  // PKIR
-  if (selectedBackends.includes("pkir")) {
-    const pkirPath = path.join(cacheDir, `perf_mult_pkir_${algo}.wasm`);
-    const exePath = path.join(cacheDir, `perf_mult_pkir_${algo}.exe`);
-    try {
-      const wasmBuf = await compileWasmArtifactFromObject(
-        algoRelations[algo].object, { entry: "__main__", usePKIR: true }
-      );
-      fs.writeFileSync(pkirPath, wasmBuf);
-      const runBin = fileURLToPath(
-        import.meta.resolve("../backends/wasm/bin/k-wasm-run.mjs")
-      );
-      fs.writeFileSync(
-        exePath,
-        `#!/bin/sh\nexec node "${runBin}" "${pkirPath}" "$@"\n`,
-        { mode: 0o755 }
-      );
-      algoServers.pkir[algo] = new PersistentExecutable(exePath);
-    } catch (e) {
-      console.warn(
-        `[WARN] Failed to compile PKIR for ${algo}: ${e.message}`
-      );
-    }
-  }
 }
 
 // 3. Squaring Mode Benchmark
@@ -371,8 +325,8 @@ if (mode === "squaring") {
   const stepBits = [];
 
   try {
-    // A. Run persistent backends (LLVM, LLVM-PKIR, Wasm, PKIR)
-    const activeBackends = ["llvm", "llvm-pkir", "wasm", "pkir"]
+    // A. Run persistent backends (LLVM, Wasm)
+    const activeBackends = ["llvm", "wasm"]
       .filter(b => selectedBackends.includes(b));
     for (const backend of activeBackends) {
       for (const algo of selectedAlgos) {
@@ -585,7 +539,7 @@ if (mode === "squaring") {
 
   } finally {
     // Teardown persistent servers
-    for (const backend of ["llvm", "llvm-pkir", "wasm", "pkir"]) {
+    for (const backend of ["llvm", "wasm"]) {
       for (const algo of selectedAlgos) {
         algoServers[backend]?.[algo]?.child?.kill();
       }

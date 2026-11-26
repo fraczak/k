@@ -1,5 +1,5 @@
 -- =============================================================================
--- experiments/transducer/v4/integer-streaming.k
+-- ktvm/fixtures/integer-streaming.k
 -- Streaming (Tail-Modulo-Constructor) & Direct-Recursion Integer Arithmetic
 --
 -- Semantically identical drop-in alternative to `lib/integer.k` written for a

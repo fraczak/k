@@ -525,14 +525,10 @@ assert.equal(output[0], "{} ?{}");
 assert.match(output[1], /\/\* comp: .*, exec: .* \(js\) \*\//);
 assert.equal(timingState.lastTiming.engine, "js");
 
-// Verify shortcuts :wasm and :js
+// Verify shortcuts :wasm, :ktvm, and :js
 output = await evaluateInput(":wasm", timingState);
 assert.equal(output[0], "engine set to wasm");
 assert.equal(timingState.engine, "wasm");
-
-output = await evaluateInput(":pkir", timingState);
-assert.equal(output[0], "engine set to pkir");
-assert.equal(timingState.engine, "pkir");
 
 output = await evaluateInput(":ktvm", timingState);
 assert.equal(output[0], "engine set to ktvm");
@@ -550,13 +546,12 @@ assert.equal(timingState.engine, "js");
 // Verify invalid engine error
 await assert.rejects(
   () => evaluateInput(":engine invalid", timingState),
-  /Invalid engine 'invalid'\. Valid engines: wasm, pkir, ktvm, js/
+  /Invalid engine 'invalid'\. Valid engines: wasm, ktvm, js/
 );
 
 // Verify autocompletion for :engine
 completions = completeInput(":engine ", timingState)[0];
 assert(completions.includes(":engine wasm"));
-assert(completions.includes(":engine pkir"));
 assert(completions.includes(":engine ktvm"));
 assert(completions.includes(":engine js"));
 
@@ -578,31 +573,6 @@ assert.equal(output[0], "loaded lib/integer.k");
 output = await evaluateInput("{ {}|_|0|1|0|1 nat x, {}|_|1|0|1 nat y } plus", jsState);
 assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
 assert.match(output[1], /\(js\)/);
-
-// Verify evaluating expressions in PKIR-powered Wasm engine
-const pkirState = createState({ engine: "pkir" });
-assert.equal(pkirState.engine, "pkir");
-
-output = await evaluateInput(
-  "succ = | succ;\n{} | zero succ succ",
-  pkirState
-);
-assert.match(output[0], /^\{\}\|zero\|succ\|succ/);
-assert.match(output[1], /\(pkir\)/);
-
-output = await evaluateInput(
-  "not = </true | false, /false | true >;\n{} | true not",
-  pkirState
-);
-assert.match(output[0], /^\{\}\|false/);
-assert.match(output[1], /\(pkir\)/);
-
-await evaluateInput(":load core.k", pkirState);
-output = await evaluateInput(":load lib/integer.k", pkirState);
-assert.equal(output[0], "loaded lib/integer.k");
-output = await evaluateInput("{ {}|_|0|1|0|1 nat x, {}|_|1|0|1 nat y } plus", pkirState);
-assert.match(output[0], /^\{\}\|_\|1\|1\|1\|1\|\+/);
-assert.match(output[1], /\(pkir\)/);
 
 // Verify evaluating expressions in kTVM-Wasm engine
 const ktvmState = createState({ engine: "ktvm" });

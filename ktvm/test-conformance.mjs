@@ -11,7 +11,7 @@
  *      `bits_to_float64`, subnormals, ±0, ±Inf, qNaN)
  *   4. `lib/djson.k` (RFC 8259 `parse_json`, Unicode `get`/`set`/`del`/`keys`/
  *      `values`, sparse arrays `del_nth`/`push`, predicates across all Unicode planes!)
- *   5. `experiments/transducer/v4/integer-streaming.k` (`lsb_add`, `lsb_sub`,
+ *   5. `ktvm/fixtures/integer-streaming.k` (`lsb_add`, `lsb_sub`,
  *      `lsb_mul`, `lsb_trim`)
  *   6. Polymorphic `kTVM-P` AOT lowering (`lowerKIRToKTVMP`) + DSL/JSON round-trip
  *   7. Randomized differential fuzzing (`k.compile` vs `kTVM` wire-to-wire)
@@ -145,8 +145,8 @@ const djsonLib = loadLibrary(compileLibrary(readSrc("lib/djson.k"), {
   libraries: [coreLib, genericLib, ieeeLib],
   use: useSpecsFor("lib/djson.k")
 }));
-const streamingIntLib = loadLibrary(compileLibrary(readSrc("experiments/transducer/v4/integer-streaming.k"), {
-  source: "experiments/transducer/v4/integer-streaming.k",
+const streamingIntLib = loadLibrary(compileLibrary(readSrc("ktvm/fixtures/integer-streaming.k"), {
+  source: "ktvm/fixtures/integer-streaming.k",
   libraries: [coreLib],
   use: useSpecsFor("lib/integer.k")
 }));
@@ -494,7 +494,7 @@ test("lib/djson.k: full RFC 8259 parse_json parity on objects, arrays, escapes, 
 console.log("\n=== 5. integer-streaming.k & Polymorphic kTVM-P AOT Round-Trip ===");
 // ============================================================================
 
-test("experiments/transducer/v4/integer-streaming.k: lsb_add, lsb_sub, lsb_mul, lsb_trim parity", () => {
+test("ktvm/fixtures/integer-streaming.k: lsb_add, lsb_sub, lsb_mul, lsb_trim parity", () => {
   for (const [a, b] of [["0", "0"], ["7", "1"], ["255", "1"], ["12345", "67890"], ["99999", "12345"]]) {
     const arg = Value.product({ x: parseIntVal(a).value, y: parseIntVal(b).value });
     assertParity(streamingIntLib, "lsb_add", arg, { label: `stream.lsb_add(${a},${b})` });

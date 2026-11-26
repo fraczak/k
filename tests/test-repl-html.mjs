@@ -686,14 +686,11 @@ if (chromiumBin) {
     assert.strictEqual(narrowNavbarCheck.hasTiming, false, "Help modal should not contain :timing");
     assert.strictEqual(narrowNavbarCheck.hasCodecDefine, false, "Help modal should not contain :codec define");
 
-    // 6. Test 4-way engine switching in browser (wasm -> pkir -> ktvm -> js -> wasm) and kTVM execution
+    // 6. Test 3-way engine switching in browser (wasm -> ktvm -> js -> wasm) and kTVM execution
     const engineCheck = await evaluateAsync(`(async () => {
       const badge = document.getElementById("engine-badge");
       const badgeTag = badge?.tagName;
       const initialEngine = window.kRepl.getEngine();
-      await window.kRepl.executeCommand(":engine pkir");
-      const pkirEngine = window.kRepl.getEngine();
-      const badgePkirText = badge?.textContent;
       await window.kRepl.executeCommand(":engine ktvm");
       const ktvmEngine = window.kRepl.getEngine();
       const badgeKtvmText = badge?.textContent;
@@ -722,7 +719,7 @@ if (chromiumBin) {
       const ktvmFromJsLines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
       const ktvmFromJsOut = ktvmFromJsLines[ktvmFromJsLines.length - 1];
 
-      // Verify badge click cycles ktvm -> js -> wasm -> pkir -> ktvm -> ...
+      // Verify badge click cycles ktvm -> js -> wasm -> ktvm -> ...
       badge.click();
       await new Promise(r => setTimeout(r, 80));
       const clickedToJs = window.kRepl.getEngine();
@@ -733,12 +730,10 @@ if (chromiumBin) {
       return {
         badgeTag,
         initialEngine,
-        pkirEngine,
         ktvmEngine,
         jsEngine,
         clickedToJs,
         clickedToWasm,
-        badgePkirText,
         badgeKtvmText,
         badgeKtvmClass,
         badgeJsText,
@@ -751,8 +746,6 @@ if (chromiumBin) {
     })()`);
     assert.strictEqual(engineCheck.badgeTag, "BUTTON", "#engine-badge should be a native <button>");
     assert.strictEqual(engineCheck.initialEngine, "wasm");
-    assert.strictEqual(engineCheck.pkirEngine, "pkir");
-    assert.strictEqual(engineCheck.badgePkirText, "pkir-wasm");
     assert.strictEqual(engineCheck.ktvmEngine, "ktvm");
     assert.strictEqual(engineCheck.badgeKtvmText, "ktvm-wasm");
     assert.strictEqual(engineCheck.badgeKtvmClass, true, "#engine-badge should have .ktvm-mode class");
