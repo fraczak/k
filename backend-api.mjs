@@ -77,6 +77,12 @@ export {
   compileKTVMToWat,
   compileKTVMToWasm,
   instantiateKTVMWasm,
-  compileObjectToKTVMWasm
+  compileObjectToKTVMWasm,
+  isClangAvailable,
+  compileKTVMToC,
+  compileCToExecutable,
+  compileKTVMToExecutable,
+  compileObjectToKTVMExecutable,
+  executeKTVMExecutable
 } from "./ktvm/index.mjs";
 

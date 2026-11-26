@@ -108,3 +108,12 @@ export {
   instantiateKTVMWasm,
   compileObjectToKTVMWasm
 } from "./wasm/index.mjs";
+
+export {
+  isClangAvailable,
+  compileKTVMToC,
+  compileCToExecutable,
+  compileKTVMToExecutable,
+  compileObjectToKTVMExecutable,
+  executeKTVMExecutable
+} from "./llvm/index.mjs";
