@@ -1135,6 +1135,13 @@ function simulateKernelChunk({
   for (let stepBudget = 0; stepBudget < 256; stepBudget++) {
     // Check if we landed directly on a known exit or fail block
     if (exitLabelToId.has(curBlock)) {
+      const exitBlk = blockMap.get(curBlock);
+      const exitReadsReg = Boolean(
+        regName && exitBlk && exitBlk.term?.op === "switch_reg" && exitBlk.term.reg === regName
+      );
+      if (exitReadsReg && regs.get(regName) !== startQ) {
+        return lastValid || snapshotResult("NEED_MORE", {});
+      }
       return snapshotResult("EXIT", { exitId: exitLabelToId.get(curBlock) });
     }
     if (curBlock === failLabel) {

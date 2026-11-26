@@ -128,6 +128,16 @@ export function simulateKernelReferenceCFG({
 
   for (let step = 0; step < maxSteps; step++) {
     if (exitLabelToId.has(curBlock)) {
+      // `EXIT` table entries do not carry `next_q`: ONLY if this exit block actually
+      // reads `regName` (e.g. `switch_reg`) AND an earlier unrolled iteration modified
+      // `regName`, stop at `lastValid` (`CONT`) so the exit sees the updated register!
+      const exitBlk = blockMap.get(curBlock);
+      const exitReadsReg = Boolean(
+        regName && exitBlk && exitBlk.term?.op === "switch_reg" && exitBlk.term.reg === regName
+      );
+      if (exitReadsReg && regs.get(regName) !== startQ) {
+        return lastValid || snapshot("NEED_MORE", {});
+      }
       return snapshot("EXIT", { exitId: exitLabelToId.get(curBlock) });
     }
     if (curBlock === failLabel) {

@@ -1766,13 +1766,12 @@ export class KTVMRuntime {
         }
       }
 
-      node.regs.set(t.reg, entry.next_q);
-
       if (entry.kind === "EXIT") {
         node.pc = t.exits[String(entry.exit)];
         node.stmtIdx = 0;
         return null;
       }
+      node.regs.set(t.reg, entry.next_q);
       // kind === "CONT" -> continue hot loop!
       this.quota.tickStep();
       this.telemetry.steps = this.quota.steps;
@@ -1853,13 +1852,12 @@ export class KTVMRuntime {
           outCh.pushBits(entry.emit_word_single, entry.emit_len_single);
         }
       }
-      node.regs.set(t.reg, entry.next_q);
-
       if (entry.kind === "EXIT") {
         node.pc = t.exits[String(entry.exit)];
         node.stmtIdx = 0;
         return null;
       }
+      node.regs.set(t.reg, entry.next_q);
       this.quota.tickStep();
       this.telemetry.steps = this.quota.steps;
     }

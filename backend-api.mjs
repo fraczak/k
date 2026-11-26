@@ -73,6 +73,10 @@ export {
   executeKTVMWire,
   executeObjectWithKTVM,
   optimizeKTVM,
-  computeMWTR
+  computeMWTR,
+  compileKTVMToWat,
+  compileKTVMToWasm,
+  instantiateKTVMWasm,
+  compileObjectToKTVMWasm
 } from "./ktvm/index.mjs";
 

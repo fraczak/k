@@ -99,3 +99,11 @@ export {
   synthesizeTables,
   optimizeKTVM
 } from "./optimize/index.mjs";
+
+export {
+  compileKTVMToWat,
+  assembleWatToWasm,
+  compileKTVMToWasm,
+  instantiateKTVMWasm,
+  compileObjectToKTVMWasm
+} from "./wasm/index.mjs";

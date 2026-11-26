@@ -67,6 +67,7 @@ const tests = [
   ["ktvm/test-ktvm.mjs", node, ["ktvm/test-ktvm.mjs"]],
   ["ktvm/test-conformance.mjs", node, ["ktvm/test-conformance.mjs"]],
   ["ktvm/test-optimize.mjs", node, ["ktvm/test-optimize.mjs"]],
+  ["ktvm/wasm/test-wasm.mjs", node, ["ktvm/wasm/test-wasm.mjs"]],
   ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],
   ["tests/test-poly.mjs", node, ["tests/test-poly.mjs"]],
   ["tests/test-polymorphic-tdd.mjs", node, ["tests/test-polymorphic-tdd.mjs"]],
