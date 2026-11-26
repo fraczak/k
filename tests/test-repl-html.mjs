@@ -35,6 +35,7 @@ assert(html.includes("<style>"), "repl.html must contain inlined CSS styles");
 assert(html.includes('<script type="module">'), "repl.html must contain inlined module script");
 assert(!html.includes('<script src="http'), "repl.html must NOT contain external remote scripts");
 assert(html.includes("wasm-in-process"), "repl.html must mention wasm-in-process engine");
+assert(html.includes("ktvm-wasm"), "repl.html must mention ktvm-wasm engine");
 assert(html.includes("nat.k"), "repl.html must embed standard examples");
 assert(html.includes("btn-codecs"), "repl.html must contain Codecs button");
 assert(html.includes("codecs-modal"), "repl.html must contain Codecs modal");
@@ -685,35 +686,78 @@ if (chromiumBin) {
     assert.strictEqual(narrowNavbarCheck.hasTiming, false, "Help modal should not contain :timing");
     assert.strictEqual(narrowNavbarCheck.hasCodecDefine, false, "Help modal should not contain :codec define");
 
-    // 6. Test 3-way engine switching in browser (wasm -> pkir -> js)
+    // 6. Test 3-way engine switching in browser (wasm -> ktvm -> js -> wasm) and kTVM execution
     const engineCheck = await evaluateAsync(`(async () => {
+      const badge = document.getElementById("engine-badge");
+      const badgeTag = badge?.tagName;
       const initialEngine = window.kRepl.getEngine();
-      await window.kRepl.executeCommand(":engine pkir");
-      const pkirEngine = window.kRepl.getEngine();
-      const badgePkirText = document.getElementById("engine-badge")?.textContent;
+      await window.kRepl.executeCommand(":engine ktvm");
+      const ktvmEngine = window.kRepl.getEngine();
+      const badgeKtvmText = badge?.textContent;
+      const badgeKtvmClass = badge?.classList.contains("ktvm-mode");
+
+      // Execute K expressions on ktvm-wasm directly in the browser!
+      await window.kRepl.executeCommand("{} | ok");
+      const ktvmSimpleLines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      const ktvmSimpleOut = ktvmSimpleLines[ktvmSimpleLines.length - 1];
+
+      await window.kRepl.executeCommand("{{}|_|0|1|0|1 nat x, {}|_|1|0|1 nat y} plus");
+      const ktvmPlusLines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      const ktvmPlusOut = ktvmPlusLines[ktvmPlusLines.length - 1];
+
+      await window.kRepl.executeCommand("{}|_|0|1|0|1 nat (gen_list sort)");
+      const ktvmSortLines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      const ktvmSortOut = ktvmSortLines[ktvmSortLines.length - 1];
+
       await window.kRepl.executeCommand(":engine js");
       const jsEngine = window.kRepl.getEngine();
-      const badgeJsText = document.getElementById("engine-badge")?.textContent;
+      const badgeJsText = badge?.textContent;
       await window.kRepl.executeCommand("() | ok");
-      await window.kRepl.executeCommand(":engine wasm");
-      const wasmEngine = window.kRepl.getEngine();
-      const badgeWasmText = document.getElementById("engine-badge")?.textContent;
+      // Verify switching from js (open-union state.value) -> ktvm works cleanly
+      await window.kRepl.executeCommand(":ktvm");
+      await window.kRepl.executeCommand("/ok");
+      const ktvmFromJsLines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      const ktvmFromJsOut = ktvmFromJsLines[ktvmFromJsLines.length - 1];
+
+      // Verify badge click cycles ktvm -> js -> wasm -> ktvm -> ...
+      badge.click();
+      await new Promise(r => setTimeout(r, 80));
+      const clickedToJs = window.kRepl.getEngine();
+      badge.click();
+      await new Promise(r => setTimeout(r, 80));
+      const clickedToWasm = window.kRepl.getEngine();
+      const badgeWasmText = badge?.textContent;
       return {
+        badgeTag,
         initialEngine,
-        pkirEngine,
+        ktvmEngine,
         jsEngine,
-        wasmEngine,
-        badgePkirText,
+        clickedToJs,
+        clickedToWasm,
+        badgeKtvmText,
+        badgeKtvmClass,
         badgeJsText,
-        badgeWasmText
+        badgeWasmText,
+        ktvmSimpleOut,
+        ktvmPlusOut,
+        ktvmSortOut,
+        ktvmFromJsOut
       };
     })()`);
+    assert.strictEqual(engineCheck.badgeTag, "BUTTON", "#engine-badge should be a native <button>");
     assert.strictEqual(engineCheck.initialEngine, "wasm");
-    assert.strictEqual(engineCheck.pkirEngine, "pkir");
-    assert.strictEqual(engineCheck.badgePkirText, "pkir-wasm");
+    assert.strictEqual(engineCheck.ktvmEngine, "ktvm");
+    assert.strictEqual(engineCheck.badgeKtvmText, "ktvm-wasm");
+    assert.strictEqual(engineCheck.badgeKtvmClass, true, "#engine-badge should have .ktvm-mode class");
+    assert(engineCheck.ktvmSimpleOut.includes("{}|ok"), `Expected {}|ok from ktvm in browser, got: ${engineCheck.ktvmSimpleOut}`);
+    assert(engineCheck.ktvmPlusOut.includes("int.mjs: 15"), `Expected int.mjs: 15 from ktvm plus in browser, got: ${engineCheck.ktvmPlusOut}`);
+    assert(engineCheck.ktvmSortOut.includes("int.mjs: [0,1,2,3,4,5,6,7,8,9,10]"), `Expected sorted list from ktvm in browser, got: ${engineCheck.ktvmSortOut}`);
     assert.strictEqual(engineCheck.jsEngine, "js");
     assert.strictEqual(engineCheck.badgeJsText, "js-in-process");
-    assert.strictEqual(engineCheck.wasmEngine, "wasm");
+    assert(engineCheck.ktvmFromJsOut.includes("{}"), `Expected {} after switching js -> ktvm on /ok, got: ${engineCheck.ktvmFromJsOut}`);
+    assert.strictEqual(engineCheck.clickedToJs, "js");
+    assert.strictEqual(engineCheck.clickedToWasm, "wasm");
+    assert.strictEqual(engineCheck.badgeWasmText, "wasm-in-process");
     // 7. Test uploading a file (adds to VFS without auto-loading)
     const uploadCheck = await evaluateAsync(`(async () => {
       const codecCode = \`export default {
@@ -803,6 +847,19 @@ if (chromiumBin) {
     assert(
       wasmLenCheck.includes("int.mjs: 3"),
       `Expected 'int.mjs: 3' from wasm execution, got: ${wasmLenCheck}`
+    );
+
+    // Test kTVM-Wasm engine with polymorphic/open list len
+    const ktvmLenCheck = await evaluateAsync(`(async () => {
+      await window.kRepl.executeCommand(":engine ktvm");
+      await window.kRepl.executeCommand(":input int.mjs [1,2,3]");
+      await window.kRepl.executeCommand("len");
+      const lines = Array.from(document.querySelectorAll(".entry-line")).map(el => el.textContent);
+      return lines[lines.length - 1];
+    })()`);
+    assert(
+      ktvmLenCheck.includes("int.mjs: 3"),
+      `Expected 'int.mjs: 3' from ktvm execution, got: ${ktvmLenCheck}`
     );
 
     ws.close();

@@ -11,10 +11,12 @@ import { objectToKIRP, retypeObjectRelation } from "../kir.mjs";
 import { validateKIRP } from "../objects/validate.mjs";
 import { exportPatternGraph } from "../codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "../codecs/runtime/pattern-json.mjs";
+import { encodeToWire } from "../codecs/runtime/prefix-codec.mjs";
+import { executeObjectWithKTVM } from "../ktvm/index.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const conformanceRoot = path.join(root, "conformance");
-const DEFAULT_MODES = ["source", "object", "kir", "retyped"];
+const DEFAULT_MODES = ["source", "object", "kir", "retyped", "ktvm"];
 
 function helpText() {
   return [
@@ -97,11 +99,24 @@ function runRetyped(fixture) {
   if (!kir.rels[kir.main]) throw new Error(`${fixture.name}/retyped: main relation missing`);
 }
 
+function runKTVM(fixture) {
+  const object = decodeObject(compileObjectBuffer(fixture.program, {
+    source: path.relative(root, fixture.dir)
+  }));
+  const inWire = encodeToWire(fixture.input);
+  const res = executeObjectWithKTVM(object, object.main, inWire);
+  if (res.status !== "OK") {
+    throw new Error(`${fixture.name}/ktvm: execution returned ${res.status}`);
+  }
+  assertSameValue(res.value, fixture.expected, `${fixture.name}/ktvm`);
+}
+
 function runMode(mode, fixture) {
   if (mode === "source") return runSource(fixture);
   if (mode === "object") return runObject(fixture);
   if (mode === "kir") return runKIR(fixture);
   if (mode === "retyped") return runRetyped(fixture);
+  if (mode === "ktvm") return runKTVM(fixture);
   throw new Error(`Unknown conformance mode '${mode}'`);
 }
 
@@ -134,7 +149,7 @@ try {
   const fixtures = fixtureDirs(dirs).map(readFixture);
   let count = 0;
   for (const fixture of fixtures) {
-    const fixtureModes = modes.filter((mode) => fixture.modes.includes(mode));
+    const fixtureModes = modes.filter((mode) => mode === "ktvm" || fixture.modes.includes(mode));
     for (const mode of fixtureModes) {
       runMode(mode, fixture);
       count++;

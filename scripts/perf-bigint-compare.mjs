@@ -5,7 +5,7 @@
  *
  * Compares the full UTF-8 decimal string -> parse -> N squarings -> decimal print
  * pipeline between JavaScript BigInt and K (lib/integer.k) across backends:
- *   llvm, llvm-pkir, wasm, pkir, kvm, js
+ *   llvm, wasm, kvm, js
  *
  * Usage:
  *   node scripts/perf-bigint-compare.mjs [options]
@@ -55,8 +55,8 @@ JS BigInt against K (lib/integer.k) across execution backends.
 Options:
   --input <decimal>   Starting decimal integer (default: 987654321)
   --steps <n>         Number of consecutive squarings (default: 10)
-  --backends <csv>    K backends: llvm,llvm-pkir,wasm,pkir,kvm,js
-                      (default: llvm,wasm,pkir)
+  --backends <csv>    K backends: llvm,wasm,kvm,js
+                      (default: llvm,wasm)
   --iters <n>         Measured iterations per K backend (default: 3)
   -h, --help          Show this help message and exit`);
   process.exit(0);
@@ -65,7 +65,7 @@ Options:
 const INPUT = getArg("--input", "987654321");
 const STEPS = Number.parseInt(getArg("--steps", "10"), 10);
 const ITERS = Number.parseInt(getArg("--iters", "3"), 10);
-const BACKENDS = getArg("--backends", "llvm,wasm,pkir")
+const BACKENDS = getArg("--backends", "llvm,wasm")
   .split(",")
   .map((b) => b.trim().toLowerCase())
   .filter(Boolean);
@@ -202,7 +202,7 @@ async function benchWireServer(name, server, iters) {
 let prepared = null;
 let preparedState = null;
 let cacheDir = null;
-if (BACKENDS.some((b) => b === "llvm" || b === "llvm-pkir" || b === "kvm")) {
+if (BACKENDS.some((b) => b === "llvm" || b === "kvm")) {
   preparedState = createState();
   await evaluateInput(`:load ${path.join(root, "lib/integer.k")}`, preparedState);
   await evaluateInput("sq = ?int[] { () x, () y } times ?int[];", preparedState);
@@ -214,14 +214,12 @@ if (BACKENDS.some((b) => b === "llvm" || b === "llvm-pkir" || b === "kvm")) {
 
 for (const backend of BACKENDS) {
   try {
-    if (backend === "llvm" || backend === "llvm-pkir") {
-      const usePKIR = backend === "llvm-pkir";
-      const label = usePKIR ? "K LLVM-PKIR (-O3)" : "K LLVM (-O3)";
-      const exe = path.join(cacheDir, `sqN_${backend.replace("-", "_")}`);
+    if (backend === "llvm") {
+      const label = "K LLVM (-O3)";
+      const exe = path.join(cacheDir, `sqN_${backend}`);
       compileObjectToExecutable(prepared.object, exe, {
         clangOpt: "-O3",
-        inputPattern: intPattern,
-        usePKIR
+        inputPattern: intPattern
       });
       const srv = new PersistentExecutable(exe, {
         env: { ...process.env, K_ARENA_CAPACITY_MB: "4096" }
@@ -231,12 +229,10 @@ for (const backend of BACKENDS) {
       } finally {
         await srv.close();
       }
-    } else if (backend === "wasm" || backend === "pkir") {
-      const usePKIR = backend === "pkir";
-      const label = usePKIR ? "K PKIR-Wasm" : "K Wasm";
+    } else if (backend === "wasm") {
+      const label = "K Wasm";
       const artifact = await compileWasmArtifact(sqNAlias, {
-        libraries: [intLib],
-        usePKIR
+        libraries: [intLib]
       });
       const inst = await instantiateWasmArtifact(artifact);
       results.push(

@@ -12,7 +12,7 @@ import {
 function helpText() {
   const prog = argv[1] || "k-wasm-compile.mjs";
   return [
-    "Compile k source, .ko, .kvm, or .pkir into a WebAssembly (.wasm)",
+    "Compile k source, .ko, or .kvm into a WebAssembly (.wasm)",
     "artifact.",
     "",
     `Usage: ${prog} [options]`,
@@ -20,13 +20,12 @@ function helpText() {
     "",
     "Arguments:",
     "  source-snippet   Inline k source snippet (in the style of k.mjs).",
-    "  input-file       Source .k, .ko, .kvm, or .pkir file.",
+    "  input-file       Source .k, .ko, or .kvm file.",
     "                   Reads UTF-8 source from stdin when omitted.",
     "  output-wasm      Output .wasm path. Writes to stdout if omitted.",
     "",
     "Options:",
     "  -o, --output path  Specify output file path explicitly.",
-    "  --pkir             Lower via Polymorphic K IR (PKIR).",
     "  --lib file         Load one .klib or .k library before compiling.",
     "  --use spec         Use library alias in scope (repeatable).",
     "                     spec is 'name' or 'libname:localname'.",
@@ -35,7 +34,6 @@ function helpText() {
     "Examples:",
     `  ${prog} 'x = |x; x x' program.wasm`,
     `  ${prog} program.k -o program.wasm`,
-    `  ${prog} --pkir program.k -o program.wasm`,
     `  ${prog} --lib core.klib --use add program.k program.wasm`
   ].join("\n");
 }
@@ -66,7 +64,7 @@ try {
     }
   }
 
-  const { libraries, useSpecs, usePKIR } =
+  const { libraries, useSpecs } =
     parseCompileOptions(remainingArgs);
   const input = resolveProgramInput(remainingArgs, {
     allowStdinSource: true
@@ -77,8 +75,7 @@ try {
   const artifact = await compileProgramInput(input, {
     libraries,
     useSpecs,
-    stdin,
-    usePKIR
+    stdin
   });
   if (outputPath == null) {
     stdout.write(artifact);

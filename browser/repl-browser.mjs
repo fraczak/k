@@ -311,17 +311,18 @@ export async function executeCommand(input) {
 function updateEngineUI() {
   const badge = document.getElementById("engine-badge");
   if (!badge) return;
-  badge.classList.remove("js-mode", "pkir-mode");
+  badge.classList.remove("js-mode", "ktvm-mode");
   if (state.engine === "js") {
     badge.textContent = "js-in-process";
     badge.classList.add("js-mode");
-  } else if (state.engine === "pkir") {
-    badge.textContent = "pkir-wasm";
-    badge.classList.add("pkir-mode");
+  } else if (state.engine === "ktvm") {
+    badge.textContent = "ktvm-wasm";
+    badge.classList.add("ktvm-mode");
   } else {
     badge.textContent = "wasm-in-process";
   }
-  badge.title = `Engine: ${state.engine} (click to toggle wasm/pkir/js)`;
+  badge.title = `Engine: ${state.engine} (click to switch wasm/ktvm/js)`;
+  badge.setAttribute("aria-label", `${badge.textContent} — switch evaluation engine`);
 }
 
 function adjustInputHeight() {
@@ -985,14 +986,14 @@ export function initRepl() {
     }
   });
 
-  // Engine Badge toggle (wasm -> pkir -> js -> wasm)
+  // Engine Badge toggle (wasm -> ktvm -> js -> wasm)
   const engineBadge = document.getElementById("engine-badge");
   if (engineBadge) {
     engineBadge.onclick = () => {
       let nextEngine;
       if (state.engine === "wasm") {
-        nextEngine = "pkir";
-      } else if (state.engine === "pkir") {
+        nextEngine = "ktvm";
+      } else if (state.engine === "ktvm") {
         nextEngine = "js";
       } else {
         nextEngine = "wasm";

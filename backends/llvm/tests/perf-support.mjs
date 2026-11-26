@@ -156,8 +156,7 @@ export function compileCaseExecutable({
   cacheDir,
   sourceLabel,
   runtimeMode = "fast",
-  clangOpt = "-O3",
-  usePKIR = false
+  clangOpt = "-O3"
 }) {
   const key = sha256([
     "k-llvm-perf-v1",
@@ -168,7 +167,7 @@ export function compileCaseExecutable({
     relationName,
     relHash,
     JSON.stringify(inputPattern),
-    usePKIR ? "pkir" : "kir"
+    "kir"
   ].join("\0"));
   const exePath = path.join(cacheDir, `${key}.exe`);
   if (!fs.existsSync(exePath)) {
@@ -180,8 +179,7 @@ export function compileCaseExecutable({
         relation: relationName,
         inputPattern,
         runtimeMode,
-        clangOpt,
-        usePKIR
+        clangOpt
       }
     );
     fs.renameSync(tmpPath, exePath);

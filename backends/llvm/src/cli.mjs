@@ -37,7 +37,6 @@ export function parseCompileOptions(args) {
   const libraries = [];
   const useSpecs = [];
   let loadedLibrary = false;
-  let usePKIR = false;
 
   while (args.length > 0) {
     if (args[0] === "--") {
@@ -62,9 +61,6 @@ export function parseCompileOptions(args) {
         );
       }
       useSpecs.push(spec);
-    } else if (args[0] === "--pkir") {
-      args.shift();
-      usePKIR = true;
     } else if (args[0].startsWith("--")) {
       break;
     } else {
@@ -72,7 +68,7 @@ export function parseCompileOptions(args) {
     }
   }
 
-  return { libraries, useSpecs, usePKIR };
+  return { libraries, useSpecs };
 }
 
 export function fileInputType(filePath) {
@@ -80,7 +76,6 @@ export function fileInputType(filePath) {
   if (ext === ".ko") return "ko";
   if (ext === ".kvm") return "kvm";
   if (ext === ".klib") return "klib";
-  if (ext === ".pkir") return "pkir";
   return "source-file";
 }
 
@@ -97,7 +92,7 @@ export function resolveProgramInput(args, { allowStdinSource = false } = {}) {
     return { kind, path: inputArg, sourceName: inputArg };
   }
 
-  if ([".k", ".ko", ".kvm", ".klib", ".pkir"].includes(ext)) {
+  if ([".k", ".ko", ".kvm", ".klib"].includes(ext)) {
     throw new Error(`Input file not found: ${inputArg}`);
   }
 
@@ -148,11 +143,6 @@ export async function compileProgramInputToObject(
     throw new Error(
       "Input is already lowered to .kvm bytecode; use " +
       "compileLLVMArtifactFromKVM or compileKVMToExecutable."
-    );
-  } else if (input.kind === "pkir") {
-    throw new Error(
-      "Input is already lowered to .pkir IR; use " +
-      "compileLLVMArtifactFromPKIR or compilePKIRToExecutable."
     );
   } else {
     throw new Error(`Unsupported input kind: ${input.kind}`);

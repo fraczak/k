@@ -1,6 +1,6 @@
 node_modules/
 package-lock.json
-parser.mjs
+/parser.mjs
 valueParser.mjs
 browser/vfs-data.mjs
 DOCS/dependency-graph.md

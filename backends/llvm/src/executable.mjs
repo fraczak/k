@@ -7,8 +7,7 @@ import { isProduct, isVariant } from "@fraczak/k/Value.mjs";
 import { exportPatternGraph } from "@fraczak/k/codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "@fraczak/k/codecs/runtime/pattern-json.mjs";
 import { specializeKVM } from "@fraczak/k/kvm.mjs";
-import { lowerPKIRToKVM } from "@fraczak/k/backend-api.mjs";
-import { compileObjectToLLVM, compileLLVMArtifactFromPKIR } from "./llvm.mjs";
+import { compileObjectToLLVM } from "./llvm.mjs";
 import { compileKVMModuleToLLVM } from "./kvm2llvm.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -557,8 +556,7 @@ export function compileObjectToExecutable(
     relation = object.main,
     inputPattern = null,
     runtimeMode = "fast",
-    clangOpt = "-O3",
-    usePKIR = false
+    clangOpt = "-O3"
   } = {}
 ) {
   const { inputPattern: compiledInputPattern, outputPattern, llvm } =
@@ -566,8 +564,7 @@ export function compileObjectToExecutable(
       relation,
       inputPattern:
         inputPattern || inputPatternForObjectRelation(object, relation),
-      runtimeMode,
-      usePKIR
+      runtimeMode
     });
   compileLLVMToExecutable(llvm, outputPath, {
     driver: stdioDriverSource({
@@ -582,8 +579,7 @@ export function compileKVMToExecutable(kvmInput, outputPath, {
   entry = null,
   inputPattern = null,
   runtimeMode = "fast",
-  clangOpt = "-O3",
-  usePKIR = false
+  clangOpt = "-O3"
 } = {}) {
   let kvm = kvmInput;
   if (kvm?.format === "k-vm") {
@@ -602,8 +598,7 @@ export function compileKVMToExecutable(kvmInput, outputPath, {
     relation: entryFunc,
     inputPattern: compiledInputPattern,
     outputPattern,
-    runtimeMode,
-    usePKIR
+    runtimeMode
   });
   compileLLVMToExecutable(llvm, outputPath, {
     driver: stdioDriverSource({
@@ -614,102 +609,19 @@ export function compileKVMToExecutable(kvmInput, outputPath, {
   });
 }
 
-export function compilePKIRToExecutable(
-  pkirInput,
-  outputPath,
-  {
-    entry = null,
-    inputPattern = null,
-    runtimeMode = "fast",
-    clangOpt = "-O3"
-  } = {}
-) {
-  let kvmProgram;
-  let entryFunc;
-  if (
-    (pkirInput.format === "pk-ir" || pkirInput.format === "k-pkir") &&
-    pkirInput.functions
-  ) {
-    kvmProgram = {};
-    for (const [name, f] of Object.entries(pkirInput.functions)) {
-      kvmProgram[name] = lowerPKIRToKVM(f);
-    }
-    entryFunc =
-      entry ||
-      pkirInput.entry ||
-      Object.keys(kvmProgram)[0] ||
-      "__main__";
-  } else if (pkirInput.instructions) {
-    const kvm = lowerPKIRToKVM(pkirInput);
-    entryFunc = pkirInput.name || entry || "__main__";
-    kvmProgram = { [entryFunc]: kvm };
-    const scan = (insts) => {
-      for (const inst of insts || []) {
-        if (inst.op === "call" && inst.func && !kvmProgram[inst.func]) {
-          kvmProgram[inst.func] = kvm;
-        }
-        if (inst.branches) {
-          for (const b of inst.branches) scan(b.body);
-        }
-      }
-    };
-    scan(kvm.body);
-  } else if (pkirInput.functions) {
-    kvmProgram = {};
-    for (const [name, f] of Object.entries(pkirInput.functions)) {
-      kvmProgram[name] = lowerPKIRToKVM(f);
-    }
-    entryFunc =
-      entry ||
-      pkirInput.entry ||
-      Object.keys(kvmProgram)[0] ||
-      "__main__";
-  } else {
-    const kvm = lowerPKIRToKVM(pkirInput);
-    entryFunc = pkirInput.name || entry || "__main__";
-    kvmProgram = { [entryFunc]: kvm };
-  }
-  return compileKVMToExecutable(
-    {
-      format: "k-vm",
-      layer: "KVM",
-      entry: entryFunc,
-      functions: kvmProgram
-    },
-    outputPath,
-    {
-      entry: entryFunc,
-      inputPattern,
-      runtimeMode,
-      clangOpt,
-      usePKIR: true
-    }
-  );
-}
-
 export function compileObjectAndRun(
   object,
   {
     relation = object.main,
     input,
     expected = null,
-    inputPattern = null,
-    usePKIR = false
+    inputPattern = null
   }
 ) {
   const { llvm } = compileObjectToLLVM(object, {
     relation,
     inputPattern:
-      inputPattern || inputPatternForObjectValue(object, input, relation),
-    usePKIR
+      inputPattern || inputPatternForObjectValue(object, input, relation)
   });
-  return compileAndRunLLVM(llvm, { input, expected });
-}
-
-export function compilePKIRAndRun(
-  pkirInput,
-  { input, expected = null, options = {} } = {}
-) {
-  const llvm = compileLLVMArtifactFromPKIR(pkirInput, options);
   return compileAndRunLLVM(llvm, { input, expected });
 }

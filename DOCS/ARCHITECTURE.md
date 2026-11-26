@@ -48,7 +48,7 @@ The execution representations have distinct roles:
 | --- | --- | --- |
 | KIR-P | `kir.mjs` | Portable export of object relations and pattern graphs |
 | kVM | `kvm.mjs` | Register instructions, polymorphic templates, and specialization |
-| PKIR | `pkir.mjs`, `access-table.mjs` | Experimental schema-state/layout-witness execution |
+| kTVM | `ktvm/` | Packed-wire transducer VM: bit-stream lowering, optimization, Wasm & LLVM backends |
 
 KIR-P envelope specialization (`retypeObjectRelation` and related functions)
 can rerun contract derivation. kVM template specialization (`specializeKVM`)
@@ -57,11 +57,12 @@ Do not treat these as the same pass.
 
 The Wasm and LLVM backends lower kVM instructions through
 `backends/wasm/src/kvm2wasm.mjs` and `backends/llvm/src/kvm2llvm.mjs`.
-Their PKIR paths adapt the layout-oriented representation for target lowering.
+In parallel, `ktvm/wasm/` and `ktvm/llvm/` lower packed-wire kTVM modules
+directly to WebAssembly and LLVM IR over `BitDeque` bit-streams.
 `backend-api.mjs` exposes the shared compiler/backend API.
 
 See the [KIR-P](KIR_V1.md), [kVM](KVM_EXECUTION_MODEL.md), and
-[PKIR](POLYMORPHIC_IR.md) references for their contracts.
+[kTVM](KTVM_SPEC.md) references for their contracts.
 
 ## Codecs and user interfaces
 
@@ -73,7 +74,7 @@ See the [KIR-P](KIR_V1.md), [kVM](KVM_EXECUTION_MODEL.md), and
 - `repl.mjs` manages sessions; `repl-codecs.mjs` handles codec loading/rendering.
 - `browser/repl-browser.mjs` implements the browser UI.
 - `scripts/build-repl-html.mjs` bundles browser shims, VFS libraries, codecs,
-  and Wasm resources into one HTML file.
+  and Wasm / kTVM-Wasm resources into one HTML file.
 
 `core.k` defines the fixed `pattern[]` schema used to decode a stream's leading
 pattern value. This does not automatically import the library into user scope.

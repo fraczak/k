@@ -1,5 +1,8 @@
 import { NativeAdapter } from "./adapters/native.mjs";
 import { KVMAdapter } from "./adapters/kvm.mjs";
+import { KTVMAdapter } from "./adapters/ktvm.mjs";
+import { KTVMWasmAdapter } from "./adapters/ktvm-wasm.mjs";
+import { KTVMLLVMAdapter } from "./adapters/ktvm-llvm.mjs";
 import { WasmAdapter } from "./adapters/wasm.mjs";
 import { LLVMAdapter } from "./adapters/llvm.mjs";
 
@@ -13,6 +16,12 @@ export function createRegistry(config = {}) {
   register("native-aware", () => new NativeAdapter("aware", config.state));
   register("native-free", () => new NativeAdapter("free", config.state));
   register("kvm", () => new KVMAdapter(config.state));
+  register("ktvm", () => new KTVMAdapter(config.state));
+  register("ktvm-opt", () => new KTVMAdapter(config.state, { optimize: true }));
+  register("ktvm-wasm", () => new KTVMWasmAdapter({ optimize: false }));
+  register("ktvm-wasm-opt", () => new KTVMWasmAdapter({ optimize: true }));
+  register("ktvm-llvm", () => new KTVMLLVMAdapter({ optimize: false, ...(config.llvm || {}) }));
+  register("ktvm-llvm-opt", () => new KTVMLLVMAdapter({ optimize: true, ...(config.llvm || {}) }));
   register("wasm", () => new WasmAdapter(config.wasm || {}));
   register("wasm-in-process", () => new WasmAdapter({ id: "wasm-in-process", mode: "in-process", ...(config.wasm || {}) }));
   register("llvm", () => new LLVMAdapter(config.llvm || {}));

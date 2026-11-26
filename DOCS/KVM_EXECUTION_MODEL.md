@@ -85,8 +85,9 @@ context for referenced functions.
   arena in linear memory.
 - [LLVM](../backends/llvm/README.md) emits target functions and uses the C
   runtime.
-- [PKIR](POLYMORPHIC_IR.md) has a separate layout-oriented instruction set
-  and a lowering adapter to kVM.
+- [kTVM](KTVM_SPEC.md) is an alternative packed-wire transducer VM that lowers
+  KIR-P directly to bit-stream transducers with its own interpreter, Wasm, and
+  LLVM targets.
 
 The representation preserves branch order and partial failure across these
 paths. It does not specify a universal pointer layout for every backend.

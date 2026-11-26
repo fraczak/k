@@ -32,3 +32,8 @@ k_compiler/
 *.html
 benchmark-results.json
 browser/vfs-data.mjs
+
+# Local experiments, PDF papers, and presentation build artifacts
+experiments/
+DOCS/*.pdf
+DOCS/ktvm-explainer.*

@@ -21,7 +21,6 @@ function helpText() {
     "  --retype rel            Relation to specialize (default: main).",
     "  --input-pattern value   Input pattern property-list JSON or file.",
     "  --expect value          Expected output value JSON/text or file.",
-    "  --pkir                  Lower via Polymorphic K IR (PKIR).",
     "  -h, --help              Show this help.",
     "",
     "Without --expect, the runner prints the result as compact JSON.",
@@ -66,7 +65,6 @@ try {
   let relation = null;
   let inputPattern = null;
   let expectedText = null;
-  let usePKIR = false;
   while (args.length > 0 && args[0].startsWith("--")) {
     const option = args.shift();
     if (option === "--retype") {
@@ -82,8 +80,6 @@ try {
       if (!expectedText) {
         throw new Error("--expect requires a value or file path");
       }
-    } else if (option === "--pkir") {
-      usePKIR = true;
     } else {
       throw new Error(`Unknown option: ${option}`);
     }
@@ -106,8 +102,7 @@ try {
     relation: relation || object.main,
     input,
     expected,
-    inputPattern: readPattern(inputPattern),
-    usePKIR
+    inputPattern: readPattern(inputPattern)
   });
   stdout.write(expected == null ? result.stdout : "OK\n");
 } catch (error) {

@@ -9,7 +9,7 @@ or [try the browser REPL](https://fraczak.github.io/k/).
 | --- | --- |
 | [Patterns and relations](PATTERNS.md) | Core syntax, filters, named patterns, scope, and canonical identity |
 | [REPL](REPL.md) | Session state, loading, codecs, engines, and exports |
-| [File formats and tools](FILE_FORMATS.md) | Source, objects, libraries, kVM, PKIR, and CLI workflows |
+| [File formats and tools](FILE_FORMATS.md) | Source, objects, libraries, kVM, and CLI workflows |
 | [Textual values](TEXTUAL_VALUES.md) | Boundary notation and singleton product/variant ambiguity |
 | [Writing codecs](CODECS.md) | Codec module contract and a complete example |
 | [Wire format](../codecs/WIRE_FORMAT.md) | Pattern framing and binary payload encoding |
@@ -24,7 +24,8 @@ The published [paper](https://zenodo.org/records/23652382) has a
 - [Contract derivation](TYPE_DERIVATION.md)
 - [KIR-P export](KIR_V1.md)
 - [kVM execution](KVM_EXECUTION_MODEL.md)
-- [PKIR and layout witnesses](POLYMORPHIC_IR.md)
+- [kTVM packed-wire transducer VM](KTVM_SPEC.md)
+- [kVM vs. kTVM comparative study](KVM_VS_KTVM_COMPARATIVE_STUDY.md)
 - [Profiling and benchmarks](PROFILING_AND_TRACING.md)
 - [WebAssembly backend](../backends/wasm/README.md)
 - [LLVM backend](../backends/llvm/README.md)

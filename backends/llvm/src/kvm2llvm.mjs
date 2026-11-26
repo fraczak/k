@@ -457,9 +457,7 @@ function getFieldEdgeIndex(inst, regPatterns, kvmFunc, ctx = {}) {
   const srcPattern = regPatterns.get(srcReg) || (srcReg === "in" ? kvmFunc.inputPattern : null);
   if (Array.isArray(srcPattern) && srcPattern.length > 0) {
     const root = srcPattern[0];
-    const allowed = ctx.usePKIR
-      ? root[0] === "closed-product"
-      : (root[0] === "open-product" || root[0] === "closed-product");
+    const allowed = root[0] === "open-product" || root[0] === "closed-product";
     if (allowed && Array.isArray(root[1])) {
       const idx = root[1].findIndex(([l]) => l === inst.label);
       if (idx >= 0) return idx;
@@ -518,7 +516,6 @@ export function compileKVMModuleToLLVM(entryName, kvmProgram, options = {}) {
     labels,
     functionNames,
     runtimeMode,
-    usePKIR: Boolean(options.usePKIR),
     armIndex: 0,
     unionExprIndex: 0,
     syntheticFunctions: [],
@@ -589,7 +586,6 @@ function lowerKVMFunction(kvmFunc, symbol, funcName, moduleCtx, linkage = "", op
     labels: moduleCtx.labels,
     functionNames: moduleCtx.functionNames,
     runtimeMode: moduleCtx.runtimeMode,
-    usePKIR: moduleCtx.usePKIR,
     allocas: [],
     lines: [],
     currentBlock: "entry",

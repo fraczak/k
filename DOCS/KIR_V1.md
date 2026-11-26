@@ -184,6 +184,8 @@ The current kVM lowerer consumes KIR-P relation bodies directly:
 k source -> .ko / .klib -> KIR-P -> kVM template
                                       + input envelope
                                       -> specialized kVM -> interpreter / Wasm / LLVM
+                                 -> kTVM-P / kTVM (packed-wire)
+                                      -> interpreter / Wasm / LLVM
 ```
 
 KIR-P envelope specialization is also available as a separate derivation pass,
@@ -215,7 +217,9 @@ call-site worklists are local compiler data; they are not part of the
 serialized KIR artifact.
 
 - [DOCS/FILE_FORMATS.md](./FILE_FORMATS.md) —
-  source, object, library, kVM, and PKIR workflows
+  source, object, library, and kVM workflows
 - [DOCS/KVM_EXECUTION_MODEL.md](./KVM_EXECUTION_MODEL.md) —
   kVM execution model and bytecode design
+- [DOCS/KTVM_SPEC.md](./KTVM_SPEC.md) —
+  kTVM packed-wire transducer VM specification
 - [DOCS/DICTIONARY.md](./DICTIONARY.md) — concept names and terminology

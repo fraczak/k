@@ -52,9 +52,11 @@ const nodeShimsPlugin = {
       "node:url": path.join(projectRoot, "browser/shims/url.mjs"),
       "assert": path.join(projectRoot, "browser/shims/assert.mjs"),
       "node:assert": path.join(projectRoot, "browser/shims/assert.mjs"),
+      "child_process": path.join(projectRoot, "browser/shims/child_process.mjs"),
+      "node:child_process": path.join(projectRoot, "browser/shims/child_process.mjs"),
     };
 
-    build.onResolve({ filter: /^(node:)?(fs|path|crypto|buffer|os|process|readline|url|assert)$/ }, (args) => {
+    build.onResolve({ filter: /^(node:)?(fs|path|crypto|buffer|os|process|readline|url|assert|child_process)$/ }, (args) => {
       if (shims[args.path]) {
         return { path: shims[args.path] };
       }
@@ -66,10 +68,14 @@ const nodeShimsPlugin = {
 console.log("1. Generating VFS data...");
 const vfsFiles = {};
 
-// Add runtime.wat
+// Add runtime.wat (Wasm & kTVM Wasm)
 const runtimeWatPath = path.join(projectRoot, "backends/wasm/runtime.wat");
 if (fs.existsSync(runtimeWatPath)) {
   vfsFiles["backends/wasm/runtime.wat"] = fs.readFileSync(runtimeWatPath, "utf8");
+}
+const ktvmRuntimeWatPath = path.join(projectRoot, "ktvm/wasm/runtime.wat");
+if (fs.existsSync(ktvmRuntimeWatPath)) {
+  vfsFiles["ktvm/wasm/runtime.wat"] = fs.readFileSync(ktvmRuntimeWatPath, "utf8");
 }
 
 // Add core.k
@@ -285,44 +291,60 @@ const htmlContent = `<!DOCTYPE html>
       letter-spacing: 0.5px;
     }
 
-    .engine-badge {
+    .engine-badge,
+    button.engine-badge {
+      font-family: inherit;
       font-size: 11px;
       font-weight: 600;
+      line-height: 1.25;
       background: rgba(88, 166, 255, 0.15);
       color: var(--color-prompt);
       border: 1px solid rgba(88, 166, 255, 0.3);
-      padding: 2px 8px;
+      padding: 3px 10px;
+      min-block-size: 24px;
       border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
       cursor: pointer;
       user-select: none;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
 
-    .engine-badge:hover {
+    .engine-badge:hover,
+    button.engine-badge:hover {
       background: rgba(88, 166, 255, 0.3);
       border-color: rgba(88, 166, 255, 0.6);
     }
 
-    .engine-badge.js-mode {
+    button.engine-badge:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
+    }
+
+    .engine-badge.js-mode,
+    button.engine-badge.js-mode {
       background: rgba(240, 180, 41, 0.15);
       color: #e3b341;
       border-color: rgba(240, 180, 41, 0.4);
     }
 
-    .engine-badge.js-mode:hover {
+    .engine-badge.js-mode:hover,
+    button.engine-badge.js-mode:hover {
       background: rgba(240, 180, 41, 0.3);
       border-color: rgba(240, 180, 41, 0.7);
     }
 
-    .engine-badge.pkir-mode {
-      background: rgba(187, 128, 255, 0.15);
-      color: #d2a8ff;
-      border-color: rgba(187, 128, 255, 0.4);
+    .engine-badge.ktvm-mode,
+    button.engine-badge.ktvm-mode {
+      background: rgba(57, 197, 207, 0.16);
+      color: #56d4dd;
+      border-color: rgba(57, 197, 207, 0.45);
     }
 
-    .engine-badge.pkir-mode:hover {
-      background: rgba(187, 128, 255, 0.3);
-      border-color: rgba(187, 128, 255, 0.7);
+    .engine-badge.ktvm-mode:hover,
+    button.engine-badge.ktvm-mode:hover {
+      background: rgba(57, 197, 207, 0.3);
+      border-color: rgba(57, 197, 207, 0.75);
     }
 
     .status-indicator {
@@ -1691,7 +1713,7 @@ const htmlContent = `<!DOCTYPE html>
       <div class="nav-left">
         <div class="brand">
           <span class="brand-name">k repl</span>
-          <span id="engine-badge" class="engine-badge" title="Click to toggle engine (wasm/pkir/js)">wasm-in-process</span>
+          <button type="button" id="engine-badge" class="engine-badge" aria-label="wasm-in-process — switch evaluation engine" title="Click to switch engine (wasm/ktvm/js)">wasm-in-process</button>
         </div>
         <div class="status-indicator">
           <span id="status-dot" class="status-dot ready"></span>
@@ -1726,7 +1748,7 @@ const htmlContent = `<!DOCTYPE html>
               <option value="expr::rels">:rels (list relations)</option>
               <option value="expr::engine">:engine (show engine)</option>
               <option value="expr::engine wasm">:engine wasm</option>
-              <option value="expr::engine pkir">:engine pkir</option>
+              <option value="expr::engine ktvm">:engine ktvm</option>
               <option value="expr::engine js">:engine js</option>
             </optgroup>
             <optgroup label="Codecs &amp; Format Adapters">
@@ -1940,7 +1962,7 @@ const htmlContent = `<!DOCTYPE html>
           <div class="help-section">
             <h4>REPL Commands</h4>
             <table class="help-table">
-              <tr><td><code>:engine [wasm|pkir|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code>, <code>pkir</code>, or <code>js</code>; shortcuts: <code>:wasm</code>, <code>:pkir</code>, <code>:js</code>)</td></tr>
+              <tr><td><code>:engine [wasm|ktvm|js]</code></td><td>Display or switch evaluation engine (<code>wasm</code>, <code>ktvm</code>, or <code>js</code>; shortcuts: <code>:wasm</code>, <code>:ktvm</code>, <code>:js</code>)</td></tr>
               <tr><td><code>:load [--no-alias] &lt;file&gt;</code></td><td>Load a <code>.k</code> source or <code>.klib</code> library into current state (use <code>--no-alias</code> to import by hash only)</td></tr>
               <tr>
                 <td><code>:pattern &lt;name&gt;</code></td>

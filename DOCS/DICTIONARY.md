@@ -23,12 +23,12 @@ These terms are used throughout the [documentation](README.md).
 | **Wire stream** | The binary representation of an envelope followed by a payload encoded under it. |
 | **Codec** | A translator between an external representation and enveloped k values. |
 | **Contract derivation** | Compiler propagation and unification of pattern constraints, with fixed-point iteration for recursive relation groups. |
-| **Specialization** | Adapting a relation or execution artifact to a particular input envelope. The KIR-P and kVM passes use different mechanisms. |
+| **Specialization** | Adapting a relation or execution artifact to a particular input envelope. The KIR-P, kVM, and kTVM passes use different mechanisms. |
 | **Partial failure** | Ordinary undefinedness during execution, distinct from a schema contradiction or system error. |
 | **Object / library** | Stored compiled definitions: `.ko` has an entry relation; `.klib` has no main entry. |
 | **KIR-P** | Portable relation and pattern export from compiled objects. |
 | **kVM** | Register-based execution representation, with polymorphic templates and specialized artifacts. |
-| **PKIR** | A separate experimental representation using schema states and layout witnesses for structural access. |
+| **kTVM** | Packed-wire transducer virtual machine that executes k relations directly over canonical prefix-coded bit-streams (with JS, WebAssembly, and LLVM backends). |
 
 A contract's input pattern is a static constraint, not necessarily the exact
 mathematical domain of the relation. A relation can be undefined for values

@@ -9,14 +9,13 @@ import {
 } from "../src/cli.mjs";
 import {
   compileKVMToExecutable,
-  compileObjectToExecutable,
-  compilePKIRToExecutable
+  compileObjectToExecutable
 } from "../src/executable.mjs";
 
 function helpText() {
   const prog = argv[1] || "k-llvm-build.mjs";
   return [
-    "Compile k source, .ko, .klib, .kvm, or .pkir into a native",
+    "Compile k source, .ko, .klib, or .kvm into a native",
     "standalone executable.",
     "",
     `Usage: ${prog} [options]`,
@@ -24,7 +23,7 @@ function helpText() {
     "",
     "Arguments:",
     "  source-snippet   Inline k source snippet (in the style of k.mjs).",
-    "  input-file       Source .k, .ko, .klib, .kvm, or .pkir file.",
+    "  input-file       Source .k, .ko, .klib, or .kvm file.",
     "                   Reads UTF-8 source from stdin when omitted.",
     "  output-exe       Output executable path.",
     "",
@@ -35,7 +34,6 @@ function helpText() {
     "",
     "Options:",
     "  -o, --output path        Specify output file path explicitly.",
-    "  --pkir                   Lower via Polymorphic K IR (PKIR).",
     "  --input-pattern pattern  Input pattern JSON or file for spec.",
     "  --retype rel             Relation to specialize (default: main).",
     "  --lib file               Load .klib or .k library before build.",
@@ -119,7 +117,7 @@ try {
 
   const inputPattern = readPattern(rawInputPattern);
 
-  const { libraries, useSpecs, usePKIR } =
+  const { libraries, useSpecs } =
     parseCompileOptions(remainingArgs);
   const input = resolveProgramInput(remainingArgs, {
     allowStdinSource: true
@@ -134,22 +132,13 @@ try {
     );
   }
 
-  if (input.kind === "pkir") {
-    const pkir = JSON.parse(fs.readFileSync(input.path, "utf8"));
-    compilePKIRToExecutable(pkir, outputPath, {
-      entry: relation,
-      inputPattern,
-      clangOpt,
-      runtimeMode
-    });
-  } else if (input.kind === "kvm") {
+  if (input.kind === "kvm") {
     const kvm = JSON.parse(fs.readFileSync(input.path, "utf8"));
     compileKVMToExecutable(kvm, outputPath, {
       entry: relation,
       inputPattern,
       clangOpt,
-      runtimeMode,
-      usePKIR
+      runtimeMode
     });
   } else {
     const object = await compileProgramInputToObject(input, {
@@ -162,8 +151,7 @@ try {
       relation: relation || object.main,
       inputPattern,
       clangOpt,
-      runtimeMode,
-      usePKIR
+      runtimeMode
     });
   }
 } catch (error) {

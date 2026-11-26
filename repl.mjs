@@ -10,6 +10,9 @@ import { argv, exit, stdin, stdout } from "node:process";
 import { annotate, parse } from "./index.mjs";
 import run, { constrainWithPattern, run_rel } from "./run.mjs";
 import { compileWasmArtifactFromObject, instantiateWasmArtifact } from "./backends/wasm/src/wasm.mjs";
+import { compileObjectToKTVMWasm, instantiateKTVMWasm } from "./ktvm/wasm/index.mjs";
+import { compareLabels, isClosedPlist } from "./ktvm/schema.mjs";
+import { encodeValueToEnvelopedWire } from "./ktvm/wire.mjs";
 import { exportPatternGraph } from "./codecs/runtime/codec.mjs";
 import { patternToPropertyList } from "./codecs/runtime/pattern-json.mjs";
 import codes from "./codes.mjs";
@@ -61,11 +64,13 @@ import {
 } from "./repl-codecs.mjs";
 
 const NAME_RE = /^[a-zA-Z0-9_+-][a-zA-Z0-9_?!+-]*$/;
+const VALID_ENGINES = ["wasm", "ktvm", "js"];
+const VALID_ENGINES_TEXT = VALID_ENGINES.join(", ");
 const COMMAND_NAMES = [
   "help", "rel", "pattern", "pat", "patterns", "pats",
   "all-patterns", "all-pat",
   "codecs", "rels", "codec", "input", "reset", "klib", "ko", "load",
-  "engine", "wasm", "pkir", "js", "limit",
+  "engine", "wasm", "ktvm", "js", "limit",
   "max-pat-length", "maxPatLength",
   "quit", "exit"
 ];
@@ -92,9 +97,9 @@ function emptyValue() {
 function createState(options = {}) {
   codes.load(cloneJSON(initialCodes));
   const engine = (options.engine || "wasm").toLowerCase();
-  if (engine !== "wasm" && engine !== "pkir" && engine !== "js") {
+  if (!VALID_ENGINES.includes(engine)) {
     throw new Error(
-      `Invalid engine '${options.engine}'. Valid engines: wasm, pkir, js`
+      `Invalid engine '${options.engine}'. Valid engines: ${VALID_ENGINES_TEXT}`
     );
   }
   return {
@@ -1256,7 +1261,7 @@ function completeCommandArgument(line, state) {
   }
 
   if (command === "engine") {
-    return completeCommandWord(line, argStart, arg, ["wasm", "pkir", "js"]);
+    return completeCommandWord(line, argStart, arg, VALID_ENGINES);
   }
 
   if (command === "input") {
@@ -1545,8 +1550,7 @@ async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
 
   const wasmCompileStart = performance.now();
   const wasmBytes = await compileWasmArtifactFromObject(obj, {
-    inputEnvelopePattern: inputValue?.pattern,
-    usePKIR: state.engine === "pkir" || state.usePKIR
+    inputEnvelopePattern: inputValue?.pattern
   });
   const runner = await instantiateWasmArtifact(wasmBytes);
   const wasmCompileMs = performance.now() - wasmCompileStart;
@@ -1555,6 +1559,81 @@ async function executeExpressionWithWasm(annotated, state, lineOffset = 0) {
   const result = runner.executeValue(inputValue);
   const executeMs = performance.now() - executeStart;
 
+  return { result, wasmCompileMs, executeMs };
+}
+
+function deriveClosedPlistFromValue(val) {
+  const nodes = [];
+  function visit(v) {
+    const id = nodes.length;
+    if (isVariant(v)) {
+      const slot = ["closed-union", []];
+      nodes.push(slot);
+      const childId = visit(v.value);
+      slot[1].push([v.tag, childId]);
+      return id;
+    }
+    const slot = ["closed-product", []];
+    nodes.push(slot);
+    const prod = isProduct(v) ? v.product : {};
+    const keys = Object.keys(prod).sort(compareLabels);
+    for (const k of keys) {
+      const childId = visit(prod[k]);
+      slot[1].push([k, childId]);
+    }
+    return id;
+  }
+  visit(val);
+  return nodes;
+}
+
+async function executeExpressionWithKTVM(annotated, state, lineOffset = 0) {
+  const mainRel = annotated.rels.__main__;
+  if (!mainRel) return { result: undefined, wasmCompileMs: 0, executeMs: 0 };
+
+  let inputValue = state.value ?? emptyValue();
+  if (mainRel.typePatternGraph && mainRel.def.patterns) {
+    const graph = mainRel.typePatternGraph;
+    const nodeId = graph.find(mainRel.def.patterns[0]);
+    const inputPattern = patternToPropertyList(exportPatternGraph(graph, nodeId));
+    inputValue = constrainWithPattern(inputValue, inputPattern, mainRel.def);
+  }
+
+  const obj = {
+    format: "k-object",
+    codes: { ...state.codes, ...codes.dump() },
+    rels: annotated.rels,
+    relAlias: annotated.relAlias,
+    compileStats: annotated.compileStats,
+    main: "__main__"
+  };
+
+  let inputPlist = inputValue?.pattern;
+  if (!inputPlist || !isClosedPlist(inputPlist)) {
+    inputPlist = deriveClosedPlistFromValue(inputValue);
+  }
+
+  const wasmCompileStart = performance.now();
+  const artifact = await compileObjectToKTVMWasm(obj, "__main__", inputPlist, {
+    optimize: true,
+    validate: true,
+    verifyTables: true
+  });
+  const runner = await instantiateKTVMWasm(artifact, {
+    quota: {
+      maxSteps: 1_000_000_000,
+      maxNodes: 2_000_000,
+      maxBitDequeBytes: 256 * 1024 * 1024
+    }
+  });
+  const wasmCompileMs = performance.now() - wasmCompileStart;
+
+  const inputWire = encodeValueToEnvelopedWire(inputValue, inputPlist);
+  const executeStart = performance.now();
+  const exec = runner.executeWire(inputWire, { decodeValue: true });
+  const executeMs = performance.now() - executeStart;
+
+  const result = exec.status === "OK" ? exec.value : undefined;
   return { result, wasmCompileMs, executeMs };
 }
 
@@ -1609,6 +1688,8 @@ async function runSnippet(input, state, options = {}) {
   try {
     if (state.engine === "js") {
       execRes = executeExpressionWithJs(annotated, state, lineOffset);
+    } else if (state.engine === "ktvm") {
+      execRes = await executeExpressionWithKTVM(annotated, state, lineOffset);
     } else {
       execRes = await executeExpressionWithWasm(annotated, state, lineOffset);
     }
@@ -1865,9 +1946,9 @@ async function evaluateCommand(line, state) {
       if (!mode) {
         return [`Current engine: ${state.engine}`];
       }
-      if (mode !== "wasm" && mode !== "pkir" && mode !== "js") {
+      if (!VALID_ENGINES.includes(mode)) {
         throw new Error(
-          `Invalid engine '${arg.trim()}'. Valid engines: wasm, pkir, js`
+          `Invalid engine '${arg.trim()}'. Valid engines: ${VALID_ENGINES_TEXT}`
         );
       }
       state.engine = mode;
@@ -1877,9 +1958,9 @@ async function evaluateCommand(line, state) {
       state.engine = "wasm";
       return ["engine set to wasm"];
     }
-    case "pkir": {
-      state.engine = "pkir";
-      return ["engine set to pkir"];
+    case "ktvm": {
+      state.engine = "ktvm";
+      return ["engine set to ktvm"];
     }
     case "js": {
       state.engine = "js";
@@ -1969,7 +2050,7 @@ async function evaluateCommand(line, state) {
 
 function helpText() {
   return [
-    ":engine [wasm|pkir|js]   display or switch evaluation engine",
+    ":engine [wasm|ktvm|js] display or switch evaluation engine",
     ":rel name            show relation definition",
     ":rels                list relation aliases",
     ":pattern name        show named pattern definition (alias :pat)",
@@ -2008,9 +2089,9 @@ function cliUsage() {
   console.log("Usage: k-repl [options]");
   console.log("");
   console.log("Options:");
-  console.log("  --engine=<wasm|pkir|js>  Select engine: wasm, pkir, js");
+  console.log("  --engine=<wasm|ktvm|js>  Select engine: wasm, ktvm, js");
   console.log("                           (default: wasm).");
-  console.log("  --pkir                   Shortcut for --engine=pkir.");
+  console.log("  --ktvm                   Shortcut for --engine=ktvm.");
   console.log("  --wasm                   Shortcut for --engine=wasm.");
   console.log("  --js                     Shortcut for --engine=js.");
   console.log("  --limit=<num>            Set maximum characters for output.");
@@ -2122,13 +2203,13 @@ if (isMainEntrypoint()) {
       engine = "js";
     } else if (arg === "--wasm") {
       engine = "wasm";
-    } else if (arg === "--pkir") {
-      engine = "pkir";
+    } else if (arg === "--ktvm") {
+      engine = "ktvm";
     } else if (arg.startsWith("--engine=")) {
       const val = arg.slice("--engine=".length).toLowerCase();
-      if (val !== "wasm" && val !== "pkir" && val !== "js") {
+      if (!VALID_ENGINES.includes(val)) {
         console.error(
-          `Invalid engine '${val}'. Valid engines: wasm, pkir, js`
+          `Invalid engine '${val}'. Valid engines: ${VALID_ENGINES_TEXT}`
         );
         exit(1);
       }
@@ -2136,9 +2217,9 @@ if (isMainEntrypoint()) {
     } else if (arg === "--engine") {
       i++;
       const val = (args[i] || "").toLowerCase();
-      if (val !== "wasm" && val !== "pkir" && val !== "js") {
+      if (!VALID_ENGINES.includes(val)) {
         console.error(
-          `Invalid engine '${val}'. Valid engines: wasm, pkir, js`
+          `Invalid engine '${val}'. Valid engines: ${VALID_ENGINES_TEXT}`
         );
         exit(1);
       }

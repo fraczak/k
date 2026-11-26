@@ -14,9 +14,7 @@ import {
   propertyListToPattern,
   Value,
   specializeKVM,
-  specializeObjectRelations,
-  compileRelationToPKIR,
-  lowerPKIRToKVM
+  specializeObjectRelations
 } from "@fraczak/k/backend-api.mjs";
 import { intersectPropertyListPatterns } from "@fraczak/k/codecs/runtime/codec.mjs";
 import { propertyListToFilter } from "@fraczak/k/codecs/runtime/show-value.mjs";
@@ -285,7 +283,7 @@ function cloneKVMFunction(kvmFunc) {
   };
 }
 
-function compileModule(mainRelName, defs, { usePKIR = false } = {}) {
+function compileModule(mainRelName, defs) {
   const compiled = new Set();
   const queue = [mainRelName];
   const wats = [];
@@ -301,14 +299,8 @@ function compileModule(mainRelName, defs, { usePKIR = false } = {}) {
       throw new Error(`Relation ${name} not found`);
     }
 
-    let kvmFunc;
-    if (usePKIR) {
-      const pkir = compileRelationToPKIR(relDef, name);
-      kvmFunc = lowerPKIRToKVM(pkir);
-    } else {
-      kvmFunc = lowerToKVM(relDef, name);
-      kvmFunc.typePatternGraph = relDef.typePatternGraph;
-    }
+    const kvmFunc = lowerToKVM(relDef, name);
+    kvmFunc.typePatternGraph = relDef.typePatternGraph;
     scanCalls(kvmFunc.body, compiled, queue);
 
     kvmFunc.name = nameMap.get(name) || cleanName(name);
@@ -481,7 +473,7 @@ function validateInputEnvelope(inputPattern, valuePattern) {
 async function compileWasmArtifactFromDefs(
   defs,
   mainRelName = "__main__",
-  { typingMode = "generic", usePKIR = false } = {}
+  { typingMode = "generic" } = {}
 ) {
   resetTagIds();
   const mainRel = defs.rels[mainRelName];
@@ -491,8 +483,7 @@ async function compileWasmArtifactFromDefs(
 
   const { wat: moduleWatBody, relationNames, entryName } = compileModule(
     mainRelName,
-    defs,
-    { usePKIR }
+    defs
   );
   assertRelationsConverged(defs, relationNames);
   const fullWat = runtimeWat.trim().slice(0, -1) + "\n" + moduleWatBody + "\n)";
@@ -588,7 +579,7 @@ async function compileWasmArtifactFromKVM(kvmInput, options = {}) {
 
 async function compileWasmArtifactFromObject(
   object,
-  { entry = null, inputEnvelopePattern = null, usePKIR = false } = {}
+  { entry = null, inputEnvelopePattern = null } = {}
 ) {
   if (!object?.rels) {
     throw new Error("Expected .ko input to contain k object relations");
@@ -632,8 +623,7 @@ async function compileWasmArtifactFromObject(
   }
 
   return compileWasmArtifactFromDefs(defs, mainRelName, {
-    typingMode,
-    usePKIR
+    typingMode
   });
 }
 
@@ -644,8 +634,7 @@ async function compileWasmArtifact(
     use = [],
     exports = [],
     source: sourceName = null,
-    inputEnvelopePattern = null,
-    usePKIR = false
+    inputEnvelopePattern = null
   } = {}
 ) {
   const specs = use.length > 0 ? use : exports;
@@ -690,41 +679,8 @@ async function compileWasmArtifact(
   }
 
   return compileWasmArtifactFromDefs(defs, "__main__", {
-    typingMode,
-    usePKIR
+    typingMode
   });
-}
-
-async function compileWasmArtifactFromPKIR(pkirInput, options = {}) {
-  let kvmProgram;
-  let entry = options.entry || "__main__";
-  if (pkirInput && typeof pkirInput === "object") {
-    if (pkirInput.format === "pk-ir" && pkirInput.functions) {
-      entry = pkirInput.entry || entry;
-      kvmProgram = {};
-      for (const [name, f] of Object.entries(pkirInput.functions)) {
-        kvmProgram[name] = lowerPKIRToKVM(f);
-      }
-    } else if (pkirInput.instructions) {
-      const kvm = lowerPKIRToKVM(pkirInput);
-      entry = kvm.name || entry;
-      kvmProgram = { [entry]: kvm };
-    } else if (pkirInput.functions) {
-      entry = pkirInput.entry || entry;
-      kvmProgram = {};
-      for (const [name, f] of Object.entries(pkirInput.functions)) {
-        kvmProgram[name] = lowerPKIRToKVM(f);
-      }
-    } else {
-      throw new Error("Invalid PKIR input for WebAssembly compilation");
-    }
-  } else {
-    throw new Error("Expected PKIR input object");
-  }
-  return compileWasmArtifactFromKVM(
-    { format: "k-vm", layer: "KVM", entry, functions: kvmProgram },
-    options
-  );
 }
 
 function createTagRegistry(entries) {
@@ -1127,7 +1083,6 @@ export {
   appendCustomSection,
   compileWasmArtifactFromKVM,
   compileWasmArtifactFromObject,
-  compileWasmArtifactFromPKIR,
   compileWasmArtifact,
   instantiateWasmArtifact,
   metadataFromModule,
@@ -1145,7 +1100,6 @@ export default {
   appendCustomSection,
   compileWasmArtifactFromKVM,
   compileWasmArtifactFromObject,
-  compileWasmArtifactFromPKIR,
   compileWasmArtifact,
   metadataFromModule,
   readArenaValue,

@@ -34,7 +34,7 @@ node codecs/unit.mjs --parse |
 
 | Command | Purpose |
 | --- | --- |
-| `k-wasm` | Compile and execute a source expression/file, `.ko`, `.kvm`, or `.pkir` |
+| `k-wasm` | Compile and execute a source expression/file, `.ko`, or `.kvm` |
 | `k-wasm-compile` | Produce a `.wasm` artifact from those program forms |
 | `k-wasm-run` | Execute a previously compiled `.wasm` artifact |
 
@@ -45,8 +45,7 @@ input.
 
 Compile commands accept one `--lib file` and repeated `--use alias` or
 `--use libraryAlias:localAlias` options before the program. Libraries can
-be `.k` source or `.klib` objects. `--pkir` chooses the experimental PKIR
-lowering path; `-o` / `--output` selects an output path.
+be `.k` source or `.klib` objects. `-o` / `--output` selects an output path.
 
 Existing paths are read as files. Recognized missing filenames are errors;
 other program arguments are treated as inline source.

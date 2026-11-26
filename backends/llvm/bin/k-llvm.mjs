@@ -17,8 +17,7 @@ import {
 } from "../src/cli.mjs";
 import {
   compileKVMToExecutable,
-  compileObjectToExecutable,
-  compilePKIRToExecutable
+  compileObjectToExecutable
 } from "../src/executable.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,7 +26,7 @@ function helpText() {
   const prog = argv[1] || "k-llvm.mjs";
   const defaultCache = path.join(os.tmpdir(), "k-llvm-cache");
   return [
-    "Compile k source, .ko, .kvm, or .pkir to native machine code via",
+    "Compile k source, .ko, or .kvm to native machine code via",
     "LLVM and execute it over a binary pattern+value wire stream.",
     "",
     `Usage: ${prog} [options]`,
@@ -35,14 +34,13 @@ function helpText() {
     "",
     "Arguments:",
     "  source-snippet   Inline k source snippet (in the style of k.mjs).",
-    "  input-file       Source .k, .ko, .klib, .kvm, or .pkir file.",
+    "  input-file       Source .k, .ko, .klib, or .kvm file.",
     "  input-wire-file  Optional binary wire input (default: stdin).",
     "",
     "Options:",
     "  --lib file        Load one .klib or .k library before compiling.",
     "  --use spec        Use library alias in scope (repeatable).",
     "                    spec is 'name' or 'libname:localname'.",
-    "  --pkir            Lower via Polymorphic K IR (PKIR).",
     "  --retype rel      Relation to specialize (default: object main).",
     "  --cache-dir path  Directory to store compiled native executables.",
     "  --no-cache        Compile in a temporary directory and discard.",
@@ -95,7 +93,6 @@ function computeCacheKey({
   inputKey,
   relation,
   inputPattern,
-  usePKIR,
   clangOpt
 }) {
   const hash = crypto.createHash("sha256");
@@ -106,7 +103,7 @@ function computeCacheKey({
   hash.update("\0");
   hash.update(JSON.stringify(inputPattern || null));
   hash.update("\0");
-  hash.update(usePKIR ? "pkir\0" : "monomorphic\0");
+  hash.update("monomorphic\0");
   hash.update(String(clangOpt || ""));
   hash.update("\0");
   hash.update(inputKey);
@@ -174,7 +171,7 @@ async function main() {
     }
   }
 
-  const { libraries, useSpecs, usePKIR } =
+  const { libraries, useSpecs } =
     parseCompileOptions(remainingArgs);
   const programInput = resolveProgramInput(remainingArgs);
   const inputWirePath = remainingArgs.shift();
@@ -207,28 +204,18 @@ async function main() {
       inputKey,
       relation,
       inputPattern: inputEnvelopePattern,
-      usePKIR,
       clangOpt
     });
     exePath = path.join(cacheDir, `${key}.exe`);
     if (!fs.existsSync(exePath)) {
       const tmpPath = path.join(cacheDir, `${key}.${process.pid}.tmp`);
-      if (programInput.kind === "pkir") {
-        const pkir = JSON.parse(
-          fs.readFileSync(programInput.path, "utf8")
-        );
-        compilePKIRToExecutable(pkir, tmpPath, {
-          inputPattern: inputEnvelopePattern,
-          clangOpt
-        });
-      } else if (programInput.kind === "kvm") {
+      if (programInput.kind === "kvm") {
         const kvm = JSON.parse(
           fs.readFileSync(programInput.path, "utf8")
         );
         compileKVMToExecutable(kvm, tmpPath, {
           inputPattern: inputEnvelopePattern,
-          clangOpt,
-          usePKIR
+          clangOpt
         });
       } else {
         const object = await compileProgramInputToObject(programInput, {
@@ -239,8 +226,7 @@ async function main() {
         compileObjectToExecutable(object, tmpPath, {
           relation: relation || object.main,
           inputPattern: inputEnvelopePattern,
-          clangOpt,
-          usePKIR
+          clangOpt
         });
       }
       fs.renameSync(tmpPath, exePath);
@@ -248,18 +234,11 @@ async function main() {
   } else {
     tempExeDir = fs.mkdtempSync(path.join(os.tmpdir(), "k-llvm-run-"));
     exePath = path.join(tempExeDir, "prog.exe");
-    if (programInput.kind === "pkir") {
-      const pkir = JSON.parse(fs.readFileSync(programInput.path, "utf8"));
-      compilePKIRToExecutable(pkir, exePath, {
-        inputPattern: inputEnvelopePattern,
-        clangOpt
-      });
-    } else if (programInput.kind === "kvm") {
+    if (programInput.kind === "kvm") {
       const kvm = JSON.parse(fs.readFileSync(programInput.path, "utf8"));
       compileKVMToExecutable(kvm, exePath, {
         inputPattern: inputEnvelopePattern,
-        clangOpt,
-        usePKIR
+        clangOpt
       });
     } else {
       const object = await compileProgramInputToObject(programInput, {
@@ -270,8 +249,7 @@ async function main() {
       compileObjectToExecutable(object, exePath, {
         relation: relation || object.main,
         inputPattern: inputEnvelopePattern,
-        clangOpt,
-        usePKIR
+        clangOpt
       });
     }
   }

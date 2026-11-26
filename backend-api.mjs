@@ -36,21 +36,36 @@ export {
   isIdentityIntrinsic,
   unsupportedIntrinsic
 } from "./intrinsics.mjs";
-export { buildAccessTable, AccessTable } from "./access-table.mjs";
 export {
-  PKIR_FORMAT,
-  PKIR_VERSION,
-  compileRelationToPKIR,
-  executePKIR,
-  specializePKIR,
-  valueToKVal,
-  kvalToValue,
-  lowerPKIRToKVM
-} from "./pkir.mjs";
-export {
-  compileWasmArtifactFromPKIR
-} from "./backends/wasm/src/wasm.mjs";
-export {
-  compileLLVMArtifactFromPKIR
-} from "./backends/llvm/src/llvm.mjs";
+  KTVM_FORMAT,
+  KTVM_VERSION,
+  KTVMSyntaxError,
+  KTVMValidationError,
+  KTVMSchemaError,
+  KTVMQuotaError,
+  parseModule as parseKTVMModule,
+  printModule as printKTVMModule,
+  moduleToJSON as ktvmModuleToJSON,
+  moduleFromJSON as ktvmModuleFromJSON,
+  validateModule as validateKTVMModule,
+  specializeKTVM,
+  lowerKIRToKTVMP,
+  compileKIRToKTVM,
+  compileObjectToKTVM,
+  executeKTVM,
+  executeKTVMWire,
+  executeObjectWithKTVM,
+  optimizeKTVM,
+  computeMWTR,
+  compileKTVMToWat,
+  compileKTVMToWasm,
+  instantiateKTVMWasm,
+  compileObjectToKTVMWasm,
+  isClangAvailable,
+  compileKTVMToC,
+  compileCToExecutable,
+  compileKTVMToExecutable,
+  compileObjectToKTVMExecutable,
+  executeKTVMExecutable
+} from "./ktvm/index.mjs";
 

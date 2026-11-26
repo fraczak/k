@@ -15,7 +15,7 @@ import { runWasmArtifact } from "../src/wasm.mjs";
 function helpText() {
   const prog = argv[1] || "k-wasm.mjs";
   return [
-    "Compile k source, .ko, .kvm, or .pkir to WebAssembly in memory",
+    "Compile k source, .ko, or .kvm to WebAssembly in memory",
     "and run it over a binary pattern+value wire stream.",
     "",
     `Usage: ${prog} [options]`,
@@ -23,14 +23,13 @@ function helpText() {
     "",
     "Arguments:",
     "  source-snippet   Inline k source snippet (in the style of k.mjs).",
-    "  input-file       Source .k, .ko, .kvm, or .pkir file.",
+    "  input-file       Source .k, .ko, or .kvm file.",
     "  input-wire-file  Optional binary wire input (default: stdin).",
     "",
     "Options:",
     "  --lib file        Load one .klib or .k library before compiling.",
     "  --use spec        Use library alias in scope (repeatable).",
     "                    spec is 'name' or 'libname:localname'.",
-    "  --pkir            Lower via Polymorphic K IR (PKIR).",
     "  -h, --help        Show this help.",
     "",
     "Environment Variables:",
@@ -55,7 +54,7 @@ async function main() {
     return;
   }
 
-  const { libraries, useSpecs, usePKIR } = parseCompileOptions(args);
+  const { libraries, useSpecs } = parseCompileOptions(args);
   const programInput = resolveProgramInput(args);
   const inputPath = args.shift();
   if (args.length > 0) throw new Error("Too many arguments");
@@ -71,8 +70,7 @@ async function main() {
   const artifact = await compileProgramInput(programInput, {
     libraries,
     useSpecs,
-    inputEnvelopePattern,
-    usePKIR
+    inputEnvelopePattern
   });
   stdout.write(await runWasmArtifact(artifact, inputBuffer));
 }
