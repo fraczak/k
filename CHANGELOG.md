@@ -5,6 +5,23 @@ All notable changes to this project will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.0] — 2026-11-26 — kTVM Packed-Wire Transducer VM, Wasm & LLVM Backends, and PKIR Removal
+
+- **Breaking Changes (PKIR Removal)**:
+  - Remove the experimental PKIR layer (`pkir.mjs`, `access-table.mjs`, `DOCS/POLYMORPHIC_IR.md`, `tests/test-pkir.mjs`, `tests/test-access-table.mjs`) now that all execution backends (JS, kVM Wasm/LLVM, and kTVM JS/Wasm/LLVM) are natively polymorphic.
+  - Remove `--pkir`, `.pkir` input handling, `:pkir`, `:engine pkir`, `usePKIR`, and `compile*FromPKIR` APIs across `backend-api.mjs`, `backends/wasm/`, `backends/llvm/`, `repl.mjs`, `browser/repl-browser.mjs`, `scripts/build-repl-html.mjs`, `package.json`, and `scripts/perf-*.mjs`.
+- **kTVM Packed-Wire Transducer VM (`ktvm/`)**:
+  - Introduce the standalone **kTVM** (`kTVM-P` / `kTVM`, `format: "k-tvm"`, v0.1) streaming pushdown transducer VM executing k relations directly over unmodified prefix-free `k-wire` bitstreams without materializing heap value trees.
+  - Implement core IR, `.ktvmp`/`.ktvm` DSL parser/printer, JSON serialization, Moore schema minimization, static validator (SPSC linearity, dual `(prodSchema, consSchema)` checking, DAG acyclicity, and table-to-CFG bisimulation verification), boundary envelope specializer (`specializeKTVM`), `KIR-P → kTVM-P` lowering (`lower-kir.mjs`), and strictly iterative `BitDeque` reference VM (`vm.mjs`, `wire.mjs`).
+  - Add verified `kTVM → kTVM` optimization pipeline (`ktvm/optimize/`): procedure deforestation, entry-guard `spec → switch` compilation, bounded short-bit unfolding, strict accumulator settlement (`after %tok`), CPS symbolic kernel fusion, TMC streaming with register/LIFO virtual-stack promotion, and L1-budgeted (64 KiB) SWAR bit-chunk/stack-chunk/FSM table synthesis via Howard's MWTR criterion.
+- **kTVM WebAssembly & Native C/LLVM Backends (`ktvm/wasm/`, `ktvm/llvm/`)**:
+  - Add `ktvm/wasm/` lowering concrete `kTVM` modules to validated `.wasm` binaries via WABT with zero JS tree marshaling at the wire boundary, reusable `<= 128b`-inline + segmented-slab `BitDeque` buffers, slab freelist reclamation, and static table data segments.
+  - Add `ktvm/llvm/` lowering concrete `kTVM` modules to C99 compiled with `clang -O3` into standalone wire-to-wire native executables (register-cached fixed-width/self-looping DPDA, zero-`memset` inline-channel node slabs, eager `const_unit`/`wrap`/`splice` lowering, and batched slab reclamation).
+  - Integrate `ktvm-wasm` into the terminal and browser REPLs (`--ktvm`, `:ktvm`, `:engine ktvm`, and interactive 3-way badge cycling `wasm → ktvm → js`), and add `ktvm`, `ktvm-wasm`, and `ktvm-llvm` lanes to `harness/cli.mjs` and the five `ktvm/` test suites to `npm test`.
+- **Documentation & Packaging**:
+  - Add [DOCS/KTVM_SPEC.md](DOCS/KTVM_SPEC.md) and [DOCS/KVM_VS_KTVM_COMPARATIVE_STUDY.md](DOCS/KVM_VS_KTVM_COMPARATIVE_STUDY.md), document all execution backends and usage in [README.md](README.md), and update all architecture, REPL, file-format, backend, and test guides.
+  - Tighten `.npmignore` (exclude `experiments/`, `DOCS/*.pdf`, `DOCS/ktvm-explainer.*`) and verify packed `ktvm/wasm/runtime.wat`, `ktvm/llvm/runtime.h`, and end-to-end kTVM Wasm execution in `scripts/test-package.mjs`.
+
 ## [8.9.0] — 2026-11-22 — Canonical Empty-Bit Zero Representation and BigInt-Free Integer Codec
 
 - **Canonical Zero Representation (`{}|_` / `{}|_|+`)**:
