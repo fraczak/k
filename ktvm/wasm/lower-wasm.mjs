@@ -33,7 +33,20 @@ import { textToStringValue } from "../../codecs/runtime/unicode-string.mjs";
 import { Value } from "../../Value.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const RUNTIME_WAT = fs.readFileSync(path.join(__dirname, "runtime.wat"), "utf8");
+let _runtimeWat = null;
+function getRuntimeWat() {
+  if (_runtimeWat !== null) return _runtimeWat;
+  const localPath = path.join(__dirname, "runtime.wat");
+  if (fs.existsSync(localPath)) {
+    const text = fs.readFileSync(localPath, "utf8");
+    if (text.includes("ktvm_run_wire")) {
+      _runtimeWat = text;
+      return _runtimeWat;
+    }
+  }
+  _runtimeWat = fs.readFileSync("ktvm/wasm/runtime.wat", "utf8");
+  return _runtimeWat;
+}
 
 function encodeBytesToWatString(bytes) {
   let out = "";
@@ -1217,7 +1230,7 @@ export function compileKTVMToWat(mod, { entry = null } = {}) {
 
   const wat = [
     `(module`,
-    RUNTIME_WAT,
+    getRuntimeWat(),
     ``,
     `  ;; --- Generated Module Static Constants & Function Table ---`,
     `  (global $DATA_SCHEMA_NODES i32 (i32.const ${DATA_SCHEMA_NODES}))`,

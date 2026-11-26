@@ -11,6 +11,8 @@ if (vfsData && typeof vfsData === "object") {
 function cleanPath(p) {
   let s = (p instanceof URL ? p.pathname : (p?.pathname || String(p))).replace(/\\/g, "/");
   if (s.startsWith("file://")) s = s.replace(/^file:\/\//, "");
+  const ktvmWasmIdx = s.lastIndexOf("ktvm/wasm/");
+  if (ktvmWasmIdx !== -1) return s.slice(ktvmWasmIdx);
   if (s.endsWith("runtime.wat")) return "backends/wasm/runtime.wat";
   const libIdx = s.lastIndexOf("lib/");
   if (libIdx !== -1) return s.slice(libIdx);
@@ -83,7 +85,7 @@ export function getAllVfsFiles() {
     }
   }
   for (const key of vfs.keys()) {
-    if (key.endsWith("runtime.wat") || key.startsWith("backends/")) continue;
+    if (key.endsWith("runtime.wat") || key.startsWith("backends/") || key.startsWith("ktvm/")) continue;
     if (key.startsWith("lib/") || key.startsWith("Examples/") || key.startsWith("codecs/")) continue;
     result.add(key);
   }

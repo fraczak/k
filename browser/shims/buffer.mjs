@@ -1,9 +1,30 @@
 export class Buffer extends Uint8Array {
-  static from(data, encoding) {
+  static from(data, encodingOrOffset, length) {
     if (typeof data === "string") {
+      if (encodingOrOffset === "base64") {
+        const bin = atob(data.replace(/\s+/g, ""));
+        const out = new Buffer(bin.length);
+        for (let i = 0; i < bin.length; i++) {
+          out[i] = bin.charCodeAt(i);
+        }
+        return out;
+      }
+      if (encodingOrOffset === "hex") {
+        const clean = data.replace(/\s+/g, "");
+        const out = new Buffer(Math.floor(clean.length / 2));
+        for (let i = 0; i < out.length; i++) {
+          out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+        }
+        return out;
+      }
       return new Buffer(new TextEncoder().encode(data));
     }
-    if (data instanceof Uint8Array || Array.isArray(data) || data instanceof ArrayBuffer) {
+    if (data instanceof ArrayBuffer || (typeof SharedArrayBuffer !== "undefined" && data instanceof SharedArrayBuffer)) {
+      const offset = typeof encodingOrOffset === "number" ? encodingOrOffset : 0;
+      const len = typeof length === "number" ? length : (data.byteLength - offset);
+      return new Buffer(data, offset, len);
+    }
+    if (data instanceof Uint8Array || Array.isArray(data)) {
       return new Buffer(data);
     }
     if (data?.buffer instanceof ArrayBuffer) {
@@ -45,6 +66,14 @@ export class Buffer extends Uint8Array {
   toString(encoding = "utf8") {
     if (encoding === "hex") {
       return Array.from(this).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+    if (encoding === "base64") {
+      let bin = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < this.length; i += chunk) {
+        bin += String.fromCharCode(...this.subarray(i, Math.min(i + chunk, this.length)));
+      }
+      return btoa(bin);
     }
     return new TextDecoder("utf-8").decode(this);
   }
