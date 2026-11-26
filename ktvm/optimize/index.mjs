@@ -13,7 +13,7 @@
  */
 
 import { validateModule } from "../validator.mjs";
-import { simplifyProcs } from "./simplify-procs.mjs";
+import { simplifyProcs, inlinePostFusionWrappers } from "./simplify-procs.mjs";
 import { fuseKernels } from "./fuse-kernel.mjs";
 import { synthesizeTables } from "./synthesize-tables.mjs";
 import {
@@ -77,6 +77,13 @@ export function optimizeKTVM(
     for (const k of cur.kernels || []) delete k._optMeta;
   }
 
+  let postFusionStats = null;
+  if (simplify && fuse) {
+    const pf = inlinePostFusionWrappers(cur);
+    cur = pf.module;
+    postFusionStats = pf.stats;
+  }
+
   if (validate) {
     validateModule(cur, { verifyTables });
   }
@@ -86,7 +93,8 @@ export function optimizeKTVM(
     stats: {
       simplify: simplifyStats,
       fuse: fuseStats,
-      tables: tableStats
+      tables: tableStats,
+      postFusion: postFusionStats
     }
   };
 }

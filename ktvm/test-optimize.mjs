@@ -31,6 +31,7 @@ import { Value } from "../Value.mjs";
 import { compileLibrary, loadLibrary } from "../object.mjs";
 import { encodeToWire, decodeWire } from "../codecs/runtime/prefix-codec.mjs";
 import { parse as parseIntVal } from "../codecs/int.mjs";
+import { patternFromFilter } from "../codecs/runtime/codec-sdk.mjs";
 import { textToStringValue } from "../codecs/string-codec.mjs";
 import { useSpecsFor } from "../tests/helpers/cli.mjs";
 import { relationPatternPropertyList } from "../kir.mjs";
@@ -415,6 +416,114 @@ test("simplifyProcs: strict accumulator forcing collapses lazy tail-loop chains 
   const revComp = compileKIRToKTVM(polyLib, "reverse", listPat);
   const revOpt = optimizeKTVM(revComp.module, { budgetBytes: DEFAULT_L1_BUDGET_BYTES, verifyTables: true });
   assert.equal(revOpt.stats.simplify.strictAccumulatorsForced, 0, "structural reverse accumulator must remain lazy");
+});
+
+test("simplifyProcs: interprocedural entry-guard analysis eliminates >99% of speculative rollbacks in djson.parse_json", () => {
+  codes.load(djsonLib.codes);
+  const inPat = relationPatternPropertyList(djsonLib.rels[djsonLib.relAlias.parse_json], 0);
+  const comp = compileKIRToKTVM(djsonLib, "parse_json", inPat);
+  const opt = optimizeKTVM(comp.module, { budgetBytes: DEFAULT_L1_BUDGET_BYTES, verifyTables: true });
+
+  // Interprocedural guards must eliminate all specs from `@dj_parse_atom` and `@dj_parse_expect_val`!
+  const expectValProc = opt.module.procs.find((p) => p.name.startsWith("@dj_parse_expect_val"));
+  const parseAtomProc = opt.module.procs.find((p) => p.name.startsWith("@dj_parse_atom"));
+  assert.ok(expectValProc, "expected @dj_parse_expect_val proc");
+  assert.ok(parseAtomProc, "expected @dj_parse_atom proc");
+  assert.equal(
+    JSON.stringify(expectValProc.body).includes('"op":"spec"'),
+    false,
+    "@dj_parse_expect_val must compile to deterministic switch (0 specs)"
+  );
+  assert.equal(
+    JSON.stringify(parseAtomProc.body).includes('"op":"spec"'),
+    false,
+    "@dj_parse_atom must compile to deterministic switch (0 specs)"
+  );
+
+  const items = [];
+  for (let i = 0; i < 10; i++) {
+    items.push(`{"id":${i},"ok":${i % 2 === 0},"val":${(i * -1.25).toFixed(2)},"nil":null,"tag":"item_${i}"}`);
+  }
+  const val = textToStringValue(`[${items.join(",")}]`);
+  const wire = encodeToWire(val, inPat);
+  const quota = { maxSteps: 1e8, maxNodes: 5e5, maxBitDequeBytes: 64 * 1024 * 1024 };
+  const unoptRes = executeKTVMWire(comp.module, wire, { entry: comp.entry, validate: false, quota });
+  const optRes = executeKTVMWire(opt.module, wire, { entry: comp.entry, validate: false, quota });
+
+  assert.equal(optRes.status, "OK");
+  assert.equal(
+    Buffer.compare(Buffer.from(unoptRes.wire), Buffer.from(optRes.wire)),
+    0,
+    "optimized djson wire must match unoptimized wire bit-for-bit"
+  );
+  assert.ok(
+    optRes.telemetry.specRollbacks <= 15,
+    `expected <= 15 rollbacks on 10 JSON objects (was 2,456), got ${optRes.telemetry.specRollbacks}`
+  );
+  assert.ok(
+    optRes.telemetry.steps < 450000,
+    `expected linear step budget < 450k on 10 JSON objects, got ${optRes.telemetry.steps}`
+  );
+});
+
+test("simplifyProcs: product-demux hoisting keeps poly.split_by strictly O(L) linear in steps and buffer bytes", () => {
+  const polyDep = loadLibrary(compileLibrary(readSrc("lib/integer.k"), { source: "lib/integer.k" }));
+  const polyRaw = loadLibrary(compileLibrary(readSrc("Examples/poly.k"), {
+    source: "Examples/poly.k",
+    libraries: [polyDep],
+    use: ["int[] nat int pos? neg? zero? gt? inc dec"]
+  }));
+  const polyLib = {
+    format: "k-object",
+    codes: { ...polyDep.codes, ...polyRaw.codes },
+    rels: { ...polyDep.rels, ...polyRaw.rels },
+    relAlias: { ...polyRaw.relAlias },
+    meta: { ...polyDep.meta, ...polyRaw.meta }
+  };
+  codes.load(polyLib.codes);
+  const mkList = (n) => {
+    let cur = Value.variant("nil", UNIT);
+    for (let i = n; i >= 1; i--) cur = Value.variant("cons", Value.product({ car: parseIntVal(String(i)), cdr: cur }));
+    return cur;
+  };
+  const splitPat = patternFromFilter(`
+    ?{
+      < <bits 0, bits 1, {} _>=bits "+", bits "-" > n,
+      <
+        {} nil,
+        {
+          < <bits 0, bits 1, {} _>=bits "+", bits "-" > car,
+          list cdr
+        } cons
+      > = list xs
+    }
+  `);
+  const sampleVal = Value.product({ n: parseIntVal("20"), xs: mkList(40) });
+  const wire40 = encodeToWire(sampleVal, splitPat);
+
+  const comp = compileKIRToKTVM(polyLib, "split_by", splitPat);
+  const opt = optimizeKTVM(comp.module, { budgetBytes: DEFAULT_L1_BUDGET_BYTES, verifyTables: true });
+
+  const refFn = k.compile(polyLib.relAlias.split_by, { libraries: [polyLib] });
+  const val160 = Value.product({ n: parseIntVal("80"), xs: mkList(160) });
+  const wire160 = encodeToWire(val160, splitPat);
+
+  const r40 = executeKTVMWire(opt.module, wire40, { entry: comp.entry, validate: false });
+  const r160 = executeKTVMWire(opt.module, wire160, { entry: comp.entry, validate: false });
+  assert.equal(r40.status, "OK");
+  assert.equal(r160.status, "OK");
+  assert.deepEqual(plainValue(r40.value), plainValue(refFn(sampleVal)), "poly.split_by(40) mismatch");
+  assert.deepEqual(plainValue(r160.value), plainValue(refFn(val160)), "poly.split_by(160) mismatch");
+
+  const ratio = r160.telemetry.steps / r40.telemetry.steps;
+  assert.ok(
+    ratio < 5.5,
+    `expected O(L) linear scaling on 4x input (ratio < 5.5), got ${ratio.toFixed(2)} (${r40.telemetry.steps} -> ${r160.telemetry.steps})`
+  );
+  assert.ok(
+    r160.telemetry.peakBitDequeBytes < 16384,
+    `expected linear buffer bytes < 16 KiB on split_by(160), got ${r160.telemetry.peakBitDequeBytes}`
+  );
 });
 
 // --- Summary ---

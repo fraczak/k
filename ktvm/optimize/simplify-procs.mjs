@@ -47,18 +47,69 @@ function countStmts(stmts) {
   return n;
 }
 
-function hasSpecialOps(stmts) {
+function hasSpecialOps(stmts, { allowExec = false } = {}) {
   for (const s of stmts || []) {
-    if (s.op === "exec") return true;
+    if (s.op === "exec" && !allowExec) return true;
     if (s.op === "spawn" && (s.after || s.token)) return true;
     if (s.op === "switch") {
-      for (const a of s.arms) if (hasSpecialOps(a.body)) return true;
-      if (s.defaultBody && hasSpecialOps(s.defaultBody)) return true;
+      for (const a of s.arms) if (hasSpecialOps(a.body, { allowExec })) return true;
+      if (s.defaultBody && hasSpecialOps(s.defaultBody, { allowExec })) return true;
     } else if (s.op === "spec") {
-      for (const b of s.branches) if (hasSpecialOps(b.body)) return true;
+      for (const b of s.branches) if (hasSpecialOps(b.body, { allowExec })) return true;
     }
   }
   return false;
+}
+
+function hasSpecOp(stmts) {
+  for (const s of stmts || []) {
+    if (s.op === "spec") return true;
+    if (s.op === "switch") {
+      for (const a of s.arms) if (hasSpecOp(a.body)) return true;
+      if (s.defaultBody && hasSpecOp(s.defaultBody)) return true;
+    }
+  }
+  return false;
+}
+
+function computeModuleStrictFailure(mod) {
+  for (const p of mod.procs || []) {
+    if ((p.outputs || []).length !== 1) return false;
+    const checkBlock = (stmts) => {
+      const localBars = new Set();
+      const gatedBars = new Set();
+      for (const s of stmts || []) {
+        if (s.op === "barrier") localBars.add(s.name);
+        else if (s.op === "drain" && !s.barrier) return false;
+        else if (s.op === "gate" && s.barrier) gatedBars.add(s.barrier);
+      }
+      // Also check gates nested in child switches for barriers declared in this block
+      const collectGatesDeep = (list) => {
+        for (const s of list || []) {
+          if (s.op === "gate" && s.barrier) gatedBars.add(s.barrier);
+          else if (s.op === "switch") {
+            for (const a of s.arms) collectGatesDeep(a.body);
+            if (s.defaultBody) collectGatesDeep(s.defaultBody);
+          }
+        }
+      };
+      collectGatesDeep(stmts);
+      for (const b of localBars) {
+        if (!gatedBars.has(b)) return false;
+      }
+      for (const s of stmts || []) {
+        if (s.op === "switch") {
+          for (const a of s.arms) if (!checkBlock(a.body)) return false;
+          if (s.defaultBody && !checkBlock(s.defaultBody)) return false;
+        } else if (s.op === "spec") {
+          for (const br of s.branches) if (!checkBlock(br.body)) return false;
+        }
+      }
+      return true;
+    };
+    if (!checkBlock(p.body)) return false;
+  }
+  return true;
 }
 
 function collectLocalDeclsDeep(stmts, chanSet = new Set(), barSet = new Set(), tokSet = new Set()) {
@@ -134,6 +185,57 @@ function renameStmtRefs(stmts, chanMap, barMap = null, tokMap = null) {
         return s;
     }
   });
+}
+
+function countChanRefsDeep(stmts, chanName) {
+  let count = 0;
+  const visit = (list) => {
+    for (const s of list || []) {
+      switch (s.op) {
+        case "drain": if (s.src === chanName) count++; break;
+        case "gate":
+        case "splice":
+        case "coerce":
+        case "wrap":
+        case "match":
+          if (s.src === chanName) count++;
+          if (s.dst === chanName) count++;
+          break;
+        case "const_unit":
+          if (s.dst === chanName) count++;
+          break;
+        case "tee":
+          if (s.src === chanName) count++;
+          for (const d of s.dsts) if (d === chanName) count++;
+          break;
+        case "demux":
+          if (s.src === chanName) count++;
+          for (const f of s.fields) if (f.name === chanName) count++;
+          break;
+        case "mux":
+          if (s.dst === chanName) count++;
+          for (const f of s.fields) if (f.name === chanName) count++;
+          break;
+        case "spawn":
+        case "exec":
+          for (const v of s.inputs) if (v === chanName) count++;
+          for (const v of s.outputs) if (v === chanName) count++;
+          break;
+        case "switch":
+          for (const v of s.inputs) if (v === chanName) count++;
+          for (const a of s.arms) visit(a.body);
+          if (s.defaultBody) visit(s.defaultBody);
+          break;
+        case "spec":
+          for (const v of s.inputs) if (v === chanName) count++;
+          for (const v of s.outputs) if (v === chanName) count++;
+          for (const b of s.branches) visit(b.body);
+          break;
+      }
+    }
+  };
+  visit(stmts);
+  return count;
 }
 
 function collectBlockIO(stmts, outerChans) {
@@ -237,9 +339,16 @@ function makeSchemaResolver(mod) {
   const schemaMap = new Map();
   for (const s of mod.schemas || []) schemaMap.set(s.name, s);
   const cache = new Map();
+  const unitPlist = [["closed-product", []]];
   return function resolvePlist(expr) {
     if (!expr) return null;
-    const key = JSON.stringify(expr);
+    if (expr.kind === "unit") return unitPlist;
+    let key;
+    if (expr.kind === "ref" && (!expr.args || expr.args.length === 0)) {
+      key = expr.name;
+    } else {
+      key = JSON.stringify(expr);
+    }
     if (cache.has(key)) return cache.get(key);
     try {
       const pl = compileSchemaExprToPlist(expr, schemaMap, { allowOpen: false });
@@ -449,7 +558,18 @@ function isBlockTotal(stmts, outerTypes, allowedTags, totalProcs, kernelMap, res
 // Pass 1: Acyclic Helper Proc Inlining
 // ---------------------------------------------------------------------------
 
-function inlineSmallAcyclicProcs(mod, { maxInlineStmts = 32, maxSingleUseStmts = 64, maxProcStmts = 420 } = {}) {
+function inlineSmallAcyclicProcs(
+  mod,
+  {
+    maxInlineStmts = 48,
+    maxSingleUseStmts = 160,
+    maxProcStmts = 800,
+    allowExec = false,
+    allowSpecCallee = true,
+    onlyInSpec = false,
+    seqBox = { seq: 0 }
+  } = {}
+) {
   const procMap = new Map((mod.procs || []).map((p) => [p.name, p]));
   const callsOf = new Map();
   const callCounts = new Map();
@@ -473,62 +593,77 @@ function inlineSmallAcyclicProcs(mod, { maxInlineStmts = 32, maxSingleUseStmts =
     callsOf.set(p.name, s);
   }
 
-  // Acyclicity check
-  const acyclicCache = new Map();
-  const isAcyclic = (name, visiting = new Set()) => {
-    if (acyclicCache.has(name)) return acyclicCache.get(name);
-    if (visiting.has(name) || !procMap.has(name)) return false;
-    visiting.add(name);
-    let ok = true;
-    for (const cal of callsOf.get(name) || []) {
-      if (!isAcyclic(cal, visiting)) {
-        ok = false;
+  // Non-cyclic check: a proc `P` is safe to inline iff `P` cannot reach `P`
+  // (it is not part of any recursive SCC cycle, even if it calls a separate
+  // recursive loop such as `@dj_string_loop_19` or `@trim_bits`).
+  const nonCyclicCache = new Map();
+  const isNonCyclic = (name) => {
+    if (nonCyclicCache.has(name)) return nonCyclicCache.get(name);
+    if (!procMap.has(name)) {
+      nonCyclicCache.set(name, false);
+      return false;
+    }
+    const seen = new Set();
+    const stk = [...(callsOf.get(name) || [])];
+    let reachesSelf = false;
+    while (stk.length > 0) {
+      const cur = stk.pop();
+      if (cur === name) {
+        reachesSelf = true;
         break;
       }
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      for (const nxt of callsOf.get(cur) || []) stk.push(nxt);
     }
-    visiting.delete(name);
-    acyclicCache.set(name, ok);
-    return ok;
+    nonCyclicCache.set(name, !reachesSelf);
+    return !reachesSelf;
   };
 
-  // Topological order of acyclic procs (callees before callers)
+  // Topological order of non-cyclic procs (callees before callers)
   const topo = [];
   const visited = new Set();
   const visitTopo = (name) => {
     if (visited.has(name) || !procMap.has(name)) return;
     visited.add(name);
     for (const cal of callsOf.get(name) || []) {
-      if (isAcyclic(cal)) visitTopo(cal);
+      if (isNonCyclic(cal)) visitTopo(cal);
     }
     topo.push(name);
   };
-  for (const p of mod.procs || []) if (isAcyclic(p.name)) visitTopo(p.name);
+  for (const p of mod.procs || []) if (isNonCyclic(p.name)) visitTopo(p.name);
   for (const p of mod.procs || []) if (!visited.has(p.name)) topo.push(p.name);
 
   let inlinedCalls = 0;
-  let globalSeq = 0;
 
   const updatedProcs = new Map((mod.procs || []).map((p) => [p.name, cloneAst(p)]));
 
   const canInline = (calleeName) => {
     if (calleeName === mod.entry) return false;
-    if (!isAcyclic(calleeName)) return false;
+    if (!isNonCyclic(calleeName)) return false;
     const callee = updatedProcs.get(calleeName);
-    if (!callee || hasSpecialOps(callee.body)) return false;
+    if (!callee || hasSpecialOps(callee.body, { allowExec })) return false;
+    if (!allowSpecCallee && hasSpecOp(callee.body)) return false;
     const sz = countStmts(callee.body);
     if (sz <= maxInlineStmts) return true;
     if ((callCounts.get(calleeName) || 0) === 1 && sz <= maxSingleUseStmts) return true;
     return false;
   };
 
-  const inlineInBlock = (stmts, budgetBox) => {
+  const inlineInBlock = (stmts, budgetBox, insideSpec = false) => {
     const out = [];
     for (const s of stmts || []) {
-      if (s.op === "spawn" && !s.after && !s.token && canInline(s.target)) {
+      if (
+        s.op === "spawn" &&
+        !s.after &&
+        !s.token &&
+        (!onlyInSpec || insideSpec) &&
+        canInline(s.target)
+      ) {
         const callee = updatedProcs.get(s.target);
         const calleeSz = countStmts(callee.body);
         if (budgetBox.cur + calleeSz <= maxProcStmts) {
-          const seq = globalSeq++;
+          const seq = seqBox.seq++;
           const { chanSet, barSet, tokSet } = collectLocalDeclsDeep(callee.body);
           const chanMap = new Map();
           const barMap = new Map();
@@ -549,13 +684,13 @@ function inlineSmallAcyclicProcs(mod, { maxInlineStmts = 32, maxSingleUseStmts =
       if (s.op === "switch") {
         out.push({
           ...s,
-          arms: s.arms.map((a) => ({ ...a, body: inlineInBlock(a.body, budgetBox) })),
-          defaultBody: s.defaultBody ? inlineInBlock(s.defaultBody, budgetBox) : null
+          arms: s.arms.map((a) => ({ ...a, body: inlineInBlock(a.body, budgetBox, insideSpec) })),
+          defaultBody: s.defaultBody ? inlineInBlock(s.defaultBody, budgetBox, insideSpec) : null
         });
       } else if (s.op === "spec") {
         out.push({
           ...s,
-          branches: s.branches.map((b) => ({ ...b, body: inlineInBlock(b.body, budgetBox) }))
+          branches: s.branches.map((b) => ({ ...b, body: inlineInBlock(b.body, budgetBox, true) }))
         });
       } else {
         out.push(s);
@@ -567,7 +702,7 @@ function inlineSmallAcyclicProcs(mod, { maxInlineStmts = 32, maxSingleUseStmts =
   for (const name of topo) {
     const proc = updatedProcs.get(name);
     const budgetBox = { cur: countStmts(proc.body) };
-    proc.body = inlineInBlock(proc.body, budgetBox);
+    proc.body = inlineInBlock(proc.body, budgetBox, false);
   }
 
   return {
@@ -582,6 +717,7 @@ function inlineSmallAcyclicProcs(mod, { maxInlineStmts = 32, maxSingleUseStmts =
 
 function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
   const kernelMap = new Map((mod.kernels || []).map((k) => [k.name, k]));
+  const moduleStrictFailure = computeModuleStrictFailure(mod);
   const stats = {
     splicesEliminated: 0,
     muxDemuxEliminated: 0,
@@ -917,19 +1053,46 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
       }
       if (changed) continue;
 
-      // --- Rule 4: Trivial `const_unit -> drain` & empty `barrier`/`gate` removal ---
+      // --- Rule 4: Trivial `const_unit -> drain`, `mux -> drain` splitting & empty `barrier`/`gate` removal ---
       for (let i = 0; i < cur.length; i++) {
         const s = cur[i];
-        if (s.op !== "const_unit" || !localDecls.has(s.dst)) continue;
-        const cIdx = consAt.get(s.dst);
-        if (cIdx === undefined) continue;
-        const cs = cur[cIdx];
-        if (cs.op === "drain" && cs.src === s.dst) {
-          const declIdx = localDecls.get(s.dst).idx;
-          cur = cur.filter((_, k) => k !== declIdx && k !== i && k !== cIdx);
-          stats.trivialDrainsEliminated += 1;
-          changed = true;
-          break;
+        if (s.op === "const_unit" && localDecls.has(s.dst)) {
+          const cIdx = consAt.get(s.dst);
+          if (cIdx !== undefined) {
+            const cs = cur[cIdx];
+            if (cs.op === "drain" && cs.src === s.dst) {
+              const declIdx = localDecls.get(s.dst).idx;
+              cur = cur.filter((_, k) => k !== declIdx && k !== i && k !== cIdx);
+              stats.trivialDrainsEliminated += 1;
+              changed = true;
+              break;
+            }
+          }
+        }
+        if (s.op === "mux" && localDecls.has(s.dst)) {
+          const cIdx = consAt.get(s.dst);
+          if (cIdx !== undefined) {
+            const cs = cur[cIdx];
+            if (cs.op === "drain" && cs.src === s.dst && s.fields.every((f) => exprs.has(f.name))) {
+              const declIdx = localDecls.get(s.dst).idx;
+              const fieldDrains = s.fields.map((f) => ({
+                op: "drain",
+                src: f.name,
+                schema: cloneAst(exprs.get(f.name)),
+                barrier: cs.barrier
+              }));
+              const next = [];
+              for (let k = 0; k < cur.length; k++) {
+                if (k === declIdx || k === i) continue;
+                if (k === cIdx) next.push(...fieldDrains);
+                else next.push(cur[k]);
+              }
+              cur = next;
+              stats.muxDemuxEliminated += 1;
+              changed = true;
+              break;
+            }
+          }
         }
       }
       if (changed) continue;
@@ -982,6 +1145,179 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
           }
         }
 
+        // 5b2: Chained `tee` flattening (`tee %x -> (..., %d, ...); tee %d -> (%e0, ...)`)
+        {
+          let flatIdx = -1;
+          for (let j = 0; j < s.dsts.length; j++) {
+            const d = s.dsts[j];
+            if (localDecls.has(d) && consAt.has(d) && cur[consAt.get(d)].op === "tee" && cur[consAt.get(d)].src === d) {
+              flatIdx = j;
+              break;
+            }
+          }
+          if (flatIdx >= 0) {
+            const d = s.dsts[flatIdx];
+            const cIdx = consAt.get(d);
+            const innerTee = cur[cIdx];
+            const removeIdx = new Set([localDecls.get(d).idx, cIdx]);
+            const hoisted = [];
+            for (const nd of innerTee.dsts) {
+              if (localDecls.has(nd) && localDecls.get(nd).idx > i) {
+                hoisted.push(localDecls.get(nd).stmt);
+                removeIdx.add(localDecls.get(nd).idx);
+              }
+            }
+            const mergedDsts = [
+              ...s.dsts.slice(0, flatIdx),
+              ...innerTee.dsts,
+              ...s.dsts.slice(flatIdx + 1)
+            ];
+            const next = [];
+            for (let k = 0; k < cur.length; k++) {
+              if (k === i) {
+                next.push(...hoisted, { ...s, dsts: mergedDsts });
+                continue;
+              }
+              if (removeIdx.has(k)) continue;
+              next.push(cur[k]);
+            }
+            cur = next;
+            stats.splicesEliminated += 1;
+            changed = true;
+            break;
+          }
+        }
+
+        // 5e: Eliminate redundant direct `drain` output of a `tee` on a total stream
+        // or in a strict-failure module (where the remaining kept copy still propagates any failure)!
+        if (s.dsts.length >= 2 && (totalHere.has(s.src) || moduleStrictFailure)) {
+          let drainDstIdx = -1;
+          for (let j = 0; j < s.dsts.length; j++) {
+            const d = s.dsts[j];
+            if (localDecls.has(d) && consAt.has(d)) {
+              const cs = cur[consAt.get(d)];
+              if (cs.op === "drain" && cs.src === d) {
+                drainDstIdx = j;
+                break;
+              }
+            }
+          }
+          if (drainDstIdx >= 0) {
+            const d = s.dsts[drainDstIdx];
+            const removeIdx = new Set([localDecls.get(d).idx, consAt.get(d)]);
+            const remDsts = s.dsts.filter((_, j) => j !== drainDstIdx);
+            const next = [];
+            for (let k = 0; k < cur.length; k++) {
+              if (k === i) {
+                next.push({ ...s, dsts: remDsts });
+                continue;
+              }
+              if (removeIdx.has(k)) continue;
+              next.push(cur[k]);
+            }
+            cur = next;
+            stats.trivialDrainsEliminated += 1;
+            changed = true;
+            break;
+          }
+        }
+
+        // 5f: Push `tee %src -> (%chk, %keep)` into a 1-col `switch (%chk)` on lookahead identity filters
+        // (so `case (/cons): demux + drain %cdr` exposes Rule 5d2 and avoids copying/draining %cdr!).
+        if (s.dsts.length === 2 && (prefixAtomic.has(s.src) || moduleStrictFailure)) {
+          let pushed = false;
+          for (let side = 0; side < 2; side++) {
+            const chk = s.dsts[side];
+            const keep = s.dsts[1 - side];
+            if (!localDecls.has(chk) || !consAt.has(chk)) continue;
+            const swIdx = consAt.get(chk);
+            const sw = cur[swIdx];
+            if (sw.op !== "switch" || sw.inputs.length !== 1 || sw.inputs[0] !== chk || sw.defaultBody || sw.arms.length === 0) {
+              continue;
+            }
+            if (localDecls.has(s.src) && localDecls.get(s.src).idx > swIdx) continue;
+            if (countChanRefsDeep([sw], keep) !== 0) continue;
+            const swLocals = collectLocalDeclsDeep([sw]).chanSet;
+            if (swLocals.has(s.src) || swLocals.has(keep)) continue;
+
+            const armInfos = [];
+            let allMatch = true;
+            let hasBenefit = false;
+            for (const arm of sw.arms) {
+              if (arm.patterns[0].kind !== "tag") { allMatch = false; break; }
+              const tag = arm.patterns[0].tag;
+              if (countChanRefsDeep(arm.body, chk) !== 1) { allMatch = false; break; }
+              const mIdx = arm.body.findIndex((st) => st.op === "match" && st.src === chk && st.tag === tag);
+              if (mIdx < 0) { allMatch = false; break; }
+              const mName = arm.body[mIdx].dst;
+              const mDeclIdx = arm.body.findIndex((st) => st.op === "chan" && st.name === mName);
+              if (mDeclIdx < 0) { allMatch = false; break; }
+              const mSchema = arm.body[mDeclIdx].schema;
+              const mPl = resolvePlist(mSchema);
+              const isUnit = Boolean(mPl && isUnitSchema(mPl));
+              if (isUnit) hasBenefit = true;
+              else if (mPl && mPl[0]?.[0] === "closed-product") {
+                // Check if %m is consumed by a `demux` (exposing Rule 5d2 and inner bit switches!)
+                const dm = arm.body.find((st) => st.op === "demux" && st.src === mName);
+                if (dm) hasBenefit = true;
+              } else if (arm.body.some((st) => st.op === "drain" && st.src === mName)) {
+                // Non-unit directly drained payload (exposes Rule 5e to delete the tee+drain!)
+                hasBenefit = true;
+              }
+              armInfos.push({ arm, tag, mIdx, mDeclIdx, mName, mSchema, isUnit });
+            }
+            if (!allMatch || !hasBenefit) continue;
+
+            const newArms = armInfos.map(({ arm, tag, mIdx, mName, mSchema, isUnit }) => {
+              const newBody = [];
+              for (let k = 0; k < arm.body.length; k++) {
+                if (k === mIdx) {
+                  if (isUnit) {
+                    const uk = nextFresh("tsu");
+                    newBody.push({ op: "match", tag, src: s.src, dst: mName });
+                    newBody.push({ op: "chan", name: uk, schema: cloneAst(mSchema) });
+                    newBody.push({ op: "const_unit", dst: uk });
+                    newBody.push({ op: "wrap", tag, src: uk, dst: keep });
+                  } else {
+                    const mRaw = nextFresh("tsm");
+                    const mKeep = nextFresh("tsk");
+                    newBody.push({ op: "chan", name: mRaw, schema: cloneAst(mSchema) });
+                    newBody.push({ op: "match", tag, src: s.src, dst: mRaw });
+                    newBody.push({ op: "chan", name: mKeep, schema: cloneAst(mSchema) });
+                    newBody.push({ op: "tee", src: mRaw, dsts: [mName, mKeep] });
+                    newBody.push({ op: "wrap", tag, src: mKeep, dst: keep });
+                  }
+                } else {
+                  newBody.push(arm.body[k]);
+                }
+              }
+              return { ...arm, body: newBody };
+            });
+
+            const removeIdx = new Set([i, localDecls.get(chk).idx]);
+            const hoistedKeep = [];
+            if (localDecls.has(keep) && localDecls.get(keep).idx > swIdx) {
+              hoistedKeep.push(localDecls.get(keep).stmt);
+              removeIdx.add(localDecls.get(keep).idx);
+            }
+            const next = [];
+            for (let k = 0; k < cur.length; k++) {
+              if (k === swIdx) {
+                next.push(...hoistedKeep, { ...sw, inputs: [s.src], arms: newArms });
+                continue;
+              }
+              if (removeIdx.has(k)) continue;
+              next.push(cur[k]);
+            }
+            cur = next;
+            stats.teeMatchFactors += 1;
+            changed = true;
+            pushed = true;
+            break;
+          }
+          if (pushed) break;
+        }
+
         // 5c: Common `match /T` factoring across ALL tee outputs!
         if (s.dsts.every((d) => localDecls.has(d) && consAt.has(d))) {
           const consumers = s.dsts.map((d) => ({ d, idx: consAt.get(d), st: cur[consAt.get(d)] }));
@@ -1027,9 +1363,9 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
             }
           }
 
-          // 5d: Prefix-atomic `tee -> demux` collapse (O(N^2) -> O(N)!)
+          // 5d: Prefix-atomic or strict-failure `tee -> all demux` collapse (O(N^2) -> O(N)!)
           if (
-            prefixAtomic.has(s.src) &&
+            (prefixAtomic.has(s.src) || moduleStrictFailure) &&
             consumers.every((c) => c.st.op === "demux" && c.st.src === c.d)
           ) {
             const baseSchema = consumers[0].st.schema;
@@ -1151,6 +1487,146 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
                   ...extraDecls,
                   { op: "demux", src: s.src, schema: cloneAst(baseSchema), fields: newDemuxFields },
                   ...postDemuxStmts
+                ];
+
+                const next = [];
+                for (let k = 0; k < cur.length; k++) {
+                  if (k === i) {
+                    next.push(...inserted);
+                    continue;
+                  }
+                  if (removeIdx.has(k)) continue;
+                  next.push(cur[k]);
+                }
+                cur = next;
+                stats.teeDemuxCollapses += 1;
+                changed = true;
+                break;
+              }
+            }
+          }
+        }
+
+        // 5d2: Partial `tee -> (demux+drain, passthrough)` product reconstruction
+        // (avoids tee+draining untouched product fields like `cdr` in lookahead filters!)
+        if (
+          !changed &&
+          s.dsts.length >= 2 &&
+          (prefixAtomic.has(s.src) || moduleStrictFailure) &&
+          types.get(s.src)?.[0]?.[0] === "closed-product"
+        ) {
+          const demuxSides = [];
+          const passSides = [];
+          for (const d of s.dsts) {
+            if (localDecls.has(d) && consAt.has(d) && cur[consAt.get(d)].op === "demux" && cur[consAt.get(d)].src === d) {
+              demuxSides.push({ d, idx: consAt.get(d), st: cur[consAt.get(d)] });
+            } else {
+              passSides.push(d);
+            }
+          }
+          if (demuxSides.length >= 1 && passSides.length >= 1) {
+            const baseSchema = demuxSides[0].st.schema;
+            const fieldOrder = demuxSides[0].st.fields.map((f) => f.label);
+            const sameShape = demuxSides.every(
+              (c) =>
+                c.st.fields.length === fieldOrder.length &&
+                c.st.fields.every((f, fi) => f.label === fieldOrder[fi])
+            );
+            if (sameShape) {
+              const sideFieldInfo = demuxSides.map((c) => {
+                const byLabel = new Map();
+                for (const f of c.st.fields) {
+                  const fcIdx = consAt.get(f.name);
+                  const fc = fcIdx !== undefined ? cur[fcIdx] : null;
+                  const isDirectDrain = Boolean(localDecls.has(f.name) && fc && fc.op === "drain" && fc.src === f.name);
+                  byLabel.set(f.label, { chan: f.name, isDirectDrain, drainIdx: isDirectDrain ? fcIdx : -1 });
+                }
+                return byLabel;
+              });
+              const hasDrainedField = fieldOrder.some((lbl) =>
+                sideFieldInfo.some((fm) => fm.get(lbl).isDirectDrain)
+              );
+              // Also distribute `tee -> (demux, passthrough)` when all fields are small closed-unions
+              // (e.g. 7-bit `ascii[]`) inspected by a `switch`, exposing top-level `demux` + bit guards to `spec -> switch`!
+              const exposesBitSwitch =
+                !hasDrainedField &&
+                fieldOrder.length >= 2 &&
+                fieldOrder.length <= 8 &&
+                demuxSides.length === 1 &&
+                fieldOrder.every((lbl) => {
+                  const fPl = types.get(sideFieldInfo[0].get(lbl).chan);
+                  const tags = unionTagsOf(fPl);
+                  return Boolean(tags && tags.length <= 4);
+                }) &&
+                cur.some((st) => st.op === "switch" && st.inputs.some((inp) =>
+                  fieldOrder.some((lbl) => sideFieldInfo[0].get(lbl).chan === inp)
+                ));
+              if (hasDrainedField || exposesBitSwitch) {
+                const removeIdx = new Set([i]);
+                for (const c of demuxSides) {
+                  removeIdx.add(localDecls.get(c.d).idx);
+                  removeIdx.add(c.idx);
+                }
+                const hoistedChans = new Set();
+                for (const dp of passSides) {
+                  if (localDecls.has(dp) && localDecls.get(dp).idx > i) {
+                    hoistedChans.add(dp);
+                    removeIdx.add(localDecls.get(dp).idx);
+                  }
+                }
+
+                const extraDecls = [];
+                const newDemuxFields = [];
+                const postStmts = [];
+                const passFieldChans = passSides.map(() => new Map());
+
+                for (const lbl of fieldOrder) {
+                  const sampleChan = sideFieldInfo[0].get(lbl).chan;
+                  const fieldExpr = exprs.get(sampleChan);
+                  const targets = [];
+                  for (const fm of sideFieldInfo) {
+                    const info = fm.get(lbl);
+                    if (info.isDirectDrain) {
+                      removeIdx.add(localDecls.get(info.chan).idx);
+                      removeIdx.add(info.drainIdx);
+                    } else {
+                      targets.push(info.chan);
+                      if (localDecls.has(info.chan) && localDecls.get(info.chan).idx > i) {
+                        hoistedChans.add(info.chan);
+                        removeIdx.add(localDecls.get(info.chan).idx);
+                      }
+                    }
+                  }
+                  for (let p = 0; p < passSides.length; p++) {
+                    const pc = nextFresh("tp");
+                    extraDecls.push({ op: "chan", name: pc, schema: cloneAst(fieldExpr) });
+                    passFieldChans[p].set(lbl, pc);
+                    targets.push(pc);
+                  }
+                  if (targets.length === 1) {
+                    newDemuxFields.push({ label: lbl, name: targets[0] });
+                  } else {
+                    const raw = nextFresh("tf");
+                    extraDecls.push({ op: "chan", name: raw, schema: cloneAst(fieldExpr) });
+                    newDemuxFields.push({ label: lbl, name: raw });
+                    postStmts.push({ op: "tee", src: raw, dsts: targets });
+                  }
+                }
+                for (let p = 0; p < passSides.length; p++) {
+                  postStmts.push({
+                    op: "mux",
+                    fields: fieldOrder.map((lbl) => ({ label: lbl, name: passFieldChans[p].get(lbl) })),
+                    dst: passSides[p],
+                    schema: cloneAst(baseSchema)
+                  });
+                }
+
+                const hoistedDecls = [...hoistedChans].map((ch) => localDecls.get(ch).stmt);
+                const inserted = [
+                  ...hoistedDecls,
+                  ...extraDecls,
+                  { op: "demux", src: s.src, schema: cloneAst(baseSchema), fields: newDemuxFields },
+                  ...postStmts
                 ];
 
                 const next = [];
@@ -1301,6 +1777,10 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
     if (newArms.length === 0 && sw.defaultBody) {
       return { changed: true, inlinedBody: sw.defaultBody };
     }
+    if (newArms.length === 0) {
+      // Never emit a 0-arm switch without defaultBody (would lose SPSC IO signature)
+      return { changed: false };
+    }
 
     // Drop column `col` if no remaining arm tests it (and there is at least 1 other column)
     if (sw.inputs.length > 1 && newArms.every((a) => a.patterns[col].kind === "wild")) {
@@ -1324,39 +1804,954 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
 // Pass 3: Multi-Column Deterministic `spec -> switch` Compilation
 // ---------------------------------------------------------------------------
 
-function extractBranchGuards(stmts, specInputSet, specTypes) {
-  // Trace simple pass-through aliases (`gate`, `splice`) to catch `gate %bar, %x -> %x2; match /_ %x2`
+// ---------------------------------------------------------------------------
+// Sound Backward Entry-Guard Analysis (Interprocedural, Non-Cyclic & Cyclic)
+// ---------------------------------------------------------------------------
+
+const GUARD_TOP = Object.freeze({ kind: "top" });
+const GUARD_EMPTY = Object.freeze({ kind: "empty" });
+
+const bitprodCache = new WeakMap();
+
+function bitprodInfoOf(pl) {
+  if (!pl || !pl[0]) return null;
+  if (bitprodCache.has(pl)) return bitprodCache.get(pl);
+  let res = null;
+  if (pl[0][0] === "closed-product") {
+    const fields = productFields(pl, 0);
+    if (fields.length >= 2 && fields.length <= 8) {
+      const labels = [];
+      const allTags = [];
+      let grid = 1;
+      let ok = true;
+      for (const f of fields) {
+        const fnode = pl[f.targetId];
+        if (!fnode || fnode[0] !== "closed-union") {
+          ok = false;
+          break;
+        }
+        const edges = fnode[1];
+        if (!edges || edges.length === 0 || edges.length > 16) {
+          ok = false;
+          break;
+        }
+        // ONLY represent a closed product as flat `bitprod` when every field is a
+        // pure unit-payload enum (e.g. `bit`), so nested payload guards (like `cons.car.ascii`)
+        // are NEVER flattened away!
+        if (!edges.every(([, tid]) => isUnitSchema(pl, tid))) {
+          ok = false;
+          break;
+        }
+        const ft = edges.map(([tag]) => tag);
+        grid *= ft.length;
+        if (grid > 256) {
+          ok = false;
+          break;
+        }
+        labels.push(f.label);
+        allTags.push(ft);
+      }
+      if (ok) res = { labels, allTags, grid };
+    }
+  }
+  bitprodCache.set(pl, res);
+  return res;
+}
+
+function guardEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b || a.kind !== b.kind) return false;
+  if (a.kind === "top" || a.kind === "empty") return true;
+  if (a.kind === "union") {
+    if (a.mustInspect !== b.mustInspect || a.tags.size !== b.tags.size) return false;
+    for (const [t, sa] of a.tags.entries()) {
+      if (!b.tags.has(t) || !guardEqual(sa, b.tags.get(t))) return false;
+    }
+    return true;
+  }
+  if (a.kind === "product") {
+    if (a.fields.size !== b.fields.size) return false;
+    for (const [l, fa] of a.fields.entries()) {
+      if (!b.fields.has(l) || !guardEqual(fa, b.fields.get(l))) return false;
+    }
+    return true;
+  }
+  if (a.kind === "bitprod") {
+    if (a.mustInspect !== b.mustInspect || a.allowed.size !== b.allowed.size) return false;
+    if (a.labels.length !== b.labels.length) return false;
+    for (let i = 0; i < a.labels.length; i++) if (a.labels[i] !== b.labels[i]) return false;
+    for (const k of a.allowed) if (!b.allowed.has(k)) return false;
+    return true;
+  }
+  return false;
+}
+
+function downgradeMustInspect(g) {
+  if (!g || g.kind === "top" || g.kind === "empty") return g || GUARD_TOP;
+  if (g.kind === "union") {
+    if (!g.mustInspect) return g;
+    return { kind: "union", tags: g.tags, mustInspect: false };
+  }
+  if (g.kind === "bitprod") {
+    if (!g.mustInspect) return g;
+    if (g.allowed.size >= g.grid) return GUARD_TOP;
+    return { ...g, mustInspect: false };
+  }
+  return g;
+}
+
+function promoteProductToBitprod(pr, bpInfo) {
+  const colTags = [];
+  let anyInspected = false;
+  for (let i = 0; i < bpInfo.labels.length; i++) {
+    const lbl = bpInfo.labels[i];
+    const fg = pr.fields.get(lbl);
+    if (fg && fg.kind === "empty") return GUARD_EMPTY;
+    if (fg && fg.kind === "union") {
+      if (fg.mustInspect) anyInspected = true;
+      const filt = bpInfo.allTags[i].filter((t) => fg.tags.has(t));
+      if (filt.length === 0) return GUARD_EMPTY;
+      colTags.push(filt);
+    } else {
+      colTags.push(bpInfo.allTags[i]);
+    }
+  }
+  const allowed = new Set();
+  const cur = new Array(colTags.length);
+  const build = (idx) => {
+    if (idx === colTags.length) {
+      allowed.add(cur.join("\x00"));
+      return;
+    }
+    for (const t of colTags[idx]) {
+      cur[idx] = t;
+      build(idx + 1);
+    }
+  };
+  build(0);
+  if (allowed.size === 0) return GUARD_EMPTY;
+  if (allowed.size >= bpInfo.grid && !anyInspected) return GUARD_TOP;
+  return {
+    kind: "bitprod",
+    labels: bpInfo.labels,
+    allTags: bpInfo.allTags,
+    grid: bpInfo.grid,
+    allowed,
+    mustInspect: anyInspected
+  };
+}
+
+function guardAnd(g1, g2) {
+  if (!g1 || g1.kind === "top") return g2 || GUARD_TOP;
+  if (!g2 || g2.kind === "top") return g1;
+  if (g1.kind === "empty" || g2.kind === "empty") return GUARD_EMPTY;
+  if (g1.kind === "union" && g2.kind === "union") {
+    const tags = new Map();
+    for (const [t, s1] of g1.tags.entries()) {
+      if (!g2.tags.has(t)) continue;
+      const sub = guardAnd(s1, g2.tags.get(t));
+      if (sub.kind !== "empty") tags.set(t, sub);
+    }
+    if (tags.size === 0) return GUARD_EMPTY;
+    return { kind: "union", tags, mustInspect: g1.mustInspect || g2.mustInspect };
+  }
+  if (g1.kind === "product" && g2.kind === "product") {
+    const fields = new Map(g1.fields);
+    for (const [lbl, f2] of g2.fields.entries()) {
+      const sub = fields.has(lbl) ? guardAnd(fields.get(lbl), f2) : f2;
+      if (sub.kind === "empty") return GUARD_EMPTY;
+      if (sub.kind !== "top") fields.set(lbl, sub);
+    }
+    if (fields.size === 0) return GUARD_TOP;
+    return { kind: "product", fields };
+  }
+  if (g1.kind === "bitprod" && g2.kind === "bitprod") {
+    if (g1.labels.length !== g2.labels.length || g1.labels.some((l, i) => l !== g2.labels[i])) {
+      return g1;
+    }
+    const allowed = new Set();
+    for (const k of g1.allowed) if (g2.allowed.has(k)) allowed.add(k);
+    if (allowed.size === 0) return GUARD_EMPTY;
+    return {
+      kind: "bitprod",
+      labels: g1.labels,
+      allTags: g1.allTags,
+      grid: g1.grid,
+      allowed,
+      mustInspect: g1.mustInspect || g2.mustInspect
+    };
+  }
+  if (
+    (g1.kind === "bitprod" && g2.kind === "product") ||
+    (g1.kind === "product" && g2.kind === "bitprod")
+  ) {
+    const bp = g1.kind === "bitprod" ? g1 : g2;
+    const pr = g1.kind === "product" ? g1 : g2;
+    const bp2 = promoteProductToBitprod(pr, bp);
+    return guardAnd(bp, bp2);
+  }
+  return g1;
+}
+
+function guardOr(g1, g2) {
+  if (!g1 || g1.kind === "top" || !g2 || g2.kind === "top") return GUARD_TOP;
+  if (g1.kind === "empty") return g2;
+  if (g2.kind === "empty") return g1;
+  if (g1.kind === "union" && g2.kind === "union") {
+    const tags = new Map();
+    for (const [t, s1] of g1.tags.entries()) {
+      tags.set(t, g2.tags.has(t) ? guardOr(s1, g2.tags.get(t)) : s1);
+    }
+    for (const [t, s2] of g2.tags.entries()) {
+      if (!tags.has(t)) tags.set(t, s2);
+    }
+    return { kind: "union", tags, mustInspect: g1.mustInspect && g2.mustInspect };
+  }
+  if (g1.kind === "product" && g2.kind === "product") {
+    const fields = new Map();
+    for (const [lbl, f1] of g1.fields.entries()) {
+      if (!g2.fields.has(lbl)) continue;
+      const sub = guardOr(f1, g2.fields.get(lbl));
+      if (sub.kind !== "top") fields.set(lbl, sub);
+    }
+    if (fields.size === 0) return GUARD_TOP;
+    return { kind: "product", fields };
+  }
+  if (g1.kind === "bitprod" && g2.kind === "bitprod") {
+    if (g1.labels.length !== g2.labels.length || g1.labels.some((l, i) => l !== g2.labels[i])) {
+      return GUARD_TOP;
+    }
+    const allowed = new Set(g1.allowed);
+    for (const k of g2.allowed) allowed.add(k);
+    const mustInspect = g1.mustInspect && g2.mustInspect;
+    if (allowed.size >= g1.grid && !mustInspect) return GUARD_TOP;
+    return {
+      kind: "bitprod",
+      labels: g1.labels,
+      allTags: g1.allTags,
+      grid: g1.grid,
+      allowed,
+      mustInspect
+    };
+  }
+  if (
+    (g1.kind === "bitprod" && g2.kind === "product") ||
+    (g1.kind === "product" && g2.kind === "bitprod")
+  ) {
+    const bp = g1.kind === "bitprod" ? g1 : g2;
+    const pr = g1.kind === "product" ? g1 : g2;
+    const bp2 = promoteProductToBitprod(pr, bp);
+    return guardOr(bp, bp2);
+  }
+  return GUARD_TOP;
+}
+
+function analyzeBlockReq(stmts, postReq, outerTypes, procGuards, resolvePlist, strictFailure, depth = 0) {
+  if (depth > 8) return { dead: false, req: new Map(postReq), tupleConstraints: [] };
+
+  const types = new Map(outerTypes);
+  const localChans = new Set();
+  for (const s of stmts || []) {
+    if (s.op === "chan") {
+      if (!outerTypes.has(s.name)) localChans.add(s.name);
+      types.set(s.name, resolvePlist(s.schema));
+    }
+  }
+
+  const req = new Map();
+  for (const [k, v] of postReq.entries()) {
+    if (v && v.kind !== "top") req.set(k, v);
+  }
+  const tcByKey = new Map(); // chans.join("\x00") -> { chans, allTags, grid, allowed, mustInspect }
+
+  const tighten = (ch, g) => {
+    if (!g || g.kind === "top") return { changed: false, dead: false };
+    if (g.kind === "empty") return { changed: true, dead: true };
+    const prev = req.get(ch);
+    const next = prev ? guardAnd(prev, g) : g;
+    if (next.kind === "empty") return { changed: true, dead: true };
+    if (prev && guardEqual(prev, next)) return { changed: false, dead: false };
+    req.set(ch, next);
+    return { changed: true, dead: false };
+  };
+
+  const addTupleConstraint = (chans, allTags, grid, allowed, mustInspect) => {
+    if (allowed.size === 0) return { changed: true, dead: true };
+    const key = chans.join("\x00");
+    const prev = tcByKey.get(key);
+    let nextAllowed = allowed;
+    let nextMust = mustInspect;
+    if (prev) {
+      nextAllowed = new Set();
+      for (const t of prev.allowed) if (allowed.has(t)) nextAllowed.add(t);
+      if (nextAllowed.size === 0) return { changed: true, dead: true };
+      nextMust = prev.mustInspect || mustInspect;
+      if (nextAllowed.size === prev.allowed.size && nextMust === prev.mustInspect) {
+        return { changed: false, dead: false };
+      }
+    }
+    tcByKey.set(key, { chans, allTags, grid, allowed: nextAllowed, mustInspect: nextMust });
+    // Also project marginals onto `req[chans[j]]`
+    let anyChanged = true;
+    for (let j = 0; j < chans.length; j++) {
+      const mTags = new Map();
+      for (const tk of nextAllowed) {
+        const t = tk.split("\x00")[j];
+        if (!mTags.has(t)) mTags.set(t, GUARD_TOP);
+      }
+      const tr = tighten(chans[j], { kind: "union", tags: mTags, mustInspect: nextMust });
+      if (tr.dead) return { changed: true, dead: true };
+    }
+    return { changed: anyChanged, dead: false };
+  };
+
+  const remapTupleConstraints = (fromCh, toCh) => {
+    let changed = false;
+    const snapshot = [...tcByKey.values()];
+    for (const tc of snapshot) {
+      if (!tc.chans.includes(fromCh)) continue;
+      const newChans = tc.chans.map((c) => (c === fromCh ? toCh : c));
+      // Only remap if all mapped channels remain distinct
+      if (new Set(newChans).size !== newChans.length) continue;
+      const tr = addTupleConstraint(newChans, tc.allTags, tc.grid, tc.allowed, tc.mustInspect);
+      if (tr.dead) return { changed: true, dead: true };
+      if (tr.changed) changed = true;
+    }
+    return { changed, dead: false };
+  };
+
+  const tuplePassesTcList = (t, cols, tcList) => {
+    for (const tc of tcList) {
+      const colMap = tc.chans.map((c) => cols.indexOf(c));
+      if (colMap.every((idx) => idx >= 0)) {
+        const key = colMap.map((idx) => t[idx]).join("\x00");
+        if (!tc.allowed.has(key)) return false;
+      } else if (colMap.some((idx) => idx >= 0)) {
+        let anyOk = false;
+        for (const tk of tc.allowed) {
+          const parts = tk.split("\x00");
+          let ok = true;
+          for (let k = 0; k < colMap.length; k++) {
+            if (colMap[k] >= 0 && parts[k] !== t[colMap[k]]) {
+              ok = false;
+              break;
+            }
+          }
+          if (ok) {
+            anyOk = true;
+            break;
+          }
+        }
+        if (!anyOk) return false;
+      }
+    }
+    return true;
+  };
+
+  const subPostMapsEqual = (a, b) => {
+    if (!a || !b || a.size !== b.size) return false;
+    for (const [k, va] of a.entries()) {
+      if (!b.has(k) || !guardEqual(va, b.get(k))) return false;
+    }
+    return true;
+  };
+  const lastControlPost = new Map(); // stmtIndex -> Map<chan, Guard>
+
+  // Detect whether any statement consumes a local channel before its producer appears in `stmts`.
+  // When strictly def-before-use (>99% of blocks), 1 backward pass is already the exact fixpoint!
+  let maxIter = 1;
+  if ((stmts || []).length >= 2 && localChans.size > 0) {
+    const producedSoFar = new Set();
+    const markProd = (c) => {
+      if (localChans.has(c)) producedSoFar.add(c);
+    };
+    const checkCons = (c) => localChans.has(c) && !producedSoFar.has(c);
+    for (const s of stmts) {
+      let ooo = false;
+      switch (s.op) {
+        case "drain":
+          ooo = checkCons(s.src);
+          break;
+        case "gate":
+        case "splice":
+        case "coerce":
+        case "wrap":
+        case "match":
+          ooo = checkCons(s.src);
+          markProd(s.dst);
+          break;
+        case "const_unit":
+          markProd(s.dst);
+          break;
+        case "tee":
+          ooo = checkCons(s.src);
+          for (const d of s.dsts) markProd(d);
+          break;
+        case "demux":
+          ooo = checkCons(s.src);
+          for (const f of s.fields) markProd(f.name);
+          break;
+        case "mux":
+          ooo = s.fields.some((f) => checkCons(f.name));
+          markProd(s.dst);
+          break;
+        case "spawn":
+        case "exec":
+        case "spec":
+          ooo = (s.inputs || []).some(checkCons);
+          for (const o of s.outputs || []) markProd(o);
+          break;
+        case "switch": {
+          const io = collectBlockIO(s.arms.length > 0 ? s.arms[0].body : s.defaultBody || [], localChans);
+          for (const c of s.inputs) if (checkCons(c)) ooo = true;
+          for (const c of io.cons) if (checkCons(c)) ooo = true;
+          for (const p of io.prod) markProd(p);
+          break;
+        }
+      }
+      if (ooo) {
+        maxIter = 3;
+        break;
+      }
+    }
+  }
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    let changed = false;
+    for (let i = (stmts || []).length - 1; i >= 0; i--) {
+      const s = stmts[i];
+      if (s.op === "chan" || s.op === "barrier" || s.op === "drain") continue;
+
+      if (s.op === "const_unit") {
+        if (req.get(s.dst)?.kind === "empty") return { dead: true, req, tupleConstraints: [] };
+        continue;
+      }
+
+      if (s.op === "coerce") {
+        if (req.get(s.dst)?.kind === "empty") return { dead: true, req, tupleConstraints: [] };
+        continue;
+      }
+
+      if (s.op === "gate" || s.op === "splice") {
+        const gDst = req.get(s.dst);
+        if (gDst) {
+          const tr = tighten(s.src, gDst);
+          if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+          if (tr.changed) changed = true;
+        }
+        const mr = remapTupleConstraints(s.dst, s.src);
+        if (mr.dead) return { dead: true, req, tupleConstraints: [] };
+        if (mr.changed) changed = true;
+        continue;
+      }
+
+      if (s.op === "tee") {
+        for (const d of s.dsts) {
+          const gd = req.get(d);
+          if (gd) {
+            const tr = tighten(s.src, gd);
+            if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+            if (tr.changed) changed = true;
+          }
+          const mr = remapTupleConstraints(d, s.src);
+          if (mr.dead) return { dead: true, req, tupleConstraints: [] };
+          if (mr.changed) changed = true;
+        }
+        continue;
+      }
+
+      if (s.op === "match") {
+        const sub = req.get(s.dst) || GUARD_TOP;
+        if (sub.kind === "empty") return { dead: true, req, tupleConstraints: [] };
+        const tr = tighten(s.src, {
+          kind: "union",
+          tags: new Map([[s.tag, sub]]),
+          mustInspect: true
+        });
+        if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+        if (tr.changed) changed = true;
+        continue;
+      }
+
+      if (s.op === "wrap") {
+        const gDst = req.get(s.dst);
+        if (gDst) {
+          if (gDst.kind === "empty") return { dead: true, req, tupleConstraints: [] };
+          if (gDst.kind === "union") {
+            if (!gDst.tags.has(s.tag)) return { dead: true, req, tupleConstraints: [] };
+            const sub = gDst.tags.get(s.tag);
+            const tr = tighten(s.src, sub);
+            if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+            if (tr.changed) changed = true;
+          }
+        }
+        continue;
+      }
+
+      if (s.op === "demux") {
+        const fieldGuards = new Map();
+        for (const f of s.fields) {
+          const gf = req.get(f.name);
+          if (gf) {
+            if (gf.kind === "empty") return { dead: true, req, tupleConstraints: [] };
+            if (gf.kind !== "top") fieldGuards.set(f.label, gf);
+          }
+        }
+        const bpInfo = bitprodInfoOf(types.get(s.src));
+        let prodGuard = null;
+        if (bpInfo) {
+          // Check if any tupleConstraint constrains a subset/all of `demux`'s outputs!
+          const fieldByChan = new Map();
+          for (const f of s.fields) {
+            const idx = bpInfo.labels.indexOf(f.label);
+            if (idx >= 0) fieldByChan.set(f.name, idx);
+          }
+          if (fieldGuards.size > 0) {
+            prodGuard = promoteProductToBitprod({ kind: "product", fields: fieldGuards }, bpInfo);
+          }
+          for (const tc of tcByKey.values()) {
+            // Project `tc` onto the subset of `tc.chans` that are outputs of this `demux`!
+            // This handles switches that mix a sibling channel (e.g. `cdr`) with the product's fields (e.g. 7 ASCII bits).
+            const matchedPositions = []; // { tcPos, fIdx }
+            for (let p = 0; p < tc.chans.length; p++) {
+              const fIdx = fieldByChan.has(tc.chans[p]) ? fieldByChan.get(tc.chans[p]) : -1;
+              if (fIdx >= 0) matchedPositions.push({ tcPos: p, fIdx });
+            }
+            if (matchedPositions.length < 2) continue;
+            const projAllowed = new Set();
+            for (const tk of tc.allowed) {
+              const parts = tk.split("\x00");
+              projAllowed.add(matchedPositions.map((m) => parts[m.tcPos]).join("\x00"));
+            }
+            // Exact `BITPROD` over `bpInfo.labels` matching `projAllowed`!
+            const allowed = new Set();
+            const cur = new Array(bpInfo.labels.length);
+            const emit = (k) => {
+              if (k === bpInfo.labels.length) {
+                const projKey = matchedPositions.map((m) => cur[m.fIdx]).join("\x00");
+                if (projAllowed.has(projKey)) allowed.add(cur.join("\x00"));
+                return;
+              }
+              for (const t of bpInfo.allTags[k]) {
+                cur[k] = t;
+                emit(k + 1);
+              }
+            };
+            emit(0);
+            const tcBp =
+              allowed.size === 0
+                ? GUARD_EMPTY
+                : {
+                    kind: "bitprod",
+                    labels: bpInfo.labels,
+                    allTags: bpInfo.allTags,
+                    grid: bpInfo.grid,
+                    allowed,
+                    mustInspect: tc.mustInspect
+                  };
+            prodGuard = prodGuard ? guardAnd(prodGuard, tcBp) : tcBp;
+          }
+        } else if (fieldGuards.size > 0) {
+          prodGuard = { kind: "product", fields: fieldGuards };
+        }
+        if (prodGuard) {
+          const tr = tighten(s.src, prodGuard);
+          if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+          if (tr.changed) changed = true;
+        }
+        continue;
+      }
+
+      if (s.op === "mux") {
+        const gDst = req.get(s.dst);
+        if (!gDst || gDst.kind === "top") continue;
+        if (gDst.kind === "empty") return { dead: true, req, tupleConstraints: [] };
+        if (gDst.kind === "product") {
+          for (const f of s.fields) {
+            const fg = gDst.fields.get(f.label);
+            if (fg) {
+              const tr = tighten(f.name, fg);
+              if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+              if (tr.changed) changed = true;
+            }
+          }
+        } else if (gDst.kind === "bitprod") {
+          const byLabel = new Map(s.fields.map((f) => [f.label, f.name]));
+          const chans = gDst.labels.map((l) => byLabel.get(l));
+          if (chans.every(Boolean) && new Set(chans).size === chans.length) {
+            const tr = addTupleConstraint(chans, gDst.allTags, gDst.grid, gDst.allowed, gDst.mustInspect);
+            if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+            if (tr.changed) changed = true;
+          }
+        }
+        continue;
+      }
+
+      if (s.op === "spawn") {
+        for (const o of s.outputs) {
+          if (req.get(o)?.kind === "empty") return { dead: true, req, tupleConstraints: [] };
+        }
+        if (strictFailure && procGuards) {
+          const cg = procGuards.get(s.target);
+          if (cg) {
+            for (let k = 0; k < s.inputs.length && k < cg.length; k++) {
+              const g = s.after ? downgradeMustInspect(cg[k]) : cg[k];
+              const tr = tighten(s.inputs[k], g);
+              if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+              if (tr.changed) changed = true;
+            }
+          }
+        }
+        continue;
+      }
+
+      if (s.op === "exec") {
+        for (const o of s.outputs || []) {
+          if (req.get(o)?.kind === "empty") return { dead: true, req, tupleConstraints: [] };
+        }
+        continue;
+      }
+
+      if (s.op === "spec") {
+        const subPost = new Map();
+        for (const o of s.outputs) {
+          if (req.has(o)) subPost.set(o, req.get(o));
+        }
+        if (iter > 0 && subPostMapsEqual(subPost, lastControlPost.get(i))) continue;
+        lastControlPost.set(i, new Map(subPost));
+        const surv = [];
+        for (const br of s.branches) {
+          const r = analyzeBlockReq(br.body, subPost, types, procGuards, resolvePlist, strictFailure, depth + 1);
+          if (!r.dead) surv.push(r);
+        }
+        if (surv.length === 0) return { dead: true, req, tupleConstraints: [] };
+        for (const v of s.inputs) {
+          let gv = surv[0].req.get(v) || GUARD_TOP;
+          for (let k = 1; k < surv.length; k++) {
+            gv = guardOr(gv, surv[k].req.get(v) || GUARD_TOP);
+          }
+          const tr = tighten(v, gv);
+          if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+          if (tr.changed) changed = true;
+        }
+        // Intersect/join shared tuple constraints on `s.inputs` across all surviving branches
+        for (const tc0 of surv[0].tupleConstraints) {
+          if (!tc0.chans.every((c) => s.inputs.includes(c))) continue;
+          const key = tc0.chans.join("\x00");
+          let allHave = true;
+          const unionAllowed = new Set(tc0.allowed);
+          let must = tc0.mustInspect;
+          for (let k = 1; k < surv.length; k++) {
+            const matchTc = surv[k].tupleConstraints.find((x) => x.chans.join("\x00") === key);
+            if (!matchTc) {
+              allHave = false;
+              break;
+            }
+            for (const tk of matchTc.allowed) unionAllowed.add(tk);
+            must = must && matchTc.mustInspect;
+          }
+          if (allHave && (unionAllowed.size < tc0.grid || must)) {
+            const tr = addTupleConstraint(tc0.chans, tc0.allTags, tc0.grid, unionAllowed, must);
+            if (tr.dead) return { dead: true, req, tupleConstraints: [] };
+            if (tr.changed) changed = true;
+          }
+        }
+        continue;
+      }
+
+      if (s.op === "switch") {
+        const colAllTags = s.inputs.map((inp) => unionTagsOf(types.get(inp)));
+        if (colAllTags.some((t) => !t || t.length === 0)) continue;
+        // Only pass `req` entries for channels actually PRODUCED inside this `switch`!
+        const swPost = new Map();
+        if (req.size > 0) {
+          const reqKeySet = new Set(req.keys());
+          const firstArmBody = s.arms.length > 0 ? s.arms[0].body : s.defaultBody || [];
+          const swIo = collectBlockIO(firstArmBody, reqKeySet);
+          for (const k of swIo.prod) {
+            if (req.has(k)) swPost.set(k, req.get(k));
+          }
+        }
+        if (iter > 0 && subPostMapsEqual(swPost, lastControlPost.get(i))) continue;
+        lastControlPost.set(i, new Map(swPost));
+        const m = s.inputs.length;
+        const grid = colAllTags.reduce((acc, ts) => acc * ts.length, 1);
+
+        if (m === 1) {
+          const c = s.inputs[0];
+          const allTags = colAllTags[0];
+          const covered = new Set();
+          const survArms = [];
+
+          const evalArm = (armTags, body) => {
+            if (armTags.length === 0) return;
+            const r = analyzeBlockReq(body, swPost, types, procGuards, resolvePlist, strictFailure, depth + 1);
+            if (r.dead) return;
+            const patGuard = {
+              kind: "union",
+              tags: new Map(armTags.map((t) => [t, GUARD_TOP])),
+              mustInspect: true
+            };
+            const cg = guardAnd(patGuard, r.req.get(c) || GUARD_TOP);
+            if (cg.kind === "empty") return;
+            survArms.push({ cGuard: cg, armReq: r.req, armTcs: r.tupleConstraints });
+          };
+
+          for (const a of s.arms) {
+            const p = a.patterns[0];
+            const armTags =
+              p.kind === "tag"
+                ? covered.has(p.tag) || !allTags.includes(p.tag)
+                  ? []
+                  : [p.tag]
+                : allTags.filter((t) => !covered.has(t));
+            for (const t of armTags) covered.add(t);
+            evalArm(armTags, a.body);
+          }
+          if (s.defaultBody) {
+            const rem = allTags.filter((t) => !covered.has(t));
+            evalArm(rem, s.defaultBody);
+          }
+
+          if (survArms.length === 0) return { dead: true, req, tupleConstraints: [] };
+          let cJoined = survArms[0].cGuard;
+          for (let k = 1; k < survArms.length; k++) cJoined = guardOr(cJoined, survArms[k].cGuard);
+          if (cJoined.kind === "union") cJoined = { ...cJoined, mustInspect: true };
+          const trC = tighten(c, cJoined);
+          if (trC.dead) return { dead: true, req, tupleConstraints: [] };
+          if (trC.changed) changed = true;
+
+          // Join outer channel constraints across all surviving arms
+          const outerKeys = new Set();
+          for (const sa of survArms) {
+            for (const k of sa.armReq.keys()) {
+              if (k !== c && types.has(k) && !swPost.has(k)) outerKeys.add(k);
+            }
+          }
+          for (const k of outerKeys) {
+            let gk = survArms[0].armReq.get(k) || GUARD_TOP;
+            for (let j = 1; j < survArms.length; j++) {
+              gk = guardOr(gk, survArms[j].armReq.get(k) || GUARD_TOP);
+            }
+            const trK = tighten(k, gk);
+            if (trK.dead) return { dead: true, req, tupleConstraints: [] };
+            if (trK.changed) changed = true;
+          }
+          continue;
+        }
+
+        if (m >= 2 && grid <= 256) {
+          // Exact multi-column grid evaluation
+          const armResCache = new Map(); // armIdx (-1 for default) -> analyzeBlockReq result
+          const getArmRes = (idx) => {
+            if (armResCache.has(idx)) return armResCache.get(idx);
+            const body = idx === -1 ? s.defaultBody : s.arms[idx].body;
+            const r = analyzeBlockReq(body, swPost, types, procGuards, resolvePlist, strictFailure, depth + 1);
+            armResCache.set(idx, r);
+            return r;
+          };
+
+          const survivingTuples = new Set();
+          const survArmIdxs = new Set();
+          const colTagSubGuards = s.inputs.map(() => new Map()); // j -> Map<tag, Guard>
+
+          const cur = new Array(m);
+          const visitGrid = (cIdx) => {
+            if (cIdx === m) {
+              let matchedIdx = -2;
+              for (let ai = 0; ai < s.arms.length; ai++) {
+                const pats = s.arms[ai].patterns;
+                let ok = true;
+                for (let j = 0; j < m; j++) {
+                  if (pats[j].kind === "tag" && pats[j].tag !== cur[j]) {
+                    ok = false;
+                    break;
+                  }
+                }
+                if (ok) {
+                  matchedIdx = ai;
+                  break;
+                }
+              }
+              if (matchedIdx === -2) {
+                if (!s.defaultBody) return;
+                matchedIdx = -1;
+              }
+              const r = getArmRes(matchedIdx);
+              if (r.dead) return;
+              // Verify `cur` satisfies `r.req` on every switch input & `r.tupleConstraints`
+              for (let j = 0; j < m; j++) {
+                const gj = r.req.get(s.inputs[j]);
+                if (gj && gj.kind === "union" && !gj.tags.has(cur[j])) return;
+              }
+              if (!tuplePassesTcList(cur, s.inputs, r.tupleConstraints)) return;
+              survivingTuples.add(cur.join("\x00"));
+              survArmIdxs.add(matchedIdx);
+              for (let j = 0; j < m; j++) {
+                const gj = r.req.get(s.inputs[j]);
+                const sub = gj && gj.kind === "union" ? gj.tags.get(cur[j]) || GUARD_TOP : GUARD_TOP;
+                const mapJ = colTagSubGuards[j];
+                mapJ.set(cur[j], mapJ.has(cur[j]) ? guardOr(mapJ.get(cur[j]), sub) : sub);
+              }
+              return;
+            }
+            for (const t of colAllTags[cIdx]) {
+              cur[cIdx] = t;
+              visitGrid(cIdx + 1);
+            }
+          };
+          visitGrid(0);
+
+          if (survivingTuples.size === 0) return { dead: true, req, tupleConstraints: [] };
+          const trTc = addTupleConstraint(s.inputs.slice(), colAllTags, grid, survivingTuples, true);
+          if (trTc.dead) return { dead: true, req, tupleConstraints: [] };
+          if (trTc.changed) changed = true;
+
+          for (let j = 0; j < m; j++) {
+            const trJ = tighten(s.inputs[j], {
+              kind: "union",
+              tags: colTagSubGuards[j],
+              mustInspect: true
+            });
+            if (trJ.dead) return { dead: true, req, tupleConstraints: [] };
+            if (trJ.changed) changed = true;
+          }
+
+          const survList = [...survArmIdxs].map((idx) => getArmRes(idx));
+          const swInputSet = new Set(s.inputs);
+          const outerKeys = new Set();
+          for (const sr of survList) {
+            for (const k of sr.req.keys()) {
+              if (!swInputSet.has(k) && types.has(k) && !swPost.has(k)) outerKeys.add(k);
+            }
+          }
+          for (const k of outerKeys) {
+            let gk = survList[0].req.get(k) || GUARD_TOP;
+            for (let j = 1; j < survList.length; j++) {
+              gk = guardOr(gk, survList[j].req.get(k) || GUARD_TOP);
+            }
+            const trK = tighten(k, gk);
+            if (trK.dead) return { dead: true, req, tupleConstraints: [] };
+            if (trK.changed) changed = true;
+          }
+          continue;
+        }
+
+        // Wide multi-column switch (>256 grid): conservative per-column union
+        for (let j = 0; j < m; j++) {
+          const all = colAllTags[j];
+          const tags =
+            s.defaultBody || s.arms.some((a) => a.patterns[j].kind !== "tag")
+              ? all
+              : [...new Set(s.arms.map((a) => a.patterns[j].tag))];
+          const trJ = tighten(s.inputs[j], {
+            kind: "union",
+            tags: new Map(tags.map((t) => [t, GUARD_TOP])),
+            mustInspect: true
+          });
+          if (trJ.dead) return { dead: true, req, tupleConstraints: [] };
+          if (trJ.changed) changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+
+  // Strip local channels declared inside this block so they never leak to outer scopes
+  const outReq = new Map();
+  for (const [k, v] of req.entries()) {
+    if (!localChans.has(k)) outReq.set(k, v);
+  }
+  const outTcs = [];
+  for (const tc of tcByKey.values()) {
+    if (tc.chans.every((c) => !localChans.has(c))) outTcs.push(tc);
+  }
+  return { dead: false, req: outReq, tupleConstraints: outTcs };
+}
+
+function analyzeProcEntryGuards(proc, procGuards, resolvePlist, strictFailure) {
+  const outerTypes = new Map();
+  for (const p of proc.inputs || []) outerTypes.set(p.name, resolvePlist(p.schema));
+  for (const p of proc.outputs || []) outerTypes.set(p.name, resolvePlist(p.schema));
+  const res = analyzeBlockReq(proc.body, new Map(), outerTypes, procGuards, resolvePlist, strictFailure, 0);
+  if (res.dead) return (proc.inputs || []).map(() => GUARD_EMPTY);
+  return (proc.inputs || []).map((p) => res.req.get(p.name) || GUARD_TOP);
+}
+
+function extractBranchGuards(
+  stmts,
+  specInputSet,
+  specTypes,
+  procGuards = null,
+  resolvePlist = null,
+  strictFailure = false
+) {
+  if (resolvePlist) {
+    const res = analyzeBlockReq(stmts, new Map(), specTypes, procGuards, resolvePlist, strictFailure, 0);
+    const guards = new Map();
+    const mustInspectSet = new Set();
+    for (const v of specInputSet) {
+      const g = res.req.get(v);
+      if (g && g.kind === "union") {
+        const all = unionTagsOf(specTypes.get(v));
+        if (all) {
+          const valid = new Set([...g.tags.keys()].filter((t) => all.includes(t)));
+          guards.set(v, valid);
+          if (g.mustInspect) mustInspectSet.add(v);
+        }
+      }
+    }
+    const tupleConstraints = res.tupleConstraints.filter((tc) => tc.chans.some((c) => specInputSet.has(c)));
+    return { dead: res.dead, guards, mustInspectSet, tupleConstraints };
+  }
+
+  // Fallback local-only path (if resolvePlist omitted)
   const aliasOf = new Map();
   for (const v of specInputSet) aliasOf.set(v, v);
-  const guards = new Map(); // specInput -> Set<tag>
+  const guards = new Map();
+  const mustInspectSet = new Set();
 
   const recordGuard = (origInput, tagSet) => {
     const pl = specTypes.get(origInput);
     const all = unionTagsOf(pl);
     if (!all) return;
+    mustInspectSet.add(origInput);
     if (!guards.has(origInput)) {
       guards.set(origInput, new Set([...tagSet].filter((t) => all.includes(t))));
     } else {
       const cur = guards.get(origInput);
-      const inter = new Set([...cur].filter((t) => tagSet.has(t)));
-      guards.set(origInput, inter);
+      guards.set(origInput, new Set([...cur].filter((t) => tagSet.has(t))));
     }
   };
 
   for (const s of stmts || []) {
     if (s.op === "gate" || s.op === "splice") {
       if (aliasOf.has(s.src)) aliasOf.set(s.dst, aliasOf.get(s.src));
+    } else if (s.op === "tee") {
+      if (aliasOf.has(s.src)) {
+        const orig = aliasOf.get(s.src);
+        for (const d of s.dsts) aliasOf.set(d, orig);
+      }
     } else if (s.op === "match") {
       const orig = aliasOf.get(s.src);
       if (orig) recordGuard(orig, new Set([s.tag]));
-    } else if (s.op === "switch" && s.inputs.length === 1 && !s.defaultBody) {
-      const orig = aliasOf.get(s.inputs[0]);
-      if (orig && s.arms.length > 0 && s.arms.every((a) => a.patterns[0].kind === "tag")) {
-        recordGuard(orig, new Set(s.arms.map((a) => a.patterns[0].tag)));
+    } else if (s.op === "switch" && s.arms.length > 0) {
+      for (let j = 0; j < s.inputs.length; j++) {
+        const orig = aliasOf.get(s.inputs[j]);
+        if (!orig) continue;
+        const anyTested = s.arms.some((a) => a.patterns[j].kind === "tag");
+        if (!anyTested) continue;
+        const all = unionTagsOf(specTypes.get(orig));
+        if (!all) continue;
+        if (s.defaultBody || s.arms.some((a) => a.patterns[j].kind !== "tag")) {
+          recordGuard(orig, new Set(all));
+        } else {
+          recordGuard(orig, new Set(s.arms.map((a) => a.patterns[j].tag)));
+        }
       }
     }
   }
-  return guards;
+  return { dead: false, guards, mustInspectSet, tupleConstraints: [] };
 }
 
 function hasUngatedDrainOf(stmts, chanName) {
@@ -1379,9 +2774,11 @@ function compileSpecsToSwitches(
   resolvePlist,
   totalProcs,
   freshBox = { seq: 0 },
-  { maxCols = 4, maxGrid = 64, maxSwitchArms = 24 } = {}
+  { maxCols = 8, maxGrid = 256, maxSwitchArms = 32, maxDepth = 10 } = {}
 ) {
   const kernelMap = new Map((mod.kernels || []).map((k) => [k.name, k]));
+  const strictFailure = computeModuleStrictFailure(mod);
+  const procGuards = new Map(); // procName -> Guard[]
   let converted = 0;
   const nextFresh = (prefix) => `%${prefix}_${freshBox.seq++}`;
 
@@ -1398,10 +2795,23 @@ function compileSpecsToSwitches(
   }
 
   function specializeBranchForTag(body, chanName, tag) {
+    // Also track simple `tee`/`gate`/`splice` aliases of `chanName` inside `body`
+    // so `tee %b -> (%b_chk, %b_keep); switch (%b_chk)` specializes cleanly too!
+    const aliases = new Set([chanName]);
     const out = [];
     for (const s of body) {
+      if ((s.op === "gate" || s.op === "splice") && aliases.has(s.src)) {
+        aliases.add(s.dst);
+        out.push(cloneAst(s));
+        continue;
+      }
+      if (s.op === "tee" && aliases.has(s.src)) {
+        for (const d of s.dsts) aliases.add(d);
+        out.push(cloneAst(s));
+        continue;
+      }
       if (s.op === "switch") {
-        const col = s.inputs.indexOf(chanName);
+        const col = s.inputs.findIndex((inp) => aliases.has(inp));
         if (col !== -1) {
           const matchingArms = [];
           let anyTagTested = false;
@@ -1427,6 +2837,27 @@ function compileSpecsToSwitches(
               out.push(...freshenBodyLocals(s.defaultBody));
               continue;
             }
+            if (matchingArms.length > 0) {
+              if (s.inputs.length > 1 && matchingArms.every((a) => a.patterns[col].kind === "wild")) {
+                out.push({
+                  ...s,
+                  inputs: s.inputs.filter((_, j) => j !== col),
+                  arms: matchingArms.map((a) => ({
+                    ...a,
+                    patterns: a.patterns.filter((_, j) => j !== col),
+                    body: freshenBodyLocals(a.body)
+                  })),
+                  defaultBody: s.defaultBody ? freshenBodyLocals(s.defaultBody) : null
+                });
+                continue;
+              }
+              out.push({
+                ...s,
+                arms: matchingArms.map((a) => ({ ...a, body: freshenBodyLocals(a.body) })),
+                defaultBody: s.defaultBody ? freshenBodyLocals(s.defaultBody) : null
+              });
+              continue;
+            }
           }
         }
       }
@@ -1435,73 +2866,60 @@ function compileSpecsToSwitches(
     return out;
   }
 
-  function countChanRefsDeep(stmts, chanName) {
-    let count = 0;
-    const visit = (list) => {
-      for (const s of list || []) {
-        switch (s.op) {
-          case "drain": if (s.src === chanName) count++; break;
-          case "gate":
-          case "splice":
-          case "coerce":
-          case "wrap":
-          case "match":
-            if (s.src === chanName) count++;
-            if (s.dst === chanName) count++;
-            break;
-          case "const_unit":
-            if (s.dst === chanName) count++;
-            break;
-          case "tee":
-            if (s.src === chanName) count++;
-            for (const d of s.dsts) if (d === chanName) count++;
-            break;
-          case "demux":
-            if (s.src === chanName) count++;
-            for (const f of s.fields) if (f.name === chanName) count++;
-            break;
-          case "mux":
-            if (s.dst === chanName) count++;
-            for (const f of s.fields) if (f.name === chanName) count++;
-            break;
-          case "spawn":
-          case "exec":
-            for (const v of s.inputs) if (v === chanName) count++;
-            for (const v of s.outputs) if (v === chanName) count++;
-            break;
-          case "switch":
-            for (const v of s.inputs) if (v === chanName) count++;
-            for (const a of s.arms) visit(a.body);
-            if (s.defaultBody) visit(s.defaultBody);
-            break;
-          case "spec":
-            for (const v of s.inputs) if (v === chanName) count++;
-            for (const v of s.outputs) if (v === chanName) count++;
-            for (const b of s.branches) visit(b.body);
-            break;
-        }
-      }
-    };
-    visit(stmts);
-    return count;
+  function extractTopLevelDemux(body, chanName) {
+    if (countChanRefsDeep(body, chanName) !== 1) return null;
+    const dIdx = body.findIndex((s) => s.op === "demux" && s.src === chanName);
+    if (dIdx === -1) return null;
+    const ds = body[dIdx];
+    if (!ds.fields || ds.fields.length < 2) return null;
+    const fieldDeclIdxs = new Set();
+    const fieldSchemas = new Map();
+    for (const f of ds.fields) {
+      const fDecl = body.findIndex((s) => s.op === "chan" && s.name === f.name);
+      if (fDecl === -1) return null;
+      fieldDeclIdxs.add(fDecl);
+      fieldSchemas.set(f.label, { oldName: f.name, schema: body[fDecl].schema });
+    }
+    return { dIdx, ds, fieldDeclIdxs, fieldSchemas };
   }
 
-  function tryPeelCommonMatchDemux(survBodies, chanName, tag, specTypes, specExprs) {
-    // Every surviving branch must have a single top-level `match /tag chanName -> %m_b`
-    // and no other references to `chanName`!
+  function tryPeelCommonMatchDemux(
+    survBodies,
+    chanName,
+    tag,
+    specTypes,
+    specExprs,
+    { allowReconstruct = false } = {}
+  ) {
     const matchInfo = [];
-    for (const body of survBodies) {
-      if (countChanRefsDeep(body, chanName) !== 1) return null;
-      const mIdx = body.findIndex((s) => s.op === "match" && s.src === chanName && s.tag === tag);
-      if (mIdx === -1) return null;
-      const dst = body[mIdx].dst;
-      const declIdx = body.findIndex((s) => s.op === "chan" && s.name === dst);
-      if (declIdx === -1) return null;
-      matchInfo.push({ mIdx, declIdx, dst, dstSchema: body[declIdx].schema });
+    let reconstructed = false;
+    for (let b = 0; b < survBodies.length; b++) {
+      const body = survBodies[b];
+      const mIdx =
+        countChanRefsDeep(body, chanName) === 1
+          ? body.findIndex((s) => s.op === "match" && s.src === chanName && s.tag === tag)
+          : -1;
+      if (mIdx !== -1) {
+        const dst = body[mIdx].dst;
+        const declIdx = body.findIndex((s) => s.op === "chan" && s.name === dst);
+        if (declIdx !== -1) {
+          matchInfo.push({ matched: true, mIdx, declIdx, dst, dstSchema: body[declIdx].schema });
+          continue;
+        }
+      }
+      if (!allowReconstruct) return null;
+      reconstructed = true;
+      matchInfo.push({ matched: false });
     }
 
+    const firstMatchIdx = matchInfo.findIndex((m) => m.matched);
+    if (firstMatchIdx === -1) return null;
+
+    const origExpr = specExprs.get(chanName);
+    if (reconstructed && !origExpr) return null;
+
     const sharedM = nextFresh("pm");
-    const mSchemaExpr = cloneAst(matchInfo[0].dstSchema);
+    const mSchemaExpr = cloneAst(matchInfo[firstMatchIdx].dstSchema);
     const mPlist = resolvePlist(mSchemaExpr);
 
     const peeledStmts = [
@@ -1510,69 +2928,77 @@ function compileSpecsToSwitches(
     ];
 
     let strippedBodies = survBodies.map((body, idx) => {
-      const { mIdx, declIdx, dst } = matchInfo[idx];
-      const filtered = body.filter((_, i) => i !== mIdx && i !== declIdx);
-      return renameStmtRefs(filtered, new Map([[dst, sharedM]]));
+      const mi = matchInfo[idx];
+      if (mi.matched) {
+        const filtered = body.filter((_, i) => i !== mi.mIdx && i !== mi.declIdx);
+        return renameStmtRefs(filtered, new Map([[mi.dst, sharedM]]));
+      }
+      const recCh = nextFresh("pr");
+      return [
+        { op: "chan", name: recCh, schema: cloneAst(origExpr) },
+        { op: "wrap", tag, src: sharedM, dst: recCh },
+        ...renameStmtRefs(body, new Map([[chanName, recCh]]))
+      ];
     });
 
-    // Optionally peel a common top-level `demux sharedM : S -> (...)` if every branch does it!
+    // Optionally peel a leading `demux sharedM : S -> (...)`!
     const newInputEntries = [];
     if (mPlist && mPlist[0]?.[0] === "closed-product") {
-      const demuxInfo = [];
-      let allDemux = true;
-      for (const body of strippedBodies) {
-        if (countChanRefsDeep(body, sharedM) !== 1) {
-          allDemux = false;
-          break;
-        }
-        const dIdx = body.findIndex((s) => s.op === "demux" && s.src === sharedM);
-        if (dIdx === -1) {
-          allDemux = false;
-          break;
-        }
-        const ds = body[dIdx];
-        const fieldDeclIdxs = [];
-        const fieldSchemas = new Map();
-        for (const f of ds.fields) {
-          const fDecl = body.findIndex((s) => s.op === "chan" && s.name === f.name);
-          if (fDecl === -1) {
-            allDemux = false;
-            break;
-          }
-          fieldDeclIdxs.push(fDecl);
-          fieldSchemas.set(f.label, { oldName: f.name, schema: body[fDecl].schema });
-        }
-        if (!allDemux) break;
-        demuxInfo.push({ dIdx, ds, fieldDeclIdxs: new Set(fieldDeclIdxs), fieldSchemas });
-      }
+      const demuxInfo = strippedBodies.map((body) => extractTopLevelDemux(body, sharedM));
+      const firstDemuxIdx = demuxInfo.findIndex(Boolean);
+      const allDemux = demuxInfo.every(Boolean);
+      const canPartialDemux = allowReconstruct && firstDemuxIdx !== -1;
 
-      if (allDemux && demuxInfo.length === strippedBodies.length && demuxInfo[0].ds.fields.length > 0) {
-        const refFields = demuxInfo[0].ds.fields;
-        const sharedByLabel = new Map();
-        const demuxFieldsOut = [];
-        for (const f of refFields) {
-          const sf = nextFresh("pf");
-          const fSchema = cloneAst(demuxInfo[0].fieldSchemas.get(f.label).schema);
-          sharedByLabel.set(f.label, sf);
-          peeledStmts.push({ op: "chan", name: sf, schema: fSchema });
-          demuxFieldsOut.push({ label: f.label, name: sf });
-          newInputEntries.push({ name: sf, plist: resolvePlist(fSchema), schema: fSchema });
-        }
-        peeledStmts.push({
-          op: "demux",
-          src: sharedM,
-          schema: cloneAst(demuxInfo[0].ds.schema),
-          fields: demuxFieldsOut
-        });
-        strippedBodies = strippedBodies.map((body, idx) => {
-          const { dIdx, fieldDeclIdxs, fieldSchemas } = demuxInfo[idx];
-          const filtered = body.filter((_, i) => i !== dIdx && !fieldDeclIdxs.has(i));
-          const cmap = new Map();
-          for (const [lbl, sf] of sharedByLabel.entries()) {
-            cmap.set(fieldSchemas.get(lbl).oldName, sf);
+      if ((allDemux || canPartialDemux) && demuxInfo[firstDemuxIdx].ds.fields.length > 0) {
+        const refDi = demuxInfo[firstDemuxIdx];
+        const refFields = refDi.ds.fields;
+        const shapeOk = demuxInfo.every(
+          (di) =>
+            !di ||
+            (di.ds.fields.length === refFields.length &&
+              refFields.every((rf) => di.fieldSchemas.has(rf.label)))
+        );
+        if (shapeOk) {
+          if (!allDemux) reconstructed = true;
+          const sharedByLabel = new Map();
+          const demuxFieldsOut = [];
+          for (const f of refFields) {
+            const sf = nextFresh("pf");
+            const fSchema = cloneAst(refDi.fieldSchemas.get(f.label).schema);
+            sharedByLabel.set(f.label, sf);
+            peeledStmts.push({ op: "chan", name: sf, schema: fSchema });
+            demuxFieldsOut.push({ label: f.label, name: sf });
+            newInputEntries.push({ name: sf, plist: resolvePlist(fSchema), schema: fSchema });
           }
-          return renameStmtRefs(filtered, cmap);
-        });
+          peeledStmts.push({
+            op: "demux",
+            src: sharedM,
+            schema: cloneAst(refDi.ds.schema),
+            fields: demuxFieldsOut
+          });
+          strippedBodies = strippedBodies.map((body, idx) => {
+            const di = demuxInfo[idx];
+            if (di) {
+              const filtered = body.filter((_, i) => i !== di.dIdx && !di.fieldDeclIdxs.has(i));
+              const cmap = new Map();
+              for (const [lbl, sf] of sharedByLabel.entries()) {
+                cmap.set(di.fieldSchemas.get(lbl).oldName, sf);
+              }
+              return renameStmtRefs(filtered, cmap);
+            }
+            const recM = nextFresh("prm");
+            return [
+              { op: "chan", name: recM, schema: cloneAst(mSchemaExpr) },
+              {
+                op: "mux",
+                fields: refFields.map((f) => ({ label: f.label, name: sharedByLabel.get(f.label) })),
+                dst: recM,
+                schema: cloneAst(refDi.ds.schema)
+              },
+              ...renameStmtRefs(body, new Map([[sharedM, recM]]))
+            ];
+          });
+        }
       }
     }
 
@@ -1580,27 +3006,472 @@ function compileSpecsToSwitches(
       newInputEntries.push({ name: sharedM, plist: mPlist, schema: mSchemaExpr });
     }
 
-    return { peeledStmts, strippedBodies, newInputEntries };
+    return { peeledStmts, strippedBodies, newInputEntries, reconstructed };
   }
 
-  function trySplitSpecByUnionInput(spec, specTypes, specExprs, depth = 0) {
-    if (depth >= 4 || spec.branches.length < 2) return null;
-    const specInputSet = new Set(spec.inputs);
-    const branchGuards = spec.branches.map((b) => extractBranchGuards(b.body, specInputSet, specTypes));
+  function tryHoistProductDemuxFromSpec(spec, specTypes, specExprs, depth = 0, demuxDepth = 0) {
+    if (demuxDepth >= 4 || spec.branches.length < 2) return null;
 
-    // Only split on a closed-union input unconditionally constrained by branch 0
+    for (const inp of spec.inputs) {
+      const pl = specTypes.get(inp);
+      if (!pl || pl[0]?.[0] !== "closed-product" || (pl[0][1] || []).length < 2) continue;
+      if (spec.branches.some((br) => hasUngatedDrainOf(br.body, inp))) continue;
+
+      const d0 = extractTopLevelDemux(spec.branches[0].body, inp);
+      if (!d0) continue;
+
+      const demuxInfos = spec.branches.map((br, b) => (b === 0 ? d0 : extractTopLevelDemux(br.body, inp)));
+      const refFields = d0.ds.fields;
+      const shapeOk = demuxInfos.every(
+        (di) =>
+          !di ||
+          (di.ds.fields.length === refFields.length &&
+            refFields.every((rf) => di.fieldSchemas.has(rf.label)))
+      );
+      if (!shapeOk) continue;
+
+      const allDemux = demuxInfos.every(Boolean);
+      const inpExpr = specExprs.get(inp);
+      if (!allDemux && !inpExpr) continue;
+
+      // For partial hoisting (some branch doesn't demux `inp`), require `br0` to inspect
+      // at least one demuxed field (either via union guard or nested demux) so hoisting can split!
+      if (!allDemux) {
+        const d0FieldNames = new Set(refFields.map((f) => f.name));
+        const d0FieldTypes = new Map();
+        for (const f of refFields) {
+          d0FieldTypes.set(f.name, resolvePlist(d0.fieldSchemas.get(f.label).schema));
+        }
+        const br0Info = extractBranchGuards(
+          spec.branches[0].body,
+          d0FieldNames,
+          d0FieldTypes,
+          procGuards,
+          resolvePlist,
+          strictFailure
+        );
+        const hasGuardOrNestedDemux =
+          br0Info.guards.size > 0 ||
+          refFields.some((f) => Boolean(extractTopLevelDemux(spec.branches[0].body, f.name)));
+        if (!hasGuardOrNestedDemux) continue;
+      }
+
+      const peeledStmts = [];
+      const sharedByLabel = new Map();
+      const demuxFieldsOut = [];
+      const innerInputs = [];
+      const innerTypes = new Map(specTypes);
+      const innerExprs = new Map(specExprs);
+      for (const v of spec.inputs) {
+        if (v !== inp) innerInputs.push(v);
+      }
+      for (const f of refFields) {
+        const sf = nextFresh("hf");
+        const fSchema = cloneAst(d0.fieldSchemas.get(f.label).schema);
+        sharedByLabel.set(f.label, sf);
+        peeledStmts.push({ op: "chan", name: sf, schema: fSchema });
+        demuxFieldsOut.push({ label: f.label, name: sf });
+        innerInputs.push(sf);
+        innerTypes.set(sf, resolvePlist(fSchema));
+        innerExprs.set(sf, fSchema);
+      }
+      peeledStmts.push({
+        op: "demux",
+        src: inp,
+        schema: cloneAst(d0.ds.schema),
+        fields: demuxFieldsOut
+      });
+
+      const innerBranches = spec.branches.map((br, idx) => {
+        const di = demuxInfos[idx];
+        if (di) {
+          const filtered = br.body.filter((_, i) => i !== di.dIdx && !di.fieldDeclIdxs.has(i));
+          const cmap = new Map();
+          for (const [lbl, sf] of sharedByLabel.entries()) {
+            cmap.set(di.fieldSchemas.get(lbl).oldName, sf);
+          }
+          return { index: idx, body: renameStmtRefs(filtered, cmap) };
+        }
+        const recP = nextFresh("hr");
+        return {
+          index: idx,
+          body: [
+            { op: "chan", name: recP, schema: cloneAst(inpExpr) },
+            {
+              op: "mux",
+              fields: refFields.map((f) => ({ label: f.label, name: sharedByLabel.get(f.label) })),
+              dst: recP,
+              schema: cloneAst(d0.ds.schema)
+            },
+            ...renameStmtRefs(br.body, new Map([[inp, recP]]))
+          ]
+        };
+      });
+
+      const innerSpec = {
+        op: "spec",
+        inputs: innerInputs,
+        outputs: spec.outputs.slice(),
+        branches: innerBranches
+      };
+
+      const compiledInner = compileSpecToStmts(innerSpec, innerTypes, innerExprs, depth, demuxDepth + 1);
+      if (compiledInner) {
+        return [...peeledStmts, ...compiledInner];
+      }
+      if (allDemux) {
+        // Hoisting an all-branch product demux out of `spec` is ALWAYS strictly better:
+        // avoids tapping untouched sibling fields (e.g. `acc` in `split_by_loop`) and unlocks MUX->DEMUX fusion!
+        return [...peeledStmts, innerSpec];
+      }
+    }
+    return null;
+  }
+
+  function tryPartitionSpecByMultiCols(spec, specTypes, specExprs, depth = 0, precomputedBranchInfos = null) {
+    if (depth >= maxDepth || spec.branches.length < 2) return null;
+    const B = spec.branches.length;
+    const specInputSet = new Set(spec.inputs);
+    const branchInfos =
+      precomputedBranchInfos ||
+      spec.branches.map((b) =>
+        extractBranchGuards(b.body, specInputSet, specTypes, procGuards, resolvePlist, strictFailure)
+      );
+    const branchGuards = branchInfos.map((bi) => bi.guards);
+    if (branchInfos[0].dead) return null;
+
+    // Only include columns unconditionally inspected by branch 0 (preserves exact demand order).
+    // Note: do NOT require each single column to be individually constrained (`g.size < allTags.length`),
+    // because multi-column switches (e.g. 5-bit whitespace dispatch in `@dj_ws_4`) constrain joint tuples!
+    const safeCols = [];
+    for (const inp of spec.inputs) {
+      const allTags = unionTagsOf(specTypes.get(inp));
+      if (!allTags || allTags.length === 0 || allTags.length > 16) continue;
+      if (!branchInfos[0].mustInspectSet.has(inp)) continue;
+      if (spec.branches.some((br) => hasUngatedDrainOf(br.body, inp))) continue;
+      safeCols.push({ name: inp, allTags });
+    }
+    if (safeCols.length < 2 || safeCols.length > maxCols) return null;
+
+    let gridSize = 1;
+    for (const col of safeCols) gridSize *= col.allTags.length;
+    if (gridSize > maxGrid) return null;
+
+    const C = safeCols.length;
+    const allTuples = [];
+    const curTuple = new Array(C);
+    const buildGrid = (c) => {
+      if (c === C) {
+        allTuples.push(curTuple.slice());
+        return;
+      }
+      for (const t of safeCols[c].allTags) {
+        curTuple[c] = t;
+        buildGrid(c + 1);
+      }
+    };
+    buildGrid(0);
+
+    // Helper: check if branch `b` can actually match tuple `t` across multi-column switches & interprocedural tuple constraints!
+    const safeColNames = safeCols.map((sc) => sc.name);
+    const branchInfo = spec.branches.map((br, bi) => {
+      const aliasOf = new Map();
+      for (const v of spec.inputs) aliasOf.set(v, v);
+      const multiSwitches = [];
+      for (const s of br.body || []) {
+        if ((s.op === "gate" || s.op === "splice") && aliasOf.has(s.src)) {
+          aliasOf.set(s.dst, aliasOf.get(s.src));
+        } else if (s.op === "tee" && aliasOf.has(s.src)) {
+          const orig = aliasOf.get(s.src);
+          for (const d of s.dsts) aliasOf.set(d, orig);
+        } else if (s.op === "switch" && !s.defaultBody && s.arms.length > 0) {
+          // Map switch inputs to `safeCols` indices (or -1 if not in `safeCols`)
+          const colMap = s.inputs.map((inp) => {
+            const orig = aliasOf.get(inp);
+            return orig ? safeCols.findIndex((sc) => sc.name === orig) : -1;
+          });
+          if (colMap.some((idx) => idx >= 0)) {
+            multiSwitches.push({ sw: s, colMap });
+          }
+        }
+      }
+      const mappedTcs = [];
+      for (const tc of branchInfos[bi].tupleConstraints) {
+        const colMap = tc.chans.map((c) => safeColNames.indexOf(c));
+        if (colMap.some((idx) => idx >= 0)) {
+          mappedTcs.push({ tc, colMap, allMapped: colMap.every((idx) => idx >= 0) });
+        }
+      }
+      return { multiSwitches, mappedTcs };
+    });
+
+    const groups = new Map(); // survKey -> { survIndices, tuples }
+    const deadTuples = [];
+    let madeProgress = false;
+
+    for (const t of allTuples) {
+      const tupleAllowed = new Map();
+      for (let j = 0; j < C; j++) tupleAllowed.set(safeCols[j].name, new Set([t[j]]));
+
+      const surv = [];
+      for (let b = 0; b < B; b++) {
+        if (branchInfos[b].dead) continue;
+        let ok = true;
+        for (let j = 0; j < C; j++) {
+          const g = branchGuards[b].get(safeCols[j].name);
+          if (g && !g.has(t[j])) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) {
+          // Check exact interprocedural/backward joint tuple constraints on `t`
+          for (const { tc, colMap, allMapped } of branchInfo[b].mappedTcs) {
+            if (allMapped) {
+              const key = colMap.map((idx) => t[idx]).join("\x00");
+              if (!tc.allowed.has(key)) {
+                ok = false;
+                break;
+              }
+            } else {
+              let anyOk = false;
+              for (const tk of tc.allowed) {
+                const parts = tk.split("\x00");
+                let match = true;
+                for (let k = 0; k < colMap.length; k++) {
+                  if (colMap[k] >= 0 && parts[k] !== t[colMap[k]]) {
+                    match = false;
+                    break;
+                  }
+                }
+                if (match) {
+                  anyOk = true;
+                  break;
+                }
+              }
+              if (!anyOk) {
+                ok = false;
+                break;
+              }
+            }
+          }
+        }
+        if (ok) {
+          // Check exact multi-column switch satisfiability on `t`
+          for (const { sw, colMap } of branchInfo[b].multiSwitches) {
+            const anyArmMatches = sw.arms.some((arm) =>
+              arm.patterns.every((p, pj) => {
+                const scIdx = colMap[pj];
+                if (scIdx < 0 || p.kind !== "tag") return true;
+                return p.tag === t[scIdx];
+              })
+            );
+            if (!anyArmMatches) {
+              ok = false;
+              break;
+            }
+          }
+        }
+        if (!ok) continue;
+        surv.push(b);
+        // CRITICAL: check totality using ONLY `tupleAllowed` (the tested `safeCols`),
+        // NEVER untested columns from `branchGuards[b]`!
+        if (isBlockTotal(spec.branches[b].body, specTypes, tupleAllowed, totalProcs, kernelMap, resolvePlist)) {
+          break;
+        }
+      }
+      if (surv.length < B) madeProgress = true;
+      if (surv.length === 0) {
+        deadTuples.push(t);
+      } else {
+        const key = surv.join(",");
+        let g = groups.get(key);
+        if (!g) {
+          g = { key, survIndices: surv, tuples: [] };
+          groups.set(key, g);
+        }
+        g.tuples.push(t);
+      }
+    }
+
+    if (!madeProgress || groups.size === 0) return null;
+    if (groups.size === 1 && deadTuples.length === 0) return null;
+
+    // Sort groups ascending by tuple count; if no dead tuples, largest group becomes `defaultBody`!
+    const groupList = [...groups.values()].sort((a, b) => a.tuples.length - b.tuples.length);
+    let defaultGroup = null;
+    if (deadTuples.length === 0 && groupList.length >= 2) {
+      defaultGroup = groupList.pop();
+    }
+
+    const cubeMatches = (cube, tuple) => {
+      for (let j = 0; j < C; j++) {
+        if (cube[j] !== null && cube[j] !== tuple[j]) return false;
+      }
+      return true;
+    };
+
+    const armSpecs = []; // { cube, survIndices }
+    const origTotalStmts = spec.branches.reduce((acc, br) => acc + countStmts(br.body), 0);
+    let estExtraStmts = 0;
+
+    for (let gi = 0; gi < groupList.length; gi++) {
+      const grp = groupList[gi];
+      // Forbidden tuples = all later groups + defaultGroup + deadTuples
+      const forbidden = [...deadTuples];
+      for (let k = gi + 1; k < groupList.length; k++) forbidden.push(...groupList[k].tuples);
+      if (defaultGroup) forbidden.push(...defaultGroup.tuples);
+
+      let rem = grp.tuples.slice();
+      let grpRows = 0;
+      while (rem.length > 0) {
+        const cube = rem[0].slice();
+        for (let j = 0; j < C; j++) {
+          if (cube[j] === null) continue;
+          const saved = cube[j];
+          cube[j] = null;
+          if (forbidden.some((ft) => cubeMatches(cube, ft))) cube[j] = saved;
+        }
+        armSpecs.push({ cube, survIndices: grp.survIndices });
+        grpRows += 1;
+        if (armSpecs.length > maxSwitchArms) return null;
+        rem = rem.filter((t) => !cubeMatches(cube, t));
+      }
+      if (grpRows > 1) {
+        const grpCost = grp.survIndices.reduce((acc, bi) => acc + countStmts(spec.branches[bi].body), 0);
+        estExtraStmts += (grpRows - 1) * grpCost;
+        if (estExtraStmts > Math.max(600, origTotalStmts * 3)) return null;
+      }
+    }
+
+    const buildGroupBody = (survIndices, fixedCube) => {
+      const specialized = survIndices.map((b) => {
+        let body = cloneAst(spec.branches[b].body);
+        if (fixedCube) {
+          for (let j = 0; j < C; j++) {
+            if (fixedCube[j] !== null) body = specializeBranchForTag(body, safeCols[j].name, fixedCube[j]);
+          }
+        }
+        return freshenBodyLocals(body);
+      });
+      if (specialized.length === 1) {
+        return rewriteBlock(specialized[0], specTypes, specExprs);
+      }
+      const innerSpec = {
+        op: "spec",
+        inputs: spec.inputs.slice(),
+        outputs: spec.outputs.slice(),
+        branches: specialized.map((body, idx) => ({ index: idx, body }))
+      };
+      if (fixedCube) {
+        // Try peeling any single fixed column (first exact, then with reconstruction if inner compiles!)
+        for (const allowReconstruct of [false, true]) {
+          for (let j = 0; j < C; j++) {
+            if (fixedCube[j] === null) continue;
+            const peeled = tryPeelCommonMatchDemux(
+              specialized,
+              safeCols[j].name,
+              fixedCube[j],
+              specTypes,
+              specExprs,
+              { allowReconstruct }
+            );
+            if (!peeled) continue;
+            const innerInputs = spec.inputs.filter((v) => v !== safeCols[j].name);
+            const innerTypes = new Map(specTypes);
+            const innerExprs = new Map(specExprs);
+            for (const e of peeled.newInputEntries) {
+              innerInputs.push(e.name);
+              innerTypes.set(e.name, e.plist);
+              innerExprs.set(e.name, e.schema);
+            }
+            const pSpec = {
+              op: "spec",
+              inputs: innerInputs,
+              outputs: spec.outputs.slice(),
+              branches: peeled.strippedBodies.map((body, idx) => ({ index: idx, body }))
+            };
+            const compiled = compileSpecToStmts(pSpec, innerTypes, innerExprs, depth + 1, 0);
+            if (compiled) return [...peeled.peeledStmts, ...compiled];
+            if (!allowReconstruct) return [...peeled.peeledStmts, pSpec];
+          }
+        }
+      }
+      const compiled =
+        survIndices.length < B ? compileSpecToStmts(innerSpec, specTypes, specExprs, depth + 1, 0) : null;
+      return compiled || [innerSpec];
+    };
+
+    const arms = armSpecs.map(({ cube, survIndices }) => ({
+      patterns: cube.map((t) => (t === null ? { kind: "wild" } : { kind: "tag", tag: t })),
+      body: buildGroupBody(survIndices, cube)
+    }));
+    const defaultBody = defaultGroup ? buildGroupBody(defaultGroup.survIndices, null) : null;
+
+    const activeCols = [];
+    for (let j = 0; j < C; j++) {
+      if (arms.some((a) => a.patterns[j].kind === "tag")) activeCols.push(j);
+    }
+    if (activeCols.length === 0) return null;
+
+    return {
+      op: "switch",
+      inputs: activeCols.map((j) => safeCols[j].name),
+      arms: arms.map((a) => ({
+        patterns: activeCols.map((j) => a.patterns[j]),
+        body: a.body
+      })),
+      defaultBody
+    };
+  }
+
+  function trySplitSpecByUnionInput(spec, specTypes, specExprs, depth = 0, precomputedBranchInfos = null) {
+    if (depth >= maxDepth || spec.branches.length < 2) return null;
+    const specInputSet = new Set(spec.inputs);
+    const branchInfos =
+      precomputedBranchInfos ||
+      spec.branches.map((b) =>
+        extractBranchGuards(b.body, specInputSet, specTypes, procGuards, resolvePlist, strictFailure)
+      );
+    const branchGuards = branchInfos.map((bi) => bi.guards);
+    if (branchInfos[0].dead) return null;
+
+    // Only split on a closed-union input unconditionally inspected by branch 0
     // (guarantees peeking the tag preserves exact demand/termination order).
+    // Prefer inputs that strictly constrain branch 0, then inputs constrained by any branch
+    // or dispatched via top-level `switch` in branch 0 (e.g. `@dj_ws_4`, `@dj_scan_digits_54`).
     let chosenCol = null;
     let chosenTags = null;
+    let bestScore = -1;
     for (const inp of spec.inputs) {
       const allTags = unionTagsOf(specTypes.get(inp));
       if (!allTags || allTags.length === 0 || allTags.length > 16) continue;
       const g0 = branchGuards[0].get(inp);
-      if (!g0 || g0.size >= allTags.length) continue;
+      if (!g0 || !branchInfos[0].mustInspectSet.has(inp)) continue;
       if (spec.branches.some((br) => hasUngatedDrainOf(br.body, inp))) continue;
-      chosenCol = inp;
-      chosenTags = allTags;
-      break;
+
+      const br0Constrains = g0.size < allTags.length;
+      const anyConstrains = branchGuards.some((bg) => {
+        const g = bg.get(inp);
+        return g && g.size < allTags.length;
+      });
+      const br0HasSwitch = spec.branches[0].body.some(
+        (s) => s.op === "switch" && s.inputs.includes(inp)
+      );
+      if (!br0Constrains && !anyConstrains && !br0HasSwitch) continue;
+
+      // Score: count total eliminated branch-tag pairs + bonus for constraining br0
+      let elim = 0;
+      for (const bg of branchGuards) {
+        const g = bg.get(inp);
+        if (g && g.size < allTags.length) elim += allTags.length - g.size;
+      }
+      const score = elim * 4 + (br0Constrains ? 2 : 0) + (br0HasSwitch ? 1 : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        chosenCol = inp;
+        chosenTags = allTags;
+      }
     }
     if (!chosenCol) return null;
 
@@ -1610,6 +3481,7 @@ function compileSpecsToSwitches(
     for (const tag of chosenTags) {
       const survIndices = [];
       for (let b = 0; b < spec.branches.length; b++) {
+        if (branchInfos[b].dead) continue;
         const gb = branchGuards[b].get(chosenCol);
         if (!gb || gb.has(tag)) survIndices.push(b);
       }
@@ -1634,12 +3506,12 @@ function compileSpecsToSwitches(
       if (survBodies.length < spec.branches.length) madeProgress = true;
 
       // Try peeling common leading `match /tag %c` (+ optional `demux`) out of surviving branches
-      const peeled = tryPeelCommonMatchDemux(survBodies, chosenCol, tag, specTypes, specExprs);
+      let peeled = tryPeelCommonMatchDemux(survBodies, chosenCol, tag, specTypes, specExprs, {
+        allowReconstruct: false
+      });
+      let compiledPeeled = null;
       if (peeled) {
-        const innerInputs = [];
-        for (const v of spec.inputs) {
-          if (v !== chosenCol) innerInputs.push(v);
-        }
+        const innerInputs = spec.inputs.filter((v) => v !== chosenCol);
         const innerTypes = new Map(specTypes);
         const innerExprs = new Map(specExprs);
         for (const e of peeled.newInputEntries) {
@@ -1651,33 +3523,64 @@ function compileSpecsToSwitches(
           op: "spec",
           inputs: innerInputs,
           outputs: spec.outputs.slice(),
-          branches: peeled.strippedBodies.map((body, idx) => ({
-            index: idx,
-            body
-          }))
+          branches: peeled.strippedBodies.map((body, idx) => ({ index: idx, body }))
         };
-        const compiledInner =
-          tryCompileSpec(innerSpec, innerTypes) ||
-          trySplitSpecByUnionInput(innerSpec, innerTypes, innerExprs, depth + 1);
-        if (compiledInner) madeProgress = true;
+        compiledPeeled = compileSpecToStmts(innerSpec, innerTypes, innerExprs, depth + 1, 0);
+        if (compiledPeeled) madeProgress = true;
         arms.push({
           patterns: [{ kind: "tag", tag }],
-          body: [...peeled.peeledStmts, compiledInner || innerSpec]
+          body: [...peeled.peeledStmts, ...(compiledPeeled || [innerSpec])]
         });
-      } else {
+        continue;
+      }
+
+      // Try partial peel with reconstruction (e.g. `br0` matches `/cons`+`demux`, `br1` is fallback):
+      // ONLY commit if the inner `spec` actually compiles/splits!
+      peeled = tryPeelCommonMatchDemux(survBodies, chosenCol, tag, specTypes, specExprs, {
+        allowReconstruct: true
+      });
+      if (peeled) {
+        const innerInputs = spec.inputs.filter((v) => v !== chosenCol);
+        const innerTypes = new Map(specTypes);
+        const innerExprs = new Map(specExprs);
+        for (const e of peeled.newInputEntries) {
+          innerInputs.push(e.name);
+          innerTypes.set(e.name, e.plist);
+          innerExprs.set(e.name, e.schema);
+        }
         const innerSpec = {
           op: "spec",
-          inputs: spec.inputs.slice(),
+          inputs: innerInputs,
           outputs: spec.outputs.slice(),
-          branches: survBodies.map((body, idx) => ({ index: idx, body }))
+          branches: peeled.strippedBodies.map((body, idx) => ({ index: idx, body }))
         };
-        const compiledInner = tryCompileSpec(innerSpec, specTypes);
-        if (compiledInner) madeProgress = true;
-        arms.push({
-          patterns: [{ kind: "tag", tag }],
-          body: [compiledInner || innerSpec]
-        });
+        compiledPeeled = compileSpecToStmts(innerSpec, innerTypes, innerExprs, depth + 1, 0);
+        if (compiledPeeled) {
+          madeProgress = true;
+          arms.push({
+            patterns: [{ kind: "tag", tag }],
+            body: [...peeled.peeledStmts, ...compiledPeeled]
+          });
+          continue;
+        }
       }
+
+      const innerSpec = {
+        op: "spec",
+        inputs: spec.inputs.slice(),
+        outputs: spec.outputs.slice(),
+        branches: survBodies.map((body, idx) => ({ index: idx, body }))
+      };
+      const compiledInner =
+        tryCompileSpec(innerSpec, specTypes) ||
+        (survBodies.length < spec.branches.length
+          ? compileSpecToStmts(innerSpec, specTypes, specExprs, depth + 1, 0)
+          : null);
+      if (compiledInner) madeProgress = true;
+      arms.push({
+        patterns: [{ kind: "tag", tag }],
+        body: Array.isArray(compiledInner) ? compiledInner : [compiledInner || innerSpec]
+      });
     }
 
     if (!madeProgress || arms.length === 0) return null;
@@ -1687,6 +3590,20 @@ function compileSpecsToSwitches(
       arms,
       defaultBody: null
     };
+  }
+
+  function compileSpecToStmts(specStmt, specTypes, specExprs, depth = 0, demuxDepth = 0) {
+    const hoisted = tryHoistProductDemuxFromSpec(specStmt, specTypes, specExprs, depth, demuxDepth);
+    if (hoisted) return hoisted;
+    const specInputSet = new Set(specStmt.inputs);
+    const branchInfos = specStmt.branches.map((b) =>
+      extractBranchGuards(b.body, specInputSet, specTypes, procGuards, resolvePlist, strictFailure)
+    );
+    const sw =
+      tryCompileSpec(specStmt, specTypes, branchInfos) ||
+      tryPartitionSpecByMultiCols(specStmt, specTypes, specExprs, depth, branchInfos) ||
+      trySplitSpecByUnionInput(specStmt, specTypes, specExprs, depth, branchInfos);
+    return sw ? [sw] : null;
   }
 
   function rewriteBlock(stmts, outerTypes, outerExprs) {
@@ -1699,15 +3616,20 @@ function compileSpecsToSwitches(
       }
     }
 
-    return (stmts || []).map((s) => {
+    const out = [];
+    for (const s of stmts || []) {
       if (s.op === "switch") {
-        return {
+        out.push({
           ...s,
           arms: s.arms.map((a) => ({ ...a, body: rewriteBlock(a.body, types, exprs) })),
           defaultBody: s.defaultBody ? rewriteBlock(s.defaultBody, types, exprs) : null
-        };
+        });
+        continue;
       }
-      if (s.op !== "spec") return s;
+      if (s.op !== "spec") {
+        out.push(s);
+        continue;
+      }
 
       // Recurse into branches first
       const specTypes = new Map();
@@ -1719,21 +3641,29 @@ function compileSpecsToSwitches(
       const branches = s.branches.map((b) => ({ ...b, body: rewriteBlock(b.body, specTypes, specExprs) }));
       const specStmt = { ...s, branches };
 
-      const sw = tryCompileSpec(specStmt, specTypes) || trySplitSpecByUnionInput(specStmt, specTypes, specExprs);
-      if (sw) {
+      const compiled = compileSpecToStmts(specStmt, specTypes, specExprs, 0, 0);
+      if (compiled) {
         converted += 1;
-        return sw;
+        out.push(...compiled);
+      } else {
+        out.push(specStmt);
       }
-      return specStmt;
-    });
+    }
+    return out;
   }
 
-  function tryCompileSpec(spec, specTypes) {
+  function tryCompileSpec(spec, specTypes, precomputedBranchInfos = null) {
     const B = spec.branches.length;
     if (B === 0) return null;
 
     const specInputSet = new Set(spec.inputs);
-    const branchGuards = spec.branches.map((b) => extractBranchGuards(b.body, specInputSet, specTypes));
+    const branchInfos =
+      precomputedBranchInfos ||
+      spec.branches.map((b) =>
+        extractBranchGuards(b.body, specInputSet, specTypes, procGuards, resolvePlist, strictFailure)
+      );
+    if (branchInfos.some((bi) => bi.dead)) return null;
+    const branchGuards = branchInfos.map((bi) => bi.guards);
 
     // Check every non-final branch is post-guard total (final branch can fail freely!)
     for (let b = 0; b < B - 1; b++) {
@@ -1762,6 +3692,23 @@ function compileSpecsToSwitches(
     }
 
     if (constrainedCols.length === 0 || constrainedCols.length > maxCols) return null;
+
+    // Defer non-Cartesian joint tuple constraints over `constrainedCols` to `tryPartitionSpecByMultiCols`
+    const constrainedSet = new Set(constrainedCols.map((c) => c.name));
+    for (const bi of branchInfos) {
+      for (const tc of bi.tupleConstraints) {
+        if (tc.chans.filter((c) => constrainedSet.has(c)).length >= 2) {
+          // Check if `tc` is strictly non-Cartesian across its channels
+          const margCounts = tc.chans.map((_, j) => {
+            const s = new Set();
+            for (const tk of tc.allowed) s.add(tk.split("\x00")[j]);
+            return s.size;
+          });
+          const cart = margCounts.reduce((a, b) => a * b, 1);
+          if (tc.allowed.size < cart) return null;
+        }
+      }
+    }
 
     let gridSize = 1;
     for (const col of constrainedCols) gridSize *= col.allTags.length;
@@ -1892,7 +3839,42 @@ function compileSpecsToSwitches(
     };
   }
 
-  const procs = (mod.procs || []).map((proc) => {
+  // Process procedures in bottom-up call-graph post-order (callees before callers)
+  // so every callee's compiled `switch` decision tree immediately yields exact
+  // interprocedural entry guards for its callers in a single pass!
+  const allProcs = mod.procs || [];
+  const procByName = new Map(allProcs.map((p) => [p.name, p]));
+  const callAdj = new Map();
+  const collectSpawns = (stmts, out) => {
+    for (const s of stmts || []) {
+      if (s.op === "spawn") out.add(s.target);
+      else if (s.op === "switch") {
+        for (const a of s.arms) collectSpawns(a.body, out);
+        if (s.defaultBody) collectSpawns(s.defaultBody, out);
+      } else if (s.op === "spec") {
+        for (const b of s.branches) collectSpawns(b.body, out);
+      }
+    }
+  };
+  for (const p of allProcs) {
+    const set = new Set();
+    collectSpawns(p.body, set);
+    callAdj.set(p.name, set);
+  }
+
+  const visited = new Set();
+  const postOrder = [];
+  const dfsPost = (name) => {
+    if (visited.has(name) || !procByName.has(name)) return;
+    visited.add(name);
+    for (const callee of callAdj.get(name) || []) dfsPost(callee);
+    postOrder.push(name);
+  };
+  for (const p of allProcs) dfsPost(p.name);
+
+  const rewrittenByName = new Map();
+  for (const name of postOrder) {
+    const proc = procByName.get(name);
     const outerTypes = new Map();
     const outerExprs = new Map();
     for (const p of proc.inputs) {
@@ -1903,8 +3885,14 @@ function compileSpecsToSwitches(
       outerTypes.set(p.name, resolvePlist(p.schema));
       outerExprs.set(p.name, p.schema);
     }
-    return { ...proc, body: rewriteBlock(proc.body, outerTypes, outerExprs) };
-  });
+    const newProc = { ...proc, body: rewriteBlock(proc.body, outerTypes, outerExprs) };
+    rewrittenByName.set(name, newProc);
+    if (strictFailure) {
+      procGuards.set(name, analyzeProcEntryGuards(newProc, procGuards, resolvePlist, strictFailure));
+    }
+  }
+
+  const procs = allProcs.map((p) => rewrittenByName.get(p.name));
 
   return { module: { ...mod, procs }, converted };
 }
@@ -2280,12 +4268,24 @@ function extractLoopKernels(mod, resolvePlist) {
 function eliminateDeadProcs(mod) {
   if (!mod.entry) return { module: mod, removed: 0 };
   const procMap = new Map((mod.procs || []).map((p) => [p.name, p]));
+  const kernelMap = new Map((mod.kernels || []).map((k) => [k.name, k]));
   const live = new Set();
+  const liveKernels = new Set();
   const stack = [mod.entry];
   const walk = (stmts) => {
     for (const s of stmts || []) {
       if (s.op === "spawn" && !live.has(s.target)) stack.push(s.target);
-      else if (s.op === "switch") {
+      else if (s.op === "exec" && !liveKernels.has(s.target)) {
+        liveKernels.add(s.target);
+        const k = kernelMap.get(s.target);
+        if (k) {
+          for (const b of k.blocks || []) {
+            if (b.term?.op === "handoff" && b.term.target && !live.has(b.term.target)) {
+              stack.push(b.term.target);
+            }
+          }
+        }
+      } else if (s.op === "switch") {
         for (const a of s.arms) walk(a.body);
         if (s.defaultBody) walk(s.defaultBody);
       } else if (s.op === "spec") {
@@ -2293,6 +4293,14 @@ function eliminateDeadProcs(mod) {
       }
     }
   };
+  // Also preserve any handoff targets of all retained kernels
+  for (const k of mod.kernels || []) {
+    for (const b of k.blocks || []) {
+      if (b.term?.op === "handoff" && b.term.target && !live.has(b.term.target)) {
+        stack.push(b.term.target);
+      }
+    }
+  }
   while (stack.length > 0) {
     const name = stack.pop();
     if (live.has(name)) continue;
@@ -2585,24 +4593,50 @@ function forceStrictLoopAccumulators(mod, totalProcs, freshBox) {
       if (slotNextChan.size === 0) continue;
 
       // Find qualifying helper `spawn` statements producing `nextChan` from `origChan`
+      // (either directly or wrapped via a local `mux` such as `{ x: %acc, y: 1 } -> spawn @plus`).
+      const muxCarry = new Map(); // muxDst -> Map<origChan, Set<label>>
+      for (let i = 0; i < tailIdx; i++) {
+        const st = body[i];
+        if (st.op === "mux") {
+          const hit = new Map();
+          for (const f of st.fields) {
+            if (slotNextChan.has(f.name)) {
+              if (!hit.has(f.name)) hit.set(f.name, new Set());
+              hit.get(f.name).add(f.label);
+            }
+          }
+          if (hit.size > 0) muxCarry.set(st.dst, hit);
+        }
+      }
       const forcedSpawns = [];
       for (let i = 0; i < tailIdx; i++) {
         const st = body[i];
         if (st.op !== "spawn" || st.target === proc.name || st.token || st.outputs.length !== 1) continue;
         const outCh = st.outputs[0];
         let matchedInIdx = -1;
+        let trackedFields = null;
         for (const [origChan, nextChan] of slotNextChan.entries()) {
           if (nextChan === outCh) {
             const idx = st.inputs.indexOf(origChan);
             if (idx >= 0) {
               matchedInIdx = idx;
+              trackedFields = null;
               break;
             }
+            for (let ii = 0; ii < st.inputs.length; ii++) {
+              const mc = muxCarry.get(st.inputs[ii]);
+              if (mc && mc.has(origChan)) {
+                matchedInIdx = ii;
+                trackedFields = mc.get(origChan);
+                break;
+              }
+            }
+            if (matchedInIdx >= 0) break;
           }
         }
         if (matchedInIdx < 0) continue;
         if (!totalProcs.has(st.target) && !isSafeStrictHelper(st.target, procMap)) continue;
-        if (!isProcInspectingInput(st.target, matchedInIdx, procMap)) continue;
+        if (!isProcInspectingInput(st.target, matchedInIdx, procMap, trackedFields)) continue;
         forcedSpawns.push(st);
       }
 
@@ -2637,9 +4671,9 @@ export function simplifyProcs(
     extractLoops = true,
     strictAccumulators = true,
     dce = true,
-    maxInlineStmts = 32,
-    maxSingleUseStmts = 64,
-    maxProcStmts = 420
+    maxInlineStmts = 48,
+    maxSingleUseStmts = 160,
+    maxProcStmts = 800
   } = {}
 ) {
   let cur = cloneAst(monoMod);
@@ -2664,8 +4698,14 @@ export function simplifyProcs(
     for (const k of Object.keys(deforestStats)) deforestStats[k] += s[k] || 0;
   };
 
+  const inlineSeqBox = { seq: 0 };
   if (inline) {
-    const r = inlineSmallAcyclicProcs(cur, { maxInlineStmts, maxSingleUseStmts, maxProcStmts });
+    const r = inlineSmallAcyclicProcs(cur, {
+      maxInlineStmts,
+      maxSingleUseStmts,
+      maxProcStmts,
+      seqBox: inlineSeqBox
+    });
     cur = r.module;
     inlinedCalls += r.inlinedCalls;
   }
@@ -2692,6 +4732,41 @@ export function simplifyProcs(
       const d2 = deforestModule(cur, resolvePlist, totalProcs, freshBox);
       cur = d2.module;
       mergeDeforest(d2.stats);
+    }
+
+    // Rounds 2-3: if any `spec`s remain, inline newly spec-free non-cyclic helpers inside
+    // `spec` branches (e.g. `@dj_not_ws_`, `@dj_not_digit_`, `@dj_ws_char`, `@dj_digit_nibble`,
+    // `@dj_json_string`, `@dj_json_number`, `@dj_parse_atom`) and re-run deforest + specToSwitch!
+    for (let round = 0; round < 2; round++) {
+      if (!inline || !(cur.procs || []).some((p) => hasSpecOp(p.body))) break;
+      const r2 = inlineSmallAcyclicProcs(cur, {
+        maxInlineStmts: 160,
+        maxSingleUseStmts: 320,
+        maxProcStmts: 1100,
+        allowExec: false,
+        allowSpecCallee: false,
+        onlyInSpec: true,
+        seqBox: inlineSeqBox
+      });
+      if (r2.inlinedCalls === 0) break;
+      cur = r2.module;
+      inlinedCalls += r2.inlinedCalls;
+      if (deforest) {
+        totalProcs = computeTotalProcs(cur, resolvePlist);
+        const d3 = deforestModule(cur, resolvePlist, totalProcs, freshBox);
+        cur = d3.module;
+        mergeDeforest(d3.stats);
+      }
+      totalProcs = computeTotalProcs(cur, resolvePlist);
+      const sw2 = compileSpecsToSwitches(cur, resolvePlist, totalProcs, freshBox);
+      cur = sw2.module;
+      specsConverted += sw2.converted;
+      if (deforest && sw2.converted > 0) {
+        totalProcs = computeTotalProcs(cur, resolvePlist);
+        const d4 = deforestModule(cur, resolvePlist, totalProcs, freshBox);
+        cur = d4.module;
+        mergeDeforest(d4.stats);
+      }
     }
   }
 
@@ -2722,6 +4797,51 @@ export function simplifyProcs(
       specsConverted,
       loopsExtracted,
       strictAccumulatorsForced,
+      deadProcsRemoved
+    }
+  };
+}
+
+/**
+ * Post-fusion wrapper inlining: after `fuseKernels` turns recursive bit-loops
+ * (`trim_bits`, `_rev_bits`, `_lsb_add_loop`, `_lsb_cmp`, ...) into tiny acyclic
+ * `exec @kernel` procs, inline small acyclic wrappers (including `exec` calls)
+ * and deforest the exposed `mux -> demux` / `wrap -> match` pairs!
+ */
+export function inlinePostFusionWrappers(
+  monoMod,
+  { maxInlineStmts = 28, maxSingleUseStmts = 64, maxProcStmts = 480 } = {}
+) {
+  let cur = cloneAst(monoMod);
+  const resolvePlist = makeSchemaResolver(cur);
+  const seqBox = { seq: 10000 };
+  const freshBox = { seq: 100000 };
+  const r = inlineSmallAcyclicProcs(cur, {
+    maxInlineStmts,
+    maxSingleUseStmts,
+    maxProcStmts,
+    allowExec: true,
+    allowSpecCallee: false,
+    onlyInSpec: false,
+    seqBox
+  });
+  cur = r.module;
+  let deforestStats = null;
+  let deadProcsRemoved = 0;
+  if (r.inlinedCalls > 0) {
+    const totalProcs = computeTotalProcs(cur, resolvePlist);
+    const d = deforestModule(cur, resolvePlist, totalProcs, freshBox);
+    cur = d.module;
+    deforestStats = d.stats;
+    const dc = eliminateDeadProcs(cur);
+    cur = dc.module;
+    deadProcsRemoved = dc.removed;
+  }
+  return {
+    module: cur,
+    stats: {
+      inlinedCalls: r.inlinedCalls,
+      deforest: deforestStats,
       deadProcsRemoved
     }
   };
