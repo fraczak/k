@@ -1041,7 +1041,7 @@ export function compileKTVMToWat(mod, { entry = null } = {}) {
           break;
         }
         case "retire": {
-          bl.push(`      (call $retire_node (local.get $n))`);
+          bl.push(`      (call $k_retire (local.get $n))`);
           bl.push(`      (return (i32.const 0))`);
           break;
         }

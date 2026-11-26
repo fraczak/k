@@ -428,6 +428,7 @@
     (local $dwi i32)
     (local $dbo i32)
 
+    (if (i32.ge_s (i32.load (local.get $ch)) (i32.const 3)) (then (return)))
     (local.set $oldBuf (i32.load (i32.add (local.get $ch) (i32.const 32))))
     (local.set $oldWords (i32.load (i32.add (local.get $ch) (i32.const 36))))
     (local.set $oldHead (i32.load (i32.add (local.get $ch) (i32.const 40))))
@@ -540,7 +541,7 @@
     (local $w1 i32)
     (local $addr i32)
 
-    (if (i32.le_s (local.get $w) (i32.const 0)) (then (return)))
+    (if (i32.or (i32.le_s (local.get $w) (i32.const 0)) (i32.ge_s (i32.load (local.get $ch)) (i32.const 3))) (then (return)))
     (local.set $len (i32.load (i32.add (local.get $ch) (i32.const 44))))
     (local.set $capW (i32.load (i32.add (local.get $ch) (i32.const 36))))
     (local.set $capBits (i32.shl (local.get $capW) (i32.const 5)))
@@ -615,7 +616,7 @@
     (local $w1 i32)
     (local $addr i32)
 
-    (if (i32.le_s (local.get $w) (i32.const 0)) (then (return)))
+    (if (i32.or (i32.le_s (local.get $w) (i32.const 0)) (i32.ge_s (i32.load (local.get $ch)) (i32.const 3))) (then (return)))
     (local.set $len (i32.load (i32.add (local.get $ch) (i32.const 44))))
     (local.set $capW (i32.load (i32.add (local.get $ch) (i32.const 36))))
     (local.set $capBits (i32.shl (local.get $capW) (i32.const 5)))
@@ -1655,7 +1656,9 @@
         (if (i32.ne (local.get $ch) (i32.const 0))
           (then
             (if (i32.eq (i32.load (i32.add (local.get $ch) (i32.const 20))) (local.get $n))
-              (then (i32.store (i32.add (local.get $ch) (i32.const 20)) (i32.const 0))))))
+              (then
+                (i32.store (i32.add (local.get $ch) (i32.const 20)) (i32.const 0))
+                (call $try_queue_chan (local.get $ch))))))
         (local.set $i (i32.add (local.get $i) (i32.const 1)))
         (br $li)
       )
@@ -1671,7 +1674,9 @@
         (if (i32.ne (local.get $ch) (i32.const 0))
           (then
             (if (i32.eq (i32.load (i32.add (local.get $ch) (i32.const 16))) (local.get $n))
-              (then (i32.store (i32.add (local.get $ch) (i32.const 16)) (i32.const 0))))))
+              (then
+                (i32.store (i32.add (local.get $ch) (i32.const 16)) (i32.const 0))
+                (call $try_queue_chan (local.get $ch))))))
         (local.set $i (i32.add (local.get $i) (i32.const 1)))
         (br $lo)
       )
@@ -1687,8 +1692,7 @@
   (func $cancel_input (param $ch i32)
     (if (i32.eqz (local.get $ch)) (then (return)))
     (i32.store (i32.add (local.get $ch) (i32.const 20)) (i32.const 0))
-    (if (i32.ne (i32.load (local.get $ch)) (i32.const 0))
-      (then (call $bd_release (local.get $ch))))
+    (call $bd_release (local.get $ch))
   )
 
   (func $rebind_output (param $prodNode i32) (param $oldCh i32) (param $newCh i32)
@@ -2199,6 +2203,36 @@
       )
     )
     (i32.const 0)
+  )
+
+  ;; Normal kernel retire: release all still-owned input channels (not called by handoff!)
+  (func $k_retire (param $n i32)
+    (local $ks i32)
+    (local $inMask i32)
+    (local $cnt i32)
+    (local $i i32)
+    (local $ch i32)
+    (local.set $ks (i32.load (i32.add (local.get $n) (i32.const 40))))
+    (if (i32.ne (local.get $ks) (i32.const 0))
+      (then
+        (local.set $inMask (i32.load (i32.add (local.get $ks) (i32.const 32))))
+        (i32.store (i32.add (local.get $ks) (i32.const 32)) (i32.const 0))
+        (local.set $cnt (i32.load (i32.add (local.get $n) (i32.const 20))))
+        (local.set $i (i32.const 0))
+        (block $bi
+          (loop $li
+            (br_if $bi (i32.ge_s (local.get $i) (local.get $cnt)))
+            (if (i32.and (i32.shr_u (local.get $inMask) (local.get $i)) (i32.const 1))
+              (then
+                (local.set $ch (call $node_get_in (local.get $n) (local.get $i)))
+                (call $cancel_input (local.get $ch))))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br $li)
+          )
+        )
+      )
+    )
+    (call $retire_node (local.get $n))
   )
 
   ;; Kernel `drain_guard`: returns 0=done, 1=needPull, 2=failed
@@ -3031,7 +3065,9 @@
     (local.set $fIdx (i32.load (i32.add (local.get $n) (i32.const 36))))
     (local.set $nFields (i32.load (i32.add (local.get $n) (i32.const 20))))
 
-    ;; Symmetric same-scope MUX -> DEMUX O(1) fusion
+    ;; Zero-copy strict symmetric MUX -> DEMUX fusion:
+    ;; Wait for non-tail fields 0..nFields-2 to close in-place (preventing O(N^1.585)
+    ;; lazy thunk pileup), then O(1) splice every field directly without DPDA bit-copying!
     (if (i32.and (i32.eqz (local.get $fIdx))
           (i32.and (i32.eqz (i32.load (i32.add (local.get $dst) (i32.const 44))))
             (i32.ne (i32.load (i32.add (local.get $dst) (i32.const 12))) (i32.const 0))))
@@ -3048,6 +3084,27 @@
             (if (i32.or (i32.eqz (local.get $nFields))
                   (i32.eqz (i32.load (i32.add (call $node_get_out (local.get $demuxNode) (i32.const 0)) (i32.const 44)))))
               (then
+                ;; Ensure non-tail fields 0..nFields-2 are settled (CLOSED) before zero-copy splice
+                (local.set $i (i32.const 0))
+                (block $bfchk
+                  (loop $lfchk
+                    (br_if $bfchk (i32.ge_s (local.get $i) (i32.sub (local.get $nFields) (i32.const 1))))
+                    (local.set $src (call $node_get_in (local.get $n) (local.get $i)))
+                    (if (i32.eq (i32.load (local.get $src)) (i32.const 0))
+                      (then (global.set $g_need_pull (local.get $src)) (return (i32.const 1))))
+                    (if (i32.eq (i32.load (local.get $src)) (i32.const 2))
+                      (then
+                        (call $retire_node (local.get $n))
+                        (call $bd_fail (local.get $dst))
+                        (local.set $j (i32.const 0))
+                        (block $bcf (loop $lcf (br_if $bcf (i32.ge_s (local.get $j) (local.get $nFields)))
+                          (call $cancel_input (call $node_get_in (local.get $n) (local.get $j)))
+                          (local.set $j (i32.add (local.get $j) (i32.const 1))) (br $lcf)))
+                        (return (i32.const 0))))
+                    (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                    (br $lfchk)
+                  )
+                )
                 (call $retire_node (local.get $n))
                 (call $retire_node (local.get $demuxNode))
                 (i32.store (i32.add (local.get $dst) (i32.const 16)) (i32.const 0))
@@ -3194,7 +3251,8 @@
             (br $lb)
           )
         )
-        (return (i32.const 0))
+        (if (i32.gt_s (i32.load (i32.add (local.get $src) (i32.const 44))) (i32.const 0))
+          (then (return (i32.const 0))))
       )
     )
 
@@ -3595,6 +3653,10 @@
             (block $buf (loop $luf (br_if $buf (i32.ge_s (local.get $i) (local.get $outCnt)))
               (call $bd_fail (call $node_get_out (local.get $n) (local.get $i)))
               (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $luf)))
+            (local.set $i (i32.const 0))
+            (block $bufi (loop $lufi (br_if $bufi (i32.ge_s (local.get $i) (local.get $inCnt)))
+              (call $cancel_input (call $node_get_in (local.get $n) (local.get $i)))
+              (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $lufi)))
             (return (i32.const 0))))
         (local.set $i (i32.add (local.get $i) (i32.const 1)))
         (br $lu)
@@ -3748,6 +3810,10 @@
             (block $bua2 (loop $lua2 (br_if $bua2 (i32.ge_s (local.get $i) (local.get $outCnt)))
               (call $bd_fail (call $node_get_out (local.get $n) (local.get $i)))
               (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $lua2)))
+            (local.set $i (i32.const 0))
+            (block $bua3 (loop $lua3 (br_if $bua3 (i32.ge_s (local.get $i) (local.get $inCnt)))
+              (call $cancel_input (call $node_get_in (local.get $n) (local.get $i)))
+              (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $lua3)))
             (return (i32.const 0))))
 
         ;; Rule 2: Local mismatch rollback with bit-exact replay!
@@ -3785,12 +3851,10 @@
         (block $bcm1 (loop $lcm1 (br_if $bcm1 (i32.ge_s (local.get $i) (local.get $inCnt)))
           (local.set $te (i32.add (local.get $taps) (i32.shl (local.get $i) (i32.const 4))))
           (local.set $pIn (i32.load (local.get $te)))
-          (local.set $childIn (i32.load (i32.add (local.get $te) (i32.const 4))))
-          (if (i32.gt_s (i32.load (i32.add (local.get $childIn) (i32.const 44))) (i32.const 0))
-            (then (call $bd_unshift_from_deque (local.get $pIn) (local.get $childIn))))
           (if (i32.eq (i32.load (i32.add (local.get $pIn) (i32.const 20))) (i32.load (i32.add (local.get $te) (i32.const 12))))
             (then (i32.store (i32.add (local.get $pIn) (i32.const 20)) (i32.const 0))))
           (call $bd_release (i32.load (i32.add (local.get $te) (i32.const 8))))
+          (call $bd_release (local.get $pIn))
           (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $lcm1)))
 
         ;; Detach staged outputs from childScope so scope_destroy won't release them prematurely

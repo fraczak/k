@@ -2316,6 +2316,315 @@ function eliminateDeadProcs(mod) {
 }
 
 // ---------------------------------------------------------------------------
+// Pass 5: Strict Accumulator Forcing for Self-Recursive Tail Loops
+// ---------------------------------------------------------------------------
+//
+// In a demand-driven dataflow VM, a tail-recursive loop whose accumulator
+// channel (`%acc`) is NOT inspected by the loop's `switch` (e.g. `poly.length`:
+// `{ .xs cdr xs, .acc inc acc } length_loop`) builds an O(L) chain of suspended
+// `inc` pipeline stages until the base case demands `%acc` (the lazy `foldl`
+// space leak).
+//
+// When a self-recursive tail arm updates an uninspected loop parameter via a
+// helper `spawn @H(...%acc...) -> (%acc_next)` where:
+//   1. `@H` is total (cannot originate spurious FAIL / divergence), AND
+//   2. `@H` actively inspects/transforms `%acc` (reaches switch/match/demux/exec
+//      rather than blindly wrapping `%acc` as an opaque tail like `cons`),
+// attaching `token: %tok` to `spawn @H` and `after: %tok` to the recursive tail
+// `spawn` forces `@H` to settle on the compact closed accumulator before the
+// next iteration spawns — collapsing O(L) live pipeline nodes to O(1) while
+// keeping structural accumulators like `reverse` lazy and O(L)!
+
+function isProcInspectingInput(procName, inIdx, procMap, trackedFields = null, visited = new Set()) {
+  const fieldKey = trackedFields ? [...trackedFields].sort().join(",") : "*";
+  const key = `${procName}#${inIdx}:${fieldKey}`;
+  if (visited.has(key)) return false;
+  visited.add(key);
+  const proc = procMap.get(procName);
+  if (!proc || inIdx < 0 || inIdx >= proc.inputs.length) return false;
+
+  // Map chanName -> null (whole channel tracked) | Set<label> (specific product fields tracked)
+  const tracked = new Map();
+  tracked.set(proc.inputs[inIdx].name, trackedFields ? new Set(trackedFields) : null);
+
+  const walk = (stmts) => {
+    for (const s of stmts || []) {
+      switch (s.op) {
+        case "splice":
+        case "gate":
+        case "coerce":
+          if (tracked.has(s.src)) {
+            const v = tracked.get(s.src);
+            tracked.set(s.dst, v ? new Set(v) : null);
+          }
+          break;
+        case "tee":
+          if (tracked.has(s.src)) {
+            const v = tracked.get(s.src);
+            for (const d of s.dsts) tracked.set(d, v ? new Set(v) : null);
+          }
+          break;
+        case "mux": {
+          const hitLabels = new Set();
+          for (const f of s.fields) {
+            if (tracked.has(f.name)) hitLabels.add(f.label);
+          }
+          if (hitLabels.size > 0) tracked.set(s.dst, hitLabels);
+          break;
+        }
+        case "demux": {
+          if (!tracked.has(s.src)) break;
+          const v = tracked.get(s.src);
+          if (v === null) {
+            for (const f of s.fields) tracked.set(f.name, null);
+          } else {
+            for (const f of s.fields) {
+              if (v.has(f.label)) tracked.set(f.name, null);
+            }
+          }
+          break;
+        }
+        case "match":
+          if (tracked.has(s.src) && tracked.get(s.src) === null) return true;
+          break;
+        case "exec":
+          if (s.inputs.some((c) => tracked.has(c) && tracked.get(c) === null)) return true;
+          break;
+        case "switch":
+          if (s.inputs.some((c) => tracked.has(c) && tracked.get(c) === null)) return true;
+          for (const a of s.arms) if (walk(a.body)) return true;
+          if (s.defaultBody && walk(s.defaultBody)) return true;
+          break;
+        case "spec":
+          for (const b of s.branches) if (walk(b.body)) return true;
+          break;
+        case "spawn": {
+          for (let i = 0; i < s.inputs.length; i++) {
+            if (tracked.has(s.inputs[i])) {
+              if (isProcInspectingInput(s.target, i, procMap, tracked.get(s.inputs[i]), visited)) {
+                return true;
+              }
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    return false;
+  };
+
+  return walk(proc.body);
+}
+
+/**
+ * Verify that `rootProc`'s entire reachable call graph is spec-free and every
+ * recursive proc consumes at least one union tag (`match`) before recursing
+ * (structural termination on finite closed k-wire streams).
+ */
+function isSafeStrictHelper(rootProc, procMap) {
+  const reachable = new Set();
+  const stack = [rootProc];
+  while (stack.length > 0) {
+    const nm = stack.pop();
+    if (reachable.has(nm)) continue;
+    const p = procMap.get(nm);
+    if (!p) continue;
+    reachable.add(nm);
+    let hasSpec = false;
+    const walk = (stmts) => {
+      for (const s of stmts || []) {
+        if (s.op === "spec") { hasSpec = true; return; }
+        if (s.op === "spawn") stack.push(s.target);
+        else if (s.op === "switch") {
+          for (const a of s.arms) walk(a.body);
+          if (s.defaultBody) walk(s.defaultBody);
+        }
+      }
+    };
+    walk(p.body);
+    if (hasSpec) return false;
+  }
+
+  // Compute procs in `reachable` that consume at least one union tag (`match` / `exec`)
+  const consumingProcs = new Set();
+  let cChanged = true;
+  while (cChanged) {
+    cChanged = false;
+    for (const nm of reachable) {
+      if (consumingProcs.has(nm)) continue;
+      const p = procMap.get(nm);
+      let consumes = false;
+      const scan = (stmts) => {
+        for (const s of stmts || []) {
+          if (s.op === "match" || s.op === "exec" || (s.op === "spawn" && s.target !== nm && consumingProcs.has(s.target))) {
+            consumes = true;
+            return;
+          }
+          if (s.op === "switch") {
+            for (const a of s.arms) scan(a.body);
+            if (s.defaultBody) scan(s.defaultBody);
+          }
+        }
+      };
+      scan(p.body);
+      if (consumes) {
+        consumingProcs.add(nm);
+        cChanged = true;
+      }
+    }
+  }
+
+  // Check every recursive proc in the reachable subgraph structurally consumes input
+  // (`match`, `exec`, consuming helper, or an exhaustive inner `switch` whose arms all consume)
+  // in every arm that recurses.
+  for (const nm of reachable) {
+    const p = procMap.get(nm);
+    const blockAlwaysConsumes = (stmts) => {
+      for (const s of stmts || []) {
+        if (s.op === "match" || s.op === "exec" || (s.op === "spawn" && s.target !== nm && consumingProcs.has(s.target))) {
+          return true;
+        }
+        if (s.op === "switch") {
+          const bodies = [...s.arms.map((a) => a.body), ...(s.defaultBody ? [s.defaultBody] : [])];
+          if (bodies.length > 0 && bodies.every((b) => blockAlwaysConsumes(b))) return true;
+        }
+      }
+      return false;
+    };
+    const checkBlock = (stmts, ancestorConsumed) => {
+      const localConsumed = ancestorConsumed || blockAlwaysConsumes(stmts);
+      for (const s of stmts || []) {
+        if (s.op === "spawn" && s.target === nm) {
+          if (!localConsumed) return false;
+        } else if (s.op === "switch") {
+          for (const a of s.arms) if (!checkBlock(a.body, localConsumed)) return false;
+          if (s.defaultBody && !checkBlock(s.defaultBody, localConsumed)) return false;
+        }
+      }
+      return true;
+    };
+    if (!checkBlock(p.body, false)) return false;
+  }
+  return true;
+}
+
+function forceStrictLoopAccumulators(mod, totalProcs, freshBox) {
+  const procMap = new Map((mod.procs || []).map((p) => [p.name, p]));
+  let forcedCount = 0;
+
+  for (const proc of mod.procs || []) {
+    const swIdx = (proc.body || []).findIndex((s) => s.op === "switch");
+    if (swIdx < 0) continue;
+    const sw = proc.body[swIdx];
+    const inspected = new Set(sw.inputs);
+
+    // Identify uninspected loop parameters (either Pattern A: demuxed single product input,
+    // or Pattern B: direct multi-input proc parameters).
+    let mode = null;
+    let inDemux = null;
+    const uninspectedSlots = []; // { origChan, label?, argIdx? }
+
+    if (proc.inputs.length === 1) {
+      inDemux = proc.body.slice(0, swIdx).find((s) => s.op === "demux" && s.src === proc.inputs[0].name);
+      if (inDemux && inDemux.fields.length >= 2) {
+        mode = "product";
+        for (const f of inDemux.fields) {
+          if (!inspected.has(f.name)) uninspectedSlots.push({ origChan: f.name, label: f.label });
+        }
+      }
+    } else if (proc.inputs.length >= 2) {
+      mode = "multi";
+      for (let i = 0; i < proc.inputs.length; i++) {
+        const nm = proc.inputs[i].name;
+        if (!inspected.has(nm)) uninspectedSlots.push({ origChan: nm, argIdx: i });
+      }
+    }
+
+    if (!mode || uninspectedSlots.length === 0) continue;
+
+    const procOutNames = proc.outputs.map((o) => o.name);
+    const armBodies = [
+      ...sw.arms.map((a) => a.body),
+      ...(sw.defaultBody ? [sw.defaultBody] : [])
+    ];
+
+    for (const body of armBodies) {
+      if (!body || body.length < 2) continue;
+      const tailIdx = body.length - 1;
+      const tailSpawn = body[tailIdx];
+      if (
+        tailSpawn.op !== "spawn" ||
+        tailSpawn.target !== proc.name ||
+        tailSpawn.after ||
+        tailSpawn.token ||
+        tailSpawn.outputs.length !== procOutNames.length ||
+        !tailSpawn.outputs.every((o, i) => o === procOutNames[i])
+      ) {
+        continue;
+      }
+
+      // Map each uninspected slot to the channel passed into the recursive tail call
+      const slotNextChan = new Map(); // origChan -> nextChan
+      if (mode === "product") {
+        if (tailSpawn.inputs.length !== 1) continue;
+        const tailMux = body.find((s) => s.op === "mux" && s.dst === tailSpawn.inputs[0]);
+        if (!tailMux) continue;
+        const muxByLabel = new Map(tailMux.fields.map((f) => [f.label, f.name]));
+        for (const sl of uninspectedSlots) {
+          const nc = muxByLabel.get(sl.label);
+          if (nc && nc !== sl.origChan) slotNextChan.set(sl.origChan, nc);
+        }
+      } else {
+        for (const sl of uninspectedSlots) {
+          const nc = tailSpawn.inputs[sl.argIdx];
+          if (nc && nc !== sl.origChan) slotNextChan.set(sl.origChan, nc);
+        }
+      }
+      if (slotNextChan.size === 0) continue;
+
+      // Find qualifying helper `spawn` statements producing `nextChan` from `origChan`
+      const forcedSpawns = [];
+      for (let i = 0; i < tailIdx; i++) {
+        const st = body[i];
+        if (st.op !== "spawn" || st.target === proc.name || st.token || st.outputs.length !== 1) continue;
+        const outCh = st.outputs[0];
+        let matchedInIdx = -1;
+        for (const [origChan, nextChan] of slotNextChan.entries()) {
+          if (nextChan === outCh) {
+            const idx = st.inputs.indexOf(origChan);
+            if (idx >= 0) {
+              matchedInIdx = idx;
+              break;
+            }
+          }
+        }
+        if (matchedInIdx < 0) continue;
+        if (!totalProcs.has(st.target) && !isSafeStrictHelper(st.target, procMap)) continue;
+        if (!isProcInspectingInput(st.target, matchedInIdx, procMap)) continue;
+        forcedSpawns.push(st);
+      }
+
+      if (forcedSpawns.length === 0) continue;
+
+      // Chain tokens onto the qualifying accumulator spawns and gate `tailSpawn` on the last token
+      let prevTok = null;
+      for (const accSp of forcedSpawns) {
+        if (prevTok && !accSp.after) accSp.after = prevTok;
+        const tokName = `%sacc_tok_${freshBox.seq++}`;
+        accSp.token = tokName;
+        prevTok = tokName;
+        forcedCount++;
+      }
+      tailSpawn.after = prevTok;
+    }
+  }
+
+  return { module: mod, forcedCount };
+}
+
+// ---------------------------------------------------------------------------
 // Main Entrypoint
 // ---------------------------------------------------------------------------
 
@@ -2326,6 +2635,7 @@ export function simplifyProcs(
     deforest = true,
     specToSwitch = true,
     extractLoops = true,
+    strictAccumulators = true,
     dce = true,
     maxInlineStmts = 32,
     maxSingleUseStmts = 64,
@@ -2347,6 +2657,7 @@ export function simplifyProcs(
   };
   let specsConverted = 0;
   let loopsExtracted = 0;
+  let strictAccumulatorsForced = 0;
   let deadProcsRemoved = 0;
 
   const mergeDeforest = (s) => {
@@ -2396,6 +2707,13 @@ export function simplifyProcs(
     deadProcsRemoved += dc.removed;
   }
 
+  if (strictAccumulators) {
+    totalProcs = computeTotalProcs(cur, resolvePlist);
+    const sa = forceStrictLoopAccumulators(cur, totalProcs, freshBox);
+    cur = sa.module;
+    strictAccumulatorsForced += sa.forcedCount;
+  }
+
   return {
     module: cur,
     stats: {
@@ -2403,6 +2721,7 @@ export function simplifyProcs(
       ...deforestStats,
       specsConverted,
       loopsExtracted,
+      strictAccumulatorsForced,
       deadProcsRemoved
     }
   };

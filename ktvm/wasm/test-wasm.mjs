@@ -392,6 +392,34 @@ proc @flip(%x: $bits) -> (%out: $bits) {
     runner.exports.memory.buffer.byteLength <= 32 * 1024 * 1024,
     `Expected bounded Wasm memory <= 32 MiB, got ${runner.exports.memory.buffer.byteLength} bytes`
   );
+  assert.ok(
+    res.telemetry.peakBitDequeBytes <= 65536,
+    `Expected bounded peakBitDequeBytes <= 64 KiB after spec commit/rollback release, got ${res.telemetry.peakBitDequeBytes}`
+  );
+});
+
+await test("Wasm strict mux->demux fusion & spec commit release keep Karatsuba & djson buffers bounded", async () => {
+  codes.load(integerLib.codes);
+  const timesPat = relationPatternPropertyList(integerLib.rels[integerLib.relAlias.times], 0);
+  const timesArt = await compileObjectToKTVMWasm(integerLib, "times", timesPat, { optimize: true });
+  const timesRun = await instantiateKTVMWasm(timesArt);
+  const mulIn = Value.product({
+    x: parseIntVal(String((1n << 255n) - 987654321n)),
+    y: parseIntVal(String((1n << 255n) - 123456789n))
+  });
+  const mulRes = timesRun.executeWire(encodeToWire(mulIn, timesPat), { decodeValue: false });
+  assert.equal(mulRes.status, "OK");
+  assert.ok(mulRes.telemetry.peakActiveNodes <= 400, `expected bounded Karatsuba nodes <= 400, got ${mulRes.telemetry.peakActiveNodes}`);
+  assert.ok(mulRes.telemetry.peakBitDequeBytes <= 16384, `expected bounded Karatsuba buffers <= 16 KiB, got ${mulRes.telemetry.peakBitDequeBytes}`);
+
+  codes.load(djsonLib.codes);
+  const djPat = relationPatternPropertyList(djsonLib.rels[djsonLib.relAlias.parse_json], 0);
+  const djArt = await compileObjectToKTVMWasm(djsonLib, "parse_json", djPat, { optimize: true });
+  const djRun = await instantiateKTVMWasm(djArt);
+  const items = Array.from({ length: 20 }, (_, i) => `{"id":${i},"ok":${i % 2 === 0},"tag":"item_${i}"}`).join(",");
+  const djRes = djRun.executeWire(encodeToWire(textToStringValue(`[${items}]`), djPat), { decodeValue: false });
+  assert.equal(djRes.status, "OK");
+  assert.ok(djRes.telemetry.peakBitDequeBytes <= 65536, `expected linear djson peakBitDequeBytes <= 64 KiB, got ${djRes.telemetry.peakBitDequeBytes}`);
 });
 
 console.log(`\nMilestone 4 WebAssembly Results: ${passed} passed, ${failed} failed.`);

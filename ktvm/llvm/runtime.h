@@ -48,7 +48,8 @@ enum {
   CHAN_OPEN     = 0,
   CHAN_CLOSED   = 1,
   CHAN_FAILED   = 2,
-  CHAN_RELEASED = 3
+  CHAN_RELEASED = 3,
+  CHAN_QUEUED   = 4
 };
 
 enum {
@@ -121,6 +122,7 @@ typedef struct {
   uint32_t tested_mask;
   const KtvmSwitchArm *arms;
   KtvmBlockFn default_fn;
+  const uint8_t *cap_kinds; /* 0=chan, 1=barrier, 2=token */
 } KtvmSwitchDesc;
 
 typedef struct {
@@ -176,7 +178,7 @@ typedef struct {
 } KtvmBitStack;
 
 struct KtvmChan {
-  int32_t status;      /* CHAN_OPEN..CHAN_RELEASED */
+  int32_t status;      /* CHAN_OPEN..CHAN_QUEUED */
   int32_t prod_schema;
   int32_t cons_schema;
   int32_t aligned;
@@ -184,6 +186,8 @@ struct KtvmChan {
   KtvmNode *consumer;
   KtvmScope *scope;
   KtvmChan *scope_next;
+  KtvmChan *scope_prev;
+  int32_t pin_count;
   uint32_t *buf;
   int32_t cap_words;
   int32_t head;
@@ -203,12 +207,14 @@ typedef struct {
   int32_t pending;
   int32_t failed;
   int32_t settled;
+  int32_t refs;
   KtvmNode *first_drain;
 } KtvmBarrier;
 
 typedef struct {
   int32_t settled;
   int32_t out_count;
+  int32_t refs;
   KtvmChan **outs;
 } KtvmToken;
 
@@ -252,6 +258,7 @@ struct KtvmScope {
   KtvmScope *parent;
   KtvmScope *first_child;
   KtvmScope *next_sibling;
+  KtvmScope *prev_sibling;
   KtvmNode *first_node;
   KtvmChan *first_chan;
   int32_t destroyed;
@@ -259,9 +266,13 @@ struct KtvmScope {
 
 struct KtvmNode {
   int32_t kind;
-  int32_t retired;
+  int32_t retired; /* 0=live, 1=retired, 2=queued */
+  int32_t pin_count;
   KtvmScope *scope;
   KtvmNode *scope_next;
+  KtvmNode *scope_prev;
+  KtvmNode *bar_next;
+  KtvmNode *bar_prev;
   KtvmChan **ins;
   int32_t in_count;
   KtvmChan **outs;
@@ -282,8 +293,15 @@ typedef struct {
   int32_t bit_len;
 } KtvmCachedHdr;
 
-#define KTVM_ARENA_INIT_BYTES (4u * 1024u * 1024u)
+#define KTVM_ARENA_INIT_BYTES (256u * 1024u)
 #define KTVM_HDR_CACHE_CAP 16
+#define KTVM_SLAB_BUCKETS 17
+
+typedef struct {
+  int32_t bucket;
+  int32_t live;
+  uint64_t _pad;
+} KtvmSlabHdr;
 
 typedef struct KtvmArenaBlock {
   struct KtvmArenaBlock *next;
@@ -295,7 +313,11 @@ typedef struct KtvmArenaBlock {
 struct KtvmRuntime {
   KtvmArenaBlock *arena_head;
   KtvmArenaBlock *arena_cur;
-  void *buf_fl[16]; /* power-of-2 free list for external BitDeque buffers (words 8..65536) */
+  void *slab_fl[KTVM_SLAB_BUCKETS]; /* unified O(1) power-of-2 free list: 16B..1MiB */
+
+  KtvmNode *dead_nodes;
+  KtvmChan *dead_chans;
+  KtvmScope *dead_scopes;
 
   int32_t error_code;
   KtvmChan *need_pull;
@@ -377,9 +399,21 @@ static void ktvm_destroy(KtvmRuntime *rt) {
 }
 
 static void ktvm_reset(KtvmRuntime *rt) {
-  for (KtvmArenaBlock *b = rt->arena_head; b; b = b->next) b->used = 0;
+  if (rt->arena_head) {
+    KtvmArenaBlock *extra = rt->arena_head->next;
+    while (extra) {
+      KtvmArenaBlock *nxt = extra->next;
+      free(extra);
+      extra = nxt;
+    }
+    rt->arena_head->next = NULL;
+    rt->arena_head->used = 0;
+  }
   rt->arena_cur = rt->arena_head;
-  memset(rt->buf_fl, 0, sizeof(rt->buf_fl));
+  memset(rt->slab_fl, 0, sizeof(rt->slab_fl));
+  rt->dead_nodes = NULL;
+  rt->dead_chans = NULL;
+  rt->dead_scopes = NULL;
   rt->error_code = 0;
   rt->need_pull = NULL;
   rt->need_step_node = NULL;
@@ -399,26 +433,65 @@ static void ktvm_reset(KtvmRuntime *rt) {
 }
 
 static inline void *ktvm_alloc(KtvmRuntime *rt, size_t bytes) {
-  size_t aligned = (bytes + 7u) & ~(size_t)7u;
-  if (aligned == 0) aligned = 8;
-  KtvmArenaBlock *b = rt->arena_cur;
-  while (b && b->used + aligned > b->cap) {
-    if (!b->next) {
-      size_t new_cap = b->cap * 2u;
-      if (new_cap < aligned + 65536u) new_cap = aligned + 65536u;
-      b->next = ktvm_arena_new_block(new_cap);
-      if (!b->next) {
+  int32_t b;
+  size_t payload_sz;
+  if (bytes <= 16u) {
+    b = 0;
+    payload_sz = 16u;
+  } else if (bytes <= (16u << (KTVM_SLAB_BUCKETS - 1))) {
+    b = 28 - __builtin_clz((uint32_t)(bytes - 1u));
+    payload_sz = (size_t)16u << b;
+  } else {
+    b = -1;
+    payload_sz = (bytes + 15u) & ~(size_t)15u;
+  }
+
+  if (b >= 0) {
+    void *ptr = rt->slab_fl[b];
+    if (ptr) {
+      rt->slab_fl[b] = *(void **)ptr;
+      KtvmSlabHdr *hdr = ((KtvmSlabHdr *)ptr) - 1;
+      hdr->live = 1;
+      if (bytes > 0) memset(ptr, 0, bytes);
+      return ptr;
+    }
+  }
+
+  size_t total = sizeof(KtvmSlabHdr) + payload_sz;
+  KtvmArenaBlock *blk = rt->arena_cur;
+  while (blk && blk->used + total > blk->cap) {
+    if (!blk->next) {
+      size_t new_cap = blk->cap * 2u;
+      if (new_cap < total + 65536u) new_cap = total + 65536u;
+      blk->next = ktvm_arena_new_block(new_cap);
+      if (!blk->next) {
         if (!rt->error_code) rt->error_code = KTVM_ERR_QUOTA_MEM;
         return NULL;
       }
     }
-    b = b->next;
+    blk = blk->next;
   }
-  rt->arena_cur = b;
-  void *ptr = b->data + b->used;
-  b->used += aligned;
-  memset(ptr, 0, aligned);
+  rt->arena_cur = blk;
+  KtvmSlabHdr *hdr = (KtvmSlabHdr *)(blk->data + blk->used);
+  blk->used += total;
+  hdr->bucket = b;
+  hdr->live = 1;
+  hdr->_pad = 0;
+  void *ptr = (void *)(hdr + 1);
+  if (bytes > 0) memset(ptr, 0, bytes);
   return ptr;
+}
+
+static inline void ktvm_free(KtvmRuntime *rt, void *ptr) {
+  if (!ptr) return;
+  KtvmSlabHdr *hdr = ((KtvmSlabHdr *)ptr) - 1;
+  if (hdr->live != 1) return;
+  hdr->live = 0;
+  int32_t b = hdr->bucket;
+  if (b >= 0 && b < KTVM_SLAB_BUCKETS) {
+    *(void **)ptr = rt->slab_fl[b];
+    rt->slab_fl[b] = ptr;
+  }
 }
 
 static inline void ktvm_quota_add_bytes(KtvmRuntime *rt, int32_t delta) {
@@ -462,27 +535,36 @@ static inline int32_t ktvm_schema_find_tag(int32_t sid, int32_t tag_id) {
 }
 
 /* =========================================================================
- * 3. BitDeque (Channel) ADT
+ * 3. BitDeque (Channel) ADT & Channel Reclamation
  * ========================================================================= */
 
-static inline void ktvm_buf_fl_push(KtvmRuntime *rt, uint32_t *ptr, int32_t words) {
-  if (words < 8 || words > 65536) return;
-  int b = __builtin_ctz((unsigned)words) - 3;
-  if (b < 0 || b >= 14) return;
-  *(void **)ptr = rt->buf_fl[b];
-  rt->buf_fl[b] = ptr;
+static inline void ktvm_try_queue_chan(KtvmRuntime *rt, KtvmChan *ch) {
+  if (ch && ch->status == CHAN_RELEASED && ch->pin_count <= 0 && !ch->producer && !ch->consumer) {
+    ch->status = CHAN_QUEUED;
+    ch->scope_next = rt->dead_chans;
+    rt->dead_chans = ch;
+  }
 }
 
-static inline uint32_t *ktvm_buf_fl_pop(KtvmRuntime *rt, int32_t words) {
-  if (words < 8 || words > 65536) return NULL;
-  int b = __builtin_ctz((unsigned)words) - 3;
-  if (b < 0 || b >= 14) return NULL;
-  void *ptr = rt->buf_fl[b];
-  if (ptr) {
-    rt->buf_fl[b] = *(void **)ptr;
-    memset(ptr, 0, (size_t)words * 4u);
-  }
-  return (uint32_t *)ptr;
+static inline void ktvm_chan_pin(KtvmChan *ch) {
+  if (ch) ch->pin_count++;
+}
+
+static inline void ktvm_chan_unpin(KtvmRuntime *rt, KtvmChan *ch) {
+  if (!ch) return;
+  ch->pin_count--;
+  if (ch->pin_count <= 0 && ch->status == CHAN_RELEASED) ktvm_try_queue_chan(rt, ch);
+}
+
+static inline void ktvm_scope_unlink_chan(KtvmChan *ch) {
+  KtvmScope *sc = ch->scope;
+  if (!sc) return;
+  if (ch->scope_prev) ch->scope_prev->scope_next = ch->scope_next;
+  else if (sc->first_chan == ch) sc->first_chan = ch->scope_next;
+  if (ch->scope_next) ch->scope_next->scope_prev = ch->scope_prev;
+  ch->scope = NULL;
+  ch->scope_next = NULL;
+  ch->scope_prev = NULL;
 }
 
 static inline KtvmChan *ktvm_chan_alloc(KtvmRuntime *rt, KtvmScope *sc, int32_t schema_id) {
@@ -497,7 +579,9 @@ static inline KtvmChan *ktvm_chan_alloc(KtvmRuntime *rt, KtvmScope *sc, int32_t 
   ch->cap_words = 4;
   ktvm_quota_add_bytes(rt, 16);
   if (sc) {
-    ch->scope_next = sc->first_chan;
+    KtvmChan *old_first = sc->first_chan;
+    ch->scope_next = old_first;
+    if (old_first) old_first->scope_prev = ch;
     sc->first_chan = ch;
   }
   return ch;
@@ -518,20 +602,23 @@ static inline void ktvm_bd_fail(KtvmChan *ch) {
 }
 
 static inline void ktvm_bd_release(KtvmRuntime *rt, KtvmChan *ch) {
-  if (!ch || ch->status == CHAN_RELEASED) return;
+  if (!ch || ch->status >= CHAN_RELEASED) return;
   if (ch->cap_words > 0) {
     ktvm_quota_add_bytes(rt, -(ch->cap_words << 2));
     if (ch->buf && ch->buf != ch->inline_buf) {
-      ktvm_buf_fl_push(rt, ch->buf, ch->cap_words);
+      ktvm_free(rt, ch->buf);
     }
   }
   ch->status = CHAN_RELEASED;
   ch->buf = NULL;
   ch->cap_words = 0;
   ch->len = 0;
+  ktvm_scope_unlink_chan(ch);
+  ktvm_try_queue_chan(rt, ch);
 }
 
 static void ktvm_bd_grow(KtvmRuntime *rt, KtvmChan *ch, int32_t min_bits) {
+  if (ch->status >= CHAN_RELEASED) return;
   uint32_t *old_buf = ch->buf;
   int32_t old_words = ch->cap_words;
   int32_t old_head = ch->head;
@@ -541,8 +628,7 @@ static void ktvm_bd_grow(KtvmRuntime *rt, KtvmChan *ch, int32_t min_bits) {
   if (new_words < 8) new_words = 8;
   while ((new_words << 5) < min_bits) new_words <<= 1;
 
-  uint32_t *new_buf = ktvm_buf_fl_pop(rt, new_words);
-  if (!new_buf) new_buf = (uint32_t *)ktvm_alloc(rt, (size_t)new_words * 4u);
+  uint32_t *new_buf = (uint32_t *)ktvm_alloc(rt, (size_t)new_words * 4u);
   if (!new_buf) return;
   ktvm_quota_add_bytes(rt, (new_words - old_words) << 2);
 
@@ -579,14 +665,14 @@ static void ktvm_bd_grow(KtvmRuntime *rt, KtvmChan *ch, int32_t min_bits) {
     rem -= chunk;
   }
 
-  if (old_buf && old_buf != ch->inline_buf) ktvm_buf_fl_push(rt, old_buf, old_words);
+  if (old_buf && old_buf != ch->inline_buf) ktvm_free(rt, old_buf);
   ch->buf = new_buf;
   ch->cap_words = new_words;
   ch->head = 0;
 }
 
 static inline void ktvm_bd_push_small(KtvmRuntime *rt, KtvmChan *ch, uint32_t val, int32_t w) {
-  if (w <= 0) return;
+  if (w <= 0 || ch->status >= CHAN_RELEASED) return;
   if (ch->len + w > (ch->cap_words << 5)) {
     ktvm_bd_grow(rt, ch, ch->len + w);
     if (rt->error_code) return;
@@ -624,7 +710,7 @@ static inline void ktvm_bd_push_bits(KtvmRuntime *rt, KtvmChan *ch, uint32_t val
 }
 
 static inline void ktvm_bd_unshift_small(KtvmRuntime *rt, KtvmChan *ch, uint32_t val, int32_t w) {
-  if (w <= 0) return;
+  if (w <= 0 || ch->status >= CHAN_RELEASED) return;
   if (ch->len + w > (ch->cap_words << 5)) {
     ktvm_bd_grow(rt, ch, ch->len + w);
     if (rt->error_code) return;
@@ -725,7 +811,7 @@ static inline void ktvm_bd_adopt_buffer(KtvmRuntime *rt, KtvmChan *dst, KtvmChan
   if (dst->cap_words > 0) {
     ktvm_quota_add_bytes(rt, -(dst->cap_words << 2));
     if (dst->buf && dst->buf != dst->inline_buf) {
-      ktvm_buf_fl_push(rt, dst->buf, dst->cap_words);
+      ktvm_free(rt, dst->buf);
     }
   }
   if (src->buf == src->inline_buf) {
@@ -759,7 +845,11 @@ static inline KtvmBitStack *ktvm_bs_alloc(KtvmRuntime *rt) {
 static inline void ktvm_bs_release(KtvmRuntime *rt, KtvmBitStack *st) {
   if (!st || st->released) return;
   st->released = 1;
-  if (st->cap_words > 0) ktvm_quota_add_bytes(rt, -(st->cap_words << 2));
+  if (st->cap_words > 0) {
+    ktvm_quota_add_bytes(rt, -(st->cap_words << 2));
+    if (st->buf && st->buf != st->inline_buf) ktvm_free(rt, st->buf);
+  }
+  st->buf = NULL;
   st->cap_words = 0;
   st->len_bits = 0;
 }
@@ -776,7 +866,9 @@ static void ktvm_bs_grow(KtvmRuntime *rt, KtvmBitStack *st, int32_t min_bits) {
   uint32_t *nb = (uint32_t *)ktvm_alloc(rt, (size_t)new_w * 4u);
   if (!nb) return;
   ktvm_quota_add_bytes(rt, (new_w - old_w) << 2);
-  memcpy(nb, st->buf, (size_t)old_w * 4u);
+  uint32_t *ob = st->buf;
+  memcpy(nb, ob, (size_t)old_w * 4u);
+  if (ob && ob != st->inline_buf) ktvm_free(rt, ob);
   st->buf = nb;
   st->cap_words = new_w;
 }
@@ -841,12 +933,19 @@ static KtvmDpda *ktvm_dpda_alloc(KtvmRuntime *rt, int32_t kind, int32_t s0, int3
   return d;
 }
 
+static inline void ktvm_dpda_free(KtvmRuntime *rt, KtvmDpda *d) {
+  if (!d) return;
+  if (d->stk) ktvm_free(rt, d->stk);
+  ktvm_free(rt, d);
+}
+
 static inline int ktvm_dpda_push1(KtvmRuntime *rt, KtvmDpda *d, int32_t sid) {
   if (d->len >= d->cap) {
     int32_t nc = d->cap << 1;
     int32_t *ns = (int32_t *)ktvm_alloc(rt, (size_t)nc * 4u);
     if (!ns) return 0;
     memcpy(ns, d->stk, (size_t)d->len * 4u);
+    ktvm_free(rt, d->stk);
     d->stk = ns;
     d->cap = nc;
   }
@@ -860,6 +959,7 @@ static inline int ktvm_dpda_push2(KtvmRuntime *rt, KtvmDpda *d, int32_t s0, int3
     int32_t *ns = (int32_t *)ktvm_alloc(rt, (size_t)nc * 8u);
     if (!ns) return 0;
     memcpy(ns, d->stk, (size_t)d->len * 8u);
+    ktvm_free(rt, d->stk);
     d->stk = ns;
     d->cap = nc;
   }
@@ -937,15 +1037,67 @@ static int ktvm_dpda_step_coerce(KtvmRuntime *rt, KtvmChan *src, KtvmChan *dst, 
 }
 
 /* =========================================================================
- * 6. Scopes, Nodes, Barriers, Tokens & O(1) Channel Splice
+ * 6. Scopes, Nodes, Barriers, Tokens, Reclamation & O(1) Channel Splice
  * ========================================================================= */
+
+static inline void ktvm_try_queue_node(KtvmRuntime *rt, KtvmNode *n) {
+  if (n && n->retired == 1 && n->pin_count <= 0) {
+    n->retired = 2;
+    n->scope_next = rt->dead_nodes;
+    rt->dead_nodes = n;
+  }
+}
+
+static inline void ktvm_node_pin(KtvmNode *n) {
+  if (n) n->pin_count++;
+}
+
+static inline void ktvm_node_unpin(KtvmRuntime *rt, KtvmNode *n) {
+  if (!n) return;
+  n->pin_count--;
+  if (n->pin_count <= 0 && n->retired == 1) ktvm_try_queue_node(rt, n);
+}
+
+static inline void ktvm_scope_unlink_child(KtvmScope *sc) {
+  KtvmScope *p = sc->parent;
+  if (!p) return;
+  if (sc->prev_sibling) sc->prev_sibling->next_sibling = sc->next_sibling;
+  else if (p->first_child == sc) p->first_child = sc->next_sibling;
+  if (sc->next_sibling) sc->next_sibling->prev_sibling = sc->prev_sibling;
+  sc->parent = NULL;
+  sc->next_sibling = NULL;
+  sc->prev_sibling = NULL;
+}
+
+static inline void ktvm_scope_unlink_node(KtvmNode *n) {
+  KtvmScope *sc = n->scope;
+  if (!sc) return;
+  if (n->scope_prev) n->scope_prev->scope_next = n->scope_next;
+  else if (sc->first_node == n) sc->first_node = n->scope_next;
+  if (n->scope_next) n->scope_next->scope_prev = n->scope_prev;
+  n->scope = NULL;
+  n->scope_next = NULL;
+  n->scope_prev = NULL;
+}
+
+static inline void ktvm_bar_unlink_drain(KtvmNode *n) {
+  KtvmBarrier *bar = (KtvmBarrier *)n->p1;
+  if (!bar) return;
+  if (n->bar_prev) n->bar_prev->bar_next = n->bar_next;
+  else if (bar->first_drain == n) bar->first_drain = n->bar_next;
+  if (n->bar_next) n->bar_next->bar_prev = n->bar_prev;
+  n->bar_prev = NULL;
+  n->bar_next = NULL;
+}
 
 static inline KtvmScope *ktvm_scope_create(KtvmRuntime *rt, KtvmScope *parent) {
   KtvmScope *sc = (KtvmScope *)ktvm_alloc(rt, sizeof(KtvmScope));
   if (!sc) return NULL;
   sc->parent = parent;
   if (parent) {
-    sc->next_sibling = parent->first_child;
+    KtvmScope *old_first = parent->first_child;
+    sc->next_sibling = old_first;
+    if (old_first) old_first->prev_sibling = sc;
     parent->first_child = sc;
   }
   return sc;
@@ -955,16 +1107,122 @@ static inline KtvmBarrier *ktvm_barrier_alloc(KtvmRuntime *rt) {
   return (KtvmBarrier *)ktvm_alloc(rt, sizeof(KtvmBarrier));
 }
 
+static inline void ktvm_barrier_add_drain(KtvmBarrier *bar, KtvmNode *n) {
+  n->p1 = bar;
+  if (!bar) return;
+  bar->pending++;
+  bar->refs++;
+  KtvmNode *old_first = bar->first_drain;
+  n->bar_next = old_first;
+  if (old_first) old_first->bar_prev = n;
+  bar->first_drain = n;
+}
+
+static inline void ktvm_barrier_add_gate(KtvmBarrier *bar, KtvmNode *n) {
+  n->p0 = bar;
+  if (bar) bar->refs++;
+}
+
+static inline void ktvm_barrier_unref(KtvmRuntime *rt, KtvmBarrier *bar) {
+  if (!bar) return;
+  bar->refs--;
+  if (bar->refs <= 0) ktvm_free(rt, bar);
+}
+
 static inline KtvmToken *ktvm_token_alloc(KtvmRuntime *rt, KtvmChan **outs, int32_t out_count) {
   KtvmToken *tok = (KtvmToken *)ktvm_alloc(rt, sizeof(KtvmToken));
   if (!tok) return NULL;
+  tok->refs = 1;
   if (out_count > 0) {
     tok->outs = (KtvmChan **)ktvm_alloc(rt, (size_t)out_count * sizeof(KtvmChan *));
     if (!tok->outs) return NULL;
-    memcpy(tok->outs, outs, (size_t)out_count * sizeof(KtvmChan *));
+    for (int32_t i = 0; i < out_count; i++) {
+      tok->outs[i] = outs[i];
+      ktvm_chan_pin(outs[i]);
+    }
   }
   tok->out_count = out_count;
   return tok;
+}
+
+static inline void ktvm_spawn_set_after(KtvmNode *n, KtvmToken *tok) {
+  n->p1 = tok;
+  if (tok) tok->refs++;
+}
+
+static inline void ktvm_token_settle(KtvmRuntime *rt, KtvmToken *tok) {
+  if (!tok || tok->settled) return;
+  tok->settled = 1;
+  if (tok->outs) {
+    for (int32_t i = 0; i < tok->out_count; i++) ktvm_chan_unpin(rt, tok->outs[i]);
+    ktvm_free(rt, tok->outs);
+    tok->outs = NULL;
+    tok->out_count = 0;
+  }
+}
+
+static inline void ktvm_token_unref(KtvmRuntime *rt, KtvmToken *tok) {
+  if (!tok) return;
+  tok->refs--;
+  if (tok->refs <= 0) {
+    if (tok->outs) {
+      for (int32_t i = 0; i < tok->out_count; i++) ktvm_chan_unpin(rt, tok->outs[i]);
+      ktvm_free(rt, tok->outs);
+      tok->outs = NULL;
+      tok->out_count = 0;
+    }
+    ktvm_free(rt, tok);
+  }
+}
+
+static inline void ktvm_switch_pin_caps(KtvmNode *n) {
+  const KtvmSwitchDesc *desc = (const KtvmSwitchDesc *)n->p0;
+  void **cap = (void **)n->p2;
+  if (!desc || !desc->cap_kinds || !cap) return;
+  for (int32_t i = 0; i < n->a0; i++) {
+    uint8_t k = desc->cap_kinds[i];
+    if (k == 0) ktvm_chan_pin((KtvmChan *)cap[i]);
+    else if (k == 1 && cap[i]) ((KtvmBarrier *)cap[i])->refs++;
+    else if (k == 2 && cap[i]) ((KtvmToken *)cap[i])->refs++;
+  }
+}
+
+static inline void ktvm_spec_init_reps(KtvmRuntime *rt, KtvmNode *n, int32_t in_cnt) {
+  KtvmChan **reps = (KtvmChan **)ktvm_alloc(rt, (size_t)(in_cnt > 0 ? in_cnt : 1) * sizeof(KtvmChan *));
+  if (!reps) return;
+  for (int32_t i = 0; i < in_cnt; i++) {
+    reps[i] = ktvm_chan_alloc(rt, NULL, 0);
+    ktvm_chan_pin(reps[i]);
+  }
+  n->p1 = reps;
+}
+
+static inline void ktvm_spec_release_rep(KtvmRuntime *rt, KtvmChan **reps, int32_t idx) {
+  if (!reps || !reps[idx]) return;
+  KtvmChan *rep = reps[idx];
+  reps[idx] = NULL;
+  ktvm_chan_unpin(rt, rep);
+  ktvm_bd_release(rt, rep);
+}
+
+static inline void ktvm_spec_free_active(KtvmRuntime *rt, KtvmSpecActive *ac) {
+  if (!ac) return;
+  if (ac->taps) {
+    for (int32_t i = 0; i < ac->num_in; i++) {
+      ktvm_chan_unpin(rt, ac->taps[i].orig);
+      ktvm_chan_unpin(rt, ac->taps[i].replay);
+      ktvm_node_unpin(rt, ac->taps[i].tap);
+    }
+    ktvm_free(rt, ac->taps);
+  }
+  if (ac->staged) {
+    for (int32_t i = 0; i < ac->num_out; i++) {
+      ktvm_chan_unpin(rt, ac->staged[i].staged);
+      ktvm_chan_unpin(rt, ac->staged[i].outer);
+    }
+    ktvm_free(rt, ac->staged);
+  }
+  ktvm_free(rt, ac);
 }
 
 static inline KtvmNode *ktvm_node_alloc(KtvmRuntime *rt, KtvmScope *sc, int32_t kind, int32_t in_cnt, int32_t out_cnt) {
@@ -983,7 +1241,9 @@ static inline KtvmNode *ktvm_node_alloc(KtvmRuntime *rt, KtvmScope *sc, int32_t 
     n->out_count = out_cnt;
   }
   if (sc) {
-    n->scope_next = sc->first_node;
+    KtvmNode *old_first = sc->first_node;
+    n->scope_next = old_first;
+    if (old_first) old_first->scope_prev = n;
     sc->first_node = n;
   }
   return n;
@@ -991,12 +1251,18 @@ static inline KtvmNode *ktvm_node_alloc(KtvmRuntime *rt, KtvmScope *sc, int32_t 
 
 static inline void ktvm_node_set_in(KtvmNode *n, int32_t idx, KtvmChan *ch) {
   n->ins[idx] = ch;
-  if (ch) ch->consumer = n;
+  if (ch) {
+    ch->consumer = n;
+    ktvm_chan_pin(ch);
+  }
 }
 
 static inline void ktvm_node_set_out(KtvmNode *n, int32_t idx, KtvmChan *ch) {
   n->outs[idx] = ch;
-  if (ch) ch->producer = n;
+  if (ch) {
+    ch->producer = n;
+    ktvm_chan_pin(ch);
+  }
 }
 
 static void ktvm_retire_node(KtvmRuntime *rt, KtvmNode *n) {
@@ -1006,39 +1272,168 @@ static void ktvm_retire_node(KtvmRuntime *rt, KtvmNode *n) {
   if (n->kind == NK_KERNEL && n->p1) {
     KtvmKernelState *ks = (KtvmKernelState *)n->p1;
     for (int32_t i = 0; i < ks->num_stacks; i++) ktvm_bs_release(rt, ks->stacks[i]);
-    for (int32_t i = 0; i < ks->num_outs; i++) ktvm_bd_release(rt, ks->unshift_bufs[i]);
+    for (int32_t i = 0; i < ks->num_outs; i++) {
+      if (ks->unshift_bufs[i]) {
+        ktvm_bd_release(rt, ks->unshift_bufs[i]);
+        ks->unshift_bufs[i] = NULL;
+      }
+    }
   }
   for (int32_t i = 0; i < n->in_count; i++) {
     KtvmChan *ch = n->ins[i];
-    if (ch && ch->consumer == n) ch->consumer = NULL;
+    if (ch && ch->consumer == n) {
+      ch->consumer = NULL;
+      ktvm_try_queue_chan(rt, ch);
+    }
   }
   for (int32_t i = 0; i < n->out_count; i++) {
     KtvmChan *ch = n->outs[i];
-    if (ch && ch->producer == n) ch->producer = NULL;
+    if (ch && ch->producer == n) {
+      ch->producer = NULL;
+      ktvm_try_queue_chan(rt, ch);
+    }
+  }
+  ktvm_scope_unlink_node(n);
+  if (n->kind == NK_DRAIN) ktvm_bar_unlink_drain(n);
+  ktvm_try_queue_node(rt, n);
+}
+
+static void ktvm_free_node(KtvmRuntime *rt, KtvmNode *n) {
+  if (n->ins) {
+    for (int32_t i = 0; i < n->in_count; i++) ktvm_chan_unpin(rt, n->ins[i]);
+    ktvm_free(rt, n->ins);
+  }
+  if (n->outs) {
+    for (int32_t i = 0; i < n->out_count; i++) ktvm_chan_unpin(rt, n->outs[i]);
+    ktvm_free(rt, n->outs);
+  }
+  switch (n->kind) {
+    case NK_COERCE:
+    case NK_DEMUX:
+      ktvm_dpda_free(rt, (KtvmDpda *)n->p0);
+      break;
+    case NK_DRAIN:
+      ktvm_dpda_free(rt, (KtvmDpda *)n->p0);
+      ktvm_barrier_unref(rt, (KtvmBarrier *)n->p1);
+      break;
+    case NK_GATE:
+      ktvm_barrier_unref(rt, (KtvmBarrier *)n->p0);
+      break;
+    case NK_SWITCH: {
+      const KtvmSwitchDesc *desc = (const KtvmSwitchDesc *)n->p0;
+      void **cap = (void **)n->p2;
+      if (desc && desc->cap_kinds && cap) {
+        for (int32_t i = 0; i < n->a0; i++) {
+          uint8_t k = desc->cap_kinds[i];
+          if (k == 0) ktvm_chan_unpin(rt, (KtvmChan *)cap[i]);
+          else if (k == 1) ktvm_barrier_unref(rt, (KtvmBarrier *)cap[i]);
+          else if (k == 2) ktvm_token_unref(rt, (KtvmToken *)cap[i]);
+        }
+      }
+      if (n->p1) ktvm_free(rt, n->p1);
+      if (n->p2) ktvm_free(rt, n->p2);
+      break;
+    }
+    case NK_SPEC: {
+      if (n->p2) ktvm_spec_free_active(rt, (KtvmSpecActive *)n->p2);
+      KtvmChan **reps = (KtvmChan **)n->p1;
+      if (reps) {
+        for (int32_t i = 0; i < n->in_count; i++) ktvm_spec_release_rep(rt, reps, i);
+        ktvm_free(rt, reps);
+      }
+      break;
+    }
+    case NK_SPAWN:
+      ktvm_token_unref(rt, (KtvmToken *)n->p1);
+      ktvm_token_unref(rt, (KtvmToken *)n->p2);
+      break;
+    case NK_KERNEL: {
+      KtvmKernelState *ks = (KtvmKernelState *)n->p1;
+      if (ks) {
+        if (ks->regs) ktvm_free(rt, ks->regs);
+        if (ks->stacks) {
+          for (int32_t i = 0; i < ks->num_stacks; i++) {
+            if (ks->stacks[i]) {
+              ktvm_bs_release(rt, ks->stacks[i]);
+              ktvm_free(rt, ks->stacks[i]);
+            }
+          }
+          ktvm_free(rt, ks->stacks);
+        }
+        if (ks->unshift_bufs) ktvm_free(rt, ks->unshift_bufs);
+        if (ks->temps) ktvm_free(rt, ks->temps);
+        if (ks->dpda) ktvm_dpda_free(rt, ks->dpda);
+        ktvm_free(rt, ks);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  ktvm_free(rt, n);
+}
+
+static void ktvm_flush_dead(KtvmRuntime *rt) {
+  while (rt->dead_nodes || rt->dead_chans || rt->dead_scopes) {
+    while (rt->dead_nodes) {
+      KtvmNode *n = rt->dead_nodes;
+      rt->dead_nodes = n->scope_next;
+      n->scope_next = NULL;
+      ktvm_free_node(rt, n);
+    }
+    while (rt->dead_chans) {
+      KtvmChan *ch = rt->dead_chans;
+      rt->dead_chans = ch->scope_next;
+      ch->scope_next = NULL;
+      ktvm_free(rt, ch);
+    }
+    while (rt->dead_scopes) {
+      KtvmScope *sc = rt->dead_scopes;
+      rt->dead_scopes = sc->next_sibling;
+      sc->next_sibling = NULL;
+      ktvm_free(rt, sc);
+    }
   }
 }
 
-static void ktvm_rebind_output(KtvmNode *prod, KtvmChan *old_ch, KtvmChan *new_ch) {
+static void ktvm_rebind_output(KtvmRuntime *rt, KtvmNode *prod, KtvmChan *old_ch, KtvmChan *new_ch) {
   if (!prod) return;
   for (int32_t i = 0; i < prod->out_count; i++) {
-    if (prod->outs[i] == old_ch) prod->outs[i] = new_ch;
+    if (prod->outs[i] == old_ch) {
+      ktvm_chan_unpin(rt, old_ch);
+      ktvm_chan_pin(new_ch);
+      prod->outs[i] = new_ch;
+    }
   }
   if (prod->kind == NK_SWITCH && prod->p2) {
+    const KtvmSwitchDesc *desc = (const KtvmSwitchDesc *)prod->p0;
     void **cap = (void **)prod->p2;
     for (int32_t i = 0; i < prod->a0; i++) {
-      if (cap[i] == (void *)old_ch) cap[i] = (void *)new_ch;
+      if ((!desc || !desc->cap_kinds || desc->cap_kinds[i] == 0) && cap[i] == (void *)old_ch) {
+        ktvm_chan_unpin(rt, old_ch);
+        ktvm_chan_pin(new_ch);
+        cap[i] = (void *)new_ch;
+      }
     }
   }
   if (prod->kind == NK_SPEC && prod->p2) {
     KtvmSpecActive *ac = (KtvmSpecActive *)prod->p2;
     for (int32_t i = 0; i < ac->num_out; i++) {
-      if (ac->staged[i].outer == old_ch) ac->staged[i].outer = new_ch;
+      if (ac->staged[i].outer == old_ch) {
+        ktvm_chan_unpin(rt, old_ch);
+        ktvm_chan_pin(new_ch);
+        ac->staged[i].outer = new_ch;
+      }
     }
   }
   if (prod->kind == NK_SPAWN && prod->p2) {
     KtvmToken *tok = (KtvmToken *)prod->p2;
     for (int32_t i = 0; i < tok->out_count; i++) {
-      if (tok->outs[i] == old_ch) tok->outs[i] = new_ch;
+      if (tok->outs[i] == old_ch) {
+        ktvm_chan_unpin(rt, old_ch);
+        ktvm_chan_pin(new_ch);
+        tok->outs[i] = new_ch;
+      }
     }
   }
 }
@@ -1067,7 +1462,7 @@ static void ktvm_splice(KtvmRuntime *rt, KtvmChan *src, KtvmChan *dst) {
   dst->status = src->status;
   KtvmNode *src_prod = src->producer;
   dst->producer = src_prod;
-  if (src_prod) ktvm_rebind_output(src_prod, src, dst);
+  if (src_prod) ktvm_rebind_output(rt, src_prod, src, dst);
   src->producer = NULL;
   src->consumer = NULL;
   ktvm_bd_release(rt, src);
@@ -1099,35 +1494,42 @@ static void ktvm_scope_destroy(KtvmRuntime *rt, KtvmScope *root_sc) {
     KtvmScope *sc = rt->sc_ord[i];
     if (sc->destroyed) continue;
     sc->destroyed = 1;
-    for (KtvmNode *n = sc->first_node; n; n = n->scope_next) {
+    for (KtvmNode *n = sc->first_node; n; ) {
+      KtvmNode *next_n = n->scope_next;
       if (n->kind == NK_SPEC && n->p2) {
         KtvmSpecActive *ac = (KtvmSpecActive *)n->p2;
         for (int32_t t = 0; t < ac->num_in; t++) ktvm_retire_node(rt, ac->taps[t].tap);
         n->p2 = NULL;
+        ktvm_spec_free_active(rt, ac);
       }
       ktvm_retire_node(rt, n);
+      n = next_n;
     }
-    for (KtvmChan *ch = sc->first_chan; ch; ch = ch->scope_next) {
+    for (KtvmChan *ch = sc->first_chan; ch; ) {
+      KtvmChan *next_ch = ch->scope_next;
+      ch->producer = NULL;
+      ch->consumer = NULL;
       ktvm_bd_release(rt, ch);
+      ch = next_ch;
     }
     sc->first_node = NULL;
     sc->first_chan = NULL;
     sc->first_child = NULL;
+    if (sc->parent) {
+      ktvm_scope_unlink_child(sc);
+      sc->next_sibling = rt->dead_scopes;
+      rt->dead_scopes = sc;
+    }
   }
 }
 
 static void ktvm_reparent_scope(KtvmScope *child, KtvmScope *new_parent) {
   if (!child || child->destroyed || !new_parent || child->parent == new_parent) return;
-  KtvmScope *old_p = child->parent;
-  if (old_p) {
-    KtvmScope **pp = &old_p->first_child;
-    while (*pp) {
-      if (*pp == child) { *pp = child->next_sibling; break; }
-      pp = &(*pp)->next_sibling;
-    }
-  }
+  ktvm_scope_unlink_child(child);
   child->parent = new_parent;
-  child->next_sibling = new_parent->first_child;
+  KtvmScope *old_first = new_parent->first_child;
+  child->next_sibling = old_first;
+  if (old_first) old_first->prev_sibling = child;
   new_parent->first_child = child;
 }
 
@@ -1196,7 +1598,27 @@ static int ktvm_k_fail(KtvmRuntime *rt, KtvmNode *n) {
     if (ks->live_out_mask & (1u << (uint32_t)i)) ktvm_bd_fail(n->outs[i]);
   }
   for (int32_t i = 0; i < n->in_count; i++) {
-    if (ks->live_in_mask & (1u << (uint32_t)i)) ktvm_bd_release(rt, n->ins[i]);
+    if (ks->live_in_mask & (1u << (uint32_t)i)) {
+      if (n->ins[i] && n->ins[i]->consumer == n) n->ins[i]->consumer = NULL;
+      ktvm_bd_release(rt, n->ins[i]);
+    }
+  }
+  ks->live_in_mask = 0;
+  ktvm_retire_node(rt, n);
+  return STEP_OK;
+}
+
+static inline int ktvm_k_retire(KtvmRuntime *rt, KtvmNode *n) {
+  KtvmKernelState *ks = (KtvmKernelState *)n->p1;
+  if (ks) {
+    uint32_t in_mask = ks->live_in_mask;
+    ks->live_in_mask = 0;
+    for (int32_t i = 0; i < n->in_count; i++) {
+      if (in_mask & (1u << (uint32_t)i)) {
+        if (n->ins[i] && n->ins[i]->consumer == n) n->ins[i]->consumer = NULL;
+        ktvm_bd_release(rt, n->ins[i]);
+      }
+    }
   }
   ktvm_retire_node(rt, n);
   return STEP_OK;
@@ -1221,6 +1643,7 @@ static int ktvm_k_drain_guard(KtvmRuntime *rt, KtvmNode *n, int32_t in_idx, int3
   }
   if (ch->status == CHAN_OPEN) { rt->need_pull = ch; return 1; }
   if (ch->status == CHAN_FAILED || ch->len > 0) return 2;
+  ktvm_dpda_free(rt, ks->dpda);
   ks->dpda = NULL;
   ks->live_in_mask &= ~(1u << (uint32_t)in_idx);
   ch->consumer = NULL;
@@ -1243,6 +1666,7 @@ static int ktvm_k_dpda_copy(KtvmRuntime *rt, KtvmNode *n, int32_t in_idx, int32_
     return 2;
   }
   if (res == 2) return 2;
+  ktvm_dpda_free(rt, ks->dpda);
   ks->dpda = NULL;
   return 0;
 }
@@ -1262,6 +1686,7 @@ static int ktvm_k_dpda_coerce(KtvmRuntime *rt, KtvmNode *n, int32_t in_idx, int3
     return 2;
   }
   if (res == 2) return 2;
+  ktvm_dpda_free(rt, ks->dpda);
   ks->dpda = NULL;
   return 0;
 }
@@ -1582,9 +2007,10 @@ static int ktvm_step_demux(KtvmRuntime *rt, KtvmNode *n) {
     return STEP_OK;
   }
   /* O(1) same-scope MUX -> DEMUX bundle fusion! */
-  if (n->a1 == 0 && !n->p0 && src->len == 0 && src->producer &&
+  if (n->a1 == 0 && !n->p0 && src->len == 0 && src->aligned && src->producer &&
       src->producer->kind == NK_MUX && src->producer->a1 == 0 &&
-      src->producer->scope == n->scope && src->producer->in_count == n->out_count) {
+      src->producer->scope == n->scope && src->producer->in_count == n->out_count &&
+      src->cons_schema == src->producer->a0 && n->a0 == src->producer->a0) {
     KtvmNode *mux = src->producer;
     rt->mux_demux_fusions++;
     int32_t cnt = n->out_count;
@@ -1614,6 +2040,7 @@ static int ktvm_step_demux(KtvmRuntime *rt, KtvmNode *n) {
     int res = ktvm_dpda_step_skip_copy(rt, src, out_ch, (KtvmDpda *)n->p0);
     if (res == 0) {
       ktvm_bd_close(out_ch);
+      ktvm_dpda_free(rt, (KtvmDpda *)n->p0);
       n->p0 = NULL;
       n->a1 = fi + 1;
       continue;
@@ -1637,6 +2064,36 @@ static int ktvm_step_demux(KtvmRuntime *rt, KtvmNode *n) {
 
 static int ktvm_step_mux(KtvmRuntime *rt, KtvmNode *n) {
   KtvmChan *dst = n->outs[0];
+  /* Zero-copy strict symmetric MUX -> DEMUX fusion:
+   * Settle non-tail inputs 0..in_count-2 in-place (preventing O(N^1.585) lazy thunk
+   * buildup), then splice all fields in O(1) without DPDA bit-copying! */
+  if (n->a1 == 0 && dst->len == 0 && dst->aligned && dst->consumer &&
+      dst->consumer->kind == NK_DEMUX && dst->consumer->a1 == 0 &&
+      dst->consumer->scope == n->scope &&
+      dst->consumer->out_count == n->in_count &&
+      dst->cons_schema == n->a0 && dst->consumer->a0 == n->a0 &&
+      (n->in_count == 0 || dst->consumer->outs[0]->len == 0)) {
+    KtvmNode *demux = dst->consumer;
+    for (int32_t i = 0; i < n->in_count - 1; i++) {
+      KtvmChan *in_ch = n->ins[i];
+      if (in_ch->status == CHAN_OPEN) { rt->need_pull = in_ch; return STEP_NEED_PULL; }
+      if (in_ch->status == CHAN_FAILED) {
+        ktvm_bd_fail(dst);
+        for (int32_t j = 0; j < n->in_count; j++) ktvm_bd_release(rt, n->ins[j]);
+        ktvm_retire_node(rt, n);
+        return STEP_OK;
+      }
+    }
+    rt->mux_demux_fusions++;
+    int32_t cnt = n->in_count;
+    KtvmChan **m_ins = n->ins;
+    KtvmChan **d_outs = demux->outs;
+    ktvm_retire_node(rt, n);
+    ktvm_retire_node(rt, demux);
+    ktvm_bd_release(rt, dst);
+    for (int32_t i = 0; i < cnt; i++) ktvm_splice(rt, m_ins[i], d_outs[i]);
+    return STEP_OK;
+  }
   while (n->a1 < n->in_count) {
     int32_t fi = n->a1;
     KtvmChan *in_ch = n->ins[fi];
@@ -1794,7 +2251,7 @@ static int ktvm_step_gate(KtvmRuntime *rt, KtvmNode *n) {
     return STEP_OK;
   }
   if (!bar->settled) {
-    for (KtvmNode *dn = bar->first_drain; dn; dn = (KtvmNode *)dn->p2) {
+    for (KtvmNode *dn = bar->first_drain; dn; dn = dn->bar_next) {
       if (!dn->retired) {
         rt->need_step_node = dn;
         return STEP_NEED_NODE;
@@ -1911,7 +2368,7 @@ static void ktvm_fail_spec(KtvmRuntime *rt, KtvmNode *n) {
   for (int32_t i = 0; i < out_cnt; i++) ktvm_bd_fail(outs[i]);
   for (int32_t i = 0; i < in_cnt; i++) {
     ktvm_bd_release(rt, ins[i]);
-    if (reps && reps[i]) ktvm_bd_release(rt, reps[i]);
+    ktvm_spec_release_rep(rt, reps, i);
   }
 }
 
@@ -1924,20 +2381,22 @@ static void ktvm_start_spec_branch(KtvmRuntime *rt, KtvmNode *n, int32_t b_idx) 
   /* Last-branch O(1) tail splice! */
   if (b_idx == desc->num_branches - 1) {
     rt->spec_tail_splices++;
-    void **env = (void **)ktvm_alloc(rt, (size_t)(in_cnt + out_cnt) * sizeof(void *));
+    void *stack_env[32];
+    int32_t total = in_cnt + out_cnt;
+    void **env = total <= 32 ? stack_env : (void **)ktvm_alloc(rt, (size_t)total * sizeof(void *));
     if (!env) return;
     for (int32_t i = 0; i < in_cnt; i++) {
       KtvmChan *orig = n->ins[i];
       KtvmChan *rep = reps[i];
-      if (rep->len > 0) ktvm_bd_unshift_from_deque(rt, orig, rep);
-      ktvm_bd_release(rt, rep);
-      reps[i] = NULL;
+      if (rep && rep->len > 0) ktvm_bd_unshift_from_deque(rt, orig, rep);
+      ktvm_spec_release_rep(rt, reps, i);
       env[i] = orig;
     }
     for (int32_t i = 0; i < out_cnt; i++) env[in_cnt + i] = n->outs[i];
     KtvmScope *sc = n->scope;
     ktvm_retire_node(rt, n);
     bfn(rt, sc, env);
+    if (env != stack_env) ktvm_free(rt, env);
     return;
   }
 
@@ -1947,9 +2406,11 @@ static void ktvm_start_spec_branch(KtvmRuntime *rt, KtvmNode *n, int32_t b_idx) 
   ac->branch_idx = b_idx;
   ac->num_in = in_cnt;
   ac->num_out = out_cnt;
-  ac->taps = (KtvmTapRec *)ktvm_alloc(rt, (size_t)in_cnt * sizeof(KtvmTapRec));
-  ac->staged = (KtvmStagedRec *)ktvm_alloc(rt, (size_t)out_cnt * sizeof(KtvmStagedRec));
-  void **env = (void **)ktvm_alloc(rt, (size_t)(in_cnt + out_cnt) * sizeof(void *));
+  ac->taps = (KtvmTapRec *)ktvm_alloc(rt, (size_t)(in_cnt > 0 ? in_cnt : 1) * sizeof(KtvmTapRec));
+  ac->staged = (KtvmStagedRec *)ktvm_alloc(rt, (size_t)(out_cnt > 0 ? out_cnt : 1) * sizeof(KtvmStagedRec));
+  void *stack_env[32];
+  int32_t total = in_cnt + out_cnt;
+  void **env = total <= 32 ? stack_env : (void **)ktvm_alloc(rt, (size_t)total * sizeof(void *));
 
   for (int32_t i = 0; i < in_cnt; i++) {
     KtvmChan *orig = n->ins[i];
@@ -1959,6 +2420,9 @@ static void ktvm_start_spec_branch(KtvmRuntime *rt, KtvmNode *n, int32_t b_idx) 
     tap->p0 = orig;
     tap->p1 = rep;
     ktvm_node_set_out(tap, 0, tap_out);
+    ktvm_chan_pin(orig);
+    ktvm_chan_pin(rep);
+    ktvm_node_pin(tap);
     ac->taps[i].orig = orig;
     ac->taps[i].replay = rep;
     ac->taps[i].tap = tap;
@@ -1967,12 +2431,15 @@ static void ktvm_start_spec_branch(KtvmRuntime *rt, KtvmNode *n, int32_t b_idx) 
   for (int32_t i = 0; i < out_cnt; i++) {
     KtvmChan *outer = n->outs[i];
     KtvmChan *st = ktvm_chan_alloc(rt, br_sc, outer->prod_schema);
+    ktvm_chan_pin(st);
+    ktvm_chan_pin(outer);
     ac->staged[i].staged = st;
     ac->staged[i].outer = outer;
     env[in_cnt + i] = st;
   }
   n->p2 = ac;
   bfn(rt, br_sc, env);
+  if (env != stack_env) ktvm_free(rt, env);
 }
 
 static int ktvm_step_spec(KtvmRuntime *rt, KtvmNode *n) {
@@ -1991,6 +2458,7 @@ static int ktvm_step_spec(KtvmRuntime *rt, KtvmNode *n) {
       rt->spec_upstream_aborts++;
       n->p2 = NULL;
       ktvm_scope_destroy(rt, ac->scope);
+      ktvm_spec_free_active(rt, ac);
       ktvm_fail_spec(rt, n);
       return STEP_OK;
     }
@@ -2007,6 +2475,7 @@ static int ktvm_step_spec(KtvmRuntime *rt, KtvmNode *n) {
     int32_t next_b = ac->branch_idx + 1;
     n->p2 = NULL;
     ktvm_scope_destroy(rt, ac->scope);
+    ktvm_spec_free_active(rt, ac);
     rt->spec_rollbacks++;
     if (next_b >= desc->num_branches) {
       ktvm_fail_spec(rt, n);
@@ -2044,10 +2513,10 @@ static int ktvm_step_spec(KtvmRuntime *rt, KtvmNode *n) {
       } else {
         ktvm_bd_release(rt, orig);
       }
-      ktvm_bd_release(rt, rep);
-      reps[i] = NULL;
+      ktvm_spec_release_rep(rt, reps, i);
     }
     for (int32_t i = 0; i < ac->num_out; i++) {
+      ktvm_scope_unlink_chan(ac->staged[i].staged);
       ktvm_splice(rt, ac->staged[i].staged, ac->staged[i].outer);
     }
     for (KtvmScope *c = br_sc->first_child; c; ) {
@@ -2056,6 +2525,7 @@ static int ktvm_step_spec(KtvmRuntime *rt, KtvmNode *n) {
       c = nxt;
     }
     ktvm_scope_destroy(rt, br_sc);
+    ktvm_spec_free_active(rt, ac);
     return STEP_OK;
   }
 
@@ -2082,19 +2552,22 @@ static int ktvm_step_spawn(KtvmRuntime *rt, KtvmNode *n) {
       }
     }
     if (all_done) {
-      after_tok->settled = 1;
+      ktvm_token_settle(rt, after_tok);
       rt->after_settlements++;
     }
   }
   KtvmBlockFn fn = (KtvmBlockFn)n->p0;
   int32_t in_cnt = n->in_count, out_cnt = n->out_count;
-  void **env = (void **)ktvm_alloc(rt, (size_t)(in_cnt + out_cnt) * sizeof(void *));
+  void *stack_env[32];
+  int32_t total = in_cnt + out_cnt;
+  void **env = total <= 32 ? stack_env : (void **)ktvm_alloc(rt, (size_t)total * sizeof(void *));
   if (!env) return STEP_OK;
   for (int32_t i = 0; i < in_cnt; i++) env[i] = n->ins[i];
   for (int32_t i = 0; i < out_cnt; i++) env[in_cnt + i] = n->outs[i];
   KtvmScope *sc = n->scope;
   ktvm_retire_node(rt, n);
   fn(rt, sc, env);
+  if (env != stack_env) ktvm_free(rt, env);
   return STEP_OK;
 }
 
@@ -2130,21 +2603,40 @@ static inline void ktvm_dstack_push(KtvmRuntime *rt, int32_t kind, void *ptr) {
     rt->dstack_cap <<= 1;
     rt->dstack = (KtvmDFrame *)realloc(rt->dstack, (size_t)rt->dstack_cap * sizeof(KtvmDFrame));
   }
+  if (kind == 0) ktvm_chan_pin((KtvmChan *)ptr);
+  else ktvm_node_pin((KtvmNode *)ptr);
   rt->dstack[rt->dstack_len].kind = kind;
   rt->dstack[rt->dstack_len].ptr = ptr;
   rt->dstack_len++;
+}
+
+static inline void ktvm_dstack_pop(KtvmRuntime *rt) {
+  if (rt->dstack_len <= 0) return;
+  rt->dstack_len--;
+  KtvmDFrame f = rt->dstack[rt->dstack_len];
+  if (f.kind == 0) ktvm_chan_unpin(rt, (KtvmChan *)f.ptr);
+  else ktvm_node_unpin(rt, (KtvmNode *)f.ptr);
+}
+
+static inline void ktvm_dstack_clear(KtvmRuntime *rt) {
+  while (rt->dstack_len > 0) ktvm_dstack_pop(rt);
 }
 
 static void ktvm_drive_to_completion(KtvmRuntime *rt, KtvmChan *root_out) {
   while (!rt->error_code && root_out->status == CHAN_OPEN) {
     if (!root_out->producer) {
       rt->error_code = KTVM_ERR_DEADLOCK;
+      ktvm_dstack_clear(rt);
       return;
     }
-    rt->dstack_len = 0;
+    ktvm_dstack_clear(rt);
     ktvm_dstack_push(rt, 0, root_out);
 
     while (!rt->error_code && rt->dstack_len > 0) {
+      if (rt->dead_nodes || rt->dead_chans || rt->dead_scopes) {
+        ktvm_flush_dead(rt);
+      }
+
       KtvmDFrame *top = &rt->dstack[rt->dstack_len - 1];
       KtvmNode *target = NULL;
       int32_t top_kind = top->kind;
@@ -2153,14 +2645,14 @@ static void ktvm_drive_to_completion(KtvmRuntime *rt, KtvmChan *root_out) {
       if (top_kind == 0) {
         KtvmChan *ch = (KtvmChan *)top_ptr;
         if (ch->status != CHAN_OPEN || !ch->producer) {
-          rt->dstack_len--;
+          ktvm_dstack_pop(rt);
           continue;
         }
         target = ch->producer;
       } else {
         KtvmNode *nd = (KtvmNode *)top_ptr;
         if (nd->retired) {
-          rt->dstack_len--;
+          ktvm_dstack_pop(rt);
           continue;
         }
         target = nd;
@@ -2173,6 +2665,7 @@ static void ktvm_drive_to_completion(KtvmRuntime *rt, KtvmChan *root_out) {
         KtvmChan *pch = rt->need_pull;
         if (pch->status == CHAN_OPEN && !pch->producer) {
           rt->error_code = KTVM_ERR_DEADLOCK;
+          ktvm_dstack_clear(rt);
           return;
         }
         ktvm_dstack_push(rt, 0, pch);
@@ -2183,7 +2676,7 @@ static void ktvm_drive_to_completion(KtvmRuntime *rt, KtvmChan *root_out) {
         continue;
       }
       if (outcome == STEP_YIELDED) {
-        rt->dstack_len--;
+        ktvm_dstack_pop(rt);
         continue;
       }
 
@@ -2191,14 +2684,15 @@ static void ktvm_drive_to_completion(KtvmRuntime *rt, KtvmChan *root_out) {
       if (top_kind == 0) {
         KtvmChan *ch = (KtvmChan *)top_ptr;
         if (ch->status != CHAN_OPEN || (rt->dstack_len > 1 && ch->len > 0)) {
-          rt->dstack_len--;
+          ktvm_dstack_pop(rt);
         }
       } else {
         KtvmNode *nd = (KtvmNode *)top_ptr;
-        if (nd->retired) rt->dstack_len--;
+        if (nd->retired) ktvm_dstack_pop(rt);
       }
     }
   }
+  ktvm_dstack_clear(rt);
 }
 
 /* =========================================================================
@@ -2549,6 +3043,7 @@ static int32_t ktvm_run_wire(
 
   KtvmDpda *dpda = ktvm_dpda_alloc(rt, 1, KTVM_IN_SCHEMA_ID, 0);
   int dres = ktvm_dpda_step_skip_copy(rt, raw_ch, root_in, dpda);
+  ktvm_dpda_free(rt, dpda);
   if (dres != 0) return KTVM_ERR_MALFORMED;
   if (raw_ch->len >= 8) return KTVM_ERR_MALFORMED;
   if (raw_ch->len > 0 && ktvm_bd_shift_bits(raw_ch, raw_ch->len) != 0) return KTVM_ERR_MALFORMED;

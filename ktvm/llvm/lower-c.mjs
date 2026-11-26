@@ -609,21 +609,18 @@ export function compileKTVMToC(
         case "drain": {
           const sid = internSchemaExpr(s.schema);
           const barExpr = s.barrier ? barLocal.get(s.barrier) : "NULL";
-          const extra = [`$N->a0 = ${sid};`, `$N->p1 = ${barExpr};`];
-          if (s.barrier) {
-            extra.push(`if (${barExpr}) { ${barExpr}->pending++; $N->p2 = ${barExpr}->first_drain; ${barExpr}->first_drain = $N; }`);
-          }
+          const extra = [`$N->a0 = ${sid};`, `ktvm_barrier_add_drain(${barExpr}, $N);`];
           emitNode("NK_DRAIN", [s.src], [], extra);
           break;
         }
         case "gate":
-          emitNode("NK_GATE", [s.src], [s.dst], [`$N->p0 = ${barLocal.get(s.barrier)};`]);
+          emitNode("NK_GATE", [s.src], [s.dst], [`ktvm_barrier_add_gate(${barLocal.get(s.barrier)}, $N);`]);
           break;
         case "spawn": {
           const targetFn = procFnName.get(s.target);
           if (!targetFn) throw new Error(`Unknown spawn target '${s.target}'`);
           const extra = [`$N->p0 = (void *)${targetFn};`];
-          if (s.after) extra.push(`$N->p1 = ${tokLocal.get(s.after)};`);
+          if (s.after) extra.push(`ktvm_spawn_set_after($N, ${tokLocal.get(s.after)});`);
           if (s.token) {
             const tv = `v_${lvSeq++}`;
             decls.push(`  KtvmToken *${tv} = NULL;`);
@@ -684,10 +681,13 @@ export function compileKTVMToC(
             compileBlockFn(defFn, s.defaultBody, capSlots);
           }
           const armsVar = `KTVM_SW_ARMS_${did}`;
+          const capKindsVar = `KTVM_SW_CK_${did}`;
           const descVar = `KTVM_SW_DESC_${did}`;
           if (armRows.length === 0) armRows.push("  { NULL, NULL }");
+          const capKindVals = capSlots.map((sl) => (sl.kind === "chan" ? 0 : (sl.kind === "barrier" ? 1 : 2)));
           dataDecls.push(`static const KtvmSwitchArm ${armsVar}[] = {\n${armRows.join(",\n")}\n};`);
-          dataDecls.push(`static const KtvmSwitchDesc ${descVar} = { ${s.inputs.length}, ${s.arms.length}, ${testedMask >>> 0}u, ${armsVar}, ${defFn} };`);
+          dataDecls.push(`static const uint8_t ${capKindsVar}[] = { ${capKindVals.length > 0 ? capKindVals.join(", ") : "0"} };`);
+          dataDecls.push(`static const KtvmSwitchDesc ${descVar} = { ${s.inputs.length}, ${s.arms.length}, ${testedMask >>> 0}u, ${armsVar}, ${defFn}, ${capKindsVar} };`);
 
           const extra = [
             `$N->a0 = ${capSlots.length};`,
@@ -701,7 +701,8 @@ export function compileKTVMToC(
                 : (sl.kind === "barrier" ? barLocal.get(sl.name) : tokLocal.get(sl.name));
               return `cap[${j}] = (void *)${lv};`;
             }),
-            `$N->p2 = cap;`
+            `$N->p2 = cap;`,
+            `ktvm_switch_pin_caps($N);`
           ];
           emitNode("NK_SWITCH", remIns, remOuts, extra);
           break;
@@ -726,9 +727,7 @@ export function compileKTVMToC(
 
           const extra = [
             `$N->p0 = (void *)&${descVar};`,
-            `KtvmChan **reps = (KtvmChan **)ktvm_alloc(rt, ${Math.max(1, s.inputs.length)} * sizeof(KtvmChan *));`,
-            ...s.inputs.map((_, j) => `reps[${j}] = ktvm_chan_alloc(rt, NULL, 0);`),
-            `$N->p1 = reps;`
+            `ktvm_spec_init_reps(rt, $N, ${s.inputs.length});`
           ];
           emitNode("NK_SPEC", s.inputs, s.outputs, extra);
           break;
@@ -985,8 +984,7 @@ export function compileKTVMToC(
           lines.push(`  goto L_${labelToId.get(t.target)};`);
           break;
         case "retire":
-          lines.push(`  ktvm_retire_node(rt, n);`);
-          lines.push(`  return STEP_OK;`);
+          lines.push(`  return ktvm_k_retire(rt, n);`);
           break;
         case "fail":
           lines.push(`  return ktvm_k_fail(rt, n);`);

@@ -355,6 +355,60 @@ try {
     assert.equal(failRes.telemetry.specUpstreamAborts, 1);
     assert.equal(failRes.telemetry.specRollbacks, 0);
   });
+
+  await test("Native slab allocator & strict mux->demux fusion bound nodes and buffers on Karatsuba & spec stress", async () => {
+    // 1. 10,000-bit recursive flip with 5,000 spec rollbacks
+    const flipSrc = `
+      ktvm 0.1 mono entry @flip;
+      schema $bits = union { 0: $bits, 1: $bits, _: unit };
+      proc @flip(%x: $bits) -> (%out: $bits) {
+        switch (%x) {
+          case (/0): {
+            chan %rest : $bits; chan %flipped : $bits;
+            spec (%x) -> (%rest) {
+              branch 0: { chan %bad : $bits; match /1 %x -> %bad; splice %bad -> %rest; }
+              branch 1: { match /0 %x -> %rest; }
+            }
+            spawn @flip(%rest) -> (%flipped);
+            wrap |1 %flipped -> %out;
+          }
+          case (/1): {
+            chan %rest : $bits; chan %flipped : $bits;
+            match /1 %x -> %rest;
+            spawn @flip(%rest) -> (%flipped);
+            wrap |0 %flipped -> %out;
+          }
+          case (/_): { splice %x -> %out; }
+        }
+      }
+    `;
+    const flipExe = path.join(tmpDir, "flip_slab.exe");
+    const flipMod = parseModule(flipSrc);
+    compileKTVMToExecutable(flipMod, flipExe, { optimize: false });
+    const bitsPat = [
+      ["closed-union", [["0", 0], ["1", 0], ["_", 1]]],
+      ["closed-product", []]
+    ];
+    const flipWire = encodeToWire(bitsFromStr("01".repeat(5000)), bitsPat);
+    const flipRes = executeKTVMExecutable(flipExe, flipWire, { telemetry: true });
+    assert.equal(flipRes.status, "OK");
+    assert.equal(flipRes.telemetry.specRollbacks, 5000);
+    assert.ok(flipRes.telemetry.peakBytes <= 65536, `expected bounded buffers <= 64 KiB, got ${flipRes.telemetry.peakBytes}`);
+
+    // 2. Karatsuba 256b*256b: strict zero-copy mux->demux fusion keeps peak_nodes & peak_bytes tiny
+    codes.load(integerLib.codes);
+    const timesPat = relationPatternPropertyList(integerLib.rels[integerLib.relAlias.times], 0);
+    const mulExe = path.join(tmpDir, "times_slab.exe");
+    compileObjectToKTVMExecutable(integerLib, "times", timesPat, mulExe, { optimize: true });
+    const mulIn = Value.product({
+      x: parseIntVal(String((1n << 255n) - 987654321n)),
+      y: parseIntVal(String((1n << 255n) - 123456789n))
+    });
+    const mulRes = executeKTVMExecutable(mulExe, encodeToWire(mulIn, timesPat), { telemetry: true });
+    assert.equal(mulRes.status, "OK");
+    assert.ok(mulRes.telemetry.peakNodes <= 400, `expected bounded Karatsuba nodes <= 400, got ${mulRes.telemetry.peakNodes}`);
+    assert.ok(mulRes.telemetry.peakBytes <= 16384, `expected bounded Karatsuba buffers <= 16 KiB, got ${mulRes.telemetry.peakBytes}`);
+  });
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }

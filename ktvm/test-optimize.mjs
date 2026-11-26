@@ -377,6 +377,46 @@ test("simplifyProcs: helper inlining, O(N^2) tee->demux collapse, spec->switch, 
   assert.equal(mulRes.telemetry.specRollbacks, 0, "integer.times Karatsuba loop must execute with 0 speculative rollbacks");
 });
 
+test("simplifyProcs: strict accumulator forcing collapses lazy tail-loop chains to O(1) nodes without slowing reverse", () => {
+  const polySrc = readSrc("Examples/poly.k");
+  const polyDep = loadLibrary(compileLibrary(readSrc("lib/integer.k"), { source: "lib/integer.k" }));
+  const polyRaw = loadLibrary(compileLibrary(polySrc, {
+    source: "Examples/poly.k",
+    libraries: [polyDep],
+    use: ["int[] nat int pos? neg? zero? gt? inc dec"]
+  }));
+  const polyLib = {
+    format: "k-object",
+    codes: { ...polyDep.codes, ...polyRaw.codes },
+    rels: { ...polyDep.rels, ...polyRaw.rels },
+    relAlias: { ...polyRaw.relAlias },
+    meta: { ...polyDep.meta, ...polyRaw.meta }
+  };
+  codes.load(polyLib.codes);
+  const mkList = (n) => {
+    let cur = Value.variant("nil", UNIT);
+    for (let i = n; i >= 1; i--) cur = Value.variant("cons", Value.product({ car: parseIntVal(String(i)), cdr: cur }));
+    return cur;
+  };
+  const inferredPat = relationPatternPropertyList(polyLib.rels[polyLib.relAlias.length], 0);
+  const wire200 = encodeToWire(mkList(200), inferredPat);
+  const listPat = decodeWire(wire200).pattern;
+
+  // `length`: uninspected accumulator `acc` updated by `inc` -> must be forced via `after %tok`
+  const lenComp = compileKIRToKTVM(polyLib, "length", listPat);
+  const lenOpt = optimizeKTVM(lenComp.module, { budgetBytes: DEFAULT_L1_BUDGET_BYTES, verifyTables: true });
+  assert.ok(lenOpt.stats.simplify.strictAccumulatorsForced >= 1, "expected strict accumulator forcing on poly.length");
+  const len200 = executeKTVMWire(lenOpt.module, wire200, { entry: lenComp.entry, validate: false });
+  assert.equal(len200.status, "OK");
+  assert.equal(len200.telemetry.afterSettlements, 200);
+  assert.ok(len200.telemetry.peakActiveNodes <= 64, `expected O(1) peakActiveNodes <= 64 on length(200), got ${len200.telemetry.peakActiveNodes}`);
+
+  // `reverse`: structural `mux`+`wrap` accumulator must stay lazy (0 forced accumulators)
+  const revComp = compileKIRToKTVM(polyLib, "reverse", listPat);
+  const revOpt = optimizeKTVM(revComp.module, { budgetBytes: DEFAULT_L1_BUDGET_BYTES, verifyTables: true });
+  assert.equal(revOpt.stats.simplify.strictAccumulatorsForced, 0, "structural reverse accumulator must remain lazy");
+});
+
 // --- Summary ---
 console.log(`\nMilestone 3 Optimizer Results: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);
