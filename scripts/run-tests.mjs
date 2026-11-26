@@ -64,6 +64,8 @@ const tests = [
   ["tests/test-tree-view.mjs", node, ["tests/test-tree-view.mjs"]],
   ["tests/test-kvm.mjs", node, ["tests/test-kvm.mjs"]],
   ["tests/test-kvm-polymorphic.mjs", node, ["tests/test-kvm-polymorphic.mjs"]],
+  ["ktvm/test-ktvm.mjs", node, ["ktvm/test-ktvm.mjs"]],
+  ["ktvm/test-conformance.mjs", node, ["ktvm/test-conformance.mjs"]],
   ["tests/test-arithmetics.mjs", node, ["tests/test-arithmetics.mjs"]],
   ["tests/test-poly.mjs", node, ["tests/test-poly.mjs"]],
   ["tests/test-polymorphic-tdd.mjs", node, ["tests/test-polymorphic-tdd.mjs"]],

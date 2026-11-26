@@ -14,7 +14,7 @@
  *   - Configurable runtime quotas (`maxBitDequeBytes`, `maxNodes`, `maxSteps`)
  */
 
-import { KTVMSchemaError, unpackInt32Base64 } from "./ast.mjs";
+import { KTVMSchemaError, collectSwitchOuterIO, unpackInt32Base64 } from "./ast.mjs";
 import { parseModule } from "./parser.mjs";
 import {
   CHAN_STATUS,
@@ -571,13 +571,14 @@ export class KTVMRuntime {
           break;
         }
         case "switch": {
-          // Capture all remaining unconsumed/unproduced channels in `env`!
-          const remIn = [];
-          const remOut = [];
-          for (const [v, ch] of env.entries()) {
-            if (!consumedVars.has(v) && ch.cons === null) remIn.push(ch);
-            if (!producedVars.has(v) && ch.prod === null) remOut.push(ch);
-          }
+          // Determine the exact outer channels consumed/produced by this switch's arms
+          // (supports both terminal switches and mid-block / nested switches!).
+          const firstBody = s.arms.length > 0 ? s.arms[0].body : (s.defaultBody || []);
+          const { cons: swCons, prod: swProd } = collectSwitchOuterIO(firstBody, env);
+          const remIn = [...swCons].map((v) => env.get(v));
+          const remOut = [...swProd].map((v) => env.get(v));
+          for (const v of swCons) markC(v);
+          for (const v of swProd) markP(v);
           const inspectChans = s.inputs.map((v) => env.get(v));
           this._allocNode(scopeId, "switch", {
             inputs: remIn,

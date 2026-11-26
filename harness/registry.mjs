@@ -1,5 +1,6 @@
 import { NativeAdapter } from "./adapters/native.mjs";
 import { KVMAdapter } from "./adapters/kvm.mjs";
+import { KTVMAdapter } from "./adapters/ktvm.mjs";
 import { WasmAdapter } from "./adapters/wasm.mjs";
 import { LLVMAdapter } from "./adapters/llvm.mjs";
 
@@ -13,6 +14,7 @@ export function createRegistry(config = {}) {
   register("native-aware", () => new NativeAdapter("aware", config.state));
   register("native-free", () => new NativeAdapter("free", config.state));
   register("kvm", () => new KVMAdapter(config.state));
+  register("ktvm", () => new KTVMAdapter(config.state));
   register("wasm", () => new WasmAdapter(config.wasm || {}));
   register("wasm-in-process", () => new WasmAdapter({ id: "wasm-in-process", mode: "in-process", ...(config.wasm || {}) }));
   register("llvm", () => new LLVMAdapter(config.llvm || {}));

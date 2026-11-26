@@ -53,4 +53,24 @@ export {
 export {
   compileLLVMArtifactFromPKIR
 } from "./backends/llvm/src/llvm.mjs";
+export {
+  KTVM_FORMAT,
+  KTVM_VERSION,
+  KTVMSyntaxError,
+  KTVMValidationError,
+  KTVMSchemaError,
+  KTVMQuotaError,
+  parseModule as parseKTVMModule,
+  printModule as printKTVMModule,
+  moduleToJSON as ktvmModuleToJSON,
+  moduleFromJSON as ktvmModuleFromJSON,
+  validateModule as validateKTVMModule,
+  specializeKTVM,
+  lowerKIRToKTVMP,
+  compileKIRToKTVM,
+  compileObjectToKTVM,
+  executeKTVM,
+  executeKTVMWire,
+  executeObjectWithKTVM
+} from "./ktvm/index.mjs";
 

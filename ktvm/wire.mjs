@@ -76,9 +76,14 @@ export function decodeDequeToValue(deque, plist, rootId = 0, { exact = true } = 
   while (frames.length > 0) {
     const frame = frames.pop();
     if (frame.kind === "build_product") {
+      const n = frame.labels.length;
+      const vals = new Array(n);
+      for (let i = n - 1; i >= 0; i--) {
+        vals[i] = results.pop();
+      }
       const fields = {};
-      for (let i = frame.labels.length - 1; i >= 0; i--) {
-        fields[frame.labels[i]] = results.pop();
+      for (let i = 0; i < n; i++) {
+        fields[frame.labels[i]] = vals[i];
       }
       results.push(Value.product(fields));
       continue;
@@ -178,7 +183,15 @@ export function splitEnvelopedWire(buffer, { quota = null } = {}) {
 
   // Decode the pattern header using K's CORE_PATTERN_PROPERTY_LIST
   const patternValue = decodeDequeToValue(full, CORE_PATTERN_PROPERTY_LIST, 0, { exact: false });
-  const plist = patternValueToPropertyList(patternValue);
+  const rawPlist = patternValueToPropertyList(patternValue);
+  // Concrete k-wire headers may tag value-derived variants/products as `open-union` /
+  // `open-product` (see prefix-codec.mjs `deriveClosedPatternFromValue`), whose wire
+  // encoding is identical to `closed-union` / `closed-product` over their listed edges.
+  const plist = rawPlist.map(([kind, edges]) => {
+    if (kind === "open-union") return ["closed-union", edges];
+    if (kind === "open-product") return ["closed-product", edges];
+    return [kind, edges];
+  });
 
   // Validate and extract exact payload bits by running DPDA copy into payloadDeque,
   // then verify all remaining bits (< 8) are zero trailing byte padding.

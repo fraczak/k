@@ -12,7 +12,7 @@
  *      tables (opt-out via `{ verifyTables: false }`).
  */
 
-import { KTVMValidationError } from "./ast.mjs";
+import { KTVMValidationError, collectSwitchOuterIO } from "./ast.mjs";
 import {
   compareLabels,
   compileSchemaExprToPlist,
@@ -474,10 +474,11 @@ export function validateModule(mod, { verifyTables = true, maxVerifyEntries = 65
           for (const inp of s.inputs) {
             if (!chanTypes.has(inp)) errors.push(`${ctx}: switch references undeclared channel '${inp}'`);
           }
-          // Remaining required inputs/outputs not yet consumed/produced in the parent block
-          // must be satisfied identically by every arm of `switch`!
-          const remCons = new Set([...requiredConsumes, ...localChans].filter((v) => !consumed.has(v)));
-          const remProd = new Set([...requiredProduces, ...localChans].filter((v) => !produced.has(v)));
+          // Determine the exact outer channels consumed/produced by the switch from its
+          // first branch (supporting both terminal and mid-block / nested switches!).
+          const firstBody = s.arms.length > 0 ? s.arms[0].body : (s.defaultBody || []);
+          const { cons: swCons, prod: swProd } = collectSwitchOuterIO(firstBody, chanTypes);
+
           for (let a = 0; a < s.arms.length; a++) {
             const arm = s.arms[a];
             if (arm.patterns.length !== s.inputs.length) {
@@ -497,8 +498,8 @@ export function validateModule(mod, { verifyTables = true, maxVerifyEntries = 65
               ctx: `${ctx} switch.case[${a}]`,
               pset,
               outerChans: chanTypes,
-              requiredConsumes: remCons,
-              requiredProduces: remProd,
+              requiredConsumes: swCons,
+              requiredProduces: swProd,
               outerBarriers: barriers,
               outerTokens: tokens
             });
@@ -508,14 +509,14 @@ export function validateModule(mod, { verifyTables = true, maxVerifyEntries = 65
               ctx: `${ctx} switch.default`,
               pset,
               outerChans: chanTypes,
-              requiredConsumes: remCons,
-              requiredProduces: remProd,
+              requiredConsumes: swCons,
+              requiredProduces: swProd,
               outerBarriers: barriers,
               outerTokens: tokens
             });
           }
-          for (const v of remCons) markCons(v, idx);
-          for (const v of remProd) markProd(v, idx);
+          for (const v of swCons) markCons(v, idx);
+          for (const v of swProd) markProd(v, idx);
           break;
         }
         case "spec": {

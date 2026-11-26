@@ -146,3 +146,73 @@ export function unpackInt32Base64(base64Str) {
   }
   return out;
 }
+
+/**
+ * Compute the exact sets of outer channels (`cons`, `prod`) consumed and produced
+ * by a network statement block (such as an arm of `switch`), excluding local
+ * `chan` declarations inside the block.
+ */
+export function collectSwitchOuterIO(stmts, outerChanMap) {
+  const locals = new Set();
+  const cons = new Set();
+  const prod = new Set();
+
+  const addCons = (v) => {
+    if (v && !locals.has(v) && outerChanMap.has(v)) cons.add(v);
+  };
+  const addProd = (v) => {
+    if (v && !locals.has(v) && outerChanMap.has(v)) prod.add(v);
+  };
+
+  function walk(list) {
+    for (const s of list || []) {
+      switch (s.op) {
+        case "chan":
+          locals.add(s.name);
+          break;
+        case "drain":
+          addCons(s.src);
+          break;
+        case "gate":
+        case "splice":
+        case "coerce":
+        case "wrap":
+        case "match":
+        case "project":
+        case "guard":
+          addCons(s.src);
+          addProd(s.dst);
+          break;
+        case "const_unit":
+          addProd(s.dst);
+          break;
+        case "tee":
+          addCons(s.src);
+          for (const d of s.dsts) addProd(d);
+          break;
+        case "demux":
+          addCons(s.src);
+          for (const f of s.fields) addProd(f.name);
+          break;
+        case "mux":
+          for (const f of s.fields) addCons(f.name);
+          addProd(s.dst);
+          break;
+        case "spawn":
+        case "exec":
+        case "spec":
+          for (const i of s.inputs) addCons(i);
+          for (const o of s.outputs) addProd(o);
+          break;
+        case "switch": {
+          const inner = s.arms.length > 0 ? s.arms[0].body : (s.defaultBody || []);
+          walk(inner);
+          break;
+        }
+      }
+    }
+  }
+
+  walk(stmts);
+  return { cons, prod };
+}

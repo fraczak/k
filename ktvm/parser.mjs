@@ -121,8 +121,19 @@ export function tokenize(source) {
             case "n": str += "\n"; break;
             case "r": str += "\r"; break;
             case "t": str += "\t"; break;
+            case "b": str += "\b"; break;
+            case "f": str += "\f"; break;
             case "\\": str += "\\"; break;
             case "\"": str += "\""; break;
+            case "u": {
+              let hex = "";
+              for (let k = 0; k < 4 && i < n; k++) hex += advance();
+              if (hex.length !== 4 || !/^[0-9a-fA-F]{4}$/.test(hex)) {
+                throw new KTVMSyntaxError(`Invalid \\u escape '\\u${hex}'`, { line: startLine, col: startCol });
+              }
+              str += String.fromCharCode(parseInt(hex, 16));
+              break;
+            }
             default: str += esc; break;
           }
         } else {

@@ -82,3 +82,10 @@ export {
   executeKTVM,
   executeKTVMWire
 } from "./vm.mjs";
+
+export {
+  lowerKIRToKTVMP,
+  compileKIRToKTVM,
+  compileObjectToKTVM,
+  executeObjectWithKTVM
+} from "./lower-kir.mjs";
