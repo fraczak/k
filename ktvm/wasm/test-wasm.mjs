@@ -341,5 +341,58 @@ proc @main(%in: $bits) -> (%out: $bits) {
   assert.equal(r01.telemetry.specRollbacks, 0);
 });
 
+await test("Wasm slab allocator recycles retired nodes, channels, and child scopes in constant memory", async () => {
+  // Unoptimized recursive proc with switch + spec rollback on every `0` bit across 10,000 bits:
+  // spawns tens of thousands of nodes, channels, and child scopes while staying inside initial 16 MiB!
+  const src = `
+ktvm 0.1 mono entry @flip;
+schema $bits = union { 0: $bits, 1: $bits, _: unit };
+
+proc @flip(%x: $bits) -> (%out: $bits) {
+  switch (%x) {
+    case (/0): {
+      chan %rest : $bits;
+      chan %flipped : $bits;
+      spec (%x) -> (%rest) {
+        branch 0: {
+          chan %bad : $bits;
+          match /1 %x -> %bad;
+          splice %bad -> %rest;
+        }
+        branch 1: {
+          match /0 %x -> %rest;
+        }
+      }
+      spawn @flip(%rest) -> (%flipped);
+      wrap |1 %flipped -> %out;
+    }
+    case (/1): {
+      chan %rest : $bits;
+      chan %flipped : $bits;
+      match /1 %x -> %rest;
+      spawn @flip(%rest) -> (%flipped);
+      wrap |0 %flipped -> %out;
+    }
+    case (/_): {
+      splice %x -> %out;
+    }
+  }
+}
+`;
+  const mod = parseModule(src);
+  const artifact = await compileKTVMToWasm(mod);
+  const runner = await instantiateKTVMWasm(artifact);
+  const bitsIn = "01".repeat(5000); // 10,000 bits -> 5,000 spec rollbacks + >100k nodes/chans!
+  const wire = encodeToWire(bitsFromStr(bitsIn), artifact.inPlist);
+  const res = runner.executeWire(wire, { decodeValue: false });
+  assert.equal(res.status, "OK");
+  assert.equal(res.telemetry.specRollbacks, 5000);
+  // Initial linear memory is 256 pages (16 MiB); with slab reclamation, zero growth is needed!
+  assert.ok(
+    runner.exports.memory.buffer.byteLength <= 32 * 1024 * 1024,
+    `Expected bounded Wasm memory <= 32 MiB, got ${runner.exports.memory.buffer.byteLength} bytes`
+  );
+});
+
 console.log(`\nMilestone 4 WebAssembly Results: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

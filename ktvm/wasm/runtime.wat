@@ -13,7 +13,7 @@
   ;;   - Strictly iterative demand-driven pull scheduler (`drive_to_completion`)
   ;; ============================================================================
 
-  (memory (export "memory") 256 4096)
+  (memory (export "memory") 256 16384)
 
   ;; Function table types for indirect dispatch
   (type $block_fn (func (param i32 i32)))          ;; (scopePtr, envPtr)
@@ -50,11 +50,17 @@
   (global $g_dstack_cap (mut i32) (i32.const 0))
   (global $g_dstack_len (mut i32) (i32.const 0))
 
-  ;; Reusable `$scope_destroy` scratch stacks & BitDeque power-of-2 external buffer free list
+  ;; Reusable `$scope_destroy` scratch stacks, unified power-of-2 slab free list,
+  ;; switch scratch tags, and safepoint deferred-reclamation lists
   (global $g_sc_stk_ptr (mut i32) (i32.const 0))
   (global $g_sc_ord_ptr (mut i32) (i32.const 0))
   (global $g_sc_cap (mut i32) (i32.const 0))
-  (global $g_buf_fl_ptr (mut i32) (i32.const 0))
+  (global $g_slab_fl_ptr (mut i32) (i32.const 0))
+  (global $g_dead_nodes (mut i32) (i32.const 0))
+  (global $g_dead_chans (mut i32) (i32.const 0))
+  (global $g_dead_scopes (mut i32) (i32.const 0))
+  (global $g_sw_tags_ptr (mut i32) (i32.const 0))
+  (global $g_sw_tags_cap (mut i32) (i32.const 0))
 
   ;; Error codes:
   ;;   0 = OK
@@ -65,6 +71,7 @@
   ;;  -5 = OUT_CAP
   ;;  -6 = MALFORMED_WIRE
   ;;  -7 = DEADLOCK
+  ;;  -8 = OOM_ARENA
 
   ;; Node kind constants:
   ;;  1=const_unit, 2=splice, 3=coerce, 4=wrap, 5=match, 6=demux, 7=mux,
@@ -85,17 +92,62 @@
     (i32.sub (i32.shl (i32.const 1) (local.get $w)) (i32.const 1))
   )
 
+  ;; Unified O(1) power-of-2 slab allocator (buckets 0..16 => 16B..1MiB; 8-byte header [bucket, live])
   (func $alloc (param $bytes i32) (result i32)
-    (local $aligned i32)
+    (local $b i32)
+    (local $payloadSz i32)
+    (local $slot i32)
     (local $ptr i32)
+    (local $raw i32)
+    (local $total i32)
     (local $next i32)
     (local $needPages i32)
     (local $curPages i32)
-    (local.set $aligned (i32.and (i32.add (local.get $bytes) (i32.const 7)) (i32.const -8)))
-    (local.set $ptr (global.get $g_heap_ptr))
-    (local.set $next (i32.add (local.get $ptr) (local.get $aligned)))
-    (if (i32.gt_u (local.get $next) (global.get $g_heap_limit))
+
+    (if (i32.le_s (local.get $bytes) (i32.const 16))
       (then
+        (local.set $b (i32.const 0))
+        (local.set $payloadSz (i32.const 16))
+      )
+      (else
+        (local.set $b (i32.sub (i32.const 28) (i32.clz (i32.sub (local.get $bytes) (i32.const 1)))))
+        (if (i32.lt_s (local.get $b) (i32.const 17))
+          (then (local.set $payloadSz (i32.shl (i32.const 16) (local.get $b))))
+          (else
+            (local.set $b (i32.const -1))
+            (local.set $payloadSz (i32.and (i32.add (local.get $bytes) (i32.const 7)) (i32.const -8)))
+          )
+        )
+      )
+    )
+
+    ;; Fast path: pop recycled block from slab free list
+    (if (i32.and (i32.ge_s (local.get $b) (i32.const 0)) (i32.ne (global.get $g_slab_fl_ptr) (i32.const 0)))
+      (then
+        (local.set $slot (i32.add (global.get $g_slab_fl_ptr) (i32.shl (local.get $b) (i32.const 2))))
+        (local.set $ptr (i32.load (local.get $slot)))
+        (if (i32.ne (local.get $ptr) (i32.const 0))
+          (then
+            (i32.store (local.get $slot) (i32.load (local.get $ptr)))
+            (i32.store (i32.sub (local.get $ptr) (i32.const 4)) (i32.const 1)) ;; live = 1
+            (if (i32.gt_s (local.get $bytes) (i32.const 0))
+              (then (memory.fill (local.get $ptr) (i32.const 0) (local.get $bytes))))
+            (return (local.get $ptr))
+          )
+        )
+      )
+    )
+
+    ;; Cold path: bump-allocate [8-byte header + payloadSz]
+    (local.set $total (i32.add (local.get $payloadSz) (i32.const 8)))
+    (local.set $raw (global.get $g_heap_ptr))
+    (local.set $next (i32.add (local.get $raw) (local.get $total)))
+    (if (i32.or (i32.lt_u (local.get $next) (local.get $raw)) (i32.gt_u (local.get $next) (global.get $g_heap_limit)))
+      (then
+        (if (i32.lt_u (local.get $next) (local.get $raw))
+          (then
+            (global.set $g_error_code (i32.const -8))
+            (return (i32.const 0))))
         (local.set $needPages
           (i32.shr_u
             (i32.add (i32.sub (local.get $next) (global.get $g_heap_limit)) (i32.const 65535))
@@ -105,14 +157,34 @@
         (local.set $curPages (memory.grow (local.get $needPages)))
         (if (i32.eq (local.get $curPages) (i32.const -1))
           (then
-            (global.set $g_error_code (i32.const -4))
+            (global.set $g_error_code (i32.const -8))
             (return (i32.const 0))))
         (global.set $g_heap_limit (i32.shl (memory.size) (i32.const 16)))
       )
     )
     (global.set $g_heap_ptr (local.get $next))
-    (memory.fill (local.get $ptr) (i32.const 0) (local.get $aligned))
+    (i32.store (local.get $raw) (local.get $b))
+    (i32.store (i32.add (local.get $raw) (i32.const 4)) (i32.const 1)) ;; live = 1
+    (local.set $ptr (i32.add (local.get $raw) (i32.const 8)))
+    (if (i32.gt_s (local.get $bytes) (i32.const 0))
+      (then (memory.fill (local.get $ptr) (i32.const 0) (local.get $bytes))))
     (local.get $ptr)
+  )
+
+  (func $free (param $ptr i32)
+    (local $b i32)
+    (local $slot i32)
+    (if (i32.or (i32.eqz (local.get $ptr)) (i32.eqz (global.get $g_slab_fl_ptr))) (then (return)))
+    (if (i32.ne (i32.load (i32.sub (local.get $ptr) (i32.const 4))) (i32.const 1)) (then (return)))
+    (i32.store (i32.sub (local.get $ptr) (i32.const 4)) (i32.const 0)) ;; live = 0
+    (local.set $b (i32.load (i32.sub (local.get $ptr) (i32.const 8))))
+    (if (i32.and (i32.ge_s (local.get $b) (i32.const 0)) (i32.lt_s (local.get $b) (i32.const 17)))
+      (then
+        (local.set $slot (i32.add (global.get $g_slab_fl_ptr) (i32.shl (local.get $b) (i32.const 2))))
+        (i32.store (local.get $ptr) (i32.load (local.get $slot)))
+        (i32.store (local.get $slot) (local.get $ptr))
+      )
+    )
   )
 
   (func $quota_add_bytes (param $delta i32)
@@ -212,9 +284,64 @@
   ;; 3. BitDeque (Channel) ADT (`<= 128b` inline + growable power-of-2 ring)
   ;; ============================================================================
 
+  ;; Channel layout (72 bytes):
+  ;;   +0 status, +4 prodSchema, +8 consSchema, +12 aligned, +16 producer, +20 consumer,
+  ;;   +24 scopePtr, +28 nextInScope, +32 bufPtr, +36 capWords, +40 head, +44 len,
+  ;;   +48..63 inlineBuf[4], +64 prevInScope, +68 pinCount
+  (func $try_queue_chan (param $ch i32)
+    (if (i32.and
+          (i32.eq (i32.load (local.get $ch)) (i32.const 3))
+          (i32.and
+            (i32.le_s (i32.load (i32.add (local.get $ch) (i32.const 68))) (i32.const 0))
+            (i32.and
+              (i32.eqz (i32.load (i32.add (local.get $ch) (i32.const 16))))
+              (i32.eqz (i32.load (i32.add (local.get $ch) (i32.const 20)))))))
+      (then
+        (i32.store (local.get $ch) (i32.const 4)) ;; QUEUED
+        (i32.store (i32.add (local.get $ch) (i32.const 28)) (global.get $g_dead_chans))
+        (global.set $g_dead_chans (local.get $ch))
+      )
+    )
+  )
+
+  (func $chan_pin (param $ch i32)
+    (if (i32.ne (local.get $ch) (i32.const 0))
+      (then (i32.store (i32.add (local.get $ch) (i32.const 68)) (i32.add (i32.load (i32.add (local.get $ch) (i32.const 68))) (i32.const 1)))))
+  )
+
+  (func $chan_unpin (param $ch i32)
+    (local $cnt i32)
+    (if (i32.eqz (local.get $ch)) (then (return)))
+    (local.set $cnt (i32.sub (i32.load (i32.add (local.get $ch) (i32.const 68))) (i32.const 1)))
+    (i32.store (i32.add (local.get $ch) (i32.const 68)) (local.get $cnt))
+    (if (i32.and (i32.le_s (local.get $cnt) (i32.const 0)) (i32.eq (i32.load (local.get $ch)) (i32.const 3)))
+      (then (call $try_queue_chan (local.get $ch))))
+  )
+
+  (func $scope_unlink_chan (param $ch i32)
+    (local $sc i32)
+    (local $prev i32)
+    (local $next i32)
+    (local.set $sc (i32.load (i32.add (local.get $ch) (i32.const 24))))
+    (if (i32.eqz (local.get $sc)) (then (return)))
+    (local.set $prev (i32.load (i32.add (local.get $ch) (i32.const 64))))
+    (local.set $next (i32.load (i32.add (local.get $ch) (i32.const 28))))
+    (if (i32.ne (local.get $prev) (i32.const 0))
+      (then (i32.store (i32.add (local.get $prev) (i32.const 28)) (local.get $next)))
+      (else
+        (if (i32.eq (i32.load (i32.add (local.get $sc) (i32.const 16))) (local.get $ch))
+          (then (i32.store (i32.add (local.get $sc) (i32.const 16)) (local.get $next))))))
+    (if (i32.ne (local.get $next) (i32.const 0))
+      (then (i32.store (i32.add (local.get $next) (i32.const 64)) (local.get $prev))))
+    (i32.store (i32.add (local.get $ch) (i32.const 24)) (i32.const 0))
+    (i32.store (i32.add (local.get $ch) (i32.const 28)) (i32.const 0))
+    (i32.store (i32.add (local.get $ch) (i32.const 64)) (i32.const 0))
+  )
+
   (func $chan_alloc (param $scopePtr i32) (param $schemaId i32) (result i32)
     (local $ch i32)
-    (local.set $ch (call $alloc (i32.const 64)))
+    (local $oldFirst i32)
+    (local.set $ch (call $alloc (i32.const 72)))
     (if (i32.eqz (local.get $ch)) (then (return (i32.const 0))))
     (i32.store (local.get $ch) (i32.const 0)) ;; status = OPEN
     (i32.store (i32.add (local.get $ch) (i32.const 4)) (local.get $schemaId)) ;; prodSchema
@@ -226,7 +353,10 @@
     (call $quota_add_bytes (i32.const 16))
     (if (i32.ne (local.get $scopePtr) (i32.const 0))
       (then
-        (i32.store (i32.add (local.get $ch) (i32.const 28)) (i32.load (i32.add (local.get $scopePtr) (i32.const 16))))
+        (local.set $oldFirst (i32.load (i32.add (local.get $scopePtr) (i32.const 16))))
+        (i32.store (i32.add (local.get $ch) (i32.const 28)) (local.get $oldFirst))
+        (if (i32.ne (local.get $oldFirst) (i32.const 0))
+          (then (i32.store (i32.add (local.get $oldFirst) (i32.const 64)) (local.get $ch))))
         (i32.store (i32.add (local.get $scopePtr) (i32.const 16)) (local.get $ch))
       )
     )
@@ -253,46 +383,11 @@
     )
   )
 
-  (func $buf_fl_push (param $ptr i32) (param $words i32)
-    (local $b i32)
-    (local $slot i32)
-    (if (i32.or (i32.eqz (global.get $g_buf_fl_ptr))
-          (i32.or (i32.lt_s (local.get $words) (i32.const 8)) (i32.gt_s (local.get $words) (i32.const 65536))))
-      (then (return)))
-    (local.set $b (i32.sub (i32.ctz (local.get $words)) (i32.const 3)))
-    (if (i32.or (i32.lt_s (local.get $b) (i32.const 0)) (i32.ge_s (local.get $b) (i32.const 14)))
-      (then (return)))
-    (local.set $slot (i32.add (global.get $g_buf_fl_ptr) (i32.shl (local.get $b) (i32.const 2))))
-    (i32.store (local.get $ptr) (i32.load (local.get $slot)))
-    (i32.store (local.get $slot) (local.get $ptr))
-  )
-
-  (func $buf_fl_pop (param $words i32) (result i32)
-    (local $b i32)
-    (local $slot i32)
-    (local $ptr i32)
-    (if (i32.or (i32.eqz (global.get $g_buf_fl_ptr))
-          (i32.or (i32.lt_s (local.get $words) (i32.const 8)) (i32.gt_s (local.get $words) (i32.const 65536))))
-      (then (return (i32.const 0))))
-    (local.set $b (i32.sub (i32.ctz (local.get $words)) (i32.const 3)))
-    (if (i32.or (i32.lt_s (local.get $b) (i32.const 0)) (i32.ge_s (local.get $b) (i32.const 14)))
-      (then (return (i32.const 0))))
-    (local.set $slot (i32.add (global.get $g_buf_fl_ptr) (i32.shl (local.get $b) (i32.const 2))))
-    (local.set $ptr (i32.load (local.get $slot)))
-    (if (i32.ne (local.get $ptr) (i32.const 0))
-      (then
-        (i32.store (local.get $slot) (i32.load (local.get $ptr)))
-        (memory.fill (local.get $ptr) (i32.const 0) (i32.shl (local.get $words) (i32.const 2)))
-      )
-    )
-    (local.get $ptr)
-  )
-
   (func $bd_release (param $ch i32)
     (local $capW i32)
     (local $bufPtr i32)
     (if (i32.eqz (local.get $ch)) (then (return)))
-    (if (i32.eq (i32.load (local.get $ch)) (i32.const 3)) (then (return)))
+    (if (i32.ge_s (i32.load (local.get $ch)) (i32.const 3)) (then (return)))
     (local.set $capW (i32.load (i32.add (local.get $ch) (i32.const 36))))
     (local.set $bufPtr (i32.load (i32.add (local.get $ch) (i32.const 32))))
     (if (i32.gt_s (local.get $capW) (i32.const 0))
@@ -300,13 +395,15 @@
         (call $quota_add_bytes (i32.sub (i32.const 0) (i32.shl (local.get $capW) (i32.const 2))))
         (if (i32.and (i32.ne (local.get $bufPtr) (i32.const 0))
               (i32.ne (local.get $bufPtr) (i32.add (local.get $ch) (i32.const 48))))
-          (then (call $buf_fl_push (local.get $bufPtr) (local.get $capW))))
+          (then (call $free (local.get $bufPtr))))
       )
     )
     (i32.store (local.get $ch) (i32.const 3))
     (i32.store (i32.add (local.get $ch) (i32.const 32)) (i32.const 0))
     (i32.store (i32.add (local.get $ch) (i32.const 36)) (i32.const 0))
     (i32.store (i32.add (local.get $ch) (i32.const 44)) (i32.const 0))
+    (call $scope_unlink_chan (local.get $ch))
+    (call $try_queue_chan (local.get $ch))
   )
 
   (func $bd_grow (param $ch i32) (param $minBits i32)
@@ -347,9 +444,7 @@
       )
     )
 
-    (local.set $newBuf (call $buf_fl_pop (local.get $newWords)))
-    (if (i32.eqz (local.get $newBuf))
-      (then (local.set $newBuf (call $alloc (i32.shl (local.get $newWords) (i32.const 2))))))
+    (local.set $newBuf (call $alloc (i32.shl (local.get $newWords) (i32.const 2))))
     (if (i32.eqz (local.get $newBuf)) (then (return)))
     (call $quota_add_bytes (i32.shl (i32.sub (local.get $newWords) (local.get $oldWords)) (i32.const 2)))
 
@@ -423,7 +518,7 @@
 
     (if (i32.and (i32.ne (local.get $oldBuf) (i32.const 0))
           (i32.ne (local.get $oldBuf) (i32.add (local.get $ch) (i32.const 48))))
-      (then (call $buf_fl_push (local.get $oldBuf) (local.get $oldWords))))
+      (then (call $free (local.get $oldBuf))))
     (i32.store (i32.add (local.get $ch) (i32.const 32)) (local.get $newBuf))
     (i32.store (i32.add (local.get $ch) (i32.const 36)) (local.get $newWords))
     (i32.store (i32.add (local.get $ch) (i32.const 40)) (i32.const 0))
@@ -702,16 +797,24 @@
 
   ;; O(1) adopt buffer from `src` into empty `dst`
   (func $bd_adopt_buffer (param $dst i32) (param $src i32)
+    (local $dstBuf i32)
     (local $dstCapW i32)
     (local $srcBuf i32)
     (local $srcCapW i32)
+    (local.set $dstBuf (i32.load (i32.add (local.get $dst) (i32.const 32))))
     (local.set $dstCapW (i32.load (i32.add (local.get $dst) (i32.const 36))))
     (local.set $srcBuf (i32.load (i32.add (local.get $src) (i32.const 32))))
     (local.set $srcCapW (i32.load (i32.add (local.get $src) (i32.const 36))))
 
-    ;; Release dst's quota accounting for its old buffer
+    ;; Release dst's quota accounting and external buffer if any
     (if (i32.gt_s (local.get $dstCapW) (i32.const 0))
-      (then (call $quota_add_bytes (i32.sub (i32.const 0) (i32.shl (local.get $dstCapW) (i32.const 2))))))
+      (then
+        (call $quota_add_bytes (i32.sub (i32.const 0) (i32.shl (local.get $dstCapW) (i32.const 2))))
+        (if (i32.and (i32.ne (local.get $dstBuf) (i32.const 0))
+              (i32.ne (local.get $dstBuf) (i32.add (local.get $dst) (i32.const 48))))
+          (then (call $free (local.get $dstBuf))))
+      )
+    )
 
     (if (i32.eq (local.get $srcBuf) (i32.add (local.get $src) (i32.const 48)))
       (then
@@ -731,7 +834,8 @@
     (i32.store (i32.add (local.get $dst) (i32.const 40)) (i32.load (i32.add (local.get $src) (i32.const 40))))
     (i32.store (i32.add (local.get $dst) (i32.const 44)) (i32.load (i32.add (local.get $src) (i32.const 44))))
 
-    ;; Empty src without double-freeing quota
+    ;; Empty src without double-freeing quota or external buffer
+    (i32.store (i32.add (local.get $src) (i32.const 32)) (i32.const 0))
     (i32.store (i32.add (local.get $src) (i32.const 36)) (i32.const 0))
     (i32.store (i32.add (local.get $src) (i32.const 40)) (i32.const 0))
     (i32.store (i32.add (local.get $src) (i32.const 44)) (i32.const 0))
@@ -754,11 +858,20 @@
 
   (func $bs_release (param $st i32)
     (local $capW i32)
+    (local $bufPtr i32)
     (if (i32.eqz (local.get $st)) (then (return)))
     (if (i32.ne (i32.load (i32.add (local.get $st) (i32.const 12))) (i32.const 0)) (then (return)))
     (local.set $capW (i32.load (i32.add (local.get $st) (i32.const 4))))
+    (local.set $bufPtr (i32.load (local.get $st)))
     (if (i32.gt_s (local.get $capW) (i32.const 0))
-      (then (call $quota_add_bytes (i32.sub (i32.const 0) (i32.shl (local.get $capW) (i32.const 2))))))
+      (then
+        (call $quota_add_bytes (i32.sub (i32.const 0) (i32.shl (local.get $capW) (i32.const 2))))
+        (if (i32.and (i32.ne (local.get $bufPtr) (i32.const 0))
+              (i32.ne (local.get $bufPtr) (i32.add (local.get $st) (i32.const 16))))
+          (then (call $free (local.get $bufPtr))))
+      )
+    )
+    (i32.store (local.get $st) (i32.const 0))
     (i32.store (i32.add (local.get $st) (i32.const 12)) (i32.const 1))
     (i32.store (i32.add (local.get $st) (i32.const 4)) (i32.const 0))
     (i32.store (i32.add (local.get $st) (i32.const 8)) (i32.const 0))
@@ -784,6 +897,9 @@
     (local.set $newBuf (call $alloc (i32.shl (local.get $newW) (i32.const 2))))
     (if (i32.eqz (local.get $newBuf)) (then (return)))
     (memory.copy (local.get $newBuf) (local.get $oldBuf) (i32.shl (local.get $oldW) (i32.const 2)))
+    (if (i32.and (i32.ne (local.get $oldBuf) (i32.const 0))
+          (i32.ne (local.get $oldBuf) (i32.add (local.get $st) (i32.const 16))))
+      (then (call $free (local.get $oldBuf))))
     (call $quota_add_bytes (i32.shl (i32.sub (local.get $newW) (local.get $oldW)) (i32.const 2)))
     (i32.store (local.get $st) (local.get $newBuf))
     (i32.store (i32.add (local.get $st) (i32.const 4)) (local.get $newW))
@@ -885,6 +1001,12 @@
     (local.get $d)
   )
 
+  (func $dpda_free (param $d i32)
+    (if (i32.eqz (local.get $d)) (then (return)))
+    (call $free (i32.load (i32.add (local.get $d) (i32.const 4))))
+    (call $free (local.get $d))
+  )
+
   (func $dpda_push1 (param $d i32) (param $sid i32)
     (local $len i32)
     (local $cap i32)
@@ -900,6 +1022,7 @@
         (local.set $newStk (call $alloc (i32.shl (local.get $newCap) (i32.const 2))))
         (if (i32.eqz (local.get $newStk)) (then (return)))
         (memory.copy (local.get $newStk) (local.get $stk) (i32.shl (local.get $len) (i32.const 2)))
+        (call $free (local.get $stk))
         (local.set $stk (local.get $newStk))
         (i32.store (i32.add (local.get $d) (i32.const 4)) (local.get $stk))
         (i32.store (i32.add (local.get $d) (i32.const 8)) (local.get $newCap))
@@ -924,6 +1047,7 @@
         (local.set $newStk (call $alloc (i32.shl (local.get $newCap) (i32.const 3))))
         (if (i32.eqz (local.get $newStk)) (then (return)))
         (memory.copy (local.get $newStk) (local.get $stk) (i32.shl (local.get $len) (i32.const 3)))
+        (call $free (local.get $stk))
         (local.set $stk (local.get $newStk))
         (i32.store (i32.add (local.get $d) (i32.const 4)) (local.get $stk))
         (i32.store (i32.add (local.get $d) (i32.const 8)) (local.get $newCap))
@@ -1084,18 +1208,44 @@
   ;; 6. Scopes, Nodes, Barriers, Tokens & O(1) Channel Splice
   ;; ============================================================================
 
+  ;; Scope layout (28 bytes):
+  ;;   +0 parent, +4 firstChild, +8 nextSibling, +12 firstNode, +16 firstChan, +20 destroyed, +24 prevSibling
   (func $scope_create (param $parentPtr i32) (result i32)
     (local $sc i32)
-    (local.set $sc (call $alloc (i32.const 24)))
+    (local $oldFirst i32)
+    (local.set $sc (call $alloc (i32.const 28)))
     (if (i32.eqz (local.get $sc)) (then (return (i32.const 0))))
     (i32.store (local.get $sc) (local.get $parentPtr))
     (if (i32.ne (local.get $parentPtr) (i32.const 0))
       (then
-        (i32.store (i32.add (local.get $sc) (i32.const 8)) (i32.load (i32.add (local.get $parentPtr) (i32.const 4))))
+        (local.set $oldFirst (i32.load (i32.add (local.get $parentPtr) (i32.const 4))))
+        (i32.store (i32.add (local.get $sc) (i32.const 8)) (local.get $oldFirst))
+        (if (i32.ne (local.get $oldFirst) (i32.const 0))
+          (then (i32.store (i32.add (local.get $oldFirst) (i32.const 24)) (local.get $sc))))
         (i32.store (i32.add (local.get $parentPtr) (i32.const 4)) (local.get $sc))
       )
     )
     (local.get $sc)
+  )
+
+  (func $scope_unlink_child (param $sc i32)
+    (local $parent i32)
+    (local $prev i32)
+    (local $next i32)
+    (local.set $parent (i32.load (local.get $sc)))
+    (if (i32.eqz (local.get $parent)) (then (return)))
+    (local.set $prev (i32.load (i32.add (local.get $sc) (i32.const 24))))
+    (local.set $next (i32.load (i32.add (local.get $sc) (i32.const 8))))
+    (if (i32.ne (local.get $prev) (i32.const 0))
+      (then (i32.store (i32.add (local.get $prev) (i32.const 8)) (local.get $next)))
+      (else
+        (if (i32.eq (i32.load (i32.add (local.get $parent) (i32.const 4))) (local.get $sc))
+          (then (i32.store (i32.add (local.get $parent) (i32.const 4)) (local.get $next))))))
+    (if (i32.ne (local.get $next) (i32.const 0))
+      (then (i32.store (i32.add (local.get $next) (i32.const 24)) (local.get $prev))))
+    (i32.store (local.get $sc) (i32.const 0))
+    (i32.store (i32.add (local.get $sc) (i32.const 8)) (i32.const 0))
+    (i32.store (i32.add (local.get $sc) (i32.const 24)) (i32.const 0))
   )
 
   (func $barrier_alloc (result i32)
@@ -1105,20 +1255,38 @@
   (func $token_alloc (param $outPtr i32) (param $outCount i32) (result i32)
     (local $tok i32)
     (local $copy i32)
+    (local $i i32)
     (local.set $tok (call $alloc (i32.const 16)))
     (if (i32.eqz (local.get $tok)) (then (return (i32.const 0))))
-    (local.set $copy (call $alloc (i32.shl (local.get $outCount) (i32.const 2))))
     (if (i32.gt_s (local.get $outCount) (i32.const 0))
-      (then (memory.copy (local.get $copy) (local.get $outPtr) (i32.shl (local.get $outCount) (i32.const 2)))))
+      (then
+        (local.set $copy (call $alloc (i32.shl (local.get $outCount) (i32.const 2))))
+        (if (i32.eqz (local.get $copy)) (then (return (i32.const 0))))
+        (memory.copy (local.get $copy) (local.get $outPtr) (i32.shl (local.get $outCount) (i32.const 2)))
+        (local.set $i (i32.const 0))
+        (block $bp
+          (loop $lp
+            (br_if $bp (i32.ge_s (local.get $i) (local.get $outCount)))
+            (call $chan_pin (i32.load (i32.add (local.get $copy) (i32.shl (local.get $i) (i32.const 2)))))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br $lp)
+          )
+        )
+      )
+    )
     (i32.store (i32.add (local.get $tok) (i32.const 4)) (local.get $copy))
     (i32.store (i32.add (local.get $tok) (i32.const 8)) (local.get $outCount))
     (local.get $tok)
   )
 
+  ;; Node layout (64 bytes):
+  ;;   +0 kind, +4 retired, +8 scopePtr, +12 nextInScope, +16 inPtr, +20 inCount,
+  ;;   +24 outPtr, +28 outCount, +32..+48 node-specific, +52 prevDrain, +56 prevInScope, +60 dstackRefs
   (func $node_alloc (param $scopePtr i32) (param $kind i32) (param $inCount i32) (param $outCount i32) (result i32)
     (local $n i32)
     (local $inPtr i32)
     (local $outPtr i32)
+    (local $oldFirst i32)
     (call $quota_add_node)
     (if (i32.ne (global.get $g_error_code) (i32.const 0)) (then (return (i32.const 0))))
     (local.set $n (call $alloc (i32.const 64)))
@@ -1128,6 +1296,7 @@
     (if (i32.gt_s (local.get $inCount) (i32.const 0))
       (then
         (local.set $inPtr (call $alloc (i32.shl (local.get $inCount) (i32.const 2))))
+        (if (i32.eqz (local.get $inPtr)) (then (return (i32.const 0))))
         (i32.store (i32.add (local.get $n) (i32.const 16)) (local.get $inPtr))
         (i32.store (i32.add (local.get $n) (i32.const 20)) (local.get $inCount))
       )
@@ -1135,13 +1304,17 @@
     (if (i32.gt_s (local.get $outCount) (i32.const 0))
       (then
         (local.set $outPtr (call $alloc (i32.shl (local.get $outCount) (i32.const 2))))
+        (if (i32.eqz (local.get $outPtr)) (then (return (i32.const 0))))
         (i32.store (i32.add (local.get $n) (i32.const 24)) (local.get $outPtr))
         (i32.store (i32.add (local.get $n) (i32.const 28)) (local.get $outCount))
       )
     )
     (if (i32.ne (local.get $scopePtr) (i32.const 0))
       (then
-        (i32.store (i32.add (local.get $n) (i32.const 12)) (i32.load (i32.add (local.get $scopePtr) (i32.const 12))))
+        (local.set $oldFirst (i32.load (i32.add (local.get $scopePtr) (i32.const 12))))
+        (i32.store (i32.add (local.get $n) (i32.const 12)) (local.get $oldFirst))
+        (if (i32.ne (local.get $oldFirst) (i32.const 0))
+          (then (i32.store (i32.add (local.get $oldFirst) (i32.const 56)) (local.get $n))))
         (i32.store (i32.add (local.get $scopePtr) (i32.const 12)) (local.get $n))
       )
     )
@@ -1149,19 +1322,29 @@
   )
 
   (func $node_set_in (param $n i32) (param $idx i32) (param $ch i32)
-    (local $inPtr i32)
-    (local.set $inPtr (i32.load (i32.add (local.get $n) (i32.const 16))))
-    (i32.store (i32.add (local.get $inPtr) (i32.shl (local.get $idx) (i32.const 2))) (local.get $ch))
+    (local $slot i32)
+    (local $old i32)
+    (local.set $slot (i32.add (i32.load (i32.add (local.get $n) (i32.const 16))) (i32.shl (local.get $idx) (i32.const 2))))
+    (local.set $old (i32.load (local.get $slot)))
+    (if (i32.ne (local.get $old) (i32.const 0)) (then (call $chan_unpin (local.get $old))))
+    (i32.store (local.get $slot) (local.get $ch))
     (if (i32.ne (local.get $ch) (i32.const 0))
-      (then (i32.store (i32.add (local.get $ch) (i32.const 20)) (local.get $n))))
+      (then
+        (call $chan_pin (local.get $ch))
+        (i32.store (i32.add (local.get $ch) (i32.const 20)) (local.get $n))))
   )
 
   (func $node_set_out (param $n i32) (param $idx i32) (param $ch i32)
-    (local $outPtr i32)
-    (local.set $outPtr (i32.load (i32.add (local.get $n) (i32.const 24))))
-    (i32.store (i32.add (local.get $outPtr) (i32.shl (local.get $idx) (i32.const 2))) (local.get $ch))
+    (local $slot i32)
+    (local $old i32)
+    (local.set $slot (i32.add (i32.load (i32.add (local.get $n) (i32.const 24))) (i32.shl (local.get $idx) (i32.const 2))))
+    (local.set $old (i32.load (local.get $slot)))
+    (if (i32.ne (local.get $old) (i32.const 0)) (then (call $chan_unpin (local.get $old))))
+    (i32.store (local.get $slot) (local.get $ch))
     (if (i32.ne (local.get $ch) (i32.const 0))
-      (then (i32.store (i32.add (local.get $ch) (i32.const 16)) (local.get $n))))
+      (then
+        (call $chan_pin (local.get $ch))
+        (i32.store (i32.add (local.get $ch) (i32.const 16)) (local.get $n))))
   )
 
   (func $node_get_in (param $n i32) (param $idx i32) (result i32)
@@ -1170,6 +1353,251 @@
 
   (func $node_get_out (param $n i32) (param $idx i32) (result i32)
     (i32.load (i32.add (i32.load (i32.add (local.get $n) (i32.const 24))) (i32.shl (local.get $idx) (i32.const 2))))
+  )
+
+  (func $scope_unlink_node (param $n i32)
+    (local $sc i32)
+    (local $prev i32)
+    (local $next i32)
+    (local.set $sc (i32.load (i32.add (local.get $n) (i32.const 8))))
+    (if (i32.eqz (local.get $sc)) (then (return)))
+    (local.set $prev (i32.load (i32.add (local.get $n) (i32.const 56))))
+    (local.set $next (i32.load (i32.add (local.get $n) (i32.const 12))))
+    (if (i32.ne (local.get $prev) (i32.const 0))
+      (then (i32.store (i32.add (local.get $prev) (i32.const 12)) (local.get $next)))
+      (else
+        (if (i32.eq (i32.load (i32.add (local.get $sc) (i32.const 12))) (local.get $n))
+          (then (i32.store (i32.add (local.get $sc) (i32.const 12)) (local.get $next))))))
+    (if (i32.ne (local.get $next) (i32.const 0))
+      (then (i32.store (i32.add (local.get $next) (i32.const 56)) (local.get $prev))))
+    (i32.store (i32.add (local.get $n) (i32.const 8)) (i32.const 0))
+    (i32.store (i32.add (local.get $n) (i32.const 12)) (i32.const 0))
+    (i32.store (i32.add (local.get $n) (i32.const 56)) (i32.const 0))
+  )
+
+  (func $bar_unlink_drain (param $n i32)
+    (local $bar i32)
+    (local $prev i32)
+    (local $next i32)
+    (local.set $bar (i32.load (i32.add (local.get $n) (i32.const 36))))
+    (if (i32.eqz (local.get $bar)) (then (return)))
+    (local.set $prev (i32.load (i32.add (local.get $n) (i32.const 52))))
+    (local.set $next (i32.load (i32.add (local.get $n) (i32.const 40))))
+    (if (i32.ne (local.get $prev) (i32.const 0))
+      (then (i32.store (i32.add (local.get $prev) (i32.const 40)) (local.get $next)))
+      (else
+        (if (i32.eq (i32.load (i32.add (local.get $bar) (i32.const 8))) (local.get $n))
+          (then (i32.store (i32.add (local.get $bar) (i32.const 8)) (local.get $next))))))
+    (if (i32.ne (local.get $next) (i32.const 0))
+      (then (i32.store (i32.add (local.get $next) (i32.const 52)) (local.get $prev))))
+    (i32.store (i32.add (local.get $n) (i32.const 36)) (i32.const 0))
+    (i32.store (i32.add (local.get $n) (i32.const 40)) (i32.const 0))
+    (i32.store (i32.add (local.get $n) (i32.const 52)) (i32.const 0))
+  )
+
+  (func $try_queue_node (param $n i32)
+    (if (i32.and
+          (i32.eq (i32.load (i32.add (local.get $n) (i32.const 4))) (i32.const 1))
+          (i32.le_s (i32.load (i32.add (local.get $n) (i32.const 60))) (i32.const 0)))
+      (then
+        (i32.store (i32.add (local.get $n) (i32.const 4)) (i32.const 2)) ;; QUEUED
+        (i32.store (i32.add (local.get $n) (i32.const 12)) (global.get $g_dead_nodes))
+        (global.set $g_dead_nodes (local.get $n))
+      )
+    )
+  )
+
+  (func $node_unpin (param $n i32)
+    (local $cnt i32)
+    (if (i32.eqz (local.get $n)) (then (return)))
+    (local.set $cnt (i32.sub (i32.load (i32.add (local.get $n) (i32.const 60))) (i32.const 1)))
+    (i32.store (i32.add (local.get $n) (i32.const 60)) (local.get $cnt))
+    (if (i32.and (i32.le_s (local.get $cnt) (i32.const 0)) (i32.eq (i32.load (i32.add (local.get $n) (i32.const 4))) (i32.const 1)))
+      (then (call $try_queue_node (local.get $n))))
+  )
+
+  (func $spec_free_active (param $ac i32)
+    (local $taps i32)
+    (local $tapCnt i32)
+    (local $staged i32)
+    (local $stagedCnt i32)
+    (local $i i32)
+    (local $te i32)
+    (local $se i32)
+    (if (i32.eqz (local.get $ac)) (then (return)))
+    (local.set $taps (i32.load (i32.add (local.get $ac) (i32.const 4))))
+    (local.set $tapCnt (i32.load (i32.add (local.get $ac) (i32.const 8))))
+    (local.set $i (i32.const 0))
+    (block $bt
+      (loop $lt
+        (br_if $bt (i32.ge_s (local.get $i) (local.get $tapCnt)))
+        (local.set $te (i32.add (local.get $taps) (i32.shl (local.get $i) (i32.const 4))))
+        (call $chan_unpin (i32.load (local.get $te)))
+        (call $chan_unpin (i32.load (i32.add (local.get $te) (i32.const 4))))
+        (call $chan_unpin (i32.load (i32.add (local.get $te) (i32.const 8))))
+        ;; Unpin tapNode (+60 pinCount)
+        (call $node_unpin (i32.load (i32.add (local.get $te) (i32.const 12))))
+        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+        (br $lt)
+      )
+    )
+    (local.set $staged (i32.load (i32.add (local.get $ac) (i32.const 12))))
+    (local.set $stagedCnt (i32.load (i32.add (local.get $ac) (i32.const 16))))
+    (local.set $i (i32.const 0))
+    (block $bs
+      (loop $ls
+        (br_if $bs (i32.ge_s (local.get $i) (local.get $stagedCnt)))
+        (local.set $se (i32.add (local.get $staged) (i32.shl (local.get $i) (i32.const 3))))
+        (call $chan_unpin (i32.load (local.get $se)))
+        (call $chan_unpin (i32.load (i32.add (local.get $se) (i32.const 4))))
+        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+        (br $ls)
+      )
+    )
+    (call $free (local.get $taps))
+    (call $free (local.get $staged))
+    (call $free (local.get $ac))
+  )
+
+  (func $free_node_mem (param $n i32)
+    (local $kind i32)
+    (local $cnt i32)
+    (local $arr i32)
+    (local $i i32)
+    (local $ks i32)
+    (local $sArr i32)
+    (local $sCnt i32)
+
+    ;; Unpin and free input array
+    (local.set $cnt (i32.load (i32.add (local.get $n) (i32.const 20))))
+    (local.set $arr (i32.load (i32.add (local.get $n) (i32.const 16))))
+    (if (i32.ne (local.get $arr) (i32.const 0))
+      (then
+        (local.set $i (i32.const 0))
+        (block $bi
+          (loop $li
+            (br_if $bi (i32.ge_s (local.get $i) (local.get $cnt)))
+            (call $chan_unpin (i32.load (i32.add (local.get $arr) (i32.shl (local.get $i) (i32.const 2)))))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br $li)
+          )
+        )
+        (call $free (local.get $arr))
+      )
+    )
+
+    ;; Unpin and free output array
+    (local.set $cnt (i32.load (i32.add (local.get $n) (i32.const 28))))
+    (local.set $arr (i32.load (i32.add (local.get $n) (i32.const 24))))
+    (if (i32.ne (local.get $arr) (i32.const 0))
+      (then
+        (local.set $i (i32.const 0))
+        (block $bo
+          (loop $lo
+            (br_if $bo (i32.ge_s (local.get $i) (local.get $cnt)))
+            (call $chan_unpin (i32.load (i32.add (local.get $arr) (i32.shl (local.get $i) (i32.const 2)))))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br $lo)
+          )
+        )
+        (call $free (local.get $arr))
+      )
+    )
+
+    ;; Free kind-specific owned allocations
+    (local.set $kind (i32.load (local.get $n)))
+    (if (i32.or (i32.eq (local.get $kind) (i32.const 3)) (i32.eq (local.get $kind) (i32.const 6)))
+      (then (call $dpda_free (i32.load (i32.add (local.get $n) (i32.const 40))))))
+    (if (i32.eq (local.get $kind) (i32.const 9))
+      (then (call $dpda_free (i32.load (i32.add (local.get $n) (i32.const 44))))))
+    (if (i32.eq (local.get $kind) (i32.const 11))
+      (then
+        (call $free (i32.load (i32.add (local.get $n) (i32.const 36))))
+        (call $free (i32.load (i32.add (local.get $n) (i32.const 44))))
+      )
+    )
+    (if (i32.eq (local.get $kind) (i32.const 12))
+      (then
+        (call $spec_free_active (i32.load (i32.add (local.get $n) (i32.const 40))))
+      )
+    )
+    (if (i32.eq (local.get $kind) (i32.const 15))
+      (then
+        (local.set $ks (i32.load (i32.add (local.get $n) (i32.const 40))))
+        (if (i32.ne (local.get $ks) (i32.const 0))
+          (then
+            (call $free (i32.load (local.get $ks)))
+            (local.set $sArr (i32.load (i32.add (local.get $ks) (i32.const 4))))
+            (local.set $sCnt (i32.load (i32.add (local.get $ks) (i32.const 8))))
+            (if (i32.ne (local.get $sArr) (i32.const 0))
+              (then
+                (local.set $i (i32.const 0))
+                (block $bks
+                  (loop $lks
+                    (br_if $bks (i32.ge_s (local.get $i) (local.get $sCnt)))
+                    (call $free (i32.load (i32.add (local.get $sArr) (i32.shl (local.get $i) (i32.const 2)))))
+                    (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                    (br $lks)
+                  )
+                )
+                (call $free (local.get $sArr))
+              )
+            )
+            (call $free (i32.load (i32.add (local.get $ks) (i32.const 12))))
+            (call $free (i32.load (i32.add (local.get $ks) (i32.const 20))))
+            (call $dpda_free (i32.load (i32.add (local.get $ks) (i32.const 24))))
+            (call $free (local.get $ks))
+          )
+        )
+      )
+    )
+  )
+
+  ;; Strictly O(1)-amortized safepoint reclamation: every item on a dead list
+  ;; is already guaranteed unpinned & detached (zero re-scanning!).
+  (func $flush_dead
+    (local $cur i32)
+    (local $next i32)
+
+    ;; 1. Reclaim queued retired nodes (may unpin & queue newly freed channels!)
+    (local.set $cur (global.get $g_dead_nodes))
+    (global.set $g_dead_nodes (i32.const 0))
+    (block $bn
+      (loop $ln
+        (br_if $bn (i32.eqz (local.get $cur)))
+        (local.set $next (i32.load (i32.add (local.get $cur) (i32.const 12))))
+        (call $free_node_mem (local.get $cur))
+        (call $free (local.get $cur))
+        (local.set $cur (local.get $next))
+        (br $ln)
+      )
+    )
+
+    ;; 2. Reclaim queued released channels
+    (local.set $cur (global.get $g_dead_chans))
+    (global.set $g_dead_chans (i32.const 0))
+    (block $bc
+      (loop $lc
+        (br_if $bc (i32.eqz (local.get $cur)))
+        (local.set $next (i32.load (i32.add (local.get $cur) (i32.const 28))))
+        (call $free (local.get $cur))
+        (local.set $cur (local.get $next))
+        (br $lc)
+      )
+    )
+
+    ;; 3. Reclaim destroyed child scopes
+    (local.set $cur (global.get $g_dead_scopes))
+    (global.set $g_dead_scopes (i32.const 0))
+    (block $bs
+      (loop $ls
+        (br_if $bs (i32.eqz (local.get $cur)))
+        (local.set $next (i32.load (i32.add (local.get $cur) (i32.const 8))))
+        (call $free (local.get $cur))
+        (local.set $cur (local.get $next))
+        (br $ls)
+      )
+    )
   )
 
   (func $retire_node (param $n i32)
@@ -1248,6 +1676,12 @@
         (br $lo)
       )
     )
+
+    ;; Unlink from scope & barrier (if drain), then defer memory reclamation until safepoint
+    (call $scope_unlink_node (local.get $n))
+    (if (i32.eq (i32.load (local.get $n)) (i32.const 9))
+      (then (call $bar_unlink_drain (local.get $n))))
+    (call $try_queue_node (local.get $n))
   )
 
   (func $cancel_input (param $ch i32)
@@ -1272,7 +1706,10 @@
       (loop $l1
         (br_if $b1 (i32.ge_s (local.get $i) (local.get $cnt)))
         (if (i32.eq (i32.load (i32.add (local.get $arr) (i32.shl (local.get $i) (i32.const 2)))) (local.get $oldCh))
-          (then (i32.store (i32.add (local.get $arr) (i32.shl (local.get $i) (i32.const 2))) (local.get $newCh))))
+          (then
+            (call $chan_unpin (local.get $oldCh))
+            (call $chan_pin (local.get $newCh))
+            (i32.store (i32.add (local.get $arr) (i32.shl (local.get $i) (i32.const 2))) (local.get $newCh))))
         (local.set $i (i32.add (local.get $i) (i32.const 1)))
         (br $l1)
       )
@@ -1309,7 +1746,10 @@
               (loop $l3
                 (br_if $b3 (i32.ge_s (local.get $i) (local.get $cnt)))
                 (if (i32.eq (i32.load (i32.add (i32.add (local.get $arr) (i32.shl (local.get $i) (i32.const 3))) (i32.const 4))) (local.get $oldCh))
-                  (then (i32.store (i32.add (i32.add (local.get $arr) (i32.shl (local.get $i) (i32.const 3))) (i32.const 4)) (local.get $newCh))))
+                  (then
+                    (call $chan_unpin (local.get $oldCh))
+                    (call $chan_pin (local.get $newCh))
+                    (i32.store (i32.add (i32.add (local.get $arr) (i32.shl (local.get $i) (i32.const 3))) (i32.const 4)) (local.get $newCh))))
                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
                 (br $l3)
               )
@@ -1383,7 +1823,9 @@
     (local $child i32)
     (local $i i32)
     (local $n i32)
+    (local $nextN i32)
     (local $ch i32)
+    (local $nextCh i32)
     (local $ac i32)
     (local $taps i32)
     (local $tapCnt i32)
@@ -1419,10 +1861,12 @@
             (local.set $t (call $alloc (i32.shl (local.get $stkCap) (i32.const 3))))
             (if (i32.eqz (local.get $t)) (then (return)))
             (memory.copy (local.get $t) (local.get $ord) (i32.shl (local.get $ordLen) (i32.const 2)))
+            (call $free (local.get $ord))
             (local.set $ord (local.get $t))
             (local.set $t (call $alloc (i32.shl (local.get $stkCap) (i32.const 3))))
             (if (i32.eqz (local.get $t)) (then (return)))
             (memory.copy (local.get $t) (local.get $stk) (i32.shl (local.get $stkLen) (i32.const 2)))
+            (call $free (local.get $stk))
             (local.set $stk (local.get $t))
             (local.set $stkCap (i32.shl (local.get $stkCap) (i32.const 1)))
             (global.set $g_sc_stk_ptr (local.get $stk))
@@ -1441,10 +1885,12 @@
                 (local.set $t (call $alloc (i32.shl (local.get $stkCap) (i32.const 3))))
                 (if (i32.eqz (local.get $t)) (then (return)))
                 (memory.copy (local.get $t) (local.get $stk) (i32.shl (local.get $stkLen) (i32.const 2)))
+                (call $free (local.get $stk))
                 (local.set $stk (local.get $t))
                 (local.set $t (call $alloc (i32.shl (local.get $stkCap) (i32.const 3))))
                 (if (i32.eqz (local.get $t)) (then (return)))
                 (memory.copy (local.get $t) (local.get $ord) (i32.shl (local.get $ordLen) (i32.const 2)))
+                (call $free (local.get $ord))
                 (local.set $ord (local.get $t))
                 (local.set $stkCap (i32.shl (local.get $stkCap) (i32.const 1)))
                 (global.set $g_sc_stk_ptr (local.get $stk))
@@ -1470,12 +1916,13 @@
         (local.set $sc (i32.load (i32.add (local.get $ord) (i32.shl (local.get $i) (i32.const 2)))))
         (i32.store (i32.add (local.get $sc) (i32.const 20)) (i32.const 1))
 
-        ;; Retire all nodes in scope
+        ;; Retire all nodes in scope (capture next BEFORE $retire_node unlinks & reuses n+12!)
         (local.set $n (i32.load (i32.add (local.get $sc) (i32.const 12))))
         (block $bn
           (loop $ln
             (br_if $bn (i32.eqz (local.get $n)))
-            ;; If SPEC with activeChild, release replay deques!
+            (local.set $nextN (i32.load (i32.add (local.get $n) (i32.const 12))))
+            ;; If SPEC with activeChild, release replay deques and free activeChild!
             (if (i32.eq (i32.load (local.get $n)) (i32.const 12))
               (then
                 (local.set $ac (i32.load (i32.add (local.get $n) (i32.const 40))))
@@ -1493,21 +1940,24 @@
                         (br $lt)
                       )
                     )
+                    (i32.store (i32.add (local.get $n) (i32.const 40)) (i32.const 0))
+                    (call $spec_free_active (local.get $ac))
                   )
                 )
               )
             )
             (call $retire_node (local.get $n))
-            (local.set $n (i32.load (i32.add (local.get $n) (i32.const 12))))
+            (local.set $n (local.get $nextN))
             (br $ln)
           )
         )
 
-        ;; Release all channels still attached to this scope
+        ;; Release all channels still attached to this scope (capture next BEFORE $bd_release!)
         (local.set $ch (i32.load (i32.add (local.get $sc) (i32.const 16))))
         (block $bch
           (loop $lch
             (br_if $bch (i32.eqz (local.get $ch)))
+            (local.set $nextCh (i32.load (i32.add (local.get $ch) (i32.const 28))))
             (if (i32.eq (i32.load (i32.add (local.get $ch) (i32.const 24))) (local.get $sc))
               (then
                 (i32.store (i32.add (local.get $ch) (i32.const 16)) (i32.const 0))
@@ -1515,8 +1965,17 @@
                 (call $bd_release (local.get $ch))
               )
             )
-            (local.set $ch (i32.load (i32.add (local.get $ch) (i32.const 28))))
+            (local.set $ch (local.get $nextCh))
             (br $lch)
+          )
+        )
+
+        ;; Unlink child scopes from parent and defer-free them
+        (if (i32.ne (i32.load (local.get $sc)) (i32.const 0))
+          (then
+            (call $scope_unlink_child (local.get $sc))
+            (i32.store (i32.add (local.get $sc) (i32.const 8)) (global.get $g_dead_scopes))
+            (global.set $g_dead_scopes (local.get $sc))
           )
         )
         (local.set $i (i32.sub (local.get $i) (i32.const 1)))
@@ -1574,6 +2033,7 @@
 
   (func $emit_drain (param $sc i32) (param $src i32) (param $schemaId i32) (param $bar i32)
     (local $n i32)
+    (local $oldFirst i32)
     (local.set $n (call $node_alloc (local.get $sc) (i32.const 9) (i32.const 1) (i32.const 0)))
     (if (i32.eqz (local.get $n)) (then (return)))
     (call $node_set_in (local.get $n) (i32.const 0) (local.get $src))
@@ -1583,7 +2043,10 @@
     (if (i32.ne (local.get $bar) (i32.const 0))
       (then
         (i32.store (i32.add (local.get $bar) (i32.const 4)) (i32.add (i32.load (i32.add (local.get $bar) (i32.const 4))) (i32.const 1)))
-        (i32.store (i32.add (local.get $n) (i32.const 40)) (i32.load (i32.add (local.get $bar) (i32.const 8))))
+        (local.set $oldFirst (i32.load (i32.add (local.get $bar) (i32.const 8))))
+        (i32.store (i32.add (local.get $n) (i32.const 40)) (local.get $oldFirst))
+        (if (i32.ne (local.get $oldFirst) (i32.const 0))
+          (then (i32.store (i32.add (local.get $oldFirst) (i32.const 52)) (local.get $n))))
         (i32.store (i32.add (local.get $bar) (i32.const 8)) (local.get $n))
       )
     )
@@ -1775,6 +2238,7 @@
           (i32.eq (i32.load (local.get $ch)) (i32.const 2))
           (i32.gt_s (i32.load (i32.add (local.get $ch) (i32.const 44))) (i32.const 0)))
       (then (return (i32.const 2))))
+    (call $dpda_free (local.get $dpda))
     (i32.store (i32.add (local.get $ks) (i32.const 24)) (i32.const 0))
     ;; Mark input disowned and release
     (i32.store (i32.add (local.get $ks) (i32.const 32))
@@ -1808,6 +2272,7 @@
           (then (global.set $g_need_pull (local.get $src)) (return (i32.const 1))))
         (return (i32.const 2))))
     (if (i32.eq (local.get $res) (i32.const 2)) (then (return (i32.const 2))))
+    (call $dpda_free (local.get $dpda))
     (i32.store (i32.add (local.get $ks) (i32.const 24)) (i32.const 0))
     (i32.const 0)
   )
@@ -1836,6 +2301,7 @@
           (then (global.set $g_need_pull (local.get $src)) (return (i32.const 1))))
         (return (i32.const 2))))
     (if (i32.eq (local.get $res) (i32.const 2)) (then (return (i32.const 2))))
+    (call $dpda_free (local.get $dpda))
     (i32.store (i32.add (local.get $ks) (i32.const 24)) (i32.const 0))
     (i32.const 0)
   )
@@ -2533,6 +2999,7 @@
             (call $fail_remaining_demux (local.get $n) (local.get $fIdx))
             (return (i32.const 0))))
         (call $bd_close (local.get $dst))
+        (call $dpda_free (local.get $dpda))
         (i32.store (i32.add (local.get $n) (i32.const 40)) (i32.const 0))
         (i32.store (i32.add (local.get $n) (i32.const 36)) (i32.add (local.get $fIdx) (i32.const 1)))
         (br $lm)
@@ -2709,7 +3176,7 @@
         (block $bb
           (loop $lb
             (local.set $srcLen (i32.load (i32.add (local.get $src) (i32.const 44))))
-            (br_if $bb (i32.or (i32.le_s (local.get $srcLen) (i32.const 0)) (i32.ge_s (local.get $burst) (i32.const 256))))
+            (br_if $bb (i32.or (i32.le_s (local.get $srcLen) (i32.const 0)) (i32.ge_s (local.get $burst) (i32.const 4096))))
             (local.set $chunk (select (i32.const 30) (local.get $srcLen) (i32.gt_s (local.get $srcLen) (i32.const 30))))
             (local.set $bits (call $bd_shift_bits (local.get $src) (local.get $chunk)))
             (local.set $i (i32.const 0))
@@ -2914,9 +3381,17 @@
     (local.set $testedMask (i32.load (i32.add (local.get $desc) (i32.const 12))))
     (local.set $inspPtr (i32.load (i32.add (local.get $n) (i32.const 44))))
 
-    ;; Scratch tag array (reuse small stack/heap allocation only when needed)
-    (local.set $tagsPtr (call $alloc (i32.shl (local.get $numInsp) (i32.const 2))))
-    (if (i32.eqz (local.get $tagsPtr)) (then (return (i32.const 0))))
+    ;; Reusable global scratch tag array (zero per-step allocations!)
+    (if (i32.gt_s (local.get $numInsp) (global.get $g_sw_tags_cap))
+      (then
+        (call $free (global.get $g_sw_tags_ptr))
+        (global.set $g_sw_tags_cap (select (local.get $numInsp) (i32.const 16) (i32.gt_s (local.get $numInsp) (i32.const 16))))
+        (global.set $g_sw_tags_ptr (call $alloc (i32.shl (global.get $g_sw_tags_cap) (i32.const 2))))
+      )
+    )
+    (local.set $tagsPtr (global.get $g_sw_tags_ptr))
+    (if (i32.and (i32.gt_s (local.get $numInsp) (i32.const 0)) (i32.eqz (local.get $tagsPtr)))
+      (then (return (i32.const 0))))
 
     (local.set $j (i32.const 0))
     (block $bi
@@ -3001,6 +3476,7 @@
     (local $childCh i32)
     (local $replay i32)
     (local $len i32)
+    (local $burst i32)
     (local $chunk i32)
     (local $bits i32)
     (local.set $parentCh (i32.load (i32.add (local.get $n) (i32.const 32))))
@@ -3010,10 +3486,19 @@
     (local.set $len (i32.load (i32.add (local.get $parentCh) (i32.const 44))))
     (if (i32.gt_s (local.get $len) (i32.const 0))
       (then
-        (local.set $chunk (select (i32.const 30) (local.get $len) (i32.gt_s (local.get $len) (i32.const 30))))
-        (local.set $bits (call $bd_shift_bits (local.get $parentCh) (local.get $chunk)))
-        (call $bd_push_bits (local.get $replay) (local.get $bits) (local.get $chunk))
-        (call $bd_push_bits (local.get $childCh) (local.get $bits) (local.get $chunk))
+        (local.set $burst (i32.const 0))
+        (block $bt
+          (loop $lt
+            (local.set $len (i32.load (i32.add (local.get $parentCh) (i32.const 44))))
+            (br_if $bt (i32.or (i32.le_s (local.get $len) (i32.const 0)) (i32.ge_s (local.get $burst) (i32.const 4096))))
+            (local.set $chunk (select (i32.const 30) (local.get $len) (i32.gt_s (local.get $len) (i32.const 30))))
+            (local.set $bits (call $bd_shift_bits (local.get $parentCh) (local.get $chunk)))
+            (call $bd_push_bits (local.get $replay) (local.get $bits) (local.get $chunk))
+            (call $bd_push_bits (local.get $childCh) (local.get $bits) (local.get $chunk))
+            (local.set $burst (i32.add (local.get $burst) (local.get $chunk)))
+            (br $lt)
+          )
+        )
         (return (i32.const 0))))
 
     (if (i32.eq (i32.load (local.get $parentCh)) (i32.const 0))
@@ -3042,6 +3527,7 @@
     (local $inCnt i32)
     (local $outCnt i32)
     (local $i i32)
+    (local $j i32)
     (local $pIn i32)
     (local $pOut i32)
     (local $ac i32)
@@ -3093,7 +3579,17 @@
             (global.set $g_spec_upstream_aborts (i32.add (global.get $g_spec_upstream_aborts) (i32.const 1)))
             (local.set $ac (i32.load (i32.add (local.get $n) (i32.const 40))))
             (if (i32.ne (local.get $ac) (i32.const 0))
-              (then (call $scope_destroy (i32.load (local.get $ac)))))
+              (then
+                (local.set $taps (i32.load (i32.add (local.get $ac) (i32.const 4))))
+                (local.set $j (i32.const 0))
+                (block $bua0 (loop $lua0 (br_if $bua0 (i32.ge_s (local.get $j) (local.get $inCnt)))
+                  (call $bd_release (i32.load (i32.add (i32.add (local.get $taps) (i32.shl (local.get $j) (i32.const 4))) (i32.const 8))))
+                  (local.set $j (i32.add (local.get $j) (i32.const 1))) (br $lua0)))
+                (i32.store (i32.add (local.get $n) (i32.const 40)) (i32.const 0))
+                (call $scope_destroy (i32.load (local.get $ac)))
+                (call $spec_free_active (local.get $ac))
+              )
+            )
             (call $retire_node (local.get $n))
             (local.set $i (i32.const 0))
             (block $buf (loop $luf (br_if $buf (i32.ge_s (local.get $i) (local.get $outCnt)))
@@ -3121,6 +3617,7 @@
               (then (memory.copy (i32.add (local.get $env) (i32.shl (local.get $inCnt) (i32.const 2))) (i32.load (i32.add (local.get $n) (i32.const 24))) (i32.shl (local.get $outCnt) (i32.const 2)))))
             (call $retire_node (local.get $n))
             (call_indirect (type $block_fn) (local.get $sc) (local.get $env) (local.get $fnIdx))
+            (call $free (local.get $env))
             (return (i32.const 0))))
 
         ;; Speculative branch i < k - 1: create child scope + TAPs + staging outputs
@@ -3146,10 +3643,14 @@
             (i32.store (i32.add (local.get $tapNode) (i32.const 36)) (local.get $replay))
             (i32.store (i32.add (local.get $pIn) (i32.const 20)) (local.get $tapNode))
             (local.set $te (i32.add (local.get $taps) (i32.shl (local.get $i) (i32.const 4))))
+            (call $chan_pin (local.get $pIn))
+            (call $chan_pin (local.get $childIn))
+            (call $chan_pin (local.get $replay))
             (i32.store (local.get $te) (local.get $pIn))
             (i32.store (i32.add (local.get $te) (i32.const 4)) (local.get $childIn))
             (i32.store (i32.add (local.get $te) (i32.const 8)) (local.get $replay))
             (i32.store (i32.add (local.get $te) (i32.const 12)) (local.get $tapNode))
+            (i32.store (i32.add (local.get $tapNode) (i32.const 60)) (i32.add (i32.load (i32.add (local.get $tapNode) (i32.const 60))) (i32.const 1)))
             (i32.store (i32.add (local.get $env) (i32.shl (local.get $i) (i32.const 2))) (local.get $childIn))
             (local.set $i (i32.add (local.get $i) (i32.const 1)))
             (br $lt1)
@@ -3163,6 +3664,8 @@
             (local.set $pOut (call $node_get_out (local.get $n) (local.get $i)))
             (local.set $childOut (call $chan_alloc (local.get $childSc) (i32.load (i32.add (local.get $pOut) (i32.const 4)))))
             (local.set $se (i32.add (local.get $staged) (i32.shl (local.get $i) (i32.const 3))))
+            (call $chan_pin (local.get $childOut))
+            (call $chan_pin (local.get $pOut))
             (i32.store (local.get $se) (local.get $childOut))
             (i32.store (i32.add (local.get $se) (i32.const 4)) (local.get $pOut))
             (i32.store (i32.add (local.get $env) (i32.shl (i32.add (local.get $inCnt) (local.get $i)) (i32.const 2))) (local.get $childOut))
@@ -3180,6 +3683,7 @@
 
         (local.set $fnIdx (i32.load (i32.add (i32.add (local.get $desc) (i32.const 4)) (i32.shl (local.get $brIdx) (i32.const 2)))))
         (call_indirect (type $block_fn) (local.get $childSc) (local.get $env) (local.get $fnIdx))
+        (call $free (local.get $env))
       )
     )
 
@@ -3238,6 +3742,7 @@
               (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $lua)))
             (i32.store (i32.add (local.get $n) (i32.const 40)) (i32.const 0))
             (call $scope_destroy (local.get $childSc))
+            (call $spec_free_active (local.get $ac))
             (call $retire_node (local.get $n))
             (local.set $i (i32.const 0))
             (block $bua2 (loop $lua2 (br_if $bua2 (i32.ge_s (local.get $i) (local.get $outCnt)))
@@ -3267,6 +3772,7 @@
           (call $bd_release (local.get $replay))
           (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $lrb2)))
 
+        (call $spec_free_active (local.get $ac))
         (i32.store (i32.add (local.get $n) (i32.const 36)) (i32.add (local.get $brIdx) (i32.const 1)))
         (return (i32.const 0))
       )
@@ -3291,7 +3797,7 @@
         (local.set $i (i32.const 0))
         (block $bcm2 (loop $lcm2 (br_if $bcm2 (i32.ge_s (local.get $i) (local.get $outCnt)))
           (local.set $childOut (i32.load (i32.add (local.get $staged) (i32.shl (local.get $i) (i32.const 3)))))
-          (i32.store (i32.add (local.get $childOut) (i32.const 24)) (i32.const 0))
+          (call $scope_unlink_chan (local.get $childOut))
           (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $lcm2)))
 
         (i32.store (i32.add (local.get $n) (i32.const 40)) (i32.const 0))
@@ -3304,6 +3810,7 @@
           (local.set $i (i32.add (local.get $i) (i32.const 1))) (br $lcm3)))
 
         (call $scope_destroy (local.get $childSc))
+        (call $spec_free_active (local.get $ac))
         (return (i32.const 0))
       )
     )
@@ -3345,6 +3852,19 @@
           )
         )
         (i32.store (local.get $tok) (i32.const 1))
+        ;; Unpin settled token outputs and free token output array
+        (local.set $i (i32.const 0))
+        (block $btu
+          (loop $ltu
+            (br_if $btu (i32.ge_s (local.get $i) (local.get $tokOutCnt)))
+            (call $chan_unpin (i32.load (i32.add (local.get $tokOutPtr) (i32.shl (local.get $i) (i32.const 2)))))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br $ltu)
+          )
+        )
+        (call $free (local.get $tokOutPtr))
+        (i32.store (i32.add (local.get $tok) (i32.const 4)) (i32.const 0))
+        (i32.store (i32.add (local.get $tok) (i32.const 8)) (i32.const 0))
         (global.set $g_after_settlements (i32.add (global.get $g_after_settlements) (i32.const 1)))
       )
     )
@@ -3361,6 +3881,7 @@
 
     (call $retire_node (local.get $n))
     (call_indirect (type $block_fn) (local.get $sc) (local.get $env) (local.get $fnIdx))
+    (call $free (local.get $env))
     (i32.const 0)
   )
 
@@ -3441,14 +3962,45 @@
         (if (i32.eqz (local.get $newP)) (then (return)))
         (if (i32.gt_s (local.get $len) (i32.const 0))
           (then (memory.copy (local.get $newP) (local.get $p) (i32.shl (local.get $len) (i32.const 3)))))
+        (call $free (local.get $p))
         (local.set $p (local.get $newP))
         (global.set $g_dstack_ptr (local.get $p))
         (global.set $g_dstack_cap (local.get $newCap))
       )
     )
+    (if (i32.eqz (local.get $kind))
+      (then (call $chan_pin (local.get $ptr)))
+      (else (i32.store (i32.add (local.get $ptr) (i32.const 60)) (i32.add (i32.load (i32.add (local.get $ptr) (i32.const 60))) (i32.const 1)))))
     (i32.store (i32.add (local.get $p) (i32.shl (local.get $len) (i32.const 3))) (local.get $kind))
     (i32.store (i32.add (i32.add (local.get $p) (i32.shl (local.get $len) (i32.const 3))) (i32.const 4)) (local.get $ptr))
     (global.set $g_dstack_len (i32.add (local.get $len) (i32.const 1)))
+  )
+
+  (func $dstack_pop
+    (local $len i32)
+    (local $addr i32)
+    (local $kind i32)
+    (local $ptr i32)
+    (local.set $len (global.get $g_dstack_len))
+    (if (i32.le_s (local.get $len) (i32.const 0)) (then (return)))
+    (local.set $len (i32.sub (local.get $len) (i32.const 1)))
+    (global.set $g_dstack_len (local.get $len))
+    (local.set $addr (i32.add (global.get $g_dstack_ptr) (i32.shl (local.get $len) (i32.const 3))))
+    (local.set $kind (i32.load (local.get $addr)))
+    (local.set $ptr (i32.load (i32.add (local.get $addr) (i32.const 4))))
+    (if (i32.eqz (local.get $kind))
+      (then (call $chan_unpin (local.get $ptr)))
+      (else (call $node_unpin (local.get $ptr))))
+  )
+
+  (func $dstack_clear
+    (block $bc
+      (loop $lc
+        (br_if $bc (i32.le_s (global.get $g_dstack_len) (i32.const 0)))
+        (call $dstack_pop)
+        (br $lc)
+      )
+    )
   )
 
   (func $drive_to_completion (param $rootOut i32)
@@ -3466,12 +4018,19 @@
         (if (i32.eqz (i32.load (i32.add (local.get $rootOut) (i32.const 16))))
           (then
             (global.set $g_error_code (i32.const -7))
+            (call $dstack_clear)
             (return)))
-        (global.set $g_dstack_len (i32.const 0))
+        (call $dstack_clear)
         (call $dstack_push (i32.const 0) (local.get $rootOut))
 
         (block $binner
           (loop $linner
+            ;; Safepoint: reclaim retired nodes, released channels, and destroyed child scopes
+            (if (i32.or
+                  (i32.or (i32.ne (global.get $g_dead_nodes) (i32.const 0)) (i32.ne (global.get $g_dead_chans) (i32.const 0)))
+                  (i32.ne (global.get $g_dead_scopes) (i32.const 0)))
+              (then (call $flush_dead)))
+
             (br_if $binner (i32.ne (global.get $g_error_code) (i32.const 0)))
             (br_if $binner (i32.le_s (global.get $g_dstack_len) (i32.const 0)))
             (local.set $topAddr (i32.add (global.get $g_dstack_ptr) (i32.shl (i32.sub (global.get $g_dstack_len) (i32.const 1)) (i32.const 3))))
@@ -3484,7 +4043,7 @@
                 (if (i32.or (i32.ne (i32.load (local.get $topPtr)) (i32.const 0))
                       (i32.eqz (i32.load (i32.add (local.get $topPtr) (i32.const 16)))))
                   (then
-                    (global.set $g_dstack_len (i32.sub (global.get $g_dstack_len) (i32.const 1)))
+                    (call $dstack_pop)
                     (br $linner)))
                 (local.set $targetNode (i32.load (i32.add (local.get $topPtr) (i32.const 16))))
               )
@@ -3492,7 +4051,7 @@
                 ;; Node frame
                 (if (i32.ne (i32.load (i32.add (local.get $topPtr) (i32.const 4))) (i32.const 0))
                   (then
-                    (global.set $g_dstack_len (i32.sub (global.get $g_dstack_len) (i32.const 1)))
+                    (call $dstack_pop)
                     (br $linner)))
                 (local.set $targetNode (local.get $topPtr))
               )
@@ -3508,6 +4067,7 @@
                       (i32.eqz (i32.load (i32.add (local.get $pullCh) (i32.const 16)))))
                   (then
                     (global.set $g_error_code (i32.const -7))
+                    (call $dstack_clear)
                     (return)))
                 (call $dstack_push (i32.const 0) (local.get $pullCh))
                 (br $linner)))
@@ -3519,7 +4079,7 @@
 
             (if (i32.eq (local.get $outcome) (i32.const 2))
               (then
-                (global.set $g_dstack_len (i32.sub (global.get $g_dstack_len) (i32.const 1)))
+                (call $dstack_pop)
                 (br $linner)))
 
             ;; Normal progress
@@ -3528,11 +4088,11 @@
                 (if (i32.or (i32.ne (i32.load (local.get $topPtr)) (i32.const 0))
                       (i32.and (i32.gt_s (global.get $g_dstack_len) (i32.const 1))
                         (i32.gt_s (i32.load (i32.add (local.get $topPtr) (i32.const 44))) (i32.const 0))))
-                  (then (global.set $g_dstack_len (i32.sub (global.get $g_dstack_len) (i32.const 1)))))
+                  (then (call $dstack_pop)))
               )
               (else
                 (if (i32.ne (i32.load (i32.add (local.get $topPtr) (i32.const 4))) (i32.const 0))
-                  (then (global.set $g_dstack_len (i32.sub (global.get $g_dstack_len) (i32.const 1)))))
+                  (then (call $dstack_pop)))
               )
             )
             (br $linner)
@@ -3541,6 +4101,7 @@
         (br $louter)
       )
     )
+    (call $dstack_clear)
   )
 
   ;; Bulk load raw bytes into a BitDeque starting at `bitOffset` for `totalBits` bits
@@ -3697,7 +4258,13 @@
     (global.set $g_sc_stk_ptr (i32.const 0))
     (global.set $g_sc_ord_ptr (i32.const 0))
     (global.set $g_sc_cap (i32.const 0))
-    (global.set $g_buf_fl_ptr (call $alloc (i32.const 64)))
+    (global.set $g_slab_fl_ptr (i32.const 0))
+    (global.set $g_dead_nodes (i32.const 0))
+    (global.set $g_dead_chans (i32.const 0))
+    (global.set $g_dead_scopes (i32.const 0))
+    (global.set $g_sw_tags_ptr (i32.const 0))
+    (global.set $g_sw_tags_cap (i32.const 0))
+    (global.set $g_slab_fl_ptr (call $alloc (i32.const 68)))
   )
 
   ;; Run entry on raw payload bits at `(inPtr, inBitOff, inBitLen)`, optionally validating exact
@@ -3731,6 +4298,7 @@
         (if (i32.ne (global.get $g_error_code) (i32.const 0)) (then (return (global.get $g_error_code))))
         (local.set $dpda (call $dpda_alloc (i32.const 1) (global.get $DATA_IN_SCHEMA_ID) (i32.const 0)))
         (local.set $res (call $dpda_step_skip_copy (local.get $rawCh) (local.get $rootIn) (local.get $dpda)))
+        (call $dpda_free (local.get $dpda))
         (if (i32.ne (local.get $res) (i32.const 0)) (then (return (i32.const -6))))
         (local.set $rem (i32.load (i32.add (local.get $rawCh) (i32.const 44))))
         (if (i32.ge_s (local.get $rem) (i32.const 8)) (then (return (i32.const -6))))

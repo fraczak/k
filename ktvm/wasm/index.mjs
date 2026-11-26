@@ -179,6 +179,7 @@ export async function instantiateKTVMWasm(artifact, { quota = null } = {}) {
     if (code === -4) throw new KTVMQuotaError("maxBitDequeBytes", limits.maxBytes, ktvm_get_peak_bytes());
     if (code === -6) throw new Error("Malformed k-wire envelope payload (truncated, invalid ordinal, or nonzero padding)");
     if (code === -7) throw new Error("kTVM Wasm invariant violation: deadlock on unproduced channel");
+    if (code === -8) throw new RangeError("kTVM Wasm out of linear memory (arena exhausted)");
     throw new Error(`kTVM Wasm execution failed with error code ${code}`);
   }
 
@@ -240,7 +241,7 @@ export async function instantiateKTVMWasm(artifact, { quota = null } = {}) {
       const needed = inAligned + outCap;
       if (needed > reservedIoBytes) {
         const resBase = ktvm_reserve_io(needed);
-        if (!resBase) throw new KTVMQuotaError("maxBitDequeBytes", needed, defaultMaxBytes);
+        if (!resBase) throw new RangeError(`kTVM Wasm failed to reserve ${needed} bytes for I/O buffer`);
         reservedIoBytes = needed;
       }
 

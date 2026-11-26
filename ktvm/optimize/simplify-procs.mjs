@@ -1374,33 +1374,352 @@ function hasUngatedDrainOf(stmts, chanName) {
   return false;
 }
 
-function compileSpecsToSwitches(mod, resolvePlist, totalProcs, { maxCols = 4, maxGrid = 64, maxSwitchArms = 24 } = {}) {
+function compileSpecsToSwitches(
+  mod,
+  resolvePlist,
+  totalProcs,
+  freshBox = { seq: 0 },
+  { maxCols = 4, maxGrid = 64, maxSwitchArms = 24 } = {}
+) {
   const kernelMap = new Map((mod.kernels || []).map((k) => [k.name, k]));
   let converted = 0;
+  const nextFresh = (prefix) => `%${prefix}_${freshBox.seq++}`;
 
-  function rewriteBlock(stmts, outerTypes) {
+  function freshenBodyLocals(stmts) {
+    const { chanSet, barSet, tokSet } = collectLocalDeclsDeep(stmts);
+    if (chanSet.size === 0 && barSet.size === 0 && tokSet.size === 0) return cloneAst(stmts);
+    const chanMap = new Map();
+    const barMap = new Map();
+    const tokMap = new Map();
+    for (const c of chanSet) chanMap.set(c, nextFresh("sp"));
+    for (const b of barSet) barMap.set(b, nextFresh("spb"));
+    for (const t of tokSet) tokMap.set(t, nextFresh("spt"));
+    return renameStmtRefs(cloneAst(stmts), chanMap, barMap, tokMap);
+  }
+
+  function specializeBranchForTag(body, chanName, tag) {
+    const out = [];
+    for (const s of body) {
+      if (s.op === "switch") {
+        const col = s.inputs.indexOf(chanName);
+        if (col !== -1) {
+          const matchingArms = [];
+          let anyTagTested = false;
+          for (const arm of s.arms) {
+            const p = arm.patterns[col];
+            if (p.kind === "tag") {
+              anyTagTested = true;
+              if (p.tag !== tag) continue;
+              matchingArms.push({
+                ...arm,
+                patterns: arm.patterns.map((x, j) => (j === col ? { kind: "wild" } : x))
+              });
+            } else {
+              matchingArms.push(arm);
+            }
+          }
+          if (anyTagTested) {
+            if (matchingArms.length > 0 && matchingArms[0].patterns.every((p) => p.kind === "wild")) {
+              out.push(...freshenBodyLocals(matchingArms[0].body));
+              continue;
+            }
+            if (matchingArms.length === 0 && s.defaultBody) {
+              out.push(...freshenBodyLocals(s.defaultBody));
+              continue;
+            }
+          }
+        }
+      }
+      out.push(cloneAst(s));
+    }
+    return out;
+  }
+
+  function countChanRefsDeep(stmts, chanName) {
+    let count = 0;
+    const visit = (list) => {
+      for (const s of list || []) {
+        switch (s.op) {
+          case "drain": if (s.src === chanName) count++; break;
+          case "gate":
+          case "splice":
+          case "coerce":
+          case "wrap":
+          case "match":
+            if (s.src === chanName) count++;
+            if (s.dst === chanName) count++;
+            break;
+          case "const_unit":
+            if (s.dst === chanName) count++;
+            break;
+          case "tee":
+            if (s.src === chanName) count++;
+            for (const d of s.dsts) if (d === chanName) count++;
+            break;
+          case "demux":
+            if (s.src === chanName) count++;
+            for (const f of s.fields) if (f.name === chanName) count++;
+            break;
+          case "mux":
+            if (s.dst === chanName) count++;
+            for (const f of s.fields) if (f.name === chanName) count++;
+            break;
+          case "spawn":
+          case "exec":
+            for (const v of s.inputs) if (v === chanName) count++;
+            for (const v of s.outputs) if (v === chanName) count++;
+            break;
+          case "switch":
+            for (const v of s.inputs) if (v === chanName) count++;
+            for (const a of s.arms) visit(a.body);
+            if (s.defaultBody) visit(s.defaultBody);
+            break;
+          case "spec":
+            for (const v of s.inputs) if (v === chanName) count++;
+            for (const v of s.outputs) if (v === chanName) count++;
+            for (const b of s.branches) visit(b.body);
+            break;
+        }
+      }
+    };
+    visit(stmts);
+    return count;
+  }
+
+  function tryPeelCommonMatchDemux(survBodies, chanName, tag, specTypes, specExprs) {
+    // Every surviving branch must have a single top-level `match /tag chanName -> %m_b`
+    // and no other references to `chanName`!
+    const matchInfo = [];
+    for (const body of survBodies) {
+      if (countChanRefsDeep(body, chanName) !== 1) return null;
+      const mIdx = body.findIndex((s) => s.op === "match" && s.src === chanName && s.tag === tag);
+      if (mIdx === -1) return null;
+      const dst = body[mIdx].dst;
+      const declIdx = body.findIndex((s) => s.op === "chan" && s.name === dst);
+      if (declIdx === -1) return null;
+      matchInfo.push({ mIdx, declIdx, dst, dstSchema: body[declIdx].schema });
+    }
+
+    const sharedM = nextFresh("pm");
+    const mSchemaExpr = cloneAst(matchInfo[0].dstSchema);
+    const mPlist = resolvePlist(mSchemaExpr);
+
+    const peeledStmts = [
+      { op: "chan", name: sharedM, schema: mSchemaExpr },
+      { op: "match", tag, src: chanName, dst: sharedM }
+    ];
+
+    let strippedBodies = survBodies.map((body, idx) => {
+      const { mIdx, declIdx, dst } = matchInfo[idx];
+      const filtered = body.filter((_, i) => i !== mIdx && i !== declIdx);
+      return renameStmtRefs(filtered, new Map([[dst, sharedM]]));
+    });
+
+    // Optionally peel a common top-level `demux sharedM : S -> (...)` if every branch does it!
+    const newInputEntries = [];
+    if (mPlist && mPlist[0]?.[0] === "closed-product") {
+      const demuxInfo = [];
+      let allDemux = true;
+      for (const body of strippedBodies) {
+        if (countChanRefsDeep(body, sharedM) !== 1) {
+          allDemux = false;
+          break;
+        }
+        const dIdx = body.findIndex((s) => s.op === "demux" && s.src === sharedM);
+        if (dIdx === -1) {
+          allDemux = false;
+          break;
+        }
+        const ds = body[dIdx];
+        const fieldDeclIdxs = [];
+        const fieldSchemas = new Map();
+        for (const f of ds.fields) {
+          const fDecl = body.findIndex((s) => s.op === "chan" && s.name === f.name);
+          if (fDecl === -1) {
+            allDemux = false;
+            break;
+          }
+          fieldDeclIdxs.push(fDecl);
+          fieldSchemas.set(f.label, { oldName: f.name, schema: body[fDecl].schema });
+        }
+        if (!allDemux) break;
+        demuxInfo.push({ dIdx, ds, fieldDeclIdxs: new Set(fieldDeclIdxs), fieldSchemas });
+      }
+
+      if (allDemux && demuxInfo.length === strippedBodies.length && demuxInfo[0].ds.fields.length > 0) {
+        const refFields = demuxInfo[0].ds.fields;
+        const sharedByLabel = new Map();
+        const demuxFieldsOut = [];
+        for (const f of refFields) {
+          const sf = nextFresh("pf");
+          const fSchema = cloneAst(demuxInfo[0].fieldSchemas.get(f.label).schema);
+          sharedByLabel.set(f.label, sf);
+          peeledStmts.push({ op: "chan", name: sf, schema: fSchema });
+          demuxFieldsOut.push({ label: f.label, name: sf });
+          newInputEntries.push({ name: sf, plist: resolvePlist(fSchema), schema: fSchema });
+        }
+        peeledStmts.push({
+          op: "demux",
+          src: sharedM,
+          schema: cloneAst(demuxInfo[0].ds.schema),
+          fields: demuxFieldsOut
+        });
+        strippedBodies = strippedBodies.map((body, idx) => {
+          const { dIdx, fieldDeclIdxs, fieldSchemas } = demuxInfo[idx];
+          const filtered = body.filter((_, i) => i !== dIdx && !fieldDeclIdxs.has(i));
+          const cmap = new Map();
+          for (const [lbl, sf] of sharedByLabel.entries()) {
+            cmap.set(fieldSchemas.get(lbl).oldName, sf);
+          }
+          return renameStmtRefs(filtered, cmap);
+        });
+      }
+    }
+
+    if (newInputEntries.length === 0) {
+      newInputEntries.push({ name: sharedM, plist: mPlist, schema: mSchemaExpr });
+    }
+
+    return { peeledStmts, strippedBodies, newInputEntries };
+  }
+
+  function trySplitSpecByUnionInput(spec, specTypes, specExprs, depth = 0) {
+    if (depth >= 4 || spec.branches.length < 2) return null;
+    const specInputSet = new Set(spec.inputs);
+    const branchGuards = spec.branches.map((b) => extractBranchGuards(b.body, specInputSet, specTypes));
+
+    // Only split on a closed-union input unconditionally constrained by branch 0
+    // (guarantees peeking the tag preserves exact demand/termination order).
+    let chosenCol = null;
+    let chosenTags = null;
+    for (const inp of spec.inputs) {
+      const allTags = unionTagsOf(specTypes.get(inp));
+      if (!allTags || allTags.length === 0 || allTags.length > 16) continue;
+      const g0 = branchGuards[0].get(inp);
+      if (!g0 || g0.size >= allTags.length) continue;
+      if (spec.branches.some((br) => hasUngatedDrainOf(br.body, inp))) continue;
+      chosenCol = inp;
+      chosenTags = allTags;
+      break;
+    }
+    if (!chosenCol) return null;
+
+    const arms = [];
+    let madeProgress = false;
+
+    for (const tag of chosenTags) {
+      const survIndices = [];
+      for (let b = 0; b < spec.branches.length; b++) {
+        const gb = branchGuards[b].get(chosenCol);
+        if (!gb || gb.has(tag)) survIndices.push(b);
+      }
+      if (survIndices.length === 0) {
+        madeProgress = true;
+        continue;
+      }
+
+      const survBodies = survIndices.map((b) =>
+        specializeBranchForTag(spec.branches[b].body, chosenCol, tag)
+      );
+
+      if (survBodies.length === 1) {
+        madeProgress = true;
+        arms.push({
+          patterns: [{ kind: "tag", tag }],
+          body: rewriteBlock(survBodies[0], specTypes, specExprs)
+        });
+        continue;
+      }
+
+      if (survBodies.length < spec.branches.length) madeProgress = true;
+
+      // Try peeling common leading `match /tag %c` (+ optional `demux`) out of surviving branches
+      const peeled = tryPeelCommonMatchDemux(survBodies, chosenCol, tag, specTypes, specExprs);
+      if (peeled) {
+        const innerInputs = [];
+        for (const v of spec.inputs) {
+          if (v !== chosenCol) innerInputs.push(v);
+        }
+        const innerTypes = new Map(specTypes);
+        const innerExprs = new Map(specExprs);
+        for (const e of peeled.newInputEntries) {
+          innerInputs.push(e.name);
+          innerTypes.set(e.name, e.plist);
+          innerExprs.set(e.name, e.schema);
+        }
+        const innerSpec = {
+          op: "spec",
+          inputs: innerInputs,
+          outputs: spec.outputs.slice(),
+          branches: peeled.strippedBodies.map((body, idx) => ({
+            index: idx,
+            body
+          }))
+        };
+        const compiledInner =
+          tryCompileSpec(innerSpec, innerTypes) ||
+          trySplitSpecByUnionInput(innerSpec, innerTypes, innerExprs, depth + 1);
+        if (compiledInner) madeProgress = true;
+        arms.push({
+          patterns: [{ kind: "tag", tag }],
+          body: [...peeled.peeledStmts, compiledInner || innerSpec]
+        });
+      } else {
+        const innerSpec = {
+          op: "spec",
+          inputs: spec.inputs.slice(),
+          outputs: spec.outputs.slice(),
+          branches: survBodies.map((body, idx) => ({ index: idx, body }))
+        };
+        const compiledInner = tryCompileSpec(innerSpec, specTypes);
+        if (compiledInner) madeProgress = true;
+        arms.push({
+          patterns: [{ kind: "tag", tag }],
+          body: [compiledInner || innerSpec]
+        });
+      }
+    }
+
+    if (!madeProgress || arms.length === 0) return null;
+    return {
+      op: "switch",
+      inputs: [chosenCol],
+      arms,
+      defaultBody: null
+    };
+  }
+
+  function rewriteBlock(stmts, outerTypes, outerExprs) {
     const types = new Map(outerTypes);
+    const exprs = new Map(outerExprs);
     for (const s of stmts || []) {
-      if (s.op === "chan") types.set(s.name, resolvePlist(s.schema));
+      if (s.op === "chan") {
+        types.set(s.name, resolvePlist(s.schema));
+        exprs.set(s.name, s.schema);
+      }
     }
 
     return (stmts || []).map((s) => {
       if (s.op === "switch") {
         return {
           ...s,
-          arms: s.arms.map((a) => ({ ...a, body: rewriteBlock(a.body, types) })),
-          defaultBody: s.defaultBody ? rewriteBlock(s.defaultBody, types) : null
+          arms: s.arms.map((a) => ({ ...a, body: rewriteBlock(a.body, types, exprs) })),
+          defaultBody: s.defaultBody ? rewriteBlock(s.defaultBody, types, exprs) : null
         };
       }
       if (s.op !== "spec") return s;
 
       // Recurse into branches first
       const specTypes = new Map();
-      for (const v of [...s.inputs, ...s.outputs]) specTypes.set(v, types.get(v));
-      const branches = s.branches.map((b) => ({ ...b, body: rewriteBlock(b.body, specTypes) }));
+      const specExprs = new Map();
+      for (const v of [...s.inputs, ...s.outputs]) {
+        specTypes.set(v, types.get(v));
+        specExprs.set(v, exprs.get(v));
+      }
+      const branches = s.branches.map((b) => ({ ...b, body: rewriteBlock(b.body, specTypes, specExprs) }));
       const specStmt = { ...s, branches };
 
-      const sw = tryCompileSpec(specStmt, specTypes);
+      const sw = tryCompileSpec(specStmt, specTypes) || trySplitSpecByUnionInput(specStmt, specTypes, specExprs);
       if (sw) {
         converted += 1;
         return sw;
@@ -1575,9 +1894,16 @@ function compileSpecsToSwitches(mod, resolvePlist, totalProcs, { maxCols = 4, ma
 
   const procs = (mod.procs || []).map((proc) => {
     const outerTypes = new Map();
-    for (const p of proc.inputs) outerTypes.set(p.name, resolvePlist(p.schema));
-    for (const p of proc.outputs) outerTypes.set(p.name, resolvePlist(p.schema));
-    return { ...proc, body: rewriteBlock(proc.body, outerTypes) };
+    const outerExprs = new Map();
+    for (const p of proc.inputs) {
+      outerTypes.set(p.name, resolvePlist(p.schema));
+      outerExprs.set(p.name, p.schema);
+    }
+    for (const p of proc.outputs) {
+      outerTypes.set(p.name, resolvePlist(p.schema));
+      outerExprs.set(p.name, p.schema);
+    }
+    return { ...proc, body: rewriteBlock(proc.body, outerTypes, outerExprs) };
   });
 
   return { module: { ...mod, procs }, converted };
@@ -2045,7 +2371,7 @@ export function simplifyProcs(
 
   if (specToSwitch) {
     totalProcs = computeTotalProcs(cur, resolvePlist);
-    const sw = compileSpecsToSwitches(cur, resolvePlist, totalProcs);
+    const sw = compileSpecsToSwitches(cur, resolvePlist, totalProcs, freshBox);
     cur = sw.module;
     specsConverted += sw.converted;
 

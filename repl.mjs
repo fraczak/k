@@ -1620,7 +1620,13 @@ async function executeExpressionWithKTVM(annotated, state, lineOffset = 0) {
     validate: true,
     verifyTables: true
   });
-  const runner = await instantiateKTVMWasm(artifact);
+  const runner = await instantiateKTVMWasm(artifact, {
+    quota: {
+      maxSteps: 1_000_000_000,
+      maxNodes: 2_000_000,
+      maxBitDequeBytes: 256 * 1024 * 1024
+    }
+  });
   const wasmCompileMs = performance.now() - wasmCompileStart;
 
   const inputWire = encodeValueToEnvelopedWire(inputValue, inputPlist);

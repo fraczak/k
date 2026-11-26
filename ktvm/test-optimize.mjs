@@ -362,6 +362,19 @@ test("simplifyProcs: helper inlining, O(N^2) tee->demux collapse, spec->switch, 
   assert.equal(res.status, "OK");
   assert.equal(res.telemetry.specRollbacks, 0, "integer.plus must execute with 0 speculative rollbacks");
   assert.ok(res.telemetry.tableLookups >= 10, "extracted lsb_add_loop chunk_table must fire");
+
+  // Karatsuba `times`: nested spec on (_k_state -> /apply -> .stack /nil vs /cons) must split cleanly to switch!
+  const timesPat = relationPatternPropertyList(integerLib.rels[integerLib.relAlias.times], 0);
+  const timesComp = compileKIRToKTVM(integerLib, "times", timesPat);
+  const timesOpt = optimizeKTVM(timesComp.module, { budgetBytes: DEFAULT_L1_BUDGET_BYTES, verifyTables: true });
+  const bigMul = Value.product({
+    x: parseIntVal("98765432109876543210"),
+    y: parseIntVal("12345678901234567890")
+  });
+  const mulWire = encodeToWire(bigMul, timesPat);
+  const mulRes = executeKTVMWire(timesOpt.module, mulWire, { entry: timesComp.entry, validate: false });
+  assert.equal(mulRes.status, "OK");
+  assert.equal(mulRes.telemetry.specRollbacks, 0, "integer.times Karatsuba loop must execute with 0 speculative rollbacks");
 });
 
 // --- Summary ---
