@@ -95,6 +95,7 @@ export {
   computeMWTR,
   budgetClassForBytes,
   allocateTableBudgets,
+  simplifyProcs,
   fuseKernels,
   synthesizeTables,
   optimizeKTVM

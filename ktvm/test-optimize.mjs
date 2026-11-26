@@ -334,6 +334,36 @@ test("Graceful wide-alphabet fallback on lib/djson.k parse_json stays strictly i
   }
 });
 
+test("simplifyProcs: helper inlining, O(N^2) tee->demux collapse, spec->switch, and loop-kernel extraction on lib/integer.k", () => {
+  codes.load(integerLib.codes);
+  const plusPat = relationPatternPropertyList(integerLib.rels[integerLib.relAlias.plus], 0);
+  const plusComp = compileKIRToKTVM(integerLib, "plus", plusPat);
+  const plusOpt = optimizeKTVM(plusComp.module, { budgetBytes: DEFAULT_L1_BUDGET_BYTES, verifyTables: true });
+
+  assert.ok(plusOpt.stats.simplify.inlinedCalls >= 1, "must inline small acyclic helpers");
+  assert.ok(plusOpt.stats.simplify.teeDemuxCollapses >= 2, "must collapse O(N^2) tee->demux projections");
+  assert.ok(plusOpt.stats.simplify.specsConverted >= 2, "must compile deterministic lsb_add/lsb_sub specs to switch");
+  assert.ok(plusOpt.stats.simplify.loopsExtracted >= 2, "must extract pure loop kernels for lsb_add/lsb_sub");
+  assert.ok(
+    plusOpt.module.tables.some((t) => t.kind === "chunk_table" && t.name.includes("lsb_add")),
+    "must synthesize bisimulation-verified chunk_table for lib/integer.k lsb_add_loop"
+  );
+  assert.ok(
+    plusOpt.module.tables.some((t) => t.kind === "chunk_table" && t.name.includes("lsb_sub")),
+    "must synthesize bisimulation-verified chunk_table for lib/integer.k lsb_sub_loop"
+  );
+
+  const bigAdd = Value.product({
+    x: parseIntVal(String((1n << 127n) - 37n)),
+    y: parseIntVal(String((1n << 127n) - 19n))
+  });
+  const wire = encodeToWire(bigAdd, plusPat);
+  const res = executeKTVMWire(plusOpt.module, wire, { entry: plusComp.entry, validate: false });
+  assert.equal(res.status, "OK");
+  assert.equal(res.telemetry.specRollbacks, 0, "integer.plus must execute with 0 speculative rollbacks");
+  assert.ok(res.telemetry.tableLookups >= 10, "extracted lsb_add_loop chunk_table must fire");
+});
+
 // --- Summary ---
 console.log(`\nMilestone 3 Optimizer Results: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

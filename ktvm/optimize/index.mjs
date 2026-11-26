@@ -13,6 +13,7 @@
  */
 
 import { validateModule } from "../validator.mjs";
+import { simplifyProcs } from "./simplify-procs.mjs";
 import { fuseKernels } from "./fuse-kernel.mjs";
 import { synthesizeTables } from "./synthesize-tables.mjs";
 import {
@@ -27,6 +28,7 @@ export {
   computeMWTR,
   budgetClassForBytes,
   allocateTableBudgets,
+  simplifyProcs,
   fuseKernels,
   synthesizeTables
 };
@@ -38,6 +40,7 @@ export {
 export function optimizeKTVM(
   monoModule,
   {
+    simplify = true,
     fuse = true,
     tables = true,
     budgetBytes = DEFAULT_L1_BUDGET_BYTES,
@@ -49,8 +52,15 @@ export function optimizeKTVM(
   } = {}
 ) {
   let cur = monoModule;
+  let simplifyStats = null;
   let fuseStats = null;
   let tableStats = null;
+
+  if (simplify) {
+    const s = simplifyProcs(cur);
+    cur = s.module;
+    simplifyStats = s.stats;
+  }
 
   if (fuse) {
     const f = fuseKernels(cur, { maxDecisionNodes, maxUnionTags, enableVirtualStack });
@@ -74,6 +84,7 @@ export function optimizeKTVM(
   return {
     module: cur,
     stats: {
+      simplify: simplifyStats,
       fuse: fuseStats,
       tables: tableStats
     }

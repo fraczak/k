@@ -438,15 +438,31 @@ export function synthesizeTables(
       continue;
     }
 
-    // Only emit tables when outputs are pure push/unshift (or 0..2 outputs)
-    if (kernel.outputs.length === 0 || kernel.outputs.length > 2) continue;
-
+    const exitLabelSet = new Set(meta.exitBlocks);
     const exitLabelToId = new Map(meta.exitBlocks.map((lbl, idx) => [lbl, idx]));
     const regDecl = regPorts.length === 1 ? kernel.regs[0] : null;
     const numStates = regDecl ? regDecl.states : 1;
     const regName = regDecl ? regDecl.name : null;
     const inputNames = streamPorts.map((p) => kernel.inputs[p].name);
-    const outputNames = kernel.outputs.map((o) => o.name);
+
+    // Filter outputs to ONLY those actually emitted (`push_bits`/`unshift_bits`) inside
+    // non-exit loop blocks (so extracted loop-state kernels like `@lsb_add_loop_k` with
+    // 4 state ports where only `%o0_acc` is written in the loop get full `chunk_table`s!).
+    const loopWrittenOuts = new Set();
+    for (const blk of kernel.blocks) {
+      if (exitLabelSet.has(blk.label) || blk.label === "entry" || blk.label === "err") continue;
+      for (const s of blk.stmts) {
+        if (s.op === "push_bits" || s.op === "unshift_bits") loopWrittenOuts.add(s.dst);
+      }
+    }
+    const activeOutIndices = meta.isLoop && loopWrittenOuts.size > 0
+      ? kernel.outputs.map((_, idx) => idx).filter((idx) => loopWrittenOuts.has(kernel.outputs[idx].name))
+      : kernel.outputs.map((_, idx) => idx);
+
+    if (activeOutIndices.length === 0 || activeOutIndices.length > 2) continue;
+
+    const outputNames = activeOutIndices.map((idx) => kernel.outputs[idx].name);
+    const outputModes = activeOutIndices.map((idx) => (meta.outputModes && meta.outputModes[idx]) || "push");
 
     // --- Case 1: Streaming Loop Kernel -> `chunk_table` (with SWAR compression!) ---
     if (meta.isLoop && stackPorts.length === 0) {
@@ -500,6 +516,7 @@ export function synthesizeTables(
           numStates,
           inputNames,
           outputNames,
+          outputModes,
           tagWidths,
           unitMasks,
           effPerTok,
@@ -678,6 +695,7 @@ function buildChunkTableCandidate({
   numStates,
   inputNames,
   outputNames,
+  outputModes,
   tagWidths,
   unitMasks,
   effPerTok,
@@ -882,7 +900,7 @@ function buildChunkTableCandidate({
       })),
       outputs: outputNames.map((_, o) => ({
         port: o,
-        mode: { ident: (meta.outputModes && meta.outputModes[o]) || "push" },
+        mode: { ident: (outputModes && outputModes[o]) || "push" },
         max_emit_bits: maxEmitBits
       }))
     }

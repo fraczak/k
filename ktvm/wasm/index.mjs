@@ -18,7 +18,8 @@ import { schemasEquivalent } from "../schema.mjs";
 import {
   decodeDequeToValue,
   dequeToPaddedBytes,
-  splitEnvelopedWire
+  splitEnvelopedWire,
+  splitWireHeaderOnly
 } from "../wire.mjs";
 import { decodeWire } from "../../codecs/runtime/prefix-codec.mjs";
 
@@ -138,6 +139,23 @@ export async function instantiateKTVMWasm(artifact, { quota = null } = {}) {
 
   let reservedIoBytes = 1048576; // default 1 MiB
   const ioBase = ktvm_get_io_base();
+  const verifiedHeaders = [artifact.inHeader];
+  let cachedMemU8 = new Uint8Array(memory.buffer);
+
+  function getMemU8() {
+    if (cachedMemU8.buffer !== memory.buffer) {
+      cachedMemU8 = new Uint8Array(memory.buffer);
+    }
+    return cachedMemU8;
+  }
+
+  function matchVerifiedHeader(wireBytes) {
+    for (let i = 0; i < verifiedHeaders.length; i++) {
+      const h = verifiedHeaders[i];
+      if (matchesHeaderPrefix(wireBytes, h.bytes, h.bitLen)) return h.bitLen;
+    }
+    return -1;
+  }
 
   function readTelemetry() {
     return {
@@ -185,22 +203,34 @@ export async function instantiateKTVMWasm(artifact, { quota = null } = {}) {
     let inBitLen = 0;
     let validatePad = 1;
 
-    if (matchesHeaderPrefix(wireBytes, artifact.inHeader.bytes, artifact.inHeader.bitLen)) {
-      inBitOff = artifact.inHeader.bitLen;
+    const matchedBitLen = matchVerifiedHeader(wireBytes);
+    if (matchedBitLen >= 0) {
+      inBitOff = matchedBitLen;
       inBitLen = wireBytes.length * 8 - inBitOff;
       validatePad = 1;
     } else {
-      // Fallback for non-canonical equivalent headers or schema mismatch check
-      const { plist, payloadDeque } = splitEnvelopedWire(wireBytes);
+      // Decode ONLY the pattern header prefix; if equivalent & canonical, cache it and stream
+      // payload bits directly into Wasm (zero JS payload DPDA!).
+      const { plist, headerBitLen, canonicalOrder } = splitWireHeaderOnly(wireBytes);
       if (!schemasEquivalent(plist, 0, artifact.inPlist, 0)) {
-        payloadDeque.release();
         throw new KTVMSchemaError("Incoming k-wire schema does not match compiled kTVM Wasm input schema");
       }
-      inBitLen = payloadDeque.length;
-      inBytes = dequeToPaddedBytes(payloadDeque);
-      payloadDeque.release();
-      inBitOff = 0;
-      validatePad = 0;
+      if (canonicalOrder) {
+        const hdrByteLen = (headerBitLen + 7) >> 3;
+        if (verifiedHeaders.length < 16) {
+          verifiedHeaders.push({ bytes: wireBytes.slice(0, hdrByteLen), bitLen: headerBitLen });
+        }
+        inBitOff = headerBitLen;
+        inBitLen = wireBytes.length * 8 - inBitOff;
+        validatePad = 1;
+      } else {
+        const { payloadDeque } = splitEnvelopedWire(wireBytes);
+        inBitLen = payloadDeque.length;
+        inBytes = dequeToPaddedBytes(payloadDeque);
+        payloadDeque.release();
+        inBitOff = 0;
+        validatePad = 0;
+      }
     }
 
     // Reserve sufficient I/O space (input + output buffer, growing dynamically on -5 OUT_CAP!)
@@ -214,7 +244,7 @@ export async function instantiateKTVMWasm(artifact, { quota = null } = {}) {
         reservedIoBytes = needed;
       }
 
-      const memU8 = new Uint8Array(memory.buffer);
+      const memU8 = getMemU8();
       memU8.set(inBytes, ioBase);
       const outPtr = ioBase + inAligned;
 
@@ -242,7 +272,7 @@ export async function instantiateKTVMWasm(artifact, { quota = null } = {}) {
       }
 
       // Copy framed output bytes out of linear memory (refresh view in case memory grew!)
-      const finalMem = new Uint8Array(memory.buffer);
+      const finalMem = getMemU8();
       const outWire = Buffer.from(finalMem.subarray(outPtr, outPtr + outByteLen));
       const telemetry = readTelemetry();
       const value = decodeValue ? decodeWire(outWire, { eager: true }).value : null;

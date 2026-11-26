@@ -20,6 +20,7 @@ import {
   stringValueToText
 } from "../codecs/runtime/unicode-string.mjs";
 import { BitDeque } from "./bit-deque.mjs";
+import { compareLabels } from "./schema.mjs";
 
 export const DPDA_RESULT = Object.freeze({
   DONE: "DONE",
@@ -167,6 +168,38 @@ export function dequeToPaddedBytes(deque) {
     out[byteIdx++] = (deque.shiftBits(rem) << (8 - rem)) & 0xff;
   }
   return out;
+}
+
+/**
+ * Decode ONLY the k-wire envelope header prefix (`encode(pattern_value)`) without
+ * running a JS DPDA over the payload bits. Returns `{ plist, headerBitLen, canonicalOrder }`
+ * so Wasm/native runners can validate and stream the remaining payload bits directly.
+ */
+export function splitWireHeaderOnly(buffer, { quota = null } = {}) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const full = new BitDeque(-1, { quota });
+  const totalBits = bytes.length * 8;
+  writeBytesToDeque(bytes, full, totalBits);
+
+  const patternValue = decodeDequeToValue(full, CORE_PATTERN_PROPERTY_LIST, 0, { exact: false });
+  const headerBitLen = totalBits - full.length;
+  full.release();
+
+  const rawPlist = patternValueToPropertyList(patternValue);
+  let canonicalOrder = true;
+  const plist = rawPlist.map(([kind, edges]) => {
+    for (let i = 1; i < edges.length; i++) {
+      if (compareLabels(edges[i - 1][0], edges[i][0]) >= 0) {
+        canonicalOrder = false;
+        break;
+      }
+    }
+    if (kind === "open-union") return ["closed-union", edges];
+    if (kind === "open-product") return ["closed-product", edges];
+    return [kind, edges];
+  });
+
+  return { plist, headerBitLen, canonicalOrder };
 }
 
 /**
