@@ -71,6 +71,8 @@ export {
   compileObjectToKTVM,
   executeKTVM,
   executeKTVMWire,
-  executeObjectWithKTVM
+  executeObjectWithKTVM,
+  optimizeKTVM,
+  computeMWTR
 } from "./ktvm/index.mjs";
 

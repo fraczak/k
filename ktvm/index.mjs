@@ -89,3 +89,13 @@ export {
   compileObjectToKTVM,
   executeObjectWithKTVM
 } from "./lower-kir.mjs";
+
+export {
+  DEFAULT_L1_BUDGET_BYTES,
+  computeMWTR,
+  budgetClassForBytes,
+  allocateTableBudgets,
+  fuseKernels,
+  synthesizeTables,
+  optimizeKTVM
+} from "./optimize/index.mjs";

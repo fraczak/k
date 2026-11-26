@@ -2,7 +2,8 @@ import {
   compileKIRToKTVM,
   decodeWire,
   executeKTVM,
-  executeKTVMWire
+  executeKTVMWire,
+  optimizeKTVM
 } from "../../backend-api.mjs";
 import { BackendAdapter, BackendRunner } from "../backend.mjs";
 
@@ -79,11 +80,18 @@ class KTVMRunner extends BackendRunner {
 export class KTVMAdapter extends BackendAdapter {
   constructor(state = null, options = {}) {
     const wire = options.wire !== false;
-    const id = options.id || (wire ? "ktvm" : "ktvm-pure");
-    const name = options.name || (wire ? "kTVM Reference VM (direct k-wire)" : "kTVM Reference VM (in-memory)");
+    const optimize = Boolean(options.optimize);
+    const id = options.id || (optimize ? "ktvm-opt" : (wire ? "ktvm" : "ktvm-pure"));
+    const name = options.name || (
+      optimize
+        ? "kTVM Optimized (fused kernels + MWTR tables)"
+        : (wire ? "kTVM Reference VM (direct k-wire)" : "kTVM Reference VM (in-memory)")
+    );
     super(id, name, options);
     this.state = state;
     this.wire = wire;
+    this.optimize = optimize;
+    this.budgetBytes = options.budgetBytes;
   }
 
   setState(state) {
@@ -93,9 +101,17 @@ export class KTVMAdapter extends BackendAdapter {
   async compile(testCase) {
     try {
       const inputPattern = testCase.inputPattern || (testCase.inputWire ? decodeWire(testCase.inputWire).pattern : null);
-      const compiled = compileKIRToKTVM(testCase.object, testCase.relName || testCase.op, inputPattern, {
+      let compiled = compileKIRToKTVM(testCase.object, testCase.relName || testCase.op, inputPattern, {
         validate: true
       });
+      if (this.optimize) {
+        const opt = optimizeKTVM(compiled.module, {
+          budgetBytes: this.budgetBytes,
+          validate: true,
+          verifyTables: true
+        });
+        compiled = { ...compiled, module: opt.module, optStats: opt.stats };
+      }
       return {
         status: "ok",
         compiled,

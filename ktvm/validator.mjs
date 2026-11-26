@@ -839,28 +839,26 @@ export function verifyTableBisimulation(table, kernel) {
     const inputsSpec = table.props.inputs || [];
     const widths = inputsSpec.map((inp) => inp.raw_bits);
     const effWidths = inputsSpec.map((inp) => inp.eff_bits ?? inp.raw_bits);
-    const totalEff = effWidths.reduce((a, b) => a + b, 0);
-
-    // Build reverse decompression map only for uncompressed tables (`compress: none`)
+    const masks = inputsSpec.map((inp) => inp.compress?.mask ?? null);
     const hasCompress = inputsSpec.some((inp) => inp.compress && inp.compress.ident !== "none");
-    if (hasCompress) {
-      // Compressed tables still verify structural invariants; symbolic expansion requires mask spec
-      return null;
-    }
 
-    for (const row of table.entries) {
-      const entry = row.value;
-      const idx = row.index;
-      // Unpack index: ((q << W0) | b0) << W1 | b1 ...
-      let rem = idx;
-      const portBits = new Array(widths.length);
-      for (let p = widths.length - 1; p >= 0; p--) {
-        const w = widths[p];
-        portBits[p] = rem & ((1 << w) - 1);
-        rem >>>= w;
+    const compressRaw = (rawVal, rawBits, mask) => {
+      if (mask == null) return rawVal;
+      let out = 0;
+      let bitPos = 0;
+      const m = mask >>> 0;
+      for (let i = 0; i < rawBits; i++) {
+        if ((m >>> i) & 1) {
+          out |= ((rawVal >>> i) & 1) << bitPos;
+          bitPos++;
+        }
       }
-      const startQ = rem;
+      return out;
+    };
 
+    const byIdx = new Map(table.entries.map((r) => [r.index, r.value]));
+
+    const verifyRow = (idx, startQ, portBits, entry) => {
       const sim = simulateKernelChunk({
         kernel,
         blockMap,
@@ -877,6 +875,8 @@ export function verifyTableBisimulation(table, kernel) {
       });
 
       const expectedKind = entry.kind?.ident ?? entry.kind;
+      // `NEED_MORE` conservatively delegates directly to the exact `slow_step` reference CFG!
+      if (expectedKind === "NEED_MORE") return null;
       if (sim.kind !== expectedKind) {
         return `entry ${idx} (q=${startQ}): table kind=${expectedKind}, CFG produced ${sim.kind}`;
       }
@@ -919,6 +919,169 @@ export function verifyTableBisimulation(table, kernel) {
           }
         }
       }
+      return null;
+    };
+
+    if (!hasCompress) {
+      for (const row of table.entries) {
+        let rem = row.index;
+        const portBits = new Array(widths.length);
+        for (let p = widths.length - 1; p >= 0; p--) {
+          const w = widths[p];
+          portBits[p] = rem & ((1 << w) - 1);
+          rem >>>= w;
+        }
+        const err = verifyRow(row.index, rem, portBits, row.value);
+        if (err) return err;
+      }
+      return null;
+    }
+
+    // Compressed table verification: exhaustively check every raw bit combination when feasible!
+    const numStates = table.props.states || 1;
+    const rawSpace = numStates * widths.reduce((a, w) => a * (1 << w), 1);
+    if (rawSpace <= 16384 && masks.every((m, p) => m != null || (inputsSpec[p].compress?.ident === "none"))) {
+      let failure = null;
+      const walkRaw = (q, p, rawAcc) => {
+        if (failure) return;
+        if (p === widths.length) {
+          let cIdx = q;
+          for (let i = 0; i < widths.length; i++) {
+            const eff = compressRaw(rawAcc[i], widths[i], masks[i]);
+            cIdx = (cIdx << effWidths[i]) | eff;
+          }
+          const ent = byIdx.get(cIdx);
+          if (!ent) {
+            failure = `compressed index ${cIdx} missing from table`;
+            return;
+          }
+          failure = verifyRow(cIdx, q, rawAcc, ent);
+          return;
+        }
+        for (let r = 0; r < (1 << widths[p]); r++) {
+          rawAcc[p] = r;
+          walkRaw(q, p + 1, rawAcc);
+          if (failure) return;
+        }
+      };
+      for (let q = 0; q < numStates && !failure; q++) {
+        walkRaw(q, 0, new Array(widths.length));
+      }
+      return failure;
+    }
+    return null;
+  }
+
+  if (table.kind === "fsm_table") {
+    const wRaw = table.props.input_bits;
+    for (const row of table.entries) {
+      const sim = simulateKernelChunk({
+        kernel,
+        blockMap,
+        loopHeader: null,
+        slowLabel,
+        regName: null,
+        startQ: 0,
+        inputNames: [dispatchTerm.input],
+        inputBits: [row.index],
+        inputWidths: [wRaw],
+        outputNames: dispatchTerm.outputs,
+        exitLabelToId,
+        failLabel
+      });
+      const entry = row.value;
+      const expectedKind = entry.kind?.ident ?? entry.kind;
+      if (expectedKind === "NEED_MORE") continue;
+      if (sim.kind !== expectedKind) {
+        return `fsm entry ${row.index}: table kind=${expectedKind}, CFG produced ${sim.kind}`;
+      }
+      if (expectedKind === "EXIT") {
+        if ((entry.exit ?? 0) !== sim.exitId) {
+          return `fsm entry ${row.index}: table exit=${entry.exit}, CFG produced ${sim.exitId}`;
+        }
+        if (((entry.shift || [])[0] ?? 0) !== sim.shifts[0]) {
+          return `fsm entry ${row.index}: shift mismatch`;
+        }
+      }
+    }
+    return null;
+  }
+
+  if (table.kind === "stack_table") {
+    const wStream = table.props.stream_bits;
+    const wStack = table.props.stack_bits ?? 0;
+    const stackEncoding = table.props.stack_encoding?.ident ?? table.props.stack_encoding ?? "bits";
+    const stackStride = stackEncoding === "depth_only" ? (wStack + 1) : ((1 << (wStack + 1)) - 1);
+
+    for (const row of table.entries) {
+      const stCode = row.index % stackStride;
+      const rem0 = Math.floor(row.index / stackStride);
+      const sBits = rem0 & ((1 << wStream) - 1);
+      const startQ = rem0 >>> wStream;
+
+      let depth = 0;
+      let topBits = 0;
+      if (stackEncoding === "depth_only") {
+        depth = stCode;
+        topBits = 0;
+      } else if (stCode > 0) {
+        let rem = stCode;
+        for (let d = 1; d <= wStack; d++) {
+          const count = 1 << d;
+          if (rem <= count) {
+            depth = d;
+            topBits = rem - 1;
+            break;
+          }
+          rem -= count;
+        }
+      }
+
+      const sim = simulateKernelChunk({
+        kernel,
+        blockMap,
+        loopHeader: dispatchBlock.label,
+        slowLabel,
+        regName: dispatchTerm.reg,
+        startQ,
+        inputNames: [dispatchTerm.input],
+        inputBits: [sBits],
+        inputWidths: [wStream],
+        outputNames: [dispatchTerm.output],
+        stackName: dispatchTerm.stack,
+        initStackBits: topBits,
+        initStackDepth: depth,
+        stackWindowTruncated: wStack > 0 && depth === wStack,
+        exitLabelToId,
+        failLabel
+      });
+
+      const entry = row.value;
+      const expectedKind = entry.kind?.ident ?? entry.kind;
+      if (expectedKind === "NEED_MORE") continue;
+      if (sim.kind !== expectedKind) {
+        return `stack entry ${row.index} (q=${startQ},s=${sBits},st=${stCode}): table kind=${expectedKind}, CFG produced ${sim.kind}`;
+      }
+      if (expectedKind === "CONT" || expectedKind === "EXIT") {
+        if ((entry.shift_stream ?? 0) !== sim.shifts[0]) {
+          return `stack entry ${row.index}: shift_stream=${entry.shift_stream}, CFG produced ${sim.shifts[0]}`;
+        }
+        if ((entry.pop_stack ?? 0) !== sim.popStack) {
+          return `stack entry ${row.index}: pop_stack=${entry.pop_stack}, CFG produced ${sim.popStack}`;
+        }
+        if ((entry.push_stack_len ?? 0) !== sim.pushStackLen || (entry.push_stack_word ?? 0) !== sim.pushStackWord) {
+          return `stack entry ${row.index}: push_stack=(${entry.push_stack_word},${entry.push_stack_len}b), CFG produced (${sim.pushStackWord},${sim.pushStackLen}b)`;
+        }
+        if ((entry.emit_len ?? 0) !== sim.emitLens[0] || (entry.emit_word ?? 0) !== sim.emitWords[0]) {
+          return `stack entry ${row.index}: emit=(${entry.emit_word},${entry.emit_len}b), CFG produced (${sim.emitWords[0]},${sim.emitLens[0]}b)`;
+        }
+        if (expectedKind === "CONT" && (entry.next_q ?? 0) !== sim.nextQ) {
+          return `stack entry ${row.index}: next_q=${entry.next_q}, CFG produced ${sim.nextQ}`;
+        }
+        if (expectedKind === "EXIT" && (entry.exit ?? 0) !== sim.exitId) {
+          return `stack entry ${row.index}: exit=${entry.exit}, CFG produced ${sim.exitId}`;
+        }
+      }
     }
     return null;
   }
@@ -937,6 +1100,10 @@ function simulateKernelChunk({
   inputBits,
   inputWidths,
   outputNames,
+  stackName = null,
+  initStackBits = 0,
+  initStackDepth = 0,
+  stackWindowTruncated = initStackDepth > 0,
   exitLabelToId,
   failLabel
 }) {
@@ -953,8 +1120,13 @@ function simulateKernelChunk({
     outDqs.set(outputNames[o], new BitDeque(100 + o));
   }
   const regs = new Map((kernel.regs || []).map((r) => [r.name, r.init]));
-  regs.set(regName, startQ);
+  if (regName) regs.set(regName, startQ);
   const stacks = new Map((kernel.stacks || []).map((s) => [s.name, new BitStack()]));
+  let totalPoppedFromInit = 0;
+  const pushedBits = [];
+  if (stackName && initStackDepth > 0) {
+    stacks.get(stackName).push(initStackBits, initStackDepth);
+  }
 
   let curBlock = slowLabel;
   let lastValid = null; // Snapshot at every clean return to `loopHeader`
@@ -968,7 +1140,7 @@ function simulateKernelChunk({
     if (curBlock === failLabel) {
       return snapshotResult("FAIL", {});
     }
-    if (curBlock === loopHeader) {
+    if (loopHeader && curBlock === loopHeader) {
       // Save progress after at least 1 loop iteration; keep stepping if more bits remain!
       lastValid = snapshotResult("CONT", {});
       curBlock = slowLabel;
@@ -1008,21 +1180,36 @@ function simulateKernelChunk({
         case "set_reg":
           regs.set(s.reg, s.value);
           break;
-        case "stack_push":
-          stacks.get(s.stack).push(parseInt(s.bits, 2), s.width);
+        case "stack_push": {
+          const val = parseInt(s.bits, 2);
+          stacks.get(s.stack).push(val, s.width);
+          if (s.stack === stackName) {
+            for (let b = 0; b < s.width; b++) pushedBits.push((val >>> b) & 1);
+          }
           break;
+        }
         case "stack_pop": {
           const st = stacks.get(s.stack);
           if (st.length < s.width) {
+            if (s.stack === stackName && stackWindowTruncated && totalPoppedFromInit >= initStackDepth) {
+              return lastValid || snapshotResult("NEED_MORE", {});
+            }
             curBlock = s.onEmpty;
             jumped = true;
           } else {
             temps.set(s.dst, st.pop(s.width));
+            if (s.stack === stackName) {
+              for (let b = 0; b < s.width; b++) {
+                if (pushedBits.length > 0) pushedBits.pop();
+                else totalPoppedFromInit++;
+              }
+            }
           }
           break;
         }
         case "stack_clear":
           stacks.get(s.stack).clear();
+          if (s.stack === stackName) pushedBits.length = 0;
           break;
         case "drain_guard":
           // Unit drain in a finite lookahead window requires no extra bits for `unit`
@@ -1067,6 +1254,20 @@ function simulateKernelChunk({
       const dq = outDqs.get(n);
       return dq.length > 0 ? dq.peekBits(dq.length) : 0;
     });
-    return { kind, nextQ: regs.get(regName), shifts, emitWords, emitLens, ...extra };
+    let pushStackWord = 0;
+    for (let i = 0; i < pushedBits.length; i++) {
+      if (pushedBits[i]) pushStackWord |= (1 << i);
+    }
+    return {
+      kind,
+      nextQ: regName ? regs.get(regName) : 0,
+      shifts,
+      emitWords,
+      emitLens,
+      popStack: totalPoppedFromInit,
+      pushStackWord: pushStackWord >>> 0,
+      pushStackLen: pushedBits.length,
+      ...extra
+    };
   }
 }

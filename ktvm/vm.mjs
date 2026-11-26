@@ -255,10 +255,14 @@ export class KTVMRuntime {
     this.quota.removeNode();
     const sc = this.scopes.get(node.scope);
     if (sc) sc.nodes.delete(node);
-    // Clean up any kernel-local BitStacks
+    // Clean up any kernel-local BitStacks and private unshift buffers
     if (node.stacks) {
       for (const st of node.stacks.values()) st.release();
       node.stacks.clear();
+    }
+    if (node.unshiftBufs) {
+      for (const ub of node.unshiftBufs.values()) ub.release();
+      node.unshiftBufs.clear();
     }
     for (const ch of node.inputs) {
       if (ch && ch.cons === node) ch.cons = null;
@@ -642,6 +646,7 @@ export class KTVMRuntime {
       stmtIdx: 0,
       regs,
       stacks,
+      unshiftBufs: new Map(),
       temps: new Map(),
       portMap,
       ownedInputs,
@@ -1399,6 +1404,26 @@ export class KTVMRuntime {
     return null;
   }
 
+  _getKernelUnshiftBuf(node, portName) {
+    let ub = node.unshiftBufs.get(portName);
+    if (!ub) {
+      ub = new BitDeque(this.nextChanId++, { name: `%ub_${portName}`, scope: node.scope, quota: this.quota });
+      node.unshiftBufs.set(portName, ub);
+    }
+    return ub;
+  }
+
+  _flushKernelUnshiftBuf(node, portName, dst) {
+    const ub = node.unshiftBufs.get(portName);
+    if (!ub) return;
+    node.unshiftBufs.delete(portName);
+    if (ub.length > 0) {
+      if (dst.length === 0) dst.adoptBufferFrom(ub);
+      else dst.pushFromDeque(ub);
+    }
+    ub.release();
+  }
+
   // --- Compiled Kernel Execution ---
 
   _stepKernel(node) {
@@ -1426,6 +1451,10 @@ export class KTVMRuntime {
         }
         case "shift_bits": {
           const ch = node.portMap.get(s.src);
+          if (ch.length < s.width) {
+            if (ch.isOpen) return { needPull: ch };
+            return this._failKernel(node);
+          }
           ch.shiftBits(s.width);
           ch.aligned = false;
           node.stmtIdx += 1;
@@ -1433,6 +1462,10 @@ export class KTVMRuntime {
         }
         case "shift_tag": {
           const ch = node.portMap.get(s.src);
+          if (ch.length < s.width) {
+            if (ch.isOpen) return { needPull: ch };
+            return this._failKernel(node);
+          }
           ch.shiftBits(s.width);
           ch.consSchema = this.resolvePlist(s.nextSchema);
           ch.consNodeId = 0;
@@ -1447,8 +1480,8 @@ export class KTVMRuntime {
           break;
         }
         case "unshift_bits": {
-          const ch = node.portMap.get(s.dst);
-          ch.unshiftBits(parseInt(s.bits, 2), s.width);
+          const ub = this._getKernelUnshiftBuf(node, s.dst);
+          ub.unshiftBits(parseInt(s.bits, 2), s.width);
           node.stmtIdx += 1;
           break;
         }
@@ -1540,6 +1573,7 @@ export class KTVMRuntime {
         case "splice": {
           const src = node.portMap.get(s.src);
           const dst = node.portMap.get(s.dst);
+          this._flushKernelUnshiftBuf(node, s.dst, dst);
           node.ownedInputs.delete(s.src);
           node.ownedOutputs.delete(s.dst);
           if (src.cons === node) src.cons = null;
@@ -1550,6 +1584,7 @@ export class KTVMRuntime {
         }
         case "close": {
           const dst = node.portMap.get(s.dst);
+          this._flushKernelUnshiftBuf(node, s.dst, dst);
           node.ownedOutputs.delete(s.dst);
           if (dst.prod === node) dst.prod = null;
           dst.close();
@@ -1657,9 +1692,10 @@ export class KTVMRuntime {
 
     // Hot burst (bounded to keep cooperative yield and quota responsive)
     for (let iter = 0; iter < 32; iter++) {
-      // Cooperative yield check if downstream consumer exists
-      for (const o of outChs) {
-        if (o.cons !== null && o.length >= node.yieldThreshold) {
+      // Cooperative yield check if downstream consumer exists (skip unshift-mode outputs!)
+      for (let o = 0; o < outChs.length; o++) {
+        const mode = outputsSpec[o]?.mode?.ident ?? outputsSpec[o]?.mode ?? "push";
+        if (mode !== "unshift" && outChs[o].cons !== null && outChs[o].length >= node.yieldThreshold) {
           return { yielded: true };
         }
       }
@@ -1721,8 +1757,12 @@ export class KTVMRuntime {
         if (elen > 0) {
           const eword = entry.emit_word[o] ?? 0;
           const mode = outputsSpec[o]?.mode?.ident ?? outputsSpec[o]?.mode ?? "push";
-          if (mode === "unshift") outChs[o].unshiftBits(eword, elen);
-          else outChs[o].pushBits(eword, elen);
+          if (mode === "unshift") {
+            const ub = this._getKernelUnshiftBuf(node, t.outputs[o]);
+            ub.unshiftBits(eword, elen);
+          } else {
+            outChs[o].pushBits(eword, elen);
+          }
         }
       }
 
@@ -1762,7 +1802,7 @@ export class KTVMRuntime {
     const st = node.stacks.get(t.stack);
 
     for (let iter = 0; iter < 32; iter++) {
-      if (outCh.cons !== null && outCh.length >= node.yieldThreshold) {
+      if (outMode !== "unshift" && outCh.cons !== null && outCh.length >= node.yieldThreshold) {
         return { yielded: true };
       }
 
@@ -1806,8 +1846,12 @@ export class KTVMRuntime {
       if (entry.pop_stack > 0) st.pop(entry.pop_stack);
       if (entry.push_stack_len > 0) st.push(entry.push_stack_word, entry.push_stack_len);
       if (entry.emit_len_single > 0) {
-        if (outMode === "unshift") outCh.unshiftBits(entry.emit_word_single, entry.emit_len_single);
-        else outCh.pushBits(entry.emit_word_single, entry.emit_len_single);
+        if (outMode === "unshift") {
+          const ub = this._getKernelUnshiftBuf(node, t.output);
+          ub.unshiftBits(entry.emit_word_single, entry.emit_len_single);
+        } else {
+          outCh.pushBits(entry.emit_word_single, entry.emit_len_single);
+        }
       }
       node.regs.set(t.reg, entry.next_q);
 
@@ -1869,8 +1913,12 @@ export class KTVMRuntime {
       if (elen > 0) {
         const eword = entry.emit_word[o] ?? 0;
         const mode = outModes[o]?.ident ?? outModes[o] ?? "push";
-        if (mode === "unshift") outChs[o].unshiftBits(eword, elen);
-        else outChs[o].pushBits(eword, elen);
+        if (mode === "unshift") {
+          const ub = this._getKernelUnshiftBuf(node, t.outputs[o]);
+          ub.unshiftBits(eword, elen);
+        } else {
+          outChs[o].pushBits(eword, elen);
+        }
       }
     }
 
@@ -1921,6 +1969,11 @@ export class KTVMRuntime {
           const outcome = this._stepNode(targetNode);
 
           if (outcome && outcome.needPull) {
+            if (outcome.needPull.isOpen && !outcome.needPull.prod) {
+              throw new Error(
+                `Deadlock/unproduced channel '${outcome.needPull.name}' pulled by ${targetNode.kind} (${targetNode.kernelDecl?.name || targetNode.target || ""})`
+              );
+            }
             demandStack.push({ kind: "chan", ch: outcome.needPull });
           } else if (outcome && outcome.needStepNode) {
             demandStack.push({ kind: "node", node: outcome.needStepNode });
@@ -1929,7 +1982,7 @@ export class KTVMRuntime {
             demandStack.pop();
           } else {
             // Normal progress: if we were fulfilling an upstream pull on an internal channel
-            // that now has buffered bits (or settled), pop back to its consumer immediately!
+            // that now has readable finalized bits (or settled), pop back to its consumer immediately!
             if (top.kind === "chan") {
               const ch = top.ch;
               if (!ch.isOpen || (demandStack.length > 1 && ch.length > 0)) {
