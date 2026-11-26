@@ -715,7 +715,7 @@ function inlineSmallAcyclicProcs(
 // Pass 2: Fixpoint SPSC Channel-Graph Deforestation
 // ---------------------------------------------------------------------------
 
-function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
+function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }, targetProcNames = null) {
   const kernelMap = new Map((mod.kernels || []).map((k) => [k.name, k]));
   const moduleStrictFailure = computeModuleStrictFailure(mod);
   const stats = {
@@ -725,11 +725,13 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
     trivialDrainsEliminated: 0,
     teeMatchFactors: 0,
     teeDemuxCollapses: 0,
-    knownSwitchFolds: 0
+    knownSwitchFolds: 0,
+    knownMatchWrapFolds: 0
   };
   const nextFresh = (prefix) => `%${prefix}_${freshBox.seq++}`;
 
   const procs = (mod.procs || []).map((proc) => {
+    if (targetProcNames && !targetProcNames.has(proc.name)) return proc;
     const outerTypes = new Map();
     const outerExprs = new Map();
     const totalChans = new Set();
@@ -1649,14 +1651,37 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
       }
       if (changed) continue;
 
+      // Propagate statically known union tags through `splice` and `tee` in this block
+      const knownTags = new Map(outerKnownTags);
+      if (knownTags.size > 0) {
+        let kChanged = true;
+        while (kChanged) {
+          kChanged = false;
+          for (const s of cur) {
+            if (s.op === "splice" && knownTags.has(s.src) && !knownTags.has(s.dst)) {
+              knownTags.set(s.dst, knownTags.get(s.src));
+              kChanged = true;
+            } else if (s.op === "tee" && knownTags.has(s.src)) {
+              const t = knownTags.get(s.src);
+              for (const d of s.dsts) {
+                if (!knownTags.has(d)) {
+                  knownTags.set(d, t);
+                  kChanged = true;
+                }
+              }
+            }
+          }
+        }
+      }
+
       // --- Rule 6: Fold nested `switch` whose input tag is already statically known ---
-      if (outerKnownTags.size > 0) {
+      if (knownTags.size > 0) {
         for (let i = 0; i < cur.length; i++) {
           const s = cur[i];
           if (s.op !== "switch") continue;
           let folded = null;
           for (let j = 0; j < s.inputs.length; j++) {
-            const knownTag = outerKnownTags.get(s.inputs[j]);
+            const knownTag = knownTags.get(s.inputs[j]);
             if (knownTag !== undefined) {
               const res = foldSwitchColumn(s, j, knownTag);
               if (res.changed) {
@@ -1682,6 +1707,37 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
           }
         }
         if (changed) continue;
+
+        // --- Rule 6b: Fold `match /T %src -> %m; wrap |T %m -> %dst` when `%src` tag is statically known `T` ---
+        for (let i = 0; i < cur.length; i++) {
+          const s = cur[i];
+          if (s.op !== "match") continue;
+          if (knownTags.get(s.src) !== s.tag) continue;
+          if (!localDecls.has(s.dst)) continue;
+          const wIdx = consAt.get(s.dst);
+          if (wIdx === undefined || wIdx === i) continue;
+          const w = cur[wIdx];
+          if (!w || w.op !== "wrap" || w.tag !== s.tag) continue;
+          const srcPl = types.get(s.src);
+          const dstPl = types.get(w.dst);
+          if (!srcPl || !dstPl || !schemasEquivalent(srcPl, 0, dstPl, 0)) continue;
+          const declIdx = localDecls.get(s.dst).idx;
+          const placeAt = Math.max(i, wIdx);
+          const next = [];
+          for (let k = 0; k < cur.length; k++) {
+            if (k === placeAt) {
+              next.push({ op: "splice", src: s.src, dst: w.dst });
+              continue;
+            }
+            if (k === i || k === wIdx || k === declIdx) continue;
+            next.push(cur[k]);
+          }
+          cur = next;
+          stats.knownMatchWrapFolds += 1;
+          changed = true;
+          break;
+        }
+        if (changed) continue;
       }
 
       // No more top-level rewrites in this block -> exit fixpoint loop!
@@ -1692,6 +1748,27 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
     const types = new Map(outerTypes);
     const exprs = new Map(outerExprs);
     const totalHere = new Set(outerTotal);
+    const knownHere = new Map(outerKnownTags);
+    if (knownHere.size > 0) {
+      let kChanged = true;
+      while (kChanged) {
+        kChanged = false;
+        for (const s of cur) {
+          if (s.op === "splice" && knownHere.has(s.src) && !knownHere.has(s.dst)) {
+            knownHere.set(s.dst, knownHere.get(s.src));
+            kChanged = true;
+          } else if (s.op === "tee" && knownHere.has(s.src)) {
+            const t = knownHere.get(s.src);
+            for (const d of s.dsts) {
+              if (!knownHere.has(d)) {
+                knownHere.set(d, t);
+                kChanged = true;
+              }
+            }
+          }
+        }
+      }
+    }
     for (const s of cur) {
       if (s.op === "chan") {
         types.set(s.name, resolvePlist(s.schema));
@@ -1708,7 +1785,7 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
         totalHere.add(s.dst);
       } else if (s.op === "spawn" && totalProcs.has(s.target) && s.inputs.every((v) => totalHere.has(v))) {
         for (const o of s.outputs) totalHere.add(o);
-      } else if (s.op === "match" && totalHere.has(s.src) && outerKnownTags.get(s.src) === s.tag) {
+      } else if (s.op === "match" && totalHere.has(s.src) && knownHere.get(s.src) === s.tag) {
         totalHere.add(s.dst);
       }
     }
@@ -1718,14 +1795,14 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
         const first = s.arms.length > 0 ? s.arms[0].body : (s.defaultBody || []);
         const { cons: swCons, prod: swProd } = collectBlockIO(first, types);
         const newArms = s.arms.map((arm) => {
-          const armKnown = new Map(outerKnownTags);
+          const armKnown = new Map(knownHere);
           for (let j = 0; j < arm.patterns.length; j++) {
             if (arm.patterns[j].kind === "tag") armKnown.set(s.inputs[j], arm.patterns[j].tag);
           }
           return { ...arm, body: deforestBlock(arm.body, types, exprs, swCons, swProd, totalHere, armKnown) };
         });
         const newDef = s.defaultBody
-          ? deforestBlock(s.defaultBody, types, exprs, swCons, swProd, totalHere, outerKnownTags)
+          ? deforestBlock(s.defaultBody, types, exprs, swCons, swProd, totalHere, knownHere)
           : null;
         return { ...s, arms: newArms, defaultBody: newDef };
       }
@@ -1740,7 +1817,7 @@ function deforestModule(mod, resolvePlist, totalProcs, freshBox = { seq: 0 }) {
         }
         for (const v of s.inputs) {
           if (totalHere.has(v)) specTotal.add(v);
-          if (outerKnownTags.has(v)) specKnown.set(v, outerKnownTags.get(v));
+          if (knownHere.has(v)) specKnown.set(v, knownHere.get(v));
         }
         return {
           ...s,
@@ -4687,7 +4764,8 @@ export function simplifyProcs(
     trivialDrainsEliminated: 0,
     teeMatchFactors: 0,
     teeDemuxCollapses: 0,
-    knownSwitchFolds: 0
+    knownSwitchFolds: 0,
+    knownMatchWrapFolds: 0
   };
   let specsConverted = 0;
   let loopsExtracted = 0;
@@ -4843,6 +4921,330 @@ export function inlinePostFusionWrappers(
       inlinedCalls: r.inlinedCalls,
       deforest: deforestStats,
       deadProcsRemoved
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pass 6: Min-Bit-Consumption Bounded Recursion Unfolding
+// ---------------------------------------------------------------------------
+
+function choiceWidth(numTags) {
+  return numTags <= 1 ? 0 : Math.ceil(Math.log2(numTags));
+}
+
+function unionTagWidth(pl) {
+  if (!pl || !pl[0] || pl[0][0] !== "closed-union") return 0;
+  return choiceWidth((pl[0][1] || []).length);
+}
+
+/**
+ * Compute the guaranteed minimum number of union tag bits stripped from proc
+ * inputs along the dataflow chain leading into every self-recursive `spawn`.
+ * Also reports `maxSelfCallsPerPath` so linear recursion (even across multiple
+ * mutually exclusive `switch` arms) is distinguished from branching/divide-and-
+ * conquer recursion (e.g. Karatsuba).
+ */
+export function computeProcMinBitConsumption(proc, resolvePlist) {
+  const initChanBits = new Map();
+  const initTypes = new Map();
+  for (const p of proc.inputs || []) {
+    initChanBits.set(p.name, 0);
+    initTypes.set(p.name, resolvePlist(p.schema));
+  }
+  for (const o of proc.outputs || []) {
+    initTypes.set(o.name, resolvePlist(o.schema));
+  }
+
+  const selfCallBits = [];
+  let totalSelfCalls = 0;
+  let unfoldableSelfCalls = 0;
+
+  const walk = (stmts, chanBits, barBits, types) => {
+    let seqCalls = 0;
+    for (const s of stmts || []) {
+      switch (s.op) {
+        case "chan":
+          types.set(s.name, resolvePlist(s.schema));
+          break;
+        case "const_unit":
+          chanBits.set(s.dst, 0);
+          break;
+        case "splice":
+        case "coerce":
+        case "wrap":
+          chanBits.set(s.dst, chanBits.get(s.src) || 0);
+          break;
+        case "gate":
+          chanBits.set(
+            s.dst,
+            Math.max(chanBits.get(s.src) || 0, barBits.get(s.barrier) || 0)
+          );
+          break;
+        case "tee": {
+          const b = chanBits.get(s.src) || 0;
+          for (const d of s.dsts) chanBits.set(d, b);
+          break;
+        }
+        case "demux": {
+          const b = chanBits.get(s.src) || 0;
+          for (const f of s.fields) chanBits.set(f.name, b);
+          break;
+        }
+        case "mux": {
+          let b = 0;
+          for (const f of s.fields) b = Math.max(b, chanBits.get(f.name) || 0);
+          chanBits.set(s.dst, b);
+          break;
+        }
+        case "match": {
+          const w = unionTagWidth(types.get(s.src));
+          chanBits.set(s.dst, (chanBits.get(s.src) || 0) + w);
+          break;
+        }
+        case "drain":
+          if (s.barrier) {
+            barBits.set(
+              s.barrier,
+              Math.max(barBits.get(s.barrier) || 0, chanBits.get(s.src) || 0)
+            );
+          }
+          break;
+        case "exec": {
+          let b = 0;
+          for (const inp of s.inputs) b = Math.max(b, chanBits.get(inp) || 0);
+          for (const out of s.outputs) chanBits.set(out, b);
+          break;
+        }
+        case "spawn": {
+          let inMax = 0;
+          for (const inp of s.inputs) inMax = Math.max(inMax, chanBits.get(inp) || 0);
+          if (s.target === proc.name) {
+            totalSelfCalls += 1;
+            seqCalls += 1;
+            if (!s.after && !s.token) unfoldableSelfCalls += 1;
+            selfCallBits.push(inMax);
+          }
+          for (const out of s.outputs) chanBits.set(out, inMax);
+          break;
+        }
+        case "switch": {
+          let maxArm = 0;
+          for (const a of s.arms) {
+            maxArm = Math.max(
+              maxArm,
+              walk(a.body, new Map(chanBits), new Map(barBits), new Map(types))
+            );
+          }
+          if (s.defaultBody) {
+            maxArm = Math.max(
+              maxArm,
+              walk(s.defaultBody, new Map(chanBits), new Map(barBits), new Map(types))
+            );
+          }
+          seqCalls += maxArm;
+          break;
+        }
+        case "spec": {
+          let maxBr = 0;
+          for (const br of s.branches) {
+            maxBr = Math.max(
+              maxBr,
+              walk(br.body, new Map(chanBits), new Map(barBits), new Map(types))
+            );
+          }
+          seqCalls += maxBr;
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    return seqCalls;
+  };
+
+  const maxSelfCallsPerPath = walk(proc.body, initChanBits, new Map(), initTypes);
+  return {
+    isSelfRec: totalSelfCalls > 0,
+    minBits: selfCallBits.length > 0 ? Math.min(...selfCallBits) : Infinity,
+    totalSelfCalls,
+    unfoldableSelfCalls,
+    maxSelfCallsPerPath
+  };
+}
+
+/**
+ * Bounded recursion unfolding for non-fusible short-bit self-recursive procs.
+ *
+ * Runs AFTER `fuseKernels` + `synthesizeTables` + `inlinePostFusionWrappers`
+ * so table-eligible loops are already compiled to verified `chunk_table` /
+ * `stack_table` kernels. Remaining linear self-recursive procs whose minimum
+ * tag-bit consumption per recursive call is below `minBitsThreshold` (default 4)
+ * are unfolded iteratively up to `ceil(minBitsThreshold / minBits) - 1` rounds,
+ * running `deforestModule` on the unfolded proc after each round to collapse
+ * newly exposed `mux -> demux`, known-tag `switch`, and `match/wrap` chains.
+ */
+export function unfoldShortBitRecProcs(
+  monoMod,
+  {
+    minBitsThreshold = 4,
+    maxBaseStmts = 120,
+    maxProcStmts = 450,
+    maxRounds = 3,
+    maxUnfoldCallsPerRound = 6
+  } = {}
+) {
+  let cur = cloneAst(monoMod);
+  const resolvePlist = makeSchemaResolver(cur);
+  const totalProcs = computeTotalProcs(cur, resolvePlist);
+  const seqBox = { seq: 50000 };
+  const freshBox = { seq: 500000 };
+
+  let unfoldedProcs = 0;
+  let unfoldRounds = 0;
+  let unfoldedCalls = 0;
+  const unfolded = [];
+  const deforestStats = {
+    splicesEliminated: 0,
+    muxDemuxEliminated: 0,
+    wrapFolds: 0,
+    trivialDrainsEliminated: 0,
+    teeMatchFactors: 0,
+    teeDemuxCollapses: 0,
+    knownSwitchFolds: 0,
+    knownMatchWrapFolds: 0
+  };
+  const mergeDeforest = (s) => {
+    for (const k of Object.keys(deforestStats)) deforestStats[k] += s[k] || 0;
+  };
+
+  const countUnfoldableSelfCalls = (stmts, target) => {
+    let n = 0;
+    for (const s of stmts || []) {
+      if (s.op === "spawn" && s.target === target && !s.after && !s.token) {
+        n += 1;
+      } else if (s.op === "switch") {
+        for (const a of s.arms) n += countUnfoldableSelfCalls(a.body, target);
+        if (s.defaultBody) n += countUnfoldableSelfCalls(s.defaultBody, target);
+      } else if (s.op === "spec") {
+        for (const br of s.branches) n += countUnfoldableSelfCalls(br.body, target);
+      }
+    }
+    return n;
+  };
+
+  const substituteSelfCalls = (stmts, origProc) => {
+    const out = [];
+    let count = 0;
+    for (const s of stmts || []) {
+      if (s.op === "spawn" && s.target === origProc.name && !s.after && !s.token) {
+        const seq = seqBox.seq++;
+        const { chanSet, barSet, tokSet } = collectLocalDeclsDeep(origProc.body);
+        const chanMap = new Map();
+        const barMap = new Map();
+        const tokMap = new Map();
+        for (let i = 0; i < origProc.inputs.length; i++) {
+          chanMap.set(origProc.inputs[i].name, s.inputs[i]);
+        }
+        for (let i = 0; i < origProc.outputs.length; i++) {
+          chanMap.set(origProc.outputs[i].name, s.outputs[i]);
+        }
+        let idx = 0;
+        for (const c of chanSet) chanMap.set(c, `%uf${seq}_${idx++}`);
+        for (const b of barSet) barMap.set(b, `%ufb${seq}_${idx++}`);
+        for (const t of tokSet) tokMap.set(t, `%uft${seq}_${idx++}`);
+        const inlined = renameStmtRefs(cloneAst(origProc.body), chanMap, barMap, tokMap);
+        out.push(...inlined);
+        count += 1;
+        continue;
+      }
+      if (s.op === "switch") {
+        const arms = s.arms.map((a) => {
+          const r = substituteSelfCalls(a.body, origProc);
+          count += r.count;
+          return { ...a, body: r.stmts };
+        });
+        let defaultBody = null;
+        if (s.defaultBody) {
+          const r = substituteSelfCalls(s.defaultBody, origProc);
+          count += r.count;
+          defaultBody = r.stmts;
+        }
+        out.push({ ...s, arms, defaultBody });
+      } else if (s.op === "spec") {
+        const branches = s.branches.map((br) => {
+          const r = substituteSelfCalls(br.body, origProc);
+          count += r.count;
+          return { ...br, body: r.stmts };
+        });
+        out.push({ ...s, branches });
+      } else {
+        out.push(s);
+      }
+    }
+    return { stmts: out, count };
+  };
+
+  for (let pIdx = 0; pIdx < (cur.procs || []).length; pIdx++) {
+    const proc = cur.procs[pIdx];
+    if (hasSpecOp(proc.body)) continue;
+    const info = computeProcMinBitConsumption(proc, resolvePlist);
+    if (!info.isSelfRec || info.unfoldableSelfCalls === 0) continue;
+    if (info.maxSelfCallsPerPath > 1) continue;
+    if (info.minBits < 1 || info.minBits >= minBitsThreshold) continue;
+    const baseStmts = countStmts(proc.body);
+    if (baseStmts > maxBaseStmts) continue;
+
+    const targetRounds = Math.min(maxRounds, Math.ceil(minBitsThreshold / info.minBits) - 1);
+    if (targetRounds <= 0) continue;
+
+    const origProc = cloneAst(proc);
+    const targetSet = new Set([origProc.name]);
+    let curProc = proc;
+    let roundsDone = 0;
+
+    for (let round = 0; round < targetRounds; round++) {
+      const uCalls = countUnfoldableSelfCalls(curProc.body, origProc.name);
+      if (uCalls === 0 || uCalls > maxUnfoldCallsPerRound) break;
+      const curStmts = countStmts(curProc.body);
+      if (curStmts + uCalls * (baseStmts - 1) > maxProcStmts) break;
+
+      const sub = substituteSelfCalls(curProc.body, origProc);
+      if (sub.count === 0) break;
+      curProc = { ...curProc, body: sub.stmts };
+      cur.procs[pIdx] = curProc;
+
+      // Immediately deforest this proc so exposed mux->demux / known-tag switches collapse
+      const d = deforestModule(cur, resolvePlist, totalProcs, freshBox, targetSet);
+      cur = d.module;
+      mergeDeforest(d.stats);
+      curProc = cur.procs[pIdx];
+
+      roundsDone += 1;
+      unfoldRounds += 1;
+      unfoldedCalls += sub.count;
+    }
+
+    if (roundsDone > 0) {
+      unfoldedProcs += 1;
+      unfolded.push({
+        name: origProc.name,
+        minBits: info.minBits,
+        rounds: roundsDone,
+        beforeStmts: baseStmts,
+        afterStmts: countStmts(curProc.body)
+      });
+    }
+  }
+
+  return {
+    module: cur,
+    stats: {
+      unfoldedProcs,
+      unfoldRounds,
+      unfoldedCalls,
+      unfolded,
+      deforest: deforestStats
     }
   };
 }

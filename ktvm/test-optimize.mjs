@@ -526,6 +526,73 @@ test("simplifyProcs: product-demux hoisting keeps poly.split_by strictly O(L) li
   );
 });
 
+test("unfoldShortBitRecProcs & knownTag match/wrap peephole reduce spawns and steps with bit-exact parity", () => {
+  // 1. poly.reverse: 1-bit linear recursion (@rev_append) unfolds 3 rounds (4x unrolled)
+  const polyDep = loadLibrary(compileLibrary(readSrc("lib/integer.k"), { source: "lib/integer.k" }));
+  const polyRaw = loadLibrary(compileLibrary(readSrc("Examples/poly.k"), {
+    source: "Examples/poly.k",
+    libraries: [polyDep],
+    use: ["int[] nat int pos? neg? zero? gt? inc dec"]
+  }));
+  const polyLib = {
+    format: "k-object",
+    codes: { ...polyDep.codes, ...polyRaw.codes },
+    rels: { ...polyDep.rels, ...polyRaw.rels },
+    relAlias: { ...polyRaw.relAlias },
+    meta: { ...polyDep.meta, ...polyRaw.meta }
+  };
+  codes.load(polyLib.codes);
+  const listPat = patternFromFilter(`
+    ?<
+      {} nil,
+      {
+        < <bits 0, bits 1, {} _>=bits "+", bits "-" > car,
+        list cdr
+      } cons
+    > = list
+  `);
+  let listVal = Value.variant("nil", UNIT);
+  for (let i = 200; i >= 1; i--) {
+    listVal = Value.variant("cons", Value.product({ car: parseIntVal(String(i)), cdr: listVal }));
+  }
+  const revWire = encodeToWire(listVal, listPat);
+  const revComp = compileKIRToKTVM(polyLib, "reverse", listPat);
+  const revNoUf = optimizeKTVM(revComp.module, { unfold: false });
+  const revUf = optimizeKTVM(revComp.module, { unfold: true });
+  assert.ok(revUf.stats.unfold.unfoldedProcs >= 1, "expected @rev_append to unfold");
+  assert.ok(revUf.stats.unfold.unfoldRounds >= 3, `expected >= 3 unfold rounds, got ${revUf.stats.unfold.unfoldRounds}`);
+  const r0 = executeKTVMWire(revNoUf.module, revWire, { entry: revComp.entry, validate: false });
+  const r1 = executeKTVMWire(revUf.module, revWire, { entry: revComp.entry, validate: false });
+  assert.equal(r1.status, "OK");
+  assert.equal(Buffer.compare(Buffer.from(r0.wire), Buffer.from(r1.wire)), 0, "unfolded reverse wire mismatch");
+  assert.ok(
+    r1.telemetry.steps < r0.telemetry.steps * 0.88,
+    `expected >=12% step reduction on reverse (noUf=${r0.telemetry.steps}, uf=${r1.telemetry.steps})`
+  );
+
+  // 2. integer.times: known-tag match/wrap peephole + bounded unfolding on @lsb_mul_small
+  codes.load(integerLib.codes);
+  const timesPat = relationPatternPropertyList(integerLib.rels[integerLib.relAlias.times], 0);
+  const tComp = compileKIRToKTVM(integerLib, "times", timesPat);
+  const tNoUf = optimizeKTVM(tComp.module, { unfold: false });
+  const tUf = optimizeKTVM(tComp.module, { unfold: true });
+  assert.ok(tUf.stats.simplify.knownMatchWrapFolds > 0, "expected knownMatchWrapFolds > 0 on integer.times");
+  assert.ok(tUf.stats.unfold.unfoldedProcs >= 1, "expected unfoldedProcs >= 1 on integer.times");
+  const mulVal = Value.product({
+    x: parseIntVal(String((1n << 127n) - 1234567n)),
+    y: parseIntVal(String((1n << 127n) - 7654321n))
+  });
+  const mulWire = encodeToWire(mulVal, timesPat);
+  const m0 = executeKTVMWire(tNoUf.module, mulWire, { entry: tComp.entry, validate: false });
+  const m1 = executeKTVMWire(tUf.module, mulWire, { entry: tComp.entry, validate: false });
+  assert.equal(m1.status, "OK");
+  assert.equal(Buffer.compare(Buffer.from(m0.wire), Buffer.from(m1.wire)), 0, "unfolded times wire mismatch");
+  assert.ok(
+    m1.telemetry.steps < m0.telemetry.steps,
+    `expected strictly fewer steps with unfolding (noUf=${m0.telemetry.steps}, uf=${m1.telemetry.steps})`
+  );
+});
+
 // --- Summary ---
 console.log(`\nMilestone 3 Optimizer Results: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

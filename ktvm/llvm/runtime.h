@@ -201,6 +201,7 @@ typedef struct {
   int32_t len;
   int32_t done;
   int32_t *stk; /* 1 int/frame for skip/copy, 2 ints/frame for coerce */
+  int32_t inline_stk[24];
 } KtvmDpda;
 
 typedef struct {
@@ -281,6 +282,7 @@ struct KtvmNode {
   void *p0;
   void *p1;
   void *p2;
+  KtvmChan *inline_chans[4];
 };
 
 typedef struct {
@@ -310,6 +312,15 @@ typedef struct KtvmArenaBlock {
   uint8_t data[];
 } KtvmArenaBlock;
 
+typedef struct {
+  int16_t fixed_bits; /* >=0 if unconditionally valid fixed-width <=64b, else -1 */
+  uint8_t is_loop;    /* 1 if closed-union with <=4 edges, each self-loop+fixed or leaf+fixed */
+  uint8_t loop_w;
+  uint8_t num_edges;
+  uint8_t edge_kind[4]; /* 0 = self-loop, 1 = terminate */
+  int16_t edge_skip[4]; /* extra fixed bits after tag */
+} KtvmSchemaFast;
+
 struct KtvmRuntime {
   KtvmArenaBlock *arena_head;
   KtvmArenaBlock *arena_cur;
@@ -318,6 +329,8 @@ struct KtvmRuntime {
   KtvmNode *dead_nodes;
   KtvmChan *dead_chans;
   KtvmScope *dead_scopes;
+  int32_t dead_pending;
+  KtvmSchemaFast *schema_fast;
 
   int32_t error_code;
   KtvmChan *need_pull;
@@ -371,6 +384,96 @@ static KtvmArenaBlock *ktvm_arena_new_block(size_t cap) {
   return b;
 }
 
+static void ktvm_compute_schema_fast(KtvmRuntime *rt) {
+  int32_t n = KTVM_NUM_SCHEMA_NODES;
+  if (n <= 0) { rt->schema_fast = NULL; return; }
+  KtvmSchemaFast *sf = (KtvmSchemaFast *)calloc((size_t)n, sizeof(KtvmSchemaFast));
+  if (!sf) { rt->schema_fast = NULL; return; }
+  for (int32_t i = 0; i < n; i++) sf[i].fixed_bits = -1;
+  int changed = 1;
+  while (changed) {
+    changed = 0;
+    for (int32_t i = 0; i < n; i++) {
+      if (sf[i].fixed_bits >= 0) continue;
+      const KtvmSchemaNode *sn = &KTVM_SCHEMA_NODES[i];
+      const KtvmSchemaEdge *ep = &KTVM_SCHEMA_EDGES[sn->edges_off];
+      if (sn->kind == 0) {
+        int32_t sum = 0;
+        int ok = 1;
+        for (int32_t j = 0; j < sn->num_edges; j++) {
+          int32_t cf = sf[ep[j].target_id].fixed_bits;
+          if (cf < 0 || sum + cf > 64) { ok = 0; break; }
+          sum += cf;
+        }
+        if (ok) { sf[i].fixed_bits = (int16_t)sum; changed = 1; }
+      } else if (sn->num_edges > 0 && sn->width <= 16 && sn->num_edges == (1 << sn->width)) {
+        int32_t c0 = sf[ep[0].target_id].fixed_bits;
+        if (c0 >= 0 && sn->width + c0 <= 64) {
+          int ok = 1;
+          for (int32_t j = 1; j < sn->num_edges; j++) {
+            if (sf[ep[j].target_id].fixed_bits != c0) { ok = 0; break; }
+          }
+          if (ok) { sf[i].fixed_bits = (int16_t)(sn->width + c0); changed = 1; }
+        }
+      }
+    }
+  }
+  /* Detect tail-recursive self-looping union schemas (e.g. bits[], list[ascii], list[float64]) */
+  for (int32_t i = 0; i < n; i++) {
+    if (sf[i].fixed_bits >= 0) continue;
+    const KtvmSchemaNode *sn = &KTVM_SCHEMA_NODES[i];
+    if (sn->kind != 1 || sn->width <= 0 || sn->width > 16 || sn->num_edges <= 0 || sn->num_edges > 4) continue;
+    const KtvmSchemaEdge *ep = &KTVM_SCHEMA_EDGES[sn->edges_off];
+    int ok = 1, has_self = 0;
+    uint8_t ek[4] = {0, 0, 0, 0};
+    int16_t es[4] = {0, 0, 0, 0};
+    for (int32_t j = 0; j < sn->num_edges; j++) {
+      int32_t tid = ep[j].target_id;
+      if (sf[tid].fixed_bits >= 0 && sn->width + sf[tid].fixed_bits <= 64) {
+        ek[j] = 1;
+        es[j] = sf[tid].fixed_bits;
+      } else if (tid == i) {
+        ek[j] = 0;
+        es[j] = 0;
+        has_self = 1;
+      } else {
+        const KtvmSchemaNode *tn = &KTVM_SCHEMA_NODES[tid];
+        if (tn->kind == 0 && tn->num_edges >= 1) {
+          const KtvmSchemaEdge *tep = &KTVM_SCHEMA_EDGES[tn->edges_off];
+          if (tep[tn->num_edges - 1].target_id == i) {
+            int32_t sum = 0;
+            for (int32_t k = 0; k < tn->num_edges - 1; k++) {
+              int32_t cf = sf[tep[k].target_id].fixed_bits;
+              if (cf < 0 || sn->width + sum + cf > 64) { ok = 0; break; }
+              sum += cf;
+            }
+            if (ok) {
+              ek[j] = 0;
+              es[j] = (int16_t)sum;
+              has_self = 1;
+            }
+          } else {
+            ok = 0;
+          }
+        } else {
+          ok = 0;
+        }
+      }
+      if (!ok) break;
+    }
+    if (ok && has_self) {
+      sf[i].is_loop = 1;
+      sf[i].loop_w = (uint8_t)sn->width;
+      sf[i].num_edges = (uint8_t)sn->num_edges;
+      for (int32_t j = 0; j < sn->num_edges; j++) {
+        sf[i].edge_kind[j] = ek[j];
+        sf[i].edge_skip[j] = es[j];
+      }
+    }
+  }
+  rt->schema_fast = sf;
+}
+
 static void ktvm_init(KtvmRuntime *rt) {
   memset(rt, 0, sizeof(*rt));
   rt->max_steps = 50000000;
@@ -383,6 +486,7 @@ static void ktvm_init(KtvmRuntime *rt) {
   rt->sc_cap = 256;
   rt->sc_stk = (KtvmScope **)malloc((size_t)rt->sc_cap * sizeof(KtvmScope *));
   rt->sc_ord = (KtvmScope **)malloc((size_t)rt->sc_cap * sizeof(KtvmScope *));
+  ktvm_compute_schema_fast(rt);
 }
 
 static void ktvm_destroy(KtvmRuntime *rt) {
@@ -395,6 +499,7 @@ static void ktvm_destroy(KtvmRuntime *rt) {
   free(rt->dstack);
   free(rt->sc_stk);
   free(rt->sc_ord);
+  free(rt->schema_fast);
   for (int i = 0; i < rt->hdr_cache_len; i++) free(rt->hdr_cache[i].bytes);
 }
 
@@ -414,6 +519,7 @@ static void ktvm_reset(KtvmRuntime *rt) {
   rt->dead_nodes = NULL;
   rt->dead_chans = NULL;
   rt->dead_scopes = NULL;
+  rt->dead_pending = 0;
   rt->error_code = 0;
   rt->need_pull = NULL;
   rt->need_step_node = NULL;
@@ -432,7 +538,7 @@ static void ktvm_reset(KtvmRuntime *rt) {
   rt->dstack_len = 0;
 }
 
-static inline void *ktvm_alloc(KtvmRuntime *rt, size_t bytes) {
+static inline void *ktvm_alloc_raw(KtvmRuntime *rt, size_t bytes) {
   int32_t b;
   size_t payload_sz;
   if (bytes <= 16u) {
@@ -448,11 +554,10 @@ static inline void *ktvm_alloc(KtvmRuntime *rt, size_t bytes) {
 
   if (b >= 0) {
     void *ptr = rt->slab_fl[b];
-    if (ptr) {
+    if (__builtin_expect(ptr != NULL, 1)) {
       rt->slab_fl[b] = *(void **)ptr;
       KtvmSlabHdr *hdr = ((KtvmSlabHdr *)ptr) - 1;
       hdr->live = 1;
-      if (bytes > 0) memset(ptr, 0, bytes);
       return ptr;
     }
   }
@@ -477,8 +582,12 @@ static inline void *ktvm_alloc(KtvmRuntime *rt, size_t bytes) {
   hdr->bucket = b;
   hdr->live = 1;
   hdr->_pad = 0;
-  void *ptr = (void *)(hdr + 1);
-  if (bytes > 0) memset(ptr, 0, bytes);
+  return (void *)(hdr + 1);
+}
+
+static inline void *ktvm_alloc(KtvmRuntime *rt, size_t bytes) {
+  void *ptr = ktvm_alloc_raw(rt, bytes);
+  if (ptr && bytes > 0) memset(ptr, 0, bytes);
   return ptr;
 }
 
@@ -543,6 +652,7 @@ static inline void ktvm_try_queue_chan(KtvmRuntime *rt, KtvmChan *ch) {
     ch->status = CHAN_QUEUED;
     ch->scope_next = rt->dead_chans;
     rt->dead_chans = ch;
+    rt->dead_pending++;
   }
 }
 
@@ -553,7 +663,7 @@ static inline void ktvm_chan_pin(KtvmChan *ch) {
 static inline void ktvm_chan_unpin(KtvmRuntime *rt, KtvmChan *ch) {
   if (!ch) return;
   ch->pin_count--;
-  if (ch->pin_count <= 0 && ch->status == CHAN_RELEASED) ktvm_try_queue_chan(rt, ch);
+  if (__builtin_expect(ch->pin_count <= 0 && ch->status == CHAN_RELEASED, 0)) ktvm_try_queue_chan(rt, ch);
 }
 
 static inline void ktvm_scope_unlink_chan(KtvmChan *ch) {
@@ -568,21 +678,29 @@ static inline void ktvm_scope_unlink_chan(KtvmChan *ch) {
 }
 
 static inline KtvmChan *ktvm_chan_alloc(KtvmRuntime *rt, KtvmScope *sc, int32_t schema_id) {
-  KtvmChan *ch = (KtvmChan *)ktvm_alloc(rt, sizeof(KtvmChan));
-  if (!ch) return NULL;
+  KtvmChan *ch = (KtvmChan *)ktvm_alloc_raw(rt, sizeof(KtvmChan));
+  if (__builtin_expect(!ch, 0)) return NULL;
   ch->status = CHAN_OPEN;
   ch->prod_schema = schema_id;
   ch->cons_schema = schema_id;
   ch->aligned = 1;
+  ch->producer = NULL;
+  ch->consumer = NULL;
   ch->scope = sc;
+  ch->scope_prev = NULL;
+  ch->pin_count = 0;
   ch->buf = ch->inline_buf;
   ch->cap_words = 4;
+  ch->head = 0;
+  ch->len = 0;
   ktvm_quota_add_bytes(rt, 16);
   if (sc) {
     KtvmChan *old_first = sc->first_chan;
     ch->scope_next = old_first;
     if (old_first) old_first->scope_prev = ch;
     sc->first_chan = ch;
+  } else {
+    ch->scope_next = NULL;
   }
   return ch;
 }
@@ -917,13 +1035,13 @@ static inline uint32_t ktvm_bs_pop(KtvmBitStack *st, int32_t w) {
  * ========================================================================= */
 
 static KtvmDpda *ktvm_dpda_alloc(KtvmRuntime *rt, int32_t kind, int32_t s0, int32_t s1) {
-  KtvmDpda *d = (KtvmDpda *)ktvm_alloc(rt, sizeof(KtvmDpda));
+  KtvmDpda *d = (KtvmDpda *)ktvm_alloc_raw(rt, sizeof(KtvmDpda));
   if (!d) return NULL;
   d->kind = kind;
-  d->cap = 64;
+  d->cap = (kind == 2) ? 12 : 24;
   d->len = 1;
-  d->stk = (int32_t *)ktvm_alloc(rt, (size_t)d->cap * (kind == 2 ? 8u : 4u));
-  if (!d->stk) return NULL;
+  d->done = 0;
+  d->stk = d->inline_stk;
   if (kind == 2) {
     d->stk[0] = s0;
     d->stk[1] = s1;
@@ -935,33 +1053,39 @@ static KtvmDpda *ktvm_dpda_alloc(KtvmRuntime *rt, int32_t kind, int32_t s0, int3
 
 static inline void ktvm_dpda_free(KtvmRuntime *rt, KtvmDpda *d) {
   if (!d) return;
-  if (d->stk) ktvm_free(rt, d->stk);
+  if (d->stk && d->stk != d->inline_stk) ktvm_free(rt, d->stk);
   ktvm_free(rt, d);
 }
 
-static inline int ktvm_dpda_push1(KtvmRuntime *rt, KtvmDpda *d, int32_t sid) {
-  if (d->len >= d->cap) {
-    int32_t nc = d->cap << 1;
-    int32_t *ns = (int32_t *)ktvm_alloc(rt, (size_t)nc * 4u);
-    if (!ns) return 0;
-    memcpy(ns, d->stk, (size_t)d->len * 4u);
-    ktvm_free(rt, d->stk);
-    d->stk = ns;
-    d->cap = nc;
-  }
-  d->stk[d->len++] = sid;
+static int ktvm_dpda_grow1(KtvmRuntime *rt, KtvmDpda *d, int32_t min_cap) {
+  int32_t nc = d->cap << 1;
+  if (nc < 64) nc = 64;
+  while (nc < min_cap) nc <<= 1;
+  int32_t *ns = (int32_t *)ktvm_alloc_raw(rt, (size_t)nc * 4u);
+  if (!ns) return 0;
+  memcpy(ns, d->stk, (size_t)d->len * 4u);
+  if (d->stk != d->inline_stk) ktvm_free(rt, d->stk);
+  d->stk = ns;
+  d->cap = nc;
+  return 1;
+}
+
+static int ktvm_dpda_grow2(KtvmRuntime *rt, KtvmDpda *d, int32_t min_cap) {
+  int32_t nc = d->cap << 1;
+  if (nc < 32) nc = 32;
+  while (nc < min_cap) nc <<= 1;
+  int32_t *ns = (int32_t *)ktvm_alloc_raw(rt, (size_t)nc * 8u);
+  if (!ns) return 0;
+  memcpy(ns, d->stk, (size_t)d->len * 8u);
+  if (d->stk != d->inline_stk) ktvm_free(rt, d->stk);
+  d->stk = ns;
+  d->cap = nc;
   return 1;
 }
 
 static inline int ktvm_dpda_push2(KtvmRuntime *rt, KtvmDpda *d, int32_t s0, int32_t s1) {
-  if (d->len >= d->cap) {
-    int32_t nc = d->cap << 1;
-    int32_t *ns = (int32_t *)ktvm_alloc(rt, (size_t)nc * 8u);
-    if (!ns) return 0;
-    memcpy(ns, d->stk, (size_t)d->len * 8u);
-    ktvm_free(rt, d->stk);
-    d->stk = ns;
-    d->cap = nc;
+  if (__builtin_expect(d->len >= d->cap, 0)) {
+    if (!ktvm_dpda_grow2(rt, d, d->len + 1)) return 0;
   }
   int32_t i = d->len++;
   d->stk[i * 2] = s0;
@@ -971,31 +1095,141 @@ static inline int ktvm_dpda_push2(KtvmRuntime *rt, KtvmDpda *d, int32_t s0, int3
 
 /* Returns: 0 = DONE, 1 = NEED_BITS, 2 = FAILED */
 static int ktvm_dpda_step_skip_copy(KtvmRuntime *rt, KtvmChan *src, KtvmChan *dst, KtvmDpda *d) {
-  while (d->len > 0) {
-    int32_t sid = d->stk[d->len - 1];
+  const uint32_t *buf = src->buf;
+  uint32_t cap_w = (uint32_t)src->cap_words;
+  uint32_t bmask = cap_w ? ((cap_w << 5) - 1u) : 0u;
+  uint32_t wmask = cap_w ? (cap_w - 1u) : 0u;
+  uint32_t pos = (uint32_t)src->head;
+  int32_t total_avail = src->len;
+  int32_t consumed = 0;
+
+  int32_t *stk = d->stk;
+  int32_t dlen = d->len;
+  int32_t dcap = d->cap;
+  const KtvmSchemaFast *sfast = rt->schema_fast;
+  int res = 0;
+
+  while (dlen > 0) {
+    int32_t sid = stk[dlen - 1];
+    if (sfast) {
+      const KtvmSchemaFast *sf = &sfast[sid];
+      int32_t fb = sf->fixed_bits;
+      if (fb >= 0) {
+        if (fb == 0) { dlen--; continue; }
+        if (fb > total_avail) { res = 1; break; }
+        pos = (pos + (uint32_t)fb) & bmask;
+        total_avail -= fb;
+        consumed += fb;
+        dlen--;
+        continue;
+      }
+      if (sf->is_loop) {
+        int32_t lw = sf->loop_w;
+        uint32_t lmask = ktvm_mask32(lw);
+        uint32_t ned = sf->num_edges;
+        while (1) {
+          if (lw > total_avail) { res = 1; goto done; }
+          uint32_t wi = pos >> 5;
+          int32_t bo = (int32_t)(pos & 31u);
+          uint32_t ord;
+          if (__builtin_expect(bo + lw <= 32, 1)) {
+            ord = (buf[wi] >> (32 - bo - lw)) & lmask;
+          } else {
+            int32_t hi = 32 - bo;
+            int32_t lo = lw - hi;
+            uint32_t w1 = (wi + 1u) & wmask;
+            ord = ((buf[wi] & ktvm_mask32(hi)) << lo) | (buf[w1] >> (32 - lo));
+          }
+          if (__builtin_expect(ord >= ned, 0)) { res = 2; goto done; }
+          int32_t step_bits = lw + sf->edge_skip[ord];
+          if (step_bits > total_avail) { res = 1; goto done; }
+          pos = (pos + (uint32_t)step_bits) & bmask;
+          total_avail -= step_bits;
+          consumed += step_bits;
+          if (sf->edge_kind[ord]) {
+            dlen--;
+            break;
+          }
+        }
+        continue;
+      }
+    }
     const KtvmSchemaNode *sn = &KTVM_SCHEMA_NODES[sid];
     if (sn->kind == 0) {
-      d->len--;
-      const KtvmSchemaEdge *ep = &KTVM_SCHEMA_EDGES[sn->edges_off];
-      for (int32_t i = sn->num_edges - 1; i >= 0; i--) {
-        if (!ktvm_dpda_push1(rt, d, ep[i].target_id)) return 2;
+      dlen--;
+      int32_t ne = sn->num_edges;
+      if (ne > 0) {
+        if (__builtin_expect(dlen + ne > dcap, 0)) {
+          d->len = dlen;
+          if (!ktvm_dpda_grow1(rt, d, dlen + ne)) { res = 2; goto done; }
+          stk = d->stk;
+          dcap = d->cap;
+        }
+        const KtvmSchemaEdge *ep = &KTVM_SCHEMA_EDGES[sn->edges_off];
+        if (sfast) {
+          for (int32_t i = ne - 1; i >= 0; i--) {
+            int32_t tid = ep[i].target_id;
+            if (sfast[tid].fixed_bits != 0) stk[dlen++] = tid;
+          }
+        } else {
+          for (int32_t i = ne - 1; i >= 0; i--) {
+            stk[dlen++] = ep[i].target_id;
+          }
+        }
       }
     } else {
       int32_t w = sn->width;
-      if (w > 0 && src->len < w) return 1;
-      uint32_t ord = w > 0 ? ktvm_bd_peek_bits_at(src, 0, w) : 0u;
-      if ((int32_t)ord >= sn->num_edges) return 2;
+      uint32_t ord = 0u;
       if (w > 0) {
-        ktvm_bd_shift_bits(src, w);
-        if (dst) {
-          ktvm_bd_push_bits(rt, dst, ord, w);
-          if (rt->error_code) return 2;
+        if (w > total_avail) { res = 1; break; }
+        uint32_t wi = pos >> 5;
+        int32_t bo = (int32_t)(pos & 31u);
+        if (bo + w <= 32) {
+          ord = (buf[wi] >> (32 - bo - w)) & ktvm_mask32(w);
+        } else {
+          int32_t hi = 32 - bo;
+          int32_t lo = w - hi;
+          uint32_t w1 = (wi + 1u) & wmask;
+          ord = ((buf[wi] & ktvm_mask32(hi)) << lo) | (buf[w1] >> (32 - lo));
         }
+        if ((int32_t)ord >= sn->num_edges) { res = 2; break; }
+        pos = (pos + (uint32_t)w) & bmask;
+        total_avail -= w;
+        consumed += w;
+      } else if (sn->num_edges <= 0) {
+        res = 2; break;
       }
-      d->stk[d->len - 1] = KTVM_SCHEMA_EDGES[sn->edges_off + (int32_t)ord].target_id;
+      int32_t tid = KTVM_SCHEMA_EDGES[sn->edges_off + (int32_t)ord].target_id;
+      if (sfast && sfast[tid].fixed_bits == 0) {
+        dlen--;
+      } else {
+        stk[dlen - 1] = tid;
+      }
     }
   }
-  return 0;
+
+done:
+  d->len = dlen;
+  if (res != 2 && consumed > 0) {
+    if (dst) {
+      if (dst->len + consumed > (dst->cap_words << 5)) {
+        ktvm_bd_grow(rt, dst, dst->len + consumed);
+        if (rt->error_code) return 2;
+      }
+      int32_t rem = consumed;
+      while (rem > 0) {
+        int32_t c = rem > 30 ? 30 : rem;
+        uint32_t bits = ktvm_bd_shift_bits(src, c);
+        ktvm_bd_push_small(rt, dst, bits, c);
+        if (rt->error_code) return 2;
+        rem -= c;
+      }
+    } else {
+      src->head = (int32_t)pos;
+      src->len = total_avail;
+    }
+  }
+  return res;
 }
 
 static int ktvm_dpda_step_coerce(KtvmRuntime *rt, KtvmChan *src, KtvmChan *dst, KtvmDpda *d) {
@@ -1045,6 +1279,7 @@ static inline void ktvm_try_queue_node(KtvmRuntime *rt, KtvmNode *n) {
     n->retired = 2;
     n->scope_next = rt->dead_nodes;
     rt->dead_nodes = n;
+    rt->dead_pending++;
   }
 }
 
@@ -1091,20 +1326,34 @@ static inline void ktvm_bar_unlink_drain(KtvmNode *n) {
 }
 
 static inline KtvmScope *ktvm_scope_create(KtvmRuntime *rt, KtvmScope *parent) {
-  KtvmScope *sc = (KtvmScope *)ktvm_alloc(rt, sizeof(KtvmScope));
+  KtvmScope *sc = (KtvmScope *)ktvm_alloc_raw(rt, sizeof(KtvmScope));
   if (!sc) return NULL;
   sc->parent = parent;
+  sc->first_child = NULL;
+  sc->prev_sibling = NULL;
+  sc->first_node = NULL;
+  sc->first_chan = NULL;
+  sc->destroyed = 0;
   if (parent) {
     KtvmScope *old_first = parent->first_child;
     sc->next_sibling = old_first;
     if (old_first) old_first->prev_sibling = sc;
     parent->first_child = sc;
+  } else {
+    sc->next_sibling = NULL;
   }
   return sc;
 }
 
 static inline KtvmBarrier *ktvm_barrier_alloc(KtvmRuntime *rt) {
-  return (KtvmBarrier *)ktvm_alloc(rt, sizeof(KtvmBarrier));
+  KtvmBarrier *b = (KtvmBarrier *)ktvm_alloc_raw(rt, sizeof(KtvmBarrier));
+  if (!b) return NULL;
+  b->pending = 0;
+  b->failed = 0;
+  b->settled = 0;
+  b->refs = 0;
+  b->first_drain = NULL;
+  return b;
 }
 
 static inline void ktvm_barrier_add_drain(KtvmBarrier *bar, KtvmNode *n) {
@@ -1227,24 +1476,34 @@ static inline void ktvm_spec_free_active(KtvmRuntime *rt, KtvmSpecActive *ac) {
 
 static inline KtvmNode *ktvm_node_alloc(KtvmRuntime *rt, KtvmScope *sc, int32_t kind, int32_t in_cnt, int32_t out_cnt) {
   ktvm_quota_add_node(rt);
-  if (rt->error_code) return NULL;
-  KtvmNode *n = (KtvmNode *)ktvm_alloc(rt, sizeof(KtvmNode));
-  if (!n) return NULL;
+  if (__builtin_expect(rt->error_code != 0, 0)) return NULL;
+  KtvmNode *n = (KtvmNode *)ktvm_alloc_raw(rt, sizeof(KtvmNode));
+  if (__builtin_expect(!n, 0)) return NULL;
   n->kind = kind;
+  n->retired = 0;
+  n->pin_count = 0;
   n->scope = sc;
-  if (in_cnt > 0) {
-    n->ins = (KtvmChan **)ktvm_alloc(rt, (size_t)in_cnt * sizeof(KtvmChan *));
-    n->in_count = in_cnt;
-  }
-  if (out_cnt > 0) {
-    n->outs = (KtvmChan **)ktvm_alloc(rt, (size_t)out_cnt * sizeof(KtvmChan *));
-    n->out_count = out_cnt;
+  n->scope_prev = NULL;
+  n->bar_next = NULL;
+  n->bar_prev = NULL;
+  n->in_count = in_cnt;
+  n->out_count = out_cnt;
+  n->a0 = 0; n->a1 = 0; n->a2 = 0; n->a3 = 0;
+  n->p0 = NULL; n->p1 = NULL; n->p2 = NULL;
+  if (__builtin_expect(in_cnt + out_cnt <= 4, 1)) {
+    n->ins = in_cnt > 0 ? n->inline_chans : NULL;
+    n->outs = out_cnt > 0 ? (n->inline_chans + in_cnt) : NULL;
+  } else {
+    n->ins = in_cnt > 0 ? (KtvmChan **)ktvm_alloc_raw(rt, (size_t)in_cnt * sizeof(KtvmChan *)) : NULL;
+    n->outs = out_cnt > 0 ? (KtvmChan **)ktvm_alloc_raw(rt, (size_t)out_cnt * sizeof(KtvmChan *)) : NULL;
   }
   if (sc) {
     KtvmNode *old_first = sc->first_node;
     n->scope_next = old_first;
     if (old_first) old_first->scope_prev = n;
     sc->first_node = n;
+  } else {
+    n->scope_next = NULL;
   }
   return n;
 }
@@ -1265,11 +1524,11 @@ static inline void ktvm_node_set_out(KtvmNode *n, int32_t idx, KtvmChan *ch) {
   }
 }
 
-static void ktvm_retire_node(KtvmRuntime *rt, KtvmNode *n) {
-  if (!n || n->retired) return;
+static inline void ktvm_retire_node(KtvmRuntime *rt, KtvmNode *n) {
+  if (__builtin_expect(!n || n->retired, 0)) return;
   n->retired = 1;
   ktvm_quota_remove_node(rt);
-  if (n->kind == NK_KERNEL && n->p1) {
+  if (__builtin_expect(n->kind == NK_KERNEL && n->p1 != NULL, 0)) {
     KtvmKernelState *ks = (KtvmKernelState *)n->p1;
     for (int32_t i = 0; i < ks->num_stacks; i++) ktvm_bs_release(rt, ks->stacks[i]);
     for (int32_t i = 0; i < ks->num_outs; i++) {
@@ -1283,29 +1542,39 @@ static void ktvm_retire_node(KtvmRuntime *rt, KtvmNode *n) {
     KtvmChan *ch = n->ins[i];
     if (ch && ch->consumer == n) {
       ch->consumer = NULL;
-      ktvm_try_queue_chan(rt, ch);
+      if (__builtin_expect(ch->status == CHAN_RELEASED, 0)) ktvm_try_queue_chan(rt, ch);
     }
   }
   for (int32_t i = 0; i < n->out_count; i++) {
     KtvmChan *ch = n->outs[i];
     if (ch && ch->producer == n) {
       ch->producer = NULL;
-      ktvm_try_queue_chan(rt, ch);
+      if (__builtin_expect(ch->status == CHAN_RELEASED, 0)) ktvm_try_queue_chan(rt, ch);
     }
   }
   ktvm_scope_unlink_node(n);
-  if (n->kind == NK_DRAIN) ktvm_bar_unlink_drain(n);
+  if (__builtin_expect(n->kind == NK_DRAIN, 0)) ktvm_bar_unlink_drain(n);
   ktvm_try_queue_node(rt, n);
 }
 
-static void ktvm_free_node(KtvmRuntime *rt, KtvmNode *n) {
+static inline void ktvm_chan_unpin_direct(KtvmRuntime *rt, KtvmChan *ch) {
+  if (!ch) return;
+  ch->pin_count--;
+  if (__builtin_expect(ch->pin_count <= 0 && ch->status == CHAN_RELEASED && !ch->producer && !ch->consumer, 0)) {
+    ch->status = CHAN_QUEUED;
+    ktvm_free(rt, ch);
+  }
+}
+
+static inline void ktvm_free_node(KtvmRuntime *rt, KtvmNode *n) {
+  int heap_chans = (n->in_count + n->out_count > 4);
   if (n->ins) {
-    for (int32_t i = 0; i < n->in_count; i++) ktvm_chan_unpin(rt, n->ins[i]);
-    ktvm_free(rt, n->ins);
+    for (int32_t i = 0; i < n->in_count; i++) ktvm_chan_unpin_direct(rt, n->ins[i]);
+    if (heap_chans) ktvm_free(rt, n->ins);
   }
   if (n->outs) {
-    for (int32_t i = 0; i < n->out_count; i++) ktvm_chan_unpin(rt, n->outs[i]);
-    ktvm_free(rt, n->outs);
+    for (int32_t i = 0; i < n->out_count; i++) ktvm_chan_unpin_direct(rt, n->outs[i]);
+    if (heap_chans) ktvm_free(rt, n->outs);
   }
   switch (n->kind) {
     case NK_COERCE:
@@ -1374,6 +1643,7 @@ static void ktvm_free_node(KtvmRuntime *rt, KtvmNode *n) {
 }
 
 static void ktvm_flush_dead(KtvmRuntime *rt) {
+  rt->dead_pending = 0;
   while (rt->dead_nodes || rt->dead_chans || rt->dead_scopes) {
     while (rt->dead_nodes) {
       KtvmNode *n = rt->dead_nodes;
@@ -1394,6 +1664,7 @@ static void ktvm_flush_dead(KtvmRuntime *rt) {
       ktvm_free(rt, sc);
     }
   }
+  rt->dead_pending = 0;
 }
 
 static void ktvm_rebind_output(KtvmRuntime *rt, KtvmNode *prod, KtvmChan *old_ch, KtvmChan *new_ch) {
@@ -1468,6 +1739,34 @@ static void ktvm_splice(KtvmRuntime *rt, KtvmChan *src, KtvmChan *dst) {
   ktvm_bd_release(rt, src);
 }
 
+static inline void ktvm_eager_const_wrap(KtvmRuntime *rt, KtvmChan *dst, int32_t tag_id) {
+  if (__builtin_expect(rt->error_code != 0, 0)) return;
+  int32_t sid = dst->prod_schema;
+  const KtvmSchemaNode *sn = &KTVM_SCHEMA_NODES[sid];
+  int32_t ord = ktvm_schema_find_tag(sid, tag_id);
+  if (__builtin_expect(ord < 0, 0)) {
+    ktvm_bd_fail(dst);
+    return;
+  }
+  if (sn->width > 0) ktvm_bd_push_bits(rt, dst, (uint32_t)ord, sn->width);
+  dst->prod_schema = KTVM_SCHEMA_EDGES[sn->edges_off + ord].target_id;
+  ktvm_bd_close(dst);
+}
+
+static inline void ktvm_eager_wrap(KtvmRuntime *rt, KtvmChan *src, KtvmChan *dst, int32_t tag_id) {
+  if (__builtin_expect(rt->error_code != 0, 0)) return;
+  int32_t sid = dst->prod_schema;
+  const KtvmSchemaNode *sn = &KTVM_SCHEMA_NODES[sid];
+  int32_t ord = ktvm_schema_find_tag(sid, tag_id);
+  if (__builtin_expect(ord < 0, 0)) {
+    ktvm_bd_fail(dst);
+    ktvm_bd_release(rt, src);
+    return;
+  }
+  if (sn->width > 0) ktvm_bd_push_bits(rt, dst, (uint32_t)ord, sn->width);
+  ktvm_splice(rt, src, dst);
+}
+
 static void ktvm_scope_destroy(KtvmRuntime *rt, KtvmScope *root_sc) {
   if (!root_sc || root_sc->destroyed) return;
   int32_t stk_len = 0, ord_len = 0;
@@ -1519,6 +1818,7 @@ static void ktvm_scope_destroy(KtvmRuntime *rt, KtvmScope *root_sc) {
       ktvm_scope_unlink_child(sc);
       sc->next_sibling = rt->dead_scopes;
       rt->dead_scopes = sc;
+      rt->dead_pending++;
     }
   }
 }
@@ -1789,7 +2089,7 @@ static int ktvm_exec_chunk_table_step(
       return 3;
     }
     if (reg_idx >= 0) ks->regs[reg_idx] = e[1];
-    if (o0 && !tm->out_mode0 && o0->len >= 64) return 0;
+    if (o0 && !tm->out_mode0 && o0->len >= 256) return 0;
   }
   return 0;
 }
@@ -1843,7 +2143,7 @@ static int ktvm_exec_stack_table_step(
       return 3;
     }
     if (reg_idx >= 0) ks->regs[reg_idx] = e[1];
-    if (!tm->out_mode0 && o0->len >= 64) return 0;
+    if (!tm->out_mode0 && o0->len >= 256) return 0;
   }
   return 0;
 }
@@ -2633,7 +2933,7 @@ static void ktvm_drive_to_completion(KtvmRuntime *rt, KtvmChan *root_out) {
     ktvm_dstack_push(rt, 0, root_out);
 
     while (!rt->error_code && rt->dstack_len > 0) {
-      if (rt->dead_nodes || rt->dead_chans || rt->dead_scopes) {
+      if (__builtin_expect(rt->dead_pending >= 32, 0)) {
         ktvm_flush_dead(rt);
       }
 
@@ -2693,6 +2993,7 @@ static void ktvm_drive_to_completion(KtvmRuntime *rt, KtvmChan *root_out) {
     }
   }
   ktvm_dstack_clear(rt);
+  if (rt->dead_nodes || rt->dead_chans || rt->dead_scopes) ktvm_flush_dead(rt);
 }
 
 /* =========================================================================

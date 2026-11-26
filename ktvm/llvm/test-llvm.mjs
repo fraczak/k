@@ -409,6 +409,65 @@ try {
     assert.ok(mulRes.telemetry.peakNodes <= 400, `expected bounded Karatsuba nodes <= 400, got ${mulRes.telemetry.peakNodes}`);
     assert.ok(mulRes.telemetry.peakBytes <= 16384, `expected bounded Karatsuba buffers <= 16 KiB, got ${mulRes.telemetry.peakBytes}`);
   });
+
+  await test("Native fixed-width DPDA skip/copy & eager const/wrap/splice parity on 4,096-bit fanout and fixed-width products", async () => {
+    const fwSrc = `
+      ktvm 0.1 mono entry @main;
+      schema $bit = union { 0: unit, 1: unit };
+      schema $byte = product { b0: $bit, b1: $bit, b2: $bit, b3: $bit, b4: $bit, b5: $bit, b6: $bit, b7: $bit };
+      schema $bytes = union { cons: product { car: $byte, cdr: $bytes }, nil: unit };
+      schema $pair = product { a: $bytes, b: $bytes };
+      proc @main(%in: $bytes) -> (%out: $pair) {
+        chan %t0: $bytes; chan %t1: $bytes; chan %t2: $bytes;
+        tee %in -> (%t0, %t1, %t2);
+        barrier %bar;
+        drain %t2 : $bytes -> %bar;
+        chan %packed: $pair;
+        mux (a: %t0, b: %t1) -> %packed : $pair;
+        chan %p0: $pair; chan %p1: $pair;
+        tee %packed -> (%p0, %p1);
+        drain %p1 : $pair -> %bar;
+        chan %da: $bytes; chan %db: $bytes;
+        demux %p0 : $pair -> (a: %da, b: %db);
+        chan %res: $pair;
+        mux (a: %da, b: %db) -> %res : $pair;
+        gate %bar, %res -> %out;
+      }
+    `;
+    const fwExe = path.join(tmpDir, "dpda_fixed_width.exe");
+    compileKTVMToExecutable(parseModule(fwSrc), fwExe, { optimize: false });
+    const bytesPat = [
+      ["closed-union", [["cons", 1], ["nil", 4]]],
+      ["closed-product", [["car", 2], ["cdr", 0]]],
+      ["closed-product", [["b0", 3], ["b1", 3], ["b2", 3], ["b3", 3], ["b4", 3], ["b5", 3], ["b6", 3], ["b7", 3]]],
+      ["closed-union", [["0", 4], ["1", 4]]],
+      ["closed-product", []]
+    ];
+    const pairPat = [
+      ["closed-product", [["a", 1], ["b", 1]]],
+      ["closed-union", [["cons", 2], ["nil", 5]]],
+      ["closed-product", [["car", 3], ["cdr", 1]]],
+      ["closed-product", [["b0", 4], ["b1", 4], ["b2", 4], ["b3", 4], ["b4", 4], ["b5", 4], ["b6", 4], ["b7", 4]]],
+      ["closed-union", [["0", 5], ["1", 5]]],
+      ["closed-product", []]
+    ];
+    const mkByte = (n) => Value.product(
+      Object.fromEntries(Array.from({ length: 8 }, (_, b) => [`b${b}`, Value.variant(String((n >> b) & 1), UNIT)]))
+    );
+    let bs = Value.variant("nil", UNIT);
+    for (let i = 255; i >= 0; i--) {
+      bs = Value.variant("cons", Value.product({ car: mkByte(i), cdr: bs }));
+    }
+    const wire = encodeToWire(bs, bytesPat);
+    const res = executeKTVMExecutable(fwExe, wire, { telemetry: true });
+    assert.equal(res.status, "OK");
+    const expectedWire = encodeToWire(Value.product({ a: bs, b: bs }), pairPat);
+    assert.equal(
+      Buffer.compare(Buffer.from(res.wire), Buffer.from(expectedWire)),
+      0,
+      "Fixed-width DPDA skip/copy + demux/drain output wire mismatch"
+    );
+  });
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }

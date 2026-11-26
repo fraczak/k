@@ -558,9 +558,81 @@ export function compileKTVMToC(
       body.push(`  }`);
     };
 
-    for (const s of stmts || []) {
+    const stmtList = stmts || [];
+    const localChans = new Set();
+    for (const s of stmtList) {
+      if (s.op === "chan") localChans.add(s.name);
+    }
+
+    // Identify local `chan %u; const_unit -> %u; wrap |T %u -> %w` pairs where `%u`
+    // has no other reference in this block -> elide `%u` and emit `ktvm_eager_const_wrap`!
+    const refCounts = new Map();
+    const bumpRef = (c) => { if (c) refCounts.set(c, (refCounts.get(c) || 0) + 1); };
+    const countRefsDeep = (list) => {
+      for (const s of list || []) {
+        switch (s.op) {
+          case "drain": bumpRef(s.src); break;
+          case "gate": case "splice": case "coerce": case "wrap": case "match":
+            bumpRef(s.src); bumpRef(s.dst); break;
+          case "const_unit": bumpRef(s.dst); break;
+          case "tee": bumpRef(s.src); for (const d of s.dsts) bumpRef(d); break;
+          case "demux": bumpRef(s.src); for (const f of s.fields) bumpRef(f.name); break;
+          case "mux": for (const f of s.fields) bumpRef(f.name); bumpRef(s.dst); break;
+          case "spawn": case "exec":
+            for (const v of s.inputs) bumpRef(v);
+            for (const v of s.outputs) bumpRef(v);
+            break;
+          case "switch":
+            for (const v of s.inputs) bumpRef(v);
+            for (const a of s.arms) countRefsDeep(a.body);
+            if (s.defaultBody) countRefsDeep(s.defaultBody);
+            break;
+          case "spec":
+            for (const v of s.inputs) bumpRef(v);
+            for (const v of s.outputs) bumpRef(v);
+            for (const br of s.branches) countRefsDeep(br.body);
+            break;
+        }
+      }
+    };
+    countRefsDeep(stmtList);
+
+    const constUnitChans = new Set();
+    for (const s of stmtList) {
+      if (s.op === "const_unit" && localChans.has(s.dst) && refCounts.get(s.dst) === 2) {
+        constUnitChans.add(s.dst);
+      }
+    }
+    const elidedConstChans = new Set();
+    const elidedWrapIdx = new Set();
+    for (let i = 0; i < stmtList.length; i++) {
+      const s = stmtList[i];
+      if (s.op === "wrap" && constUnitChans.has(s.src)) {
+        elidedConstChans.add(s.src);
+        elidedWrapIdx.add(i);
+      }
+    }
+
+    // Track whether any `switch` appears after statement `i` (so eager splice/wrap
+    // never releases a channel before a later `switch` captures `chanLocal`).
+    const hasLaterSwitch = new Array(stmtList.length).fill(false);
+    let seenSw = false;
+    for (let i = stmtList.length - 1; i >= 0; i--) {
+      hasLaterSwitch[i] = seenSw;
+      if (stmtList[i].op === "switch") seenSw = true;
+    }
+
+    // Channels already produced before the current statement (outer inputs + prior outputs)
+    const producedSet = new Set();
+    for (const slot of envSlots) {
+      if (slot.kind === "chan" && !localChans.has(slot.name)) producedSet.add(slot.name);
+    }
+
+    for (let si = 0; si < stmtList.length; si++) {
+      const s = stmtList[si];
       switch (s.op) {
         case "chan": {
+          if (elidedConstChans.has(s.name)) break;
           const lv = `v_${lvSeq++}`;
           const sid = internSchemaExpr(s.schema);
           decls.push(`  KtvmChan *${lv} = ktvm_chan_alloc(rt, sc, ${sid});`);
@@ -574,37 +646,56 @@ export function compileKTVMToC(
           break;
         }
         case "const_unit":
-          emitNode("NK_CONST_UNIT", [], [s.dst], []);
+          if (elidedConstChans.has(s.dst)) break;
+          body.push(`  ktvm_bd_close(${chanLocal.get(s.dst)});`);
+          producedSet.add(s.dst);
           break;
         case "splice":
-          emitNode("NK_SPLICE", [s.src], [s.dst], []);
+          if (producedSet.has(s.src) && !hasLaterSwitch[si]) {
+            body.push(`  ktvm_splice(rt, ${chanLocal.get(s.src)}, ${chanLocal.get(s.dst)});`);
+          } else {
+            emitNode("NK_SPLICE", [s.src], [s.dst], []);
+          }
+          producedSet.add(s.dst);
           break;
         case "coerce": {
           const sSid = internSchemaExpr(s.srcSchema);
           const dSid = internSchemaExpr(s.dstSchema);
           emitNode("NK_COERCE", [s.src], [s.dst], [`$N->a0 = ${sSid}; $N->a1 = ${dSid};`]);
+          producedSet.add(s.dst);
           break;
         }
         case "wrap":
-          emitNode("NK_WRAP", [s.src], [s.dst], [`$N->a0 = ${internTag(s.tag)};`]);
+          if (elidedWrapIdx.has(si)) {
+            body.push(`  ktvm_eager_const_wrap(rt, ${chanLocal.get(s.dst)}, ${internTag(s.tag)});`);
+          } else if (producedSet.has(s.src) && !hasLaterSwitch[si]) {
+            body.push(`  ktvm_eager_wrap(rt, ${chanLocal.get(s.src)}, ${chanLocal.get(s.dst)}, ${internTag(s.tag)});`);
+          } else {
+            emitNode("NK_WRAP", [s.src], [s.dst], [`$N->a0 = ${internTag(s.tag)};`]);
+          }
+          producedSet.add(s.dst);
           break;
         case "match":
           emitNode("NK_MATCH", [s.src], [s.dst], [`$N->a0 = ${internTag(s.tag)};`]);
+          producedSet.add(s.dst);
           break;
         case "demux": {
           const pSid = internSchemaExpr(s.schema);
           const sorted = [...s.fields].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
           emitNode("NK_DEMUX", [s.src], sorted.map((f) => f.name), [`$N->a0 = ${pSid};`]);
+          for (const f of sorted) producedSet.add(f.name);
           break;
         }
         case "mux": {
           const pSid = internSchemaExpr(s.schema);
           const sorted = [...s.fields].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
           emitNode("NK_MUX", sorted.map((f) => f.name), [s.dst], [`$N->a0 = ${pSid};`]);
+          producedSet.add(s.dst);
           break;
         }
         case "tee":
           emitNode("NK_TEE", [s.src], s.dsts, []);
+          for (const d of s.dsts) producedSet.add(d);
           break;
         case "drain": {
           const sid = internSchemaExpr(s.schema);
@@ -615,6 +706,7 @@ export function compileKTVMToC(
         }
         case "gate":
           emitNode("NK_GATE", [s.src], [s.dst], [`ktvm_barrier_add_gate(${barLocal.get(s.barrier)}, $N);`]);
+          producedSet.add(s.dst);
           break;
         case "spawn": {
           const targetFn = procFnName.get(s.target);
@@ -629,6 +721,7 @@ export function compileKTVMToC(
             extra.push(`$N->p2 = ${tv};`);
           }
           emitNode("NK_SPAWN", s.inputs, s.outputs, extra);
+          for (const o of s.outputs) producedSet.add(o);
           break;
         }
         case "exec": {
@@ -642,18 +735,60 @@ export function compileKTVMToC(
           for (let i = 0; i < s.outputs.length; i++) body.push(`      ktvm_node_set_out(${nv}, ${i}, ${chanLocal.get(s.outputs[i])});`);
           body.push(`    }`);
           body.push(`  }`);
+          for (const o of s.outputs) producedSet.add(o);
           break;
         }
         case "switch": {
           const firstBody = s.arms.length > 0 ? s.arms[0].body : (s.defaultBody || []);
           const { cons: swCons, prod: swProd } = collectSwitchOuterIO(firstBody, chanLocal);
+          for (const o of swProd) producedSet.add(o);
           const remIns = [...swCons];
           const remOuts = [...swProd];
 
+          // Capture ONLY channels, barriers, and tokens actually referenced in switch arms/defaultBody
+          const swUsedChans = new Set();
+          const swUsedBars = new Set();
+          const swUsedToks = new Set();
+          const collectSwUsed = (list) => {
+            for (const st of list || []) {
+              switch (st.op) {
+                case "drain": swUsedChans.add(st.src); if (st.barrier) swUsedBars.add(st.barrier); break;
+                case "gate": swUsedBars.add(st.barrier); swUsedChans.add(st.src); swUsedChans.add(st.dst); break;
+                case "splice": case "coerce": case "wrap": case "match":
+                  swUsedChans.add(st.src); swUsedChans.add(st.dst); break;
+                case "const_unit": swUsedChans.add(st.dst); break;
+                case "tee": swUsedChans.add(st.src); for (const d of st.dsts) swUsedChans.add(d); break;
+                case "demux": swUsedChans.add(st.src); for (const f of st.fields) swUsedChans.add(f.name); break;
+                case "mux": for (const f of st.fields) swUsedChans.add(f.name); swUsedChans.add(st.dst); break;
+                case "spawn":
+                  for (const v of st.inputs) swUsedChans.add(v);
+                  for (const v of st.outputs) swUsedChans.add(v);
+                  if (st.after) swUsedToks.add(st.after);
+                  break;
+                case "exec":
+                  for (const v of st.inputs) swUsedChans.add(v);
+                  for (const v of st.outputs) swUsedChans.add(v);
+                  break;
+                case "switch":
+                  for (const v of st.inputs) swUsedChans.add(v);
+                  for (const a of st.arms) collectSwUsed(a.body);
+                  if (st.defaultBody) collectSwUsed(st.defaultBody);
+                  break;
+                case "spec":
+                  for (const v of st.inputs) swUsedChans.add(v);
+                  for (const v of st.outputs) swUsedChans.add(v);
+                  for (const br of st.branches) collectSwUsed(br.body);
+                  break;
+              }
+            }
+          };
+          for (const a of s.arms) collectSwUsed(a.body);
+          if (s.defaultBody) collectSwUsed(s.defaultBody);
+
           const capSlots = [];
-          for (const [nm] of chanLocal.entries()) capSlots.push({ kind: "chan", name: nm });
-          for (const [nm] of barLocal.entries()) capSlots.push({ kind: "barrier", name: nm });
-          for (const [nm] of tokLocal.entries()) capSlots.push({ kind: "token", name: nm });
+          for (const [nm] of chanLocal.entries()) if (swUsedChans.has(nm)) capSlots.push({ kind: "chan", name: nm });
+          for (const [nm] of barLocal.entries()) if (swUsedBars.has(nm)) capSlots.push({ kind: "barrier", name: nm });
+          for (const [nm] of tokLocal.entries()) if (swUsedToks.has(nm)) capSlots.push({ kind: "token", name: nm });
 
           let testedMask = 0;
           for (const arm of s.arms) {
@@ -692,10 +827,10 @@ export function compileKTVMToC(
           const extra = [
             `$N->a0 = ${capSlots.length};`,
             `$N->p0 = (void *)&${descVar};`,
-            `KtvmChan **insp = (KtvmChan **)ktvm_alloc(rt, ${Math.max(1, s.inputs.length)} * sizeof(KtvmChan *));`,
+            `KtvmChan **insp = (KtvmChan **)ktvm_alloc_raw(rt, ${Math.max(1, s.inputs.length)} * sizeof(KtvmChan *));`,
             ...s.inputs.map((inp, j) => `insp[${j}] = ${chanLocal.get(inp)};`),
             `$N->p1 = insp;`,
-            `void **cap = (void **)ktvm_alloc(rt, ${Math.max(1, capSlots.length)} * sizeof(void *));`,
+            `void **cap = (void **)ktvm_alloc_raw(rt, ${Math.max(1, capSlots.length)} * sizeof(void *));`,
             ...capSlots.map((sl, j) => {
               const lv = sl.kind === "chan" ? chanLocal.get(sl.name)
                 : (sl.kind === "barrier" ? barLocal.get(sl.name) : tokLocal.get(sl.name));
@@ -708,6 +843,7 @@ export function compileKTVMToC(
           break;
         }
         case "spec": {
+          for (const o of s.outputs) producedSet.add(o);
           const brSlots = [
             ...s.inputs.map((nm) => ({ kind: "chan", name: nm })),
             ...s.outputs.map((nm) => ({ kind: "chan", name: nm }))

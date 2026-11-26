@@ -13,7 +13,12 @@
  */
 
 import { validateModule } from "../validator.mjs";
-import { simplifyProcs, inlinePostFusionWrappers } from "./simplify-procs.mjs";
+import {
+  simplifyProcs,
+  inlinePostFusionWrappers,
+  unfoldShortBitRecProcs,
+  computeProcMinBitConsumption
+} from "./simplify-procs.mjs";
 import { fuseKernels } from "./fuse-kernel.mjs";
 import { synthesizeTables } from "./synthesize-tables.mjs";
 import {
@@ -29,6 +34,8 @@ export {
   budgetClassForBytes,
   allocateTableBudgets,
   simplifyProcs,
+  unfoldShortBitRecProcs,
+  computeProcMinBitConsumption,
   fuseKernels,
   synthesizeTables
 };
@@ -43,6 +50,7 @@ export function optimizeKTVM(
     simplify = true,
     fuse = true,
     tables = true,
+    unfold = true,
     budgetBytes = DEFAULT_L1_BUDGET_BYTES,
     verifyTables = true,
     validate = true,
@@ -84,6 +92,13 @@ export function optimizeKTVM(
     postFusionStats = pf.stats;
   }
 
+  let unfoldStats = null;
+  if (simplify && unfold) {
+    const uf = unfoldShortBitRecProcs(cur);
+    cur = uf.module;
+    unfoldStats = uf.stats;
+  }
+
   if (validate) {
     validateModule(cur, { verifyTables });
   }
@@ -94,7 +109,8 @@ export function optimizeKTVM(
       simplify: simplifyStats,
       fuse: fuseStats,
       tables: tableStats,
-      postFusion: postFusionStats
+      postFusion: postFusionStats,
+      unfold: unfoldStats
     }
   };
 }
